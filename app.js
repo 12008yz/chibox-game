@@ -3,15 +3,32 @@ var express = require('express');
 var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
+var { Sequelize } = require('sequelize');
+var User = require('./models/User');
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 
 var app = express();
 
+// Подключение к базе данных
+const sequelize = new Sequelize('chibox-game', 'postgres', '123', { // Замените на ваш пароль
+  host: '127.0.0.1',
+  dialect: 'postgres',
+});
+
+// Проверка подключения
+sequelize.authenticate()
+  .then(() => {
+    console.log('Соединение с базой данных успешно установлено.');
+  })
+  .catch(err => {
+    console.error('Не удалось подключиться к базе данных:', err);
+  });
+
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'pug'); // Изменено с jade на pug
+app.set('view engine', 'pug');
 
 app.use(logger('dev'));
 app.use(express.json());
