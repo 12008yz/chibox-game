@@ -29,15 +29,15 @@ app.use(express.static(path.join(__dirname, 'public')));
     if (connected) {
       // Здесь импортируем модели после проверки соединения
       // Это важно, чтобы не было циклических зависимостей
-      const User = require('./models/User');
+    const db = require('./models');
 
-      // Синхронизация моделей с базой данных (создание таблиц)
-      try {
-        await sequelize.sync({ alter: false });
-        console.log('Модели синхронизированы с базой данных.');
-      } catch (error) {
-        console.error('Ошибка синхронизации моделей:', error);
-      }
+    // Синхронизация моделей с базой данных (создание таблиц)
+    try {
+      await db.sequelize.sync({ alter: false });
+      console.log('Все модели успешно синхронизированы с базой данных.');
+    } catch (error) {
+      console.error('Ошибка синхронизации моделей:', error);
+    }
     }
 
     // Импортируем маршруты после инициализации моделей
