@@ -1,9 +1,18 @@
 const { Sequelize } = require('sequelize');
+require('dotenv').config();
 const config = require('./config');
 
 // Получаем конфигурацию для текущего окружения
 const env = process.env.NODE_ENV || 'development';
-const dbConfig = config[env];
+
+// Используем переменные окружения из .env, если они заданы, иначе берем из config
+const dbConfig = {
+  username: process.env.DB_USERNAME || config[env].username,
+  password: process.env.DB_PASSWORD || config[env].password,
+  database: process.env.DB_DATABASE || config[env].database,
+  host: process.env.DB_HOST || config[env].host,
+  dialect: process.env.DB_DIALECT || config[env].dialect,
+};
 
 // Создаем экземпляр Sequelize
 const sequelize = new Sequelize(
