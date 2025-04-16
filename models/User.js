@@ -1,6 +1,7 @@
 'use strict';
+const { DataTypes } = require('sequelize');
 
-module.exports = (sequelize, DataTypes) => {
+module.exports = (sequelize) => {
   const User = sequelize.define('User', {
     // Базовая информация и аутентификация
     id: {

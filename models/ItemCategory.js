@@ -1,6 +1,7 @@
 'use strict';
+const { DataTypes } = require('sequelize');
 
-module.exports = (sequelize, DataTypes) => {
+module.exports = (sequelize) => {
   const ItemCategory = sequelize.define('ItemCategory', {
     id: {
       type: DataTypes.UUID,
