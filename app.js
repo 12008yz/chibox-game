@@ -3,6 +3,7 @@ const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const logger = require('morgan');
+const { execSync } = require('child_process');
 
 // Импортируем настроенное подключение к базе данных
 const { sequelize, testConnection } = require('./config/database');
@@ -28,23 +29,41 @@ const usersRouter = require('./routes/users');
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 
-// Проверка подключения к базе данных и синхронизация моделей
+// Проверка подключения к базе данных и применение миграций
 (async () => {
   try {
     // Проверяем подключение
     const connected = await testConnection();
 
     if (connected) {
+      console.log('База данных подключена успешно.');
+
+      // Запуск миграций через Sequelize CLI
+      if (process.env.RUN_MIGRATIONS === 'true') {
+        try {
+          console.log('Запуск миграций...');
+          const output = execSync('npx sequelize-cli db:migrate', { encoding: 'utf8' });
+          console.log('Результат выполнения миграций:');
+          console.log(output);
+        } catch (migrationError) {
+          console.error('Ошибка при выполнении миграций:', migrationError.message);
+          if (migrationError.stdout) console.log('Вывод:', migrationError.stdout);
+          if (migrationError.stderr) console.error('Ошибки:', migrationError.stderr);
+        }
+      }
+
       // Здесь импортируем модели после проверки соединения
-      // Это важно, чтобы не было циклических зависимостей
       const db = require('./models');
 
-      // Синхронизация моделей с базой данных (создание таблиц)
-      try {
-        await db.sequelize.sync({ force: true });
-        console.log('Все модели успешно синхронизированы с базой данных.');
-      } catch (error) {
-        console.error('Ошибка синхронизации моделей:', error);
+      // Синхронизация моделей с базой данных (только в режиме разработки)
+      if (process.env.NODE_ENV === 'development' && process.env.SYNC_MODELS === 'true') {
+        try {
+          // Используем alter: true вместо force: true
+          await db.sequelize.sync({ alter: true });
+          console.log('Все модели успешно синхронизированы с базой данных.');
+        } catch (error) {
+          console.error('Ошибка синхронизации моделей:', error);
+        }
       }
     }
   } catch (error) {
