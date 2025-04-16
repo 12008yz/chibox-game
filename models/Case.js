@@ -21,6 +21,15 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: true
     },
+    template_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'case_templates',
+        key: 'id'
+      },
+      comment: "ID шаблона кейса, если кейс создан на основе шаблона"
+    },
     user_id: {
       type: DataTypes.UUID,
       allowNull: false,
@@ -63,6 +72,36 @@ module.exports = (sequelize) => {
       type: DataTypes.FLOAT,
       defaultValue: 0.0,
       comment: "Какой бонус к выпадению был применен при открытии кейса"
+    },
+    is_paid: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: "Был ли кейс куплен за деньги"
+    },
+    purchase_price: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Цена покупки кейса, если он был куплен"
+    },
+    source: {
+      type: DataTypes.ENUM('subscription', 'purchase', 'achievement', 'gift', 'event', 'mission'),
+      defaultValue: 'subscription',
+      comment: "Источник получения кейса"
+    },
+    related_achievement_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      comment: "ID связанного достижения, если кейс получен через достижение"
+    },
+    related_mission_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      comment: "ID связанной миссии, если кейс получен через миссию"
+    },
+    expires_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Срок действия кейса (null - бессрочно)"
     }
   }, {
     timestamps: true,
@@ -76,10 +115,19 @@ module.exports = (sequelize) => {
         fields: ['is_opened']
       },
       {
+        fields: ['template_id']
+      },
+      {
         fields: ['user_id', 'is_opened']
       },
       {
         fields: ['result_item_id']
+      },
+      {
+        fields: ['expires_at']
+      },
+      {
+        fields: ['source']
       }
     ]
   });
@@ -94,6 +142,11 @@ module.exports = (sequelize) => {
     Case.belongsTo(models.Item, {
       foreignKey: 'result_item_id',
       as: 'result_item'
+    });
+
+    Case.belongsTo(models.CaseTemplate, {
+      foreignKey: 'template_id',
+      as: 'template'
     });
 
     Case.hasMany(models.LiveDrop, {

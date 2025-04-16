@@ -29,6 +29,52 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: false
     },
+    role: {
+      type: DataTypes.ENUM('user', 'moderator', 'admin', 'superadmin'),
+      defaultValue: 'user',
+      allowNull: false,
+      comment: "Роль пользователя в системе"
+    },
+    is_email_verified: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: "Подтвержден ли email"
+    },
+    email_verification_token: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Токен для подтверждения email"
+    },
+    email_verification_expires: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Срок действия токена подтверждения email"
+    },
+    password_reset_token: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Токен для сброса пароля"
+    },
+    password_reset_expires: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Срок действия токена сброса пароля"
+    },
+    tfa_enabled: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: "Включена ли двухфакторная аутентификация"
+    },
+    tfa_secret: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Секрет для двухфакторной аутентификации"
+    },
+    tfa_backup_codes: {
+      type: DataTypes.ARRAY(DataTypes.STRING),
+      allowNull: true,
+      comment: "Резервные коды для двухфакторной аутентификации"
+    },
     is_active: {
       type: DataTypes.BOOLEAN,
       defaultValue: true
@@ -36,6 +82,16 @@ module.exports = (sequelize) => {
     is_banned: {
       type: DataTypes.BOOLEAN,
       defaultValue: false
+    },
+    ban_reason: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: "Причина блокировки"
+    },
+    ban_expires: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Дата окончания временной блокировки (null - бессрочно)"
     },
 
     level: {
@@ -64,6 +120,27 @@ module.exports = (sequelize) => {
       comment: "Общее количество XP, заработанное пользователем за все время"
     },
     // Steam интеграция
+    steam_id: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: true,
+      comment: "Steam ID пользователя для аутентификации"
+    },
+    steam_username: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Имя пользователя в Steam"
+    },
+    steam_avatar: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "URL аватара пользователя в Steam"
+    },
+    steam_profile_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "URL профиля пользователя в Steam"
+    },
     steam_trade_url: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -218,6 +295,10 @@ module.exports = (sequelize) => {
         unique: true
       },
       {
+        fields: ['steam_id'],
+        unique: true
+      },
+      {
         fields: ['subscription_tier']
       },
       {
@@ -276,6 +357,11 @@ module.exports = (sequelize) => {
     User.hasMany(models.PromoCodeUser, {
       foreignKey: 'user_id',
       as: 'available_promo_codes'
+    });
+
+    User.hasMany(models.Notification, {
+      foreignKey: 'user_id',
+      as: 'notifications'
     });
   };
 

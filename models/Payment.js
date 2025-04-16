@@ -24,12 +24,12 @@ module.exports = (sequelize) => {
       comment: "Сумма платежа"
     },
     payment_system: {
-      type: DataTypes.ENUM('ukassa', 'paypal', 'stripe', 'qiwi', 'webmoney', 'crypto', 'other'),
+      type: DataTypes.ENUM('ukassa', 'paypal', 'stripe', 'qiwi', 'webmoney', 'crypto', 'bank_card', 'sbp', 'mir', 'other'),
       allowNull: false,
       comment: "Платежная система, через которую совершается платеж"
     },
     status: {
-      type: DataTypes.ENUM('created', 'pending', 'completed', 'failed', 'cancelled', 'refunded'),
+      type: DataTypes.ENUM('created', 'pending', 'authorized', 'processing', 'completed', 'failed', 'cancelled', 'refunded', 'partially_refunded', 'dispute'),
       defaultValue: 'created',
       comment: "Статус платежа"
     },
@@ -48,15 +48,26 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: "Описание платежа"
     },
-promo_code_id: {
-  type: DataTypes.UUID,
-  allowNull: true,
-  references: {
-    model: 'promo_codes',
-    key: 'id'
-  },
-  comment: "ID промокода, примененного к платежу"
-},
+    purpose: {
+      type: DataTypes.ENUM('deposit', 'subscription', 'case_purchase', 'vip', 'other'),
+      allowNull: false,
+      defaultValue: 'deposit',
+      comment: "Назначение платежа"
+    },
+    promo_code_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'promo_codes',
+        key: 'id'
+      },
+      comment: "ID промокода, примененного к платежу"
+    },
+    expires_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Время истечения неоплаченного платежа"
+    },
     created_at: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
@@ -71,6 +82,11 @@ promo_code_id: {
       type: DataTypes.DATE,
       allowNull: true,
       comment: "Дата и время успешного завершения платежа"
+    },
+    refunded_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Дата и время возврата платежа"
     },
     ip_address: {
       type: DataTypes.STRING,
@@ -88,7 +104,7 @@ promo_code_id: {
       comment: "Метод оплаты, выбранный пользователем (карта, эл. кошелек и т.д.)"
     },
     payment_details: {
-      type: DataTypes.JSON,
+      type: DataTypes.JSONB,
       allowNull: true,
       comment: "Дополнительные детали платежа (в формате JSON)"
     },
@@ -101,6 +117,11 @@ promo_code_id: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
       comment: "Было ли отправлено уведомление пользователю о статусе платежа"
+    },
+    notification_attempts: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      comment: "Количество попыток уведомления пользователя"
     },
     promo_code: {
       type: DataTypes.STRING,
@@ -123,9 +144,74 @@ promo_code_id: {
       comment: "Был ли получен webhook от платежной системы"
     },
     webhook_data: {
-      type: DataTypes.JSON,
+      type: DataTypes.JSONB,
       allowNull: true,
       comment: "Данные, полученные из webhook платежной системы"
+    },
+    retry_count: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      comment: "Количество попыток обработки платежа"
+    },
+    next_retry_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Время следующей попытки обработки"
+    },
+    fees: {
+      type: DataTypes.DECIMAL(10, 2),
+      defaultValue: 0.00,
+      comment: "Комиссия платежной системы"
+    },
+    net_amount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Чистая сумма после вычета комиссий"
+    },
+    receipt_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "URL на чек/квитанцию об оплате"
+    },
+    receipt_data: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: "Данные для формирования чека по 54-ФЗ"
+    },
+    subscription_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      comment: "ID подписки, оплаченной этим платежом"
+    },
+    case_purchase_ids: {
+      type: DataTypes.ARRAY(DataTypes.UUID),
+      allowNull: true,
+      comment: "ID кейсов, приобретенных этим платежом"
+    },
+    refund_reason: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: "Причина возврата средств"
+    },
+    refund_amount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Сумма возврата (если частичный возврат)"
+    },
+    is_test: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: "Тестовый платеж (не учитывается в статистике)"
+    },
+    admin_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      comment: "ID администратора, создавшего или изменившего платеж"
+    },
+    admin_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: "Примечания администратора"
     }
   }, {
     timestamps: true,
@@ -146,6 +232,24 @@ promo_code_id: {
       },
       {
         fields: ['completed_at']
+      },
+      {
+        fields: ['purpose']
+      },
+      {
+        fields: ['currency']
+      },
+      {
+        fields: ['user_id', 'status']
+      },
+      {
+        fields: ['promo_code_id']
+      },
+      {
+        fields: ['subscription_id']
+      },
+      {
+        fields: ['expires_at']
       }
     ]
   });
@@ -156,16 +260,34 @@ promo_code_id: {
       foreignKey: 'user_id',
       as: 'user'
     });
-    
+
     Payment.hasOne(models.Transaction, {
       foreignKey: 'payment_id',
       as: 'transaction'
     });
-    
+
     Payment.belongsTo(models.PromoCode, {
-  foreignKey: 'promo_code_id',
-  as: 'promoCode'
-});
+      foreignKey: 'promo_code_id',
+      as: 'promoCode'
+    });
+
+    if (models.Notification) {
+      Payment.hasMany(models.Notification, {
+        foreignKey: 'related_id',
+        scope: {
+          category: 'transaction'
+        },
+        as: 'notifications'
+      });
+    }
+
+    // Только если модель User имеет поле admin_id
+    if (models.User) {
+      Payment.belongsTo(models.User, {
+        foreignKey: 'admin_id',
+        as: 'admin'
+      });
+    }
   };
 
   return Payment;
