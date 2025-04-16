@@ -154,7 +154,7 @@ module.exports = (sequelize) => {
         unique: true,
         where: {
           custom_code: {
-            [sequelize.Op.ne]: null
+            [Op.ne]: null
           }
         }
       }
