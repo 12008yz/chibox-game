@@ -19,14 +19,17 @@ module.exports = {
       },
       description: {
         type: Sequelize.TEXT,
+        allowNull: true,
         comment: "Описание кейса"
       },
       image_url: {
         type: Sequelize.STRING,
+        allowNull: true,
         comment: "URL изображения кейса"
       },
       animation_url: {
         type: Sequelize.STRING,
+        allowNull: true,
         comment: "URL анимации открытия кейса"
       },
       type: {
@@ -47,14 +50,17 @@ module.exports = {
       },
       availability_start: {
         type: Sequelize.DATE,
+        allowNull: true,
         comment: "Дата начала доступности кейса (для временных кейсов)"
       },
       availability_end: {
         type: Sequelize.DATE,
+        allowNull: true,
         comment: "Дата окончания доступности кейса (для временных кейсов)"
       },
       max_opens_per_user: {
         type: Sequelize.INTEGER,
+        allowNull: true,
         comment: "Максимальное количество открытий на пользователя (null - без ограничений)"
       },
       cooldown_hours: {
@@ -64,6 +70,7 @@ module.exports = {
       },
       price: {
         type: Sequelize.DECIMAL(10, 2),
+        allowNull: true,
         comment: "Цена кейса в рублях (null - бесплатный)"
       },
       item_pool_config: {
@@ -74,6 +81,7 @@ module.exports = {
       },
       special_conditions: {
         type: Sequelize.JSONB,
+        allowNull: true,
         comment: "Особые условия для получения кейса (например, минимальный уровень) в формате JSON"
       },
       sort_order: {
@@ -83,10 +91,12 @@ module.exports = {
       },
       color_scheme: {
         type: Sequelize.STRING,
+        allowNull: true,
         comment: "Цветовая схема для отображения кейса в интерфейсе"
       },
       guaranteed_min_value: {
         type: Sequelize.DECIMAL(10, 2),
+        allowNull: true,
         comment: "Гарантированная минимальная стоимость выпадающего предмета"
       },
       created_at: {
