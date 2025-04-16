@@ -59,7 +59,7 @@ app.use('/users', usersRouter);
       if (process.env.NODE_ENV === 'development' && process.env.SYNC_MODELS === 'true') {
         try {
           // Используем alter: true вместо force: true
-          await db.sequelize.sync({ force: true });
+          await db.sequelize.sync({ force: false });
           console.log('Все модели успешно синхронизированы с базой данных.');
         } catch (error) {
           console.error('Ошибка синхронизации моделей:', error);
