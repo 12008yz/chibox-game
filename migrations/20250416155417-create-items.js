@@ -33,11 +33,21 @@ module.exports = {
         defaultValue: 0.00,
         comment: "Рыночная стоимость предмета"
       },
+      value: {
+        type: Sequelize.INTEGER, // или DECIMAL если ожидается дробное значение
+        allowNull: false,
+        defaultValue: 0
+      },
       rarity: {
         type: Sequelize.ENUM('common', 'uncommon', 'rare', 'epic', 'legendary', 'mythical'),
         allowNull: false,
         defaultValue: 'common',
         comment: "Редкость предмета"
+      },
+      is_active: {
+        type: Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: true
       },
       drop_weight: {
         type: Sequelize.FLOAT,

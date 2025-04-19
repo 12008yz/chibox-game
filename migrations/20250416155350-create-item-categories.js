@@ -15,6 +15,11 @@ module.exports = {
         unique: true,
         comment: "Название категории предметов"
       },
+      sort_order: {
+        type: Sequelize.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
       description: {
         type: Sequelize.TEXT,
         comment: "Описание категории"
