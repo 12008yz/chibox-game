@@ -1,75 +1,59 @@
 #!/usr/bin/env node
+// ==== HTTPS + SOCKET.IO СТАРТЕР ДЛЯ EXPRESS ====
 
-/**
- * Module dependencies.
- */
+const fs = require('fs');
+const https = require('https');
+const path = require('path');
+const socketIO = require('socket.io');
+const app = require('../app');
 
-var app = require('../app');
-var debug = require('debug')('backend:server');
-var http = require('http');
-
-/**
- * Get port from environment and store in Express.
- */
-
-var port = normalizePort(process.env.PORT || '3000');
+// Получаем порт
+const port = normalizePort(process.env.PORT || '3000');
 app.set('port', port);
 
-/**
- * Create HTTP server.
- */
+// === Определяем путь к ключу и сертификату ===
+function getSSLOptions() {
+  const certPath = process.env.SSL_CERT || path.join(__dirname, '../server.cert');
+  const keyPath = process.env.SSL_KEY || path.join(__dirname, '../server.key');
+  return {
+    cert: fs.readFileSync(certPath),
+    key: fs.readFileSync(keyPath),
+  };
+}
+const sslOptions = getSSLOptions();
 
-var server = http.createServer(app);
+// === Создаём HTTPS сервер ===
+const server = https.createServer(sslOptions, app);
 
-/**
- * Listen on provided port, on all network interfaces.
- */
+// === Подключаем socket.io ===
+const io = socketIO(server);
+io.on('connection', (socket) => {
+  console.log('Socket.IO: Пользователь подключился');
+   socket.emit('hello', { message: 'Привет через WebSocket!' });
+});
 
 server.listen(port);
 server.on('error', onError);
 server.on('listening', onListening);
 
-/**
- * Normalize a port into a number, string, or false.
- */
-
+// === Служебные функции ===
 function normalizePort(val) {
-  var port = parseInt(val, 10);
-
-  if (isNaN(port)) {
-    // named pipe
-    return val;
-  }
-
-  if (port >= 0) {
-    // port number
-    return port;
-  }
-
+  const port = parseInt(val, 10);
+  if (isNaN(port)) return val;
+  if (port >= 0) return port;
   return false;
 }
 
-/**
- * Event listener for HTTP server "error" event.
- */
-
 function onError(error) {
-  if (error.syscall !== 'listen') {
-    throw error;
-  }
-
-  var bind = typeof port === 'string'
-    ? 'Pipe ' + port
-    : 'Port ' + port;
-
-  // handle specific listen errors with friendly messages
+  if (error.syscall !== 'listen') throw error;
+  const bind = typeof port === 'string' ? 'Pipe ' + port : 'Port ' + port;
   switch (error.code) {
     case 'EACCES':
-      console.error(bind + ' requires elevated privileges');
+      console.error(bind + ' требует повышенных привилегий');
       process.exit(1);
       break;
     case 'EADDRINUSE':
-      console.error(bind + ' is already in use');
+      console.error(bind + ' уже используется');
       process.exit(1);
       break;
     default:
@@ -77,14 +61,10 @@ function onError(error) {
   }
 }
 
-/**
- * Event listener for HTTP server "listening" event.
- */
-
 function onListening() {
-  var addr = server.address();
-  var bind = typeof addr === 'string'
-    ? 'pipe ' + addr
-    : 'port ' + addr.port;
-  debug('Listening on ' + bind);
+  const addr = server.address();
+  const bind = typeof addr === 'string' ? 'pipe ' + addr : 'порт ' + addr.port;
+  console.log('HTTPS сервер запущен на ' + bind);
+  console.log('Socket.IO готов.');
+  console.log('Для боевого ssl просто поменяй сертификаты/пути через ENV переменные (SSL_KEY, SSL_CERT) — код менять не потребуется!');
 }
