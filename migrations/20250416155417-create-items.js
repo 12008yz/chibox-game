@@ -1,116 +1,110 @@
 'use strict';
 
-/** @type {import('sequelize-cli').Migration} */
 module.exports = {
-  async up (queryInterface, Sequelize) {
-    // Создание ENUM типа для редкости предметов
-    await queryInterface.sequelize.query('CREATE TYPE "enum_items_rarity" AS ENUM(\'common\', \'uncommon\', \'rare\', \'epic\', \'legendary\', \'mythical\');');
-
+  up: async (queryInterface, DataTypes) => {
     await queryInterface.createTable('items', {
       id: {
-        type: Sequelize.UUID,
-        defaultValue: Sequelize.UUIDV4,
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
         primaryKey: true
       },
       name: {
-        type: Sequelize.STRING,
-        allowNull: false,
-        comment: "Название предмета в CS2"
+        type: DataTypes.STRING,
+        allowNull: false
       },
       description: {
-        type: Sequelize.TEXT,
-        allowNull: true,
-        comment: "Описание предмета"
+        type: DataTypes.TEXT,
+        allowNull: true
       },
       image_url: {
-        type: Sequelize.STRING,
-        allowNull: true,
-        comment: "URL изображения предмета"
+        type: DataTypes.STRING,
+        allowNull: true
       },
       price: {
-        type: Sequelize.DECIMAL(10, 2),
+        type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
-        defaultValue: 0.00,
-        comment: "Рыночная стоимость предмета"
-      },
-      value: {
-        type: Sequelize.INTEGER, // или DECIMAL если ожидается дробное значение
-        allowNull: false,
-        defaultValue: 0
+        defaultValue: 0.00
       },
       rarity: {
-        type: Sequelize.ENUM('common', 'uncommon', 'rare', 'epic', 'legendary', 'mythical'),
+        type: DataTypes.ENUM('common', 'uncommon', 'rare', 'epic', 'legendary', 'mythical'),
         allowNull: false,
-        defaultValue: 'common',
-        comment: "Редкость предмета"
-      },
-      is_active: {
-        type: Sequelize.BOOLEAN,
-        allowNull: false,
-        defaultValue: true
+        defaultValue: 'common'
       },
       drop_weight: {
-        type: Sequelize.FLOAT,
+        type: DataTypes.FLOAT,
         allowNull: false,
-        defaultValue: 1.0,
-        comment: "Базовый вес выпадения предмета (выше число = чаще выпадает)"
+        defaultValue: 1.0
       },
       weapon_type: {
-        type: Sequelize.STRING,
-        allowNull: true,
-        comment: "Тип оружия (например, Rifle, Pistol, Knife)"
+        type: DataTypes.STRING,
+        allowNull: true
       },
       skin_name: {
-        type: Sequelize.STRING,
-        allowNull: true,
-        comment: "Название скина"
+        type: DataTypes.STRING,
+        allowNull: true
       },
       category_id: {
-        type: Sequelize.UUID,
+        type: DataTypes.UUID,
         allowNull: true,
-        references: {
-          model: 'item_categories',
-          key: 'id'
-        },
-        onUpdate: 'CASCADE',
-        onDelete: 'SET NULL',
-        comment: "ID категории предмета"
+        references: { model: 'item_categories', key: 'id' }
       },
       steam_market_hash_name: {
-        type: Sequelize.STRING,
-        allowNull: true,
-        comment: "Хеш-имя предмета на торговой площадке Steam (для вывода)"
+        type: DataTypes.STRING,
+        allowNull: true
       },
       is_available: {
-        type: Sequelize.BOOLEAN,
-        defaultValue: true,
-        comment: "Доступен ли предмет для выпадения из кейсов"
+        type: DataTypes.BOOLEAN,
+        defaultValue: true
       },
       min_subscription_tier: {
-        type: Sequelize.INTEGER,
-        defaultValue: 0,
-        comment: "Минимальный уровень подписки для выпадения (0 = любой)"
+        type: DataTypes.INTEGER,
+        defaultValue: 0
+      },
+      // Новые поля:
+      float_value: {
+        type: DataTypes.FLOAT,
+        allowNull: true
+      },
+      exterior: {
+        type: DataTypes.ENUM('Factory New', 'Minimal Wear', 'Field-Tested', 'Well-Worn', 'Battle-Scarred'),
+        allowNull: true
+      },
+      stickers: {
+        type: DataTypes.JSON,
+        allowNull: true
+      },
+      quality: {
+        type: DataTypes.STRING,
+        allowNull: true
+      },
+      buff_id: {
+        type: DataTypes.STRING,
+        allowNull: true
+      },
+      origin: {
+        type: DataTypes.STRING,
+        allowNull: true
       },
       created_at: {
-        type: Sequelize.DATE,
-        allowNull: false
+        allowNull: false,
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW
       },
       updated_at: {
-        type: Sequelize.DATE,
-        allowNull: false
+        allowNull: false,
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW
       }
     });
-
-    // Создаем индексы
     await queryInterface.addIndex('items', ['rarity']);
     await queryInterface.addIndex('items', ['price']);
     await queryInterface.addIndex('items', ['is_available']);
     await queryInterface.addIndex('items', ['category_id']);
     await queryInterface.addIndex('items', ['weapon_type']);
+    await queryInterface.addIndex('items', ['buff_id']);
   },
 
-  async down (queryInterface, Sequelize) {
+  down: async (queryInterface) => {
     await queryInterface.dropTable('items');
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_items_rarity";');
   }
 };

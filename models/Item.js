@@ -63,6 +63,7 @@ module.exports = (sequelize) => {
     steam_market_hash_name: {
       type: DataTypes.STRING,
       allowNull: true,
+      unique: true,
       comment: "Хеш-имя предмета на торговой площадке Steam (для вывода)"
     },
     is_available: {
@@ -74,51 +75,58 @@ module.exports = (sequelize) => {
       type: DataTypes.INTEGER,
       defaultValue: 0,
       comment: "Минимальный уровень подписки для выпадения (0 = любой)"
+    },
+    // Новые поля для предметов BUFF/CS2:
+    float_value: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+      comment: "Степень износа скина (float value)"
+    },
+    exterior: {
+      type: DataTypes.ENUM('Factory New', 'Minimal Wear', 'Field-Tested', 'Well-Worn', 'Battle-Scarred'),
+      allowNull: true,
+      comment: "Состояние скина (exterior)"
+    },
+    stickers: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      comment: "Список стикеров на предмете"
+    },
+    quality: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Качество предмета (StatTrak, Souvenir и т.д.)"
+    },
+    buff_id: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: true, // ← ВАЖНО!
+      comment: "ID или ссылка на BUFF для автоматизации обновлений"
+    },
+    origin: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "Источник или коллекция предмета"
     }
   }, {
     timestamps: true,
     underscored: true,
     tableName: 'items',
     indexes: [
-      {
-        fields: ['rarity']
-      },
-      {
-        fields: ['price']
-      },
-      {
-        fields: ['is_available']
-      },
-      {
-        fields: ['category_id']
-      },
-      {
-        fields: ['weapon_type']
-      }
+      { fields: ['rarity'] },
+      { fields: ['price'] },
+      { fields: ['is_available'] },
+      { fields: ['category_id'] },
+      { fields: ['weapon_type'] },
+      { unique: true, fields: ['buff_id'] } // ← вот это!
     ]
   });
 
-  // Ассоциации
   Item.associate = (models) => {
-    Item.hasMany(models.UserInventory, {
-      foreignKey: 'item_id',
-      as: 'inventories'
-    });
-
-    Item.hasMany(models.Case, {
-      foreignKey: 'result_item_id',
-      as: 'dropped_from_cases'
-    });
-
-    Item.hasMany(models.LiveDrop, {
-      foreignKey: 'item_id',
-      as: 'live_drops'
-    });
-
-    Item.belongsTo(models.ItemCategory, {
-      foreignKey: 'category_id',
-      as: 'category'
-    });
+    Item.hasMany(models.UserInventory, { foreignKey: 'item_id', as: 'inventories' });
+    Item.hasMany(models.Case, { foreignKey: 'result_item_id', as: 'dropped_from_cases' });
+    Item.hasMany(models.LiveDrop, { foreignKey: 'item_id', as: 'live_drops' });
+    Item.belongsTo(models.ItemCategory, { foreignKey: 'category_id', as: 'category' });
   };
 
   return Item;
