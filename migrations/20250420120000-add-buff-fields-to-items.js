@@ -1,36 +1,29 @@
+// migrations/[timestamp]-add-buff-fields-to-items.js
+
 'use strict';
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.addColumn('items', 'buff_goods_id', {
-      type: Sequelize.STRING,
-      allowNull: true,
-      comment: 'Уникальный id предмета на BUFF.163'
-    });
-    await queryInterface.addColumn('items', 'buff_buy_price', {
-      type: Sequelize.DECIMAL(10, 2),
-      allowNull: true,
-      comment: 'Цена закупки предмета на BUFF.163 (актуальная)'
-    });
-    await queryInterface.addColumn('items', 'buff_sell_url', {
-      type: Sequelize.STRING,
-      allowNull: true,
-      comment: 'Ссылка на предмет на BUFF.163'
-    });
-    await queryInterface.addColumn('items', 'last_buff_price_update', {
-      type: Sequelize.DATE,
-      allowNull: true,
-      comment: 'Дата и время последнего парсинга цены с BUFF.163'
-    });
+    return Promise.all([
+      queryInterface.addColumn('items', 'buff_rarity', { type: Sequelize.STRING }),
+      queryInterface.addColumn('items', 'buff_quality', { type: Sequelize.STRING }),
+      queryInterface.addColumn('items', 'buff_type', { type: Sequelize.STRING }),
+      queryInterface.addColumn('items', 'buff_exterior', { type: Sequelize.STRING }),
+      queryInterface.addColumn('items', 'buff_weapon', { type: Sequelize.STRING }),
+      queryInterface.addColumn('items', 'buff_category', { type: Sequelize.STRING }),
+      queryInterface.addColumn('items', 'buff_tags', { type: Sequelize.JSONB }),
+    ]);
   },
 
   down: async (queryInterface, Sequelize) => {
-    await queryInterface.removeColumn('items', 'buff_goods_id');
-    await queryInterface.removeColumn('items', 'buff_buy_price');
-    await queryInterface.removeColumn('items', 'buff_sell_url');
-    await queryInterface.removeColumn('items', 'last_buff_price_update');
+    return Promise.all([
+      queryInterface.removeColumn('items', 'buff_rarity'),
+      queryInterface.removeColumn('items', 'buff_quality'),
+      queryInterface.removeColumn('items', 'buff_type'),
+      queryInterface.removeColumn('items', 'buff_exterior'),
+      queryInterface.removeColumn('items', 'buff_weapon'),
+      queryInterface.removeColumn('items', 'buff_category'),
+      queryInterface.removeColumn('items', 'buff_tags'),
+    ]);
   }
 };
-
-
-

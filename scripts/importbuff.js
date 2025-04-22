@@ -3,6 +3,35 @@ const db = require('../models'); // путь к index.js ваших моделе
 
 const BUFF_MARKET_URL = 'https://buff.163.com/api/market/goods';
 
+// Соответствие rarity из BUFF -> твой ENUM
+const rarityMap = {
+  common: 'common',
+  uncommon: 'uncommon',
+  rare: 'rare',
+  epic: 'epic',
+  mythical: 'mythical',
+  ancient_weapon: 'mythical',      // BUFF -> твой ENUM
+  legendary: 'legendary',
+  immortal: 'mythical',
+  exotic: 'epic',
+  extraordinary: 'legendary',
+  default: 'common'
+};
+
+// (опционально — если ENUM exterior)
+const exteriorMap = {
+  'Factory New': 'Factory New',
+  'Minimal Wear': 'Minimal Wear',
+  'Field-Tested': 'Field-Tested',
+  'Well-Worn': 'Well-Worn',
+  'Battle-Scarred': 'Battle-Scarred',
+  wearcategory0: 'Factory New',
+  wearcategory1: 'Minimal Wear',
+  wearcategory2: 'Field-Tested',
+  wearcategory3: 'Well-Worn',
+  wearcategory4: 'Battle-Scarred'
+};
+
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -17,23 +46,23 @@ async function fetchBuffSkins({ game = 'csgo', page_num = 1, page_size = 80 }, r
         sort_by: 'price.asc',
         _: Date.now(),
       },
-      headers: {
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Encoding': 'gzip, deflate, br, zstd',
-        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Connection': 'keep-alive',
-        'Cookie': 'Device-Id=SQniopinEfgAKr91ZwXk; Locale-Supported=ru; NTES_YD_SESS=W8L.q_IToAN5xq.E.1Md_GNEqTCpJzExyUURx6fdV3K5n8oQh01DuZYckxOD9XcvXCxcZBYqWEUZzPAtOIxpIK6I5M4wzLeIfVWK_lSMU4tyWbZxWnFZ2WZCu2PHjKt5Tp2YXGSoF2hkp4xoGiVGX0KA2q_hjE4z4xGmO5YdE.0jnFORUKLR1fmQO5lIqlK2FNF6qvt1OZnbYBeX5dhM35iq0rgOkTI.J.S1nw8ITQzoA; P_INFO=7-9015373927|1745167372|1|netease_buff|00&99|null&null&null#RU&null#10#0|&0|null|7-9015373927; S_INFO=1745167372|0|0&60##|7-9015373927; client_id=XDREWjnqRkbs0VkgDFk9wA; csrf_token=IjFlYjc5MWQ1NDUyOGFlYzgyYWZlNjZmOGE5NDFhMmM2Mjk1M2QwNjAi.aAUkQA.DTFCKB_l9QGPyrGBZzQz1wJIt6A; display_appids_v2="[730, 570]"; game=csgo; remember_me=U1085322525|vReLFKwOx7ra5ktHai2QjrAxrUOfURiG; session=1-42cgtzM82ln8qcOsB_xbTTA3FlZsxG_c0AgSTmF9IOtv2021534277',
-        'Host': 'buff.163.com',
-        'Referer': 'https://buff.163.com/market/csgo',
-        'Sec-Ch-Ua': '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-origin',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36',
-        'X-Kl-Saas-Ajax-Request': 'Ajax_Request',
-        'X-Requested-With': 'XMLHttpRequest',
+    headers: {
+        'accept': 'application/json, text/javascript, */*; q=0.01',
+        'accept-encoding': 'gzip, deflate, br, zstd',
+        'accept-language': 'ru,en;q=0.9',
+        'connection': 'keep-alive',
+        'cookie': 'Device-Id=LDrkzZWatN7fUHapS64T; Locale-Supported=ru; game=csgo; NTES_YD_SESS=7qhA0ZiCZmpCwOE5zuc0fVTcv5s79.SRtIIWyTVsEHitePmoLCYQaKlBe2wvJLSg.rjVjKQi278NLqrfNpOYuD0L.4kOLj2aEn7iV07EeSxadiT6Y2hSIfsFap.9qiOtlAprxBcm_pLfA2ymBgEBxCiNp86LqM2R2yB5JtrsMGCuJlbg3K_rPbIXgVP4FcF3lv7YWk1.bgDH.OGo_jmdlsDpheKBARzCM.jNyPPEvKWQN; S_INFO=1745345947|0|0&60##|7-9156914692; P_INFO=7-9156914692|1745345947|1|netease_buff|00&99|null&null&null#RU&null#10#0|&0|null|7-9156914692; remember_me=U1085354158|HyQ4ngsJRGUE7TTSRAR4F4aA5ypNrjuk; session=1-wjVX0UCGc2urhxkBfnwsySPALDzqvzYujo74NZHaJjyu2021634038; csrf_token=ImM4Y2E5YThkM2Q4ZWRkZmU0MTg4OGMyNzc5ZTQyNTdiMDRjZTM1ODIi.aAfeeg.1COJviojARXpO1FclSpX6syxcSU',
+        'host': 'buff.163.com',
+        'referer': 'https://buff.163.com/market/csgo',
+        'sec-ch-ua': '"Chromium";v="128", "Not;A=Brand";v="24", "YaBrowser";v="24.10", "Yowser";v="2.5"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 YaBrowser/24.10.0.0 Safari/537.36',
+        'x-kl-saas-ajax-request': 'Ajax_Request',
+        'x-requested-with': 'XMLHttpRequest',
       }
     });
     if (response.data.code !== 'OK') {
@@ -52,37 +81,74 @@ async function fetchBuffSkins({ game = 'csgo', page_num = 1, page_size = 80 }, r
 }
 
 function mapBuffItemToDb(item) {
-  let rawDesc = item.goods_info?.info ?? "";
-  let description;
-  if (typeof rawDesc === "object") {
-    description = JSON.stringify(rawDesc);
-  } else if (typeof rawDesc === "string") {
-    description = rawDesc;
-  } else {
-    description = String(rawDesc);
+  const info = item.goods_info?.info ?? {};
+  const tags = info.tags || {};
+
+  // Получаем имя, тип; отбрасываем стикеры (и др. ненужные типы)
+  const name = item.name
+    || item.market_hash_name
+    || item.goods_info?.market_hash_name
+    || info.market_hash_name
+    || null;
+
+  const type = (tags.type?.internal_name || '').toLowerCase();
+
+  if (
+    !name ||
+    name.startsWith('Sticker |') ||
+    type.includes('sticker')
+    // если нужно — добавь другие фильтры: 'graffiti', 'patch', ...
+  ) {
+    // Можно логировать все отброшенные предметы для анализа:
+    // console.log('[SKIP]', name, type);
+    return null;
+  }
+
+  const marketHash = item.market_hash_name
+    || item.goods_info?.market_hash_name
+    || info.market_hash_name
+    || null;
+
+  // --- Маппинг по rarity и exterior ---
+  const rawRarity = tags.rarity?.internal_name || 'common';
+  const rarity = rarityMap[rawRarity] || rarityMap.default;
+
+  const rawExterior = tags.exterior?.internal_name || tags.exterior?.localized_name || null;
+  const exterior = exteriorMap[rawExterior] || tags.exterior?.localized_name || null;
+
+  // --- Корректный image_url ---
+  let image_url = item.goods_info?.icon_url || '';
+  if (image_url && !image_url.startsWith('http')) {
+    image_url = 'https://image.buff.163.com/' + image_url;
   }
 
   return {
-    name: item.name,
-    description,
-    image_url: item.goods_info?.icon_url
-      ? 'https://image.buff.163.com/' + item.goods_info.icon_url
-      : null,
-    price: item.sell_min_price || 0,
-    rarity: 'common',
+    name,
+    description: JSON.stringify(info),
+    image_url: image_url || null,
+    price: parseFloat(item.quick_price) || 0,
+    rarity,
     drop_weight: 1,
-    weapon_type: item.weapon_type || null,
-    skin_name: item.goods_info?.info?.market_hash_name || null,
+    weapon_type: tags.weapon?.internal_name || null,
+    skin_name: marketHash,
     category_id: null,
-    steam_market_hash_name: item.goods_info?.market_hash_name || null,
+    steam_market_hash_name: marketHash,
     is_available: true,
     min_subscription_tier: 0,
     float_value: null,
-    exterior: null,
+    exterior,
     stickers: null,
-    quality: null,
+    quality: tags.quality?.internal_name || null,
     buff_id: item.id ? String(item.id) : null,
-    origin: item.goods_info?.collection || null,
+    origin: tags.category?.localized_name || null,
+    // Raw Buff fields for import
+    buff_rarity: tags.rarity?.internal_name || null,
+    buff_quality: tags.quality?.internal_name || null,
+    buff_type: tags.type?.internal_name || null,
+    buff_exterior: tags.exterior?.internal_name || tags.exterior?.localized_name || null,
+    buff_weapon: tags.weapon?.internal_name || null,
+    buff_category: tags.category?.internal_name || null,
+    buff_tags: tags || null,
   };
 }
 
@@ -124,18 +190,17 @@ async function importUniqueBuffItems() {
 
     let countOnPage = 0;
     for (const buffItem of items) {
-      // Попробуем собрать разные варианты market_hash_name из объекта
-      let hashName = buffItem.goods_info?.market_hash_name || 
-                     buffItem.goods_info?.info?.market_hash_name || 
-                     buffItem.goods_info?.steam_market_hash_name || 
-                     buffItem.market_hash_name || 
-                     null;
-      console.log('hashName:', hashName);
-
+      let hashName = buffItem.goods_info?.market_hash_name 
+        || buffItem.goods_info?.info?.market_hash_name 
+        || buffItem.goods_info?.steam_market_hash_name 
+        || buffItem.market_hash_name 
+        || null;
+      // дубли не сохраняем
       if (!hashName || seen.has(hashName)) continue;
       seen.add(hashName);
 
       const prepared = mapBuffItemToDb(buffItem);
+      if (!prepared) continue; // пропускаем отфильтрованные (стикеры и т.п.)
       await saveOrUpdateUniqueItem({...prepared, steam_market_hash_name: hashName});
       totalImported++;
       countOnPage++;
