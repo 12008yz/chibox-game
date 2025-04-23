@@ -30,10 +30,19 @@ module.exports = (sequelize) => {
       comment: "Рыночная стоимость предмета"
     },
     rarity: {
-      type: DataTypes.ENUM('common', 'uncommon', 'rare', 'epic', 'legendary', 'mythical'),
+      type: DataTypes.ENUM(
+        'consumer',
+        'industrial',
+        'milspec',
+        'restricted',
+        'classified',
+        'covert',
+        'contraband',
+        'exotic'
+      ),
       allowNull: false,
-      defaultValue: 'common',
-      comment: "Редкость предмета"
+      defaultValue: 'consumer',
+      comment: 'Раритетность предмета как в CS2'
     },
     drop_weight: {
       type: DataTypes.FLOAT,
@@ -107,6 +116,41 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: true,
       comment: "Источник или коллекция предмета"
+    },
+    buff_tags: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: "Выборка полных BUFF-тегов товара для последующей миграции в поля"
+    },
+    buff_rarity: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "BUFF rarity internal name"
+    },
+    buff_quality: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "BUFF quality internal name"
+    },
+    buff_type: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "BUFF type internal name"
+    },
+    buff_exterior: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "BUFF exterior localized or internal name"
+    },
+    buff_weapon: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "BUFF weapon internal name"
+    },
+    buff_category: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "BUFF category internal name"
     }
   }, {
     timestamps: true,

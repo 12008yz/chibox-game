@@ -5,7 +5,7 @@ module.exports = {
   up: async (queryInterface, Sequelize) => {
     // Получим все предметы
     const itemRows = await queryInterface.sequelize.query(
-      'SELECT id, name, rarity, value FROM items;',
+      'SELECT id, name, rarity, price FROM items;',
       { type: queryInterface.sequelize.QueryTypes.SELECT }
     );
 
@@ -20,9 +20,9 @@ module.exports = {
 
     itemRows.forEach(item => {
       if (itemsByRarity[item.rarity]) {
-        itemsByRarity[item.rarity].push({ id: item.id, name: item.name, value: parseFloat(item.value) });
+        itemsByRarity[item.rarity].push({ id: item.id, name: item.name, price: parseFloat(item.price) });
       } else {
-        itemsByRarity.common.push({ id: item.id, name: item.name, value: parseFloat(item.value) });
+        itemsByRarity.common.push({ id: item.id, name: item.name, price: parseFloat(item.price) });
       }
     });
 
@@ -47,7 +47,7 @@ module.exports = {
             name: item.name,
             rarity: rarityName,
             probability: chancePerItem,
-            value: item.value
+            price: item.price
           };
         });
       };
