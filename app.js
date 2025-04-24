@@ -1,9 +1,24 @@
+require('dotenv').config();
 const createError = require('http-errors');
 const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
-const logger = require('morgan');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const winston = require('winston');
 const { execSync } = require('child_process');
+
+// Winston Logger
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+  ],
+});
 
 // Импортируем настроенное подключение к базе данных
 const { sequelize, testConnection } = require('./config/database');
@@ -11,23 +26,33 @@ const { sequelize, testConnection } = require('./config/database');
 // Создаем приложение Express
 const app = express();
 
+// Логирование всех запросов
+const requestLogger = require('./middleware/auth');
+app.use(requestLogger);
+
+// Защитные миддлвары
+app.use(helmet());
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 минут
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Слишком много запросов с этого IP, попробуйте позже.'
+}));
+
 // Настройка движка представлений
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
 
-app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Импортируем маршруты синхронно
-const indexRouter = require('./routes/index');
-const usersRouter = require('./routes/users');
+const userRoutes = require('./routes/userRoutes');
 
 // Регистрация маршрутов
-app.use('/', indexRouter);
-app.use('/users', usersRouter);
+app.use('/api/users', userRoutes);
 
 // Проверка подключения к базе данных и применение миграций
 (async () => {
@@ -36,19 +61,19 @@ app.use('/users', usersRouter);
     const connected = await testConnection();
 
     if (connected) {
-      console.log('База данных подключена успешно.');
+      logger.info('База данных подключена успешно.');
 
       // Запуск миграций через Sequelize CLI
       if (process.env.RUN_MIGRATIONS === 'true') {
         try {
-          console.log('Запуск миграций...');
+          logger.info('Запуск миграций...');
           const output = execSync('npx sequelize-cli db:migrate', { encoding: 'utf8' });
-          console.log('Результат выполнения миграций:');
-          console.log(output);
+          logger.info('Результат выполнения миграций:');
+          logger.info(output);
         } catch (migrationError) {
-          console.error('Ошибка при выполнении миграций:', migrationError.message);
-          if (migrationError.stdout) console.log('Вывод:', migrationError.stdout);
-          if (migrationError.stderr) console.error('Ошибки:', migrationError.stderr);
+          logger.error('Ошибка при выполнении миграций:', migrationError.message);
+          if (migrationError.stdout) logger.info('Вывод: ' + migrationError.stdout);
+          if (migrationError.stderr) logger.error('Ошибки: ' + migrationError.stderr);
         }
       }
 
@@ -60,14 +85,14 @@ app.use('/users', usersRouter);
         try {
           // Используем alter: true вместо force: true
           await db.sequelize.sync({ force: false });
-          console.log('Все модели успешно синхронизированы с базой данных.');
+          logger.info('Все модели успешно синхронизированы с базой данных.');
         } catch (error) {
-          console.error('Ошибка синхронизации моделей:', error);
+          logger.error('Ошибка синхронизации моделей:', error);
         }
       }
     }
   } catch (error) {
-    console.error('Ошибка при инициализации приложения:', error);
+    logger.error('Ошибка при инициализации приложения:', error);
   }
 })();
 

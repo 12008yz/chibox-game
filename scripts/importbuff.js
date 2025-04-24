@@ -5,17 +5,17 @@ const BUFF_MARKET_URL = 'https://buff.163.com/api/market/goods';
 
 // Соответствие rarity из BUFF -> твой ENUM
 const rarityMap = {
-  common: 'common',
-  uncommon: 'uncommon',
-  rare: 'rare',
-  epic: 'epic',
-  mythical: 'mythical',
-  ancient_weapon: 'mythical',      // BUFF -> твой ENUM
-  legendary: 'legendary',
-  immortal: 'mythical',
-  exotic: 'epic',
-  extraordinary: 'legendary',
-  default: 'common'
+  common: 'consumer',
+  uncommon: 'industrial',
+  rare: 'milspec',
+  epic: 'restricted',
+  mythical: 'exotic',
+  ancient_weapon: 'exotic',      // BUFF -> твой ENUM
+  legendary: 'covert',
+  immortal: 'exotic',
+  exotic: 'exotic',
+  extraordinary: 'covert',
+  default: 'consumer'
 };
 
 // (опционально — если ENUM exterior)
