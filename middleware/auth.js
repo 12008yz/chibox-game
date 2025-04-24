@@ -1,33 +1,17 @@
-const winston = require('winston');
-
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console(),
-  ],
-});
+const jwt = require('jsonwebtoken');
 
 module.exports = (req, res, next) => {
-  const start = Date.now();
-  // Храним оригинальный метод отправки ответа
-  const { method, originalUrl, ip, headers, body } = req;
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'Требуется токен авторизации' });
+  }
+  const token = authHeader.split(' ')[1];
 
-  res.on('finish', () => {
-    const duration = Date.now() - start;
-    logger.info({
-      type: 'http_request',
-      method,
-      url: originalUrl,
-      status: res.statusCode,
-      duration_ms: duration,
-      ip,
-      user_agent: headers['user-agent'],
-      request_body: (method === 'POST' || method === 'PUT' || method === 'PATCH') ? body : undefined
-    });
-  });
-  next();
+  try {
+    const user = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = user;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: 'Невалидный или просроченный токен' });
+  }
 };
