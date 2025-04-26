@@ -26,10 +26,6 @@ const { sequelize, testConnection } = require('./config/database');
 // Создаем приложение Express
 const app = express();
 
-// Логирование всех запросов
-const requestLogger = require('./middleware/auth');
-app.use(requestLogger);
-
 // Защитные миддлвары
 app.use(helmet());
 app.use(rateLimit({
