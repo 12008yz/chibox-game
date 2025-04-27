@@ -166,6 +166,11 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: "Дата истечения подписки (30 дней от даты покупки)"
     },
+    subscription_days_left: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      comment: "Число дней подписки, которые остались у пользователя"
+    },
 
     // Ежедневные кейсы
     cases_available: {
