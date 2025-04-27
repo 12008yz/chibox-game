@@ -17,8 +17,8 @@ const logger = winston.createLogger({
   ],
 });
 
-// const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
-// const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1d';
+const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1d';
 
 function generateToken(user) {
   return jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -45,29 +45,53 @@ module.exports = {
 
   // User registration
   async register(req, res) {
-    // Validation
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
         message: 'Ошибка валидации',
-        errors: errors.array()
+        errors: errors.array(),
       });
     }
     try {
       let { email, password, username } = req.body;
       email = email.trim().toLowerCase();
+
       const existingUser = await db.User.findOne({ where: { email } });
       if (existingUser) {
         return res.status(409).json({ message: 'Почта уже используется' });
       }
+
+      const existingUsername = await db.User.findOne({ where: { username: username.trim() } });
+      if (existingUsername) {
+        return res.status(409).json({ message: 'Имя пользователя уже занято' });
+      }
+
       const hashedPassword = await argon2.hash(password);
+
+      // Создаём пользователя
       const newUser = await db.User.create({
         email,
         username: username.trim(),
-        password: hashedPassword,
+        password: hashedPassword
+        // остальные поля будут с дефолтами из модели
       });
+
+      // (!!!) Не забывай, что UserAchievement и UserInventory должны создаваться с user_id = newUser.id
+
+      // Получаем достижения пользователя (обычно пусто при создании)
+      const achievements = await db.UserAchievement.findAll({
+        where: { user_id: newUser.id },
+        include: [{ model: db.Achievement, as: 'achievement' }]
+      });
+
+      // Получаем инвентарь пользователя (пусто на старте)
+      const inventory = await db.UserInventory.findAll({
+        where: { user_id: newUser.id },
+        include: [{ model: db.Item, as: 'item' }]
+      });
+
       const token = generateToken(newUser);
-      logger.info(`Пользователь зарегистрирован: ${newUser.email}`);
+
       return res.status(201).json({
         success: true,
         token,
@@ -75,7 +99,39 @@ module.exports = {
           id: newUser.id,
           email: newUser.email,
           username: newUser.username,
+          level: newUser.level,
+          xp: newUser.xp,
+          xp_to_next_level: newUser.xp_to_next_level,
+          level_bonus_percentage: newUser.level_bonus_percentage,
+          total_xp_earned: newUser.total_xp_earned,
+          subscription_tier: newUser.subscription_tier,
+          subscription_purchase_date: newUser.subscription_purchase_date,
+          subscription_expiry_date: newUser.subscription_expiry_date,
+          subscription_days_left: newUser.subscription_days_left,
+          cases_available: newUser.cases_available,
+          cases_opened_today: newUser.cases_opened_today,
+          next_case_available_time: newUser.next_case_available_time,
+          max_daily_cases: newUser.max_daily_cases,
+          next_bonus_available_time: newUser.next_bonus_available_time,
+          last_bonus_date: newUser.last_bonus_date,
+          lifetime_bonuses_claimed: newUser.lifetime_bonuses_claimed,
+          successful_bonus_claims: newUser.successful_bonus_claims,
+          drop_rate_modifier: newUser.drop_rate_modifier,
+          achievements_bonus_percentage: newUser.achievements_bonus_percentage,
+          subscription_bonus_percentage: newUser.subscription_bonus_percentage,
+          total_drop_bonus_percentage: newUser.total_drop_bonus_percentage,
+          balance: newUser.balance,
+          // Steam info если нужно:
+          steam_id: newUser.steam_id,
+          steam_username: newUser.steam_username,
+          steam_avatar: newUser.steam_avatar,
+          steam_profile_url: newUser.steam_profile_url,
+          steam_trade_url: newUser.steam_trade_url,
+          is_email_verified: newUser.is_email_verified,
+          role: newUser.role,
         },
+        achievements, // массив с достижениями пользователя
+        inventory     // массив с предметами пользователя
       });
     } catch (error) {
       logger.error('Ошибка при регистрации:', error);
@@ -90,24 +146,76 @@ module.exports = {
       if (!email || !password) {
         return res.status(400).json({ message: 'Email и пароль обязательны' });
       }
-
+  
+      // Находим пользователя
       const user = await db.User.findOne({ where: { email: email.trim().toLowerCase() } });
       if (!user) {
         return res.status(401).json({ message: 'Неверный email или пароль' });
       }
-
+  
+      // Проверяем пароль
       const passwordMatch = await argon2.verify(user.password, password);
       if (!passwordMatch) {
         return res.status(401).json({ message: 'Неверный email или пароль' });
       }
-
+  
+      // Загружаем достижения и инвентарь
+      const achievements = await db.UserAchievement.findAll({
+        where: { user_id: user.id },
+        include: [{ model: db.Achievement, as: 'achievement' }]
+      });
+  
+      const inventory = await db.UserInventory.findAll({
+        where: { user_id: user.id },
+        include: [{ model: db.Item, as: 'item' }]
+      });
+  
+      // Формируем токен
       const token = generateToken(user);
-      logger.info(`Пользователь вошел: ${user.email}`);
+  
+      // Формируем user-объект для ответа
       return res.json({
         success: true,
         token,
-        user: { id: user.id, email: user.email, username: user.username }
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          level: user.level,
+          xp: user.xp,
+          xp_to_next_level: user.xp_to_next_level,
+          level_bonus_percentage: user.level_bonus_percentage,
+          total_xp_earned: user.total_xp_earned,
+          subscription_tier: user.subscription_tier,
+          subscription_purchase_date: user.subscription_purchase_date,
+          subscription_expiry_date: user.subscription_expiry_date,
+          subscription_days_left: user.subscription_days_left,
+          cases_available: user.cases_available,
+          cases_opened_today: user.cases_opened_today,
+          next_case_available_time: user.next_case_available_time,
+          max_daily_cases: user.max_daily_cases,
+          next_bonus_available_time: user.next_bonus_available_time,
+          last_bonus_date: user.last_bonus_date,
+          lifetime_bonuses_claimed: user.lifetime_bonuses_claimed,
+          successful_bonus_claims: user.successful_bonus_claims,
+          drop_rate_modifier: user.drop_rate_modifier,
+          achievements_bonus_percentage: user.achievements_bonus_percentage,
+          subscription_bonus_percentage: user.subscription_bonus_percentage,
+          total_drop_bonus_percentage: user.total_drop_bonus_percentage,
+          balance: user.balance,
+          // Steam info если надо:
+          steam_id: user.steam_id,
+          steam_username: user.steam_username,
+          steam_avatar: user.steam_avatar,
+          steam_profile_url: user.steam_profile_url,
+          steam_trade_url: user.steam_trade_url,
+          is_email_verified: user.is_email_verified,
+          role: user.role,
+        },
+        achievements,
+        inventory
       });
+  
     } catch (error) {
       logger.error('Ошибка при входе:', error);
       return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
@@ -115,47 +223,109 @@ module.exports = {
   },
 
   // Get current user profile
-  async getProfile(req, res) {
-    try {
-      const userId = req.user.id;
-      const user = await db.User.findByPk(userId, {
-        attributes: ['id', 'email', 'username', 'createdAt', 'updatedAt']
-      });
-      if (!user) {
-        return res.status(404).json({ message: 'Пользователь не найден' });
-      }
-      return res.json(user);
-    } catch (error) {
-      logger.error('Ошибка получения профиля:', error);
-      return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+async getProfile(req, res) {
+  try {
+    const userId = req.user.id;
+
+    // Получить пользователя по id — все важные поля из модели
+    const user = await db.User.findByPk(userId, {
+      // Возвращаем ВСЕ игровые, подписочные и сервисные поля
+      attributes: [
+        'id', 'email', 'username', 'createdAt', 'updatedAt', 'role', 'is_email_verified',
+        'level', 'xp', 'xp_to_next_level', 'level_bonus_percentage', 'total_xp_earned',
+        'subscription_tier', 'subscription_purchase_date', 'subscription_expiry_date', 'subscription_days_left',
+        'cases_available', 'cases_opened_today', 'next_case_available_time', 'max_daily_cases',
+        'next_bonus_available_time', 'last_bonus_date', 'lifetime_bonuses_claimed', 'successful_bonus_claims',
+        'drop_rate_modifier', 'achievements_bonus_percentage', 'subscription_bonus_percentage', 'total_drop_bonus_percentage',
+        'balance',
+        'steam_id', 'steam_username', 'steam_avatar', 'steam_profile_url', 'steam_trade_url'
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'Пользователь не найден' });
     }
-  },
+
+    // Достижения пользователя
+      const achievements = await db.UserAchievement.findAll({
+        where: { user_id: userId },
+        include: [{ model: db.Achievement, as: 'achievement' }]
+      });
+
+    // Инвентарь пользователя
+    const inventory = await db.UserInventory.findAll({
+      where: { user_id: userId },
+      include: [{ model: db.Item, as: 'item' }]
+    });
+
+    return res.json({
+      success: true,
+      user,
+      achievements,
+      inventory
+    });
+
+  } catch (error) {
+    logger.error('Ошибка получения профиля:', error);
+    return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+  }
+},
 
   // Update current user profile
   async updateProfile(req, res) {
     try {
       const userId = req.user.id;
-      const { username, password } = req.body;
-
+      const { username, password, steam_trade_url } = req.body;
+  
       const user = await db.User.findByPk(userId);
       if (!user) {
         return res.status(404).json({ message: 'Пользователь не найден' });
       }
-
-      if (username) {
+  
+      // Проверка уникальности username, если изменяется
+      if (username && username.trim() !== user.username) {
+        const usernameExists = await db.User.findOne({
+          where: { username: username.trim(), id: { [db.Sequelize.Op.ne]: userId } }
+        });
+        if (usernameExists) {
+          return res.status(409).json({ message: 'Такой username уже занят' });
+        }
         user.username = username.trim();
       }
+  
+      // Валидация пароля
       if (password) {
-        if (password.length < 8) {
-          return res.status(400).json({ message: 'Пароль должен быть не менее 8 символов' });
+        if (password.length < 8
+            || !/[A-Z]/.test(password)
+            || !/[a-z]/.test(password)
+            || !/[0-9]/.test(password)
+            || !/[^A-Za-z0-9]/.test(password)
+        ) {
+          return res.status(400).json({ message: 'Пароль должен быть не менее 8 символов и содержать строчные, заглавные буквы, цифру и спецсимвол.' });
         }
         user.password = await argon2.hash(password);
       }
-
+  
+      // Пример обновления дополнительного поля
+      if (steam_trade_url) {
+        user.steam_trade_url = steam_trade_url.trim();
+      }
+  
       await user.save();
-
+  
       logger.info(`Профиль пользователя обновлен: ${user.email}`);
-      return res.json({ message: 'Профиль успешно обновлен' });
+  
+      // Отправляем актуальный user-объект, чтобы фронт мгновенно обновился
+      return res.json({
+        message: 'Профиль успешно обновлен',
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          // если надо, добавь остальные игровые поля как login/getProfile
+          steam_trade_url: user.steam_trade_url
+        }
+      });
     } catch (error) {
       logger.error('Ошибка обновления профиля:', error);
       return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
@@ -173,7 +343,7 @@ module.exports = {
     try {
       const userId = req.user.id;
       const inventory = await db.UserInventory.findAll({
-        where: { userId },
+        where: { user_id: userId },
         include: [{ model: db.Item, as: 'item' }]
       });
       logger.info(`Получен инвентарь для пользователя ${userId}`);
@@ -190,6 +360,23 @@ module.exports = {
       const { caseId } = req.body;
       const userId = req.user.id;
 
+      // Получаем пользователя
+      const user = await db.User.findByPk(userId);
+      if (!user) {
+        return res.status(404).json({ message: 'Пользователь не найден' });
+      }
+
+      // Проверяем лимит кейсов по подписке
+      if (user.cases_opened_today >= user.max_daily_cases) {
+        return res.status(400).json({ message: 'Достигнут лимит открытия кейсов на сегодня' });
+      }
+
+      // Проверяем время следующего доступного кейса
+      const now = new Date();
+      if (user.next_case_available_time && user.next_case_available_time > now) {
+        return res.status(400).json({ message: 'Следующий кейс будет доступен позже', next_case_available_time: user.next_case_available_time });
+      }
+
       // Проверяем, существует ли кейс
       const caseTemplate = await db.CaseTemplate.findByPk(caseId);
       if (!caseTemplate) {
@@ -197,7 +384,7 @@ module.exports = {
       }
 
       // Получаем все предметы, которые могут выпасть из кейса
-      const caseItems = await db.CaseItem.findAll({
+      let caseItems = await db.CaseItem.findAll({
         where: { caseId },
         include: [{ model: db.Item }]
       });
@@ -206,7 +393,55 @@ module.exports = {
         return res.status(404).json({ message: 'В кейсе нет предметов' });
       }
 
-      // Пример простого выбора предмета с учетом веса (weight)
+      // Получаем инвентарь пользователя (список itemId)
+      const userInventoryItems = await db.UserInventory.findAll({
+        where: { user_id: userId },
+        attributes: ['itemId']
+      });
+      const userItemIds = userInventoryItems.map(i => i.itemId);
+
+      // Если подписка статус+ или статус++ (2 или 3), увеличиваем вес предметов с ценой >= 100 руб на 5%
+      if (user.subscription_tier === 2 || user.subscription_tier === 3) {
+        caseItems = caseItems.map(ci => {
+          const price = ci.Item.price || 0;
+          if (price >= 100) {
+            return {
+              ...ci,
+              weight: ci.weight * 1.05
+            };
+          }
+          return ci;
+        });
+      }
+
+      // Если подписка статус++ (3), исключаем предметы, которые уже были получены из этого кейса за последний месяц
+      if (user.subscription_tier === 3) {
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+        // Получаем историю открытий кейсов пользователя за последний месяц для данного кейса
+        const recentOpenedItems = await db.UserInventory.findAll({
+          where: {
+            userId,
+            createdAt: { [db.Sequelize.Op.gte]: oneMonthAgo }
+          },
+          include: [{
+            model: db.CaseItem,
+            required: true,
+            where: { caseId }
+          }]
+        });
+
+        const recentItemIds = recentOpenedItems.map(ui => ui.itemId);
+
+        caseItems = caseItems.filter(ci => !recentItemIds.includes(ci.itemId));
+
+        if (caseItems.length === 0) {
+          return res.status(400).json({ message: 'Все предметы из этого кейса уже были получены вами за последний месяц' });
+        }
+      }
+
+      // Выбор предмета с учетом веса
       const totalWeight = caseItems.reduce((sum, ci) => sum + ci.weight, 0);
       let random = Math.random() * totalWeight;
       let selectedItem = null;
@@ -224,10 +459,16 @@ module.exports = {
 
       // Добавляем предмет в инвентарь пользователя
       await db.UserInventory.create({
-        userId,
+        user_id: userId,
         itemId: selectedItem.id,
         quantity: 1
       });
+
+      // Обновляем данные пользователя
+      user.cases_opened_today += 1;
+      // Устанавливаем время следующего доступного кейса через 1 час (можно сделать параметром)
+      user.next_case_available_time = new Date(now.getTime() + 60 * 60 * 1000);
+      await user.save();
 
       logger.info(`Пользователь ${userId} открыл кейс ${caseId} и получил предмет ${selectedItem.id}`);
 
@@ -288,7 +529,7 @@ module.exports = {
 
       // Создаем заявку на вывод (Withdrawal)
       await db.Withdrawal.create({
-        userId,
+        user_id: userId,
         itemId,
         status: 'pending', // статус заявки
         type: 'item'
@@ -341,7 +582,7 @@ module.exports = {
       }
 
       // Проверяем, не использовал ли пользователь этот промокод
-      const usage = await db.PromoCodeUsage.findOne({ where: { userId, promoCodeId: promo.id } });
+      const usage = await db.PromoCodeUsage.findOne({ where: { user_id: userId, promoCodeId: promo.id } });
       if (usage) {
         return res.status(400).json({ message: 'Промокод уже использован' });
       }
@@ -357,7 +598,7 @@ module.exports = {
 
       // Записываем использование промокода
       await db.PromoCodeUsage.create({
-        userId,
+        user_id: userId,
         promoCodeId: promo.id,
         usedAt: new Date()
       });
@@ -375,7 +616,7 @@ module.exports = {
   async getTransactions(req, res) {
     try {
       const userId = req.user.id;
-      const transactions = await db.Transaction.findAll({ where: { userId } });
+      const transactions = await db.Transaction.findAll({ where: { user_id: userId } });
       logger.info(`История транзакций пользователя ${userId}`);
       return res.json({ transactions });
     } catch (error) {
@@ -423,7 +664,7 @@ module.exports = {
 
       // Создаем заявку на вывод баланса
       await db.Withdrawal.create({
-        userId,
+        user_id: userId,
         amount,
         status: 'pending',
         type: 'balance'
@@ -446,7 +687,7 @@ module.exports = {
   async getAchievements(req, res) {
     try {
       const userId = req.user.id;
-      const achievements = await db.UserAchievement.findAll({ where: { userId }, include: db.Achievement });
+      const achievements = await db.UserAchievement.findAll({ where: { user_id: userId }, include: db.Achievement });
       return res.json({ achievements });
     } catch (error) {
       logger.error('Ошибка получения достижений:', error);
@@ -458,7 +699,7 @@ module.exports = {
   async getMissions(req, res) {
     try {
       const userId = req.user.id;
-      const missions = await db.UserMission.findAll({ where: { userId }, include: db.Mission });
+      const missions = await db.UserMission.findAll({ where: { user_id: userId }, include: db.Mission });
       return res.json({ missions });
     } catch (error) {
       logger.error('Ошибка получения миссий:', error);
@@ -472,9 +713,9 @@ module.exports = {
       const userId = req.user.id;
 
       // Пример агрегированной статистики (можно расширить)
-      const totalTransactions = await db.Transaction.count({ where: { userId } });
-      const totalSpent = await db.Transaction.sum('amount', { where: { userId, type: 'spend' } });
-      const totalEarned = await db.Transaction.sum('amount', { where: { userId, type: 'earn' } });
+      const totalTransactions = await db.Transaction.count({ where: { user_id: userId } });
+      const totalSpent = await db.Transaction.sum('amount', { where: { user_id: userId, type: 'spend' } });
+      const totalEarned = await db.Transaction.sum('amount', { where: { user_id: userId, type: 'earn' } });
 
       const statistics = {
         totalTransactions: totalTransactions || 0,
@@ -508,7 +749,7 @@ module.exports = {
   async getNotifications(req, res) {
     try {
       const userId = req.user.id;
-      const notifications = await db.Notification.findAll({ where: { userId } });
+      const notifications = await db.Notification.findAll({ where: { user_id: userId } });
       return res.json({ notifications });
     } catch (error) {
       logger.error('Ошибка получения уведомлений:', error);
@@ -533,9 +774,318 @@ module.exports = {
     }
   },
 
+  /**
+   * Купить или продлить подписку
+   * POST /subscription/buy
+   * body: { tierId, method } // method: balance, card, item, promo и т.д.
+   */
+  async buySubscription(req, res) {
+    try {
+      const userId = req.user.id;
+      const { tierId, method, itemId, promoCode } = req.body;
+      const user = await db.User.findByPk(userId);
+      const tier = await db.SubscriptionTier.findByPk(tierId);
+      if (!tier) return res.status(404).json({ message: 'Тариф не найден' });
+
+      // Проверка возможности оплаты (метод balance, card, item...)
+      // TODO: реализовать карт-платежи при необходимости
+      let price = parseFloat(tier.price);
+      let action = 'purchase';
+      let exchangeItemId = null;
+
+      if (method === 'balance') {
+        if ((user.balance || 0) < price) return res.status(400).json({ message: 'Недостаточно средств' });
+        user.balance -= price;
+      } else if (method === 'item') {
+        // Поиск правила обмена
+        const rule = await db.ItemSubscriptionExchangeRule.findOne({
+          where: { item_id: itemId, subscription_tier_id: tier.id },
+        });
+        if (!rule) return res.status(400).json({ message: 'Нельзя обменять данный предмет' });
+        const inventoryItem = await db.UserInventory.findOne({ where: { userId, itemId } });
+        if (!inventoryItem) return res.status(404).json({ message: 'У пользователя нет предмета' });
+        exchangeItemId = itemId;
+        price = 0;
+        action = 'exchange_item';
+        // удаляем предмет
+        await inventoryItem.destroy();
+      } else if (method === 'promo') {
+        // TODO: интеграция для промокода
+        // price = 0, action = 'promo'
+        action = 'promo';
+      } else if (method === 'card') {
+        // Здесь должна быть интеграция с платежкой
+        return res.status(400).json({ message: 'Платёжные карты ещё не реализованы' });
+      }
+
+      // Продление/апгрейд
+      const now = new Date();
+      if (user.subscription_tier && user.subscription_expiry_date && user.subscription_expiry_date > now && user.subscription_tier === tier.id) {
+        // Продление текущего тарифа
+        user.subscription_expiry_date = new Date(Math.max(now, user.subscription_expiry_date));
+        user.subscription_expiry_date.setDate(user.subscription_expiry_date.getDate() + tier.days);
+      } else {
+        // Покупка новой подписки или апгрейд/смена уровня
+        user.subscription_tier = tier.id;
+        user.subscription_purchase_date = now;
+        user.subscription_expiry_date = new Date(now.getTime() + tier.days * 86400000);
+      }
+      user.max_daily_cases = tier.max_daily_cases;
+      user.subscription_bonus_percentage = tier.bonus_percentage;
+      await user.save();
+      // Записываем в историю
+      await db.SubscriptionHistory.create({
+        user_id: userId,
+        action,
+        days: tier.days,
+        price,
+        item_id: exchangeItemId,
+        method: method,
+        date: now
+      });
+      logger.info(`Пользователь ${userId} приобрёл подписку tier=${tier.id}`);
+      return res.json({
+        success: true,
+        tier: {
+          id: tier.id,
+          name: tier.name,
+          expiry_date: user.subscription_expiry_date,
+          bonus: tier.bonus_percentage,
+          max_daily_cases: tier.max_daily_cases
+        },
+        message: 'Подписка успешно активирована'
+      });
+    } catch (error) {
+      logger.error('Ошибка покупки подписки:', error);
+      return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+    }
+  },
+
+  /**
+   * Получить активную подписку пользователя
+   * GET /subscription
+   */
+  async getSubscription(req, res) {
+    try {
+      const userId = req.user.id;
+      const user = await db.User.findByPk(userId);
+      if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
+      if (!user.subscription_tier) return res.json({ tier: null, expiry_date: null, days_left: 0 });
+      const tier = await db.SubscriptionTier.findByPk(user.subscription_tier);
+      const now = new Date();
+      const expiry = user.subscription_expiry_date;
+      const daysLeft = expiry ? Math.max(0, Math.floor((expiry - now) / 86400000)) : 0;
+      return res.json({
+        id: tier.id,
+        name: tier.name,
+        expiry_date: expiry,
+        days_left: daysLeft,
+        bonus_percentage: tier.bonus_percentage,
+        max_daily_cases: tier.max_daily_cases
+      });
+    } catch (error) {
+      logger.error('Ошибка получения подписки:', error);
+      return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+    }
+  },
+
+  /**
+   * Обменять предмет на подписку
+   * POST /items/exchange-for-subscription
+   */
+  async exchangeItemForSubscription(req, res) {
+    try {
+      const userId = req.user.id;
+      const { itemId, tierId } = req.body;
+      // Находим правило обмена
+      const rule = await db.ItemSubscriptionExchangeRule.findOne({
+        where: { item_id: itemId, subscription_tier_id: tierId },
+      });
+      if (!rule) return res.status(400).json({ message: 'Нет правила обмена для этого предмета/тарифа' });
+      // Проверяем инвентарь
+      const inventoryItem = await db.UserInventory.findOne({ where: { userId, itemId } });
+      if (!inventoryItem) return res.status(404).json({ message: 'Нет такого предмета для обмена' });
+      // Удаляем предмет
+      await inventoryItem.destroy();
+      // Продлеваем подписку пользователя
+      const user = await db.User.findByPk(userId);
+      // Если подписка такого же уровня — продлеваем, иначе даём новую
+      const now = new Date();
+      if (user.subscription_tier === rule.subscription_tier_id && user.subscription_expiry_date && user.subscription_expiry_date > now) {
+        user.subscription_expiry_date = new Date(user.subscription_expiry_date.getTime() + rule.days * 86400000);
+      } else {
+        user.subscription_tier = rule.subscription_tier_id;
+        user.subscription_purchase_date = now;
+        user.subscription_expiry_date = new Date(now.getTime() + rule.days * 86400000);
+      }
+      await user.save();
+      // Записываем в историю
+      await db.SubscriptionHistory.create({
+        user_id: userId,
+        action: 'exchange_item',
+        days: rule.days,
+        price: 0,
+        item_id: itemId,
+        method: 'item',
+        date: now
+      });
+      logger.info(`Пользователь ${userId} обменял предмет ${itemId} на подписку tier=${rule.subscription_tier_id}`);
+      return res.json({ success: true, message: `Подписка продлена на ${rule.days} дней` });
+    } catch (error) {
+      logger.error('Ошибка обмена предмета на подписку:', error);
+      return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+    }
+  },
+
+  /**
+   * Мини-игра "квадраты": сыграть (раз в 48 часов)
+   * POST /bonus/play-squares
+   */
+  async playBonusSquares(req, res) {
+    try {
+      const userId = req.user.id;
+      const user = await db.User.findByPk(userId);
+      const now = new Date();
+      const ready = !user.next_bonus_available_time || user.next_bonus_available_time <= now;
+      if (!ready) return res.status(400).json({ message: 'Бонус пока недоступен', next_time: user.next_bonus_available_time });
+      // Пример: два случайных квадрата с наградами из N (напр. 9)
+      const totalSquares = 9;
+      const prizes = [ 'item', 'balance', null, null, null, null, null, null, null ];
+      prizes.sort(() => Math.random() - 0.5); // тасуем призы
+      // Выдать только призовые клетки (их обработка зависит от выпадения)
+      // Пример: выберем две ячейки для выигрыша
+      const wonIndexes = prizes
+        .map((val, idx) => ({ val, idx }))
+        .filter(({ val }) => !!val)
+        .map(({ idx }) => idx);
+      // Обработка выигрыша: например, один предмет и 50 на баланс
+      let rewardMessage = '';
+      if (prizes[wonIndexes[0]] === 'item') {
+        // TODO: выдать случайный предмет
+        rewardMessage = 'Вам выпал предмет!';
+      } else if (prizes[wonIndexes[0]] === 'balance') {
+        user.balance = (user.balance || 0) + 50;
+        rewardMessage = 'Вам начислено 50 на баланс!';
+        await user.save();
+      } else {
+        rewardMessage = 'Вы ничего не выиграли.';
+      }
+      // Время до следующего бонуса
+      user.next_bonus_available_time = new Date(now.getTime() + 48 * 60 * 60 * 1000); // 48h дальше можно сделать переменным
+      user.lifetime_bonuses_claimed = (user.lifetime_bonuses_claimed || 0) + 1;
+      user.last_bonus_date = now;
+      await user.save();
+      // История
+      await db.BonusMiniGameHistory.create({
+        user_id: userId,
+        played_at: now,
+        reward: rewardMessage
+      });
+      return res.json({ message: rewardMessage, next_time: user.next_bonus_available_time });
+    } catch (error) {
+      logger.error('Ошибка бонус-миниигры:', error);
+      return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+    }
+  },
+
+  /**
+   * Статус бонуса "квадраты"
+   * GET /bonus/status
+   */
+  async getBonusStatus(req, res) {
+    try {
+      const userId = req.user.id;
+      const user = await db.User.findByPk(userId);
+      return res.json({
+        next_bonus_available_time: user.next_bonus_available_time,
+        lifetime_bonuses_claimed: user.lifetime_bonuses_claimed,
+        last_bonus_date: user.last_bonus_date,
+      });
+    } catch (error) {
+      logger.error('Ошибка проверки статуса бонуса:', error);
+      return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+    }
+  },
+
+  /**
+   * Узнать, сколько кейсов можно открыть сегодня
+   * GET /cases/available
+   */
+  async getCasesAvailable(req, res) {
+    try {
+      const userId = req.user.id;
+      const user = await db.User.findByPk(userId);
+      return res.json({
+        max_daily_cases: user.max_daily_cases,
+        cases_opened_today: user.cases_opened_today,
+        cases_available: Math.max(0, user.max_daily_cases - user.cases_opened_today),
+        last_reset_date: user.last_reset_date,
+        next_case_available_time: user.next_case_available_time,
+      });
+    } catch (error) {
+      logger.error('Ошибка получения доступных кейсов:', error);
+      return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+    }
+  },
+
+  /**
+   * Прогресс по ачивкам (опционально)
+   * GET /achievements/progress
+   */
+  async getAchievementsProgress(req, res) {
+    try {
+      const userId = req.user.id;
+      const achs = await db.UserAchievement.findAll({
+        where: { userId },
+        include: [{ model: db.Achievement }]
+      });
+      const progress = achs.map(entry => ({
+        id: entry.achievement_id,
+        name: entry.Achievement ? entry.Achievement.name : '',
+        description: entry.Achievement ? entry.Achievement.description : '',
+        completed: entry.completed,
+        progress: entry.progress
+      }));
+      return res.json({ progress });
+    } catch (error) {
+      logger.error('Ошибка получения прогресса достижений:', error);
+      return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+    }
+  },
+
   // ---- Админ-функции (если нужно) ----
-  // async banUser(req, res) { /* ... */ }
-  // async unbanUser(req, res) { /* ... */ }
-  // async setBalance(req, res) { /* ... */ }
-  // async getAllUsers(req, res) { /* ... */ }
+
+  // Admin update user by ID - update all fields
+  async adminUpdateUser(req, res) {
+    try {
+      const adminUser = req.user;
+      if (!adminUser || adminUser.role !== 'admin') {
+        return res.status(403).json({ message: 'Доступ запрещён' });
+      }
+
+      const userId = req.params.id;
+      const updateData = req.body;
+
+      // Не позволяем менять пароль напрямую через этот метод (если нужно, можно добавить отдельный эндпоинт)
+      if (updateData.password) {
+        delete updateData.password;
+      }
+
+      // Обновляем пользователя
+      const [updatedRowsCount, [updatedUser]] = await db.User.update(updateData, {
+        where: { id: userId },
+        returning: true,
+        individualHooks: true
+      });
+
+      if (updatedRowsCount === 0) {
+        return res.status(404).json({ message: 'Пользователь не найден' });
+      }
+
+      return res.json({ message: 'Пользователь успешно обновлён', user: updatedUser });
+    } catch (error) {
+      logger.error('Ошибка обновления пользователя админом:', error);
+      return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+    }
+  }
 };

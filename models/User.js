@@ -276,6 +276,11 @@ module.exports = (sequelize) => {
       defaultValue: 0,
       comment: "Максимальная серия дней подряд с открытием кейса"
     },
+    subscription_days_left: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      comment: "Прошедшее количество дней подписки"
+    },
     registration_date: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,

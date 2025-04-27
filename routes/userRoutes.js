@@ -22,10 +22,21 @@ const {
   getLeaderboard,
   getNotifications,
   getPublicProfile,
+  buySubscription,
+  getSubscription,
+  exchangeItemForSubscription,
+  playBonusSquares,
+  getBonusStatus,
+  getCasesAvailable,
+  getAchievementsProgress,
 } = require('../controllers/userController');
 const authMiddleware = require('../middleware/auth');
 
+
 const router = express.Router();
+
+router.put('/admin/users/:id', authMiddleware, require('../controllers/userController').adminUpdateUser);
+
 
 // Public routes
 router.post('/register', registerValidation, register);
@@ -52,5 +63,14 @@ router.get('/missions', authMiddleware, getMissions);
 router.get('/statistics', authMiddleware, getStatistics);
 router.get('/leaderboard', authMiddleware, getLeaderboard);
 router.get('/notifications', authMiddleware, getNotifications);
+
+// New routes from userController.js
+router.post('/subscription/buy', authMiddleware, buySubscription);
+router.get('/subscription', authMiddleware, getSubscription);
+router.post('/items/exchange-for-subscription', authMiddleware, exchangeItemForSubscription);
+router.post('/bonus/play-squares', authMiddleware, playBonusSquares);
+router.get('/bonus/status', authMiddleware, getBonusStatus);
+router.get('/cases/available', authMiddleware, getCasesAvailable);
+router.get('/achievements/progress', authMiddleware, getAchievementsProgress);
 
 module.exports = router;

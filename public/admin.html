@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Админ-панель пользователя</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    label { display: block; margin-top: 10px; }
+    input, textarea { width: 300px; }
+    button { margin-top: 15px; padding: 8px 12px; }
+    .message { margin-top: 15px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Админ-панель пользователя</h1>
+  <form id="adminForm">
+    <label for="userId">ID пользователя:</label>
+    <input type="text" id="userId" name="userId" required />
+
+    <label for="userData">Данные пользователя (JSON):</label>
+    <textarea id="userData" name="userData" rows="15" placeholder='{"username":"newname","subscription_tier":2}' required></textarea>
+
+    <label for="authToken">Токен администратора (Bearer):</label>
+    <input type="text" id="authToken" name="authToken" required />
+
+    <button type="submit">Обновить пользователя</button>
+  </form>
+  <div class="message" id="message"></div>
+
+  <script>
+    const form = document.getElementById('adminForm');
+    const messageDiv = document.getElementById('message');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      messageDiv.textContent = '';
+
+      const userId = form.userId.value.trim();
+      let userData;
+      try {
+        userData = JSON.parse(form.userData.value);
+      } catch (err) {
+        messageDiv.textContent = 'Ошибка: данные пользователя должны быть валидным JSON.';
+        return;
+      }
+      const authToken = form.authToken.value.trim();
+
+      try {
+        const response = await fetch(`/api/users/admin/users/${userId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + authToken
+          },
+          body: JSON.stringify(userData)
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+          messageDiv.textContent = 'Пользователь успешно обновлён.';
+        } else {
+          messageDiv.textContent = 'Ошибка: ' + (result.message || 'Неизвестная ошибка');
+        }
+      } catch (error) {
+        messageDiv.textContent = 'Ошибка запроса: ' + error.message;
+      }
+    });
+  </script>
+</body>
+</html>
