@@ -124,6 +124,12 @@ module.exports = (sequelize) => {
       foreignKey: 'template_id',
       as: 'cases'
     });
+    CaseTemplate.belongsToMany(models.Item, {
+      through: 'case_template_items',
+      foreignKey: 'case_template_id',
+      otherKey: 'item_id',
+      as: 'items'
+    });
   };
 
   return CaseTemplate;

@@ -4,6 +4,14 @@ const jwt = require('jsonwebtoken');
 const { validationResult, body } = require('express-validator');
 const winston = require('winston');
 const db = require('../models');
+const { Op } = require('sequelize');
+
+// Параметры уровней подписки, соответствующие tierId
+const subscriptionTiers = {
+  1: { days: 30, max_daily_cases: 3, bonus_percentage: 3.0, name: 'Статус', price: 1210 },
+  2: { days: 30, max_daily_cases: 5, bonus_percentage: 5.0, name: 'Статус+', price: 2890 },
+  3: { days: 30, max_daily_cases: 10, bonus_percentage: 10.0, name: 'Статус++', price: 6819 }
+};
 
 // winston logger
 const logger = winston.createLogger({
@@ -378,95 +386,66 @@ async getProfile(req, res) {
       }
 
       // Проверяем, существует ли кейс
-      const caseTemplate = await db.CaseTemplate.findByPk(caseId);
+      const caseTemplate = await db.CaseTemplate.findByPk(caseId, {
+        include: [{
+          model: db.Item,
+          as: 'items',
+          through: { attributes: [] }
+        }]
+      });
       if (!caseTemplate) {
         return res.status(404).json({ message: 'Кейс не найден' });
       }
 
-      // Получаем все предметы, которые могут выпасть из кейса
-      let caseItems = await db.CaseItem.findAll({
-        where: { caseId },
-        include: [{ model: db.Item }]
+      // Получаем кейс пользователя с шаблоном и результатом (если открыт)
+      const userCase = await db.Case.findOne({
+        where: { id: caseId, user_id: userId, is_opened: false },
+        include: [
+          { model: db.CaseTemplate, as: 'template' },
+          { model: db.Item, as: 'result_item' }
+        ]
       });
 
-      if (!caseItems.length) {
+      if (!userCase) {
+        return res.status(404).json({ message: 'Кейс не найден или уже открыт' });
+      }
+
+      // Выбираем случайный предмет из связанных с шаблоном кейса items
+      const items = caseTemplate.items || [];
+      if (!items.length) {
         return res.status(404).json({ message: 'В кейсе нет предметов' });
       }
 
-      // Получаем инвентарь пользователя (список itemId)
-      const userInventoryItems = await db.UserInventory.findAll({
-        where: { user_id: userId },
-        attributes: ['itemId']
-      });
-      const userItemIds = userInventoryItems.map(i => i.itemId);
-
-      // Если подписка статус+ или статус++ (2 или 3), увеличиваем вес предметов с ценой >= 100 руб на 5%
-      if (user.subscription_tier === 2 || user.subscription_tier === 3) {
-        caseItems = caseItems.map(ci => {
-          const price = ci.Item.price || 0;
-          if (price >= 100) {
-            return {
-              ...ci,
-              weight: ci.weight * 1.05
-            };
-          }
-          return ci;
-        });
-      }
-
-      // Если подписка статус++ (3), исключаем предметы, которые уже были получены из этого кейса за последний месяц
-      if (user.subscription_tier === 3) {
-        const oneMonthAgo = new Date();
-        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-
-        // Получаем историю открытий кейсов пользователя за последний месяц для данного кейса
-        const recentOpenedItems = await db.UserInventory.findAll({
-          where: {
-            userId,
-            createdAt: { [db.Sequelize.Op.gte]: oneMonthAgo }
-          },
-          include: [{
-            model: db.CaseItem,
-            required: true,
-            where: { caseId }
-          }]
-        });
-
-        const recentItemIds = recentOpenedItems.map(ui => ui.itemId);
-
-        caseItems = caseItems.filter(ci => !recentItemIds.includes(ci.itemId));
-
-        if (caseItems.length === 0) {
-          return res.status(400).json({ message: 'Все предметы из этого кейса уже были получены вами за последний месяц' });
-        }
-      }
-
-      // Выбор предмета с учетом веса
-      const totalWeight = caseItems.reduce((sum, ci) => sum + ci.weight, 0);
-      let random = Math.random() * totalWeight;
+      // Случайный выбор предмета с учетом drop_weight
+      const totalWeight = items.reduce((sum, item) => sum + (item.drop_weight || 1), 0);
+      let randomWeight = Math.random() * totalWeight;
       let selectedItem = null;
-      for (const ci of caseItems) {
-        if (random < ci.weight) {
-          selectedItem = ci.Item;
+      for (const item of items) {
+        randomWeight -= (item.drop_weight || 1);
+        if (randomWeight <= 0) {
+          selectedItem = item;
           break;
         }
-        random -= ci.weight;
+      }
+      if (!selectedItem) {
+        selectedItem = items[items.length - 1];
       }
 
-      if (!selectedItem) {
-        return res.status(500).json({ message: 'Ошибка выбора предмета' });
-      }
+      userCase.is_opened = true;
+      userCase.opened_date = new Date();
+      userCase.result_item_id = selectedItem.id;
+      await userCase.save();
 
       // Добавляем предмет в инвентарь пользователя
       await db.UserInventory.create({
         user_id: userId,
         itemId: selectedItem.id,
-        quantity: 1
+        quantity: 1,
+        case_id: userCase.id
       });
 
       // Обновляем данные пользователя
       user.cases_opened_today += 1;
-      // Устанавливаем время следующего доступного кейса через 1 час (можно сделать параметром)
       user.next_case_available_time = new Date(now.getTime() + 60 * 60 * 1000);
       await user.save();
 
@@ -784,22 +763,24 @@ async getProfile(req, res) {
       const userId = req.user.id;
       const { tierId, method, itemId, promoCode } = req.body;
       const user = await db.User.findByPk(userId);
-      const tier = await db.SubscriptionTier.findByPk(tierId);
+      const tier = subscriptionTiers[tierId];
       if (!tier) return res.status(404).json({ message: 'Тариф не найден' });
 
       // Проверка возможности оплаты (метод balance, card, item...)
       // TODO: реализовать карт-платежи при необходимости
-      let price = parseFloat(tier.price);
+      let price = tier.price || 0; // Цена не задана в константах, можно добавить при необходимости
       let action = 'purchase';
       let exchangeItemId = null;
 
       if (method === 'balance') {
+        logger.info(`Баланс пользователя до покупки: ${user.balance}`);
         if ((user.balance || 0) < price) return res.status(400).json({ message: 'Недостаточно средств' });
         user.balance -= price;
+        logger.info(`Баланс пользователя после покупки: ${user.balance}`);
       } else if (method === 'item') {
         // Поиск правила обмена
         const rule = await db.ItemSubscriptionExchangeRule.findOne({
-          where: { item_id: itemId, subscription_tier_id: tier.id },
+          where: { item_id: itemId, subscription_tier_id: parseInt(tierId) },
         });
         if (!rule) return res.status(400).json({ message: 'Нельзя обменять данный предмет' });
         const inventoryItem = await db.UserInventory.findOne({ where: { userId, itemId } });
@@ -820,19 +801,56 @@ async getProfile(req, res) {
 
       // Продление/апгрейд
       const now = new Date();
-      if (user.subscription_tier && user.subscription_expiry_date && user.subscription_expiry_date > now && user.subscription_tier === tier.id) {
+      if (user.subscription_tier && user.subscription_expiry_date && user.subscription_expiry_date > now && user.subscription_tier === parseInt(tierId)) {
         // Продление текущего тарифа
         user.subscription_expiry_date = new Date(Math.max(now, user.subscription_expiry_date));
         user.subscription_expiry_date.setDate(user.subscription_expiry_date.getDate() + tier.days);
       } else {
         // Покупка новой подписки или апгрейд/смена уровня
-        user.subscription_tier = tier.id;
+        user.subscription_tier = parseInt(tierId);
         user.subscription_purchase_date = now;
         user.subscription_expiry_date = new Date(now.getTime() + tier.days * 86400000);
       }
       user.max_daily_cases = tier.max_daily_cases;
       user.subscription_bonus_percentage = tier.bonus_percentage;
       await user.save();
+
+      // Автоматическая выдача ежедневных кейсов при покупке/продлении подписки
+      const caseTemplates = await db.CaseTemplate.findAll({
+        where: {
+          type: 'daily',
+          min_subscription_tier: {
+            [db.Sequelize.Op.lte]: parseInt(tierId)
+          },
+          is_active: true
+        }
+      });
+
+      for (const template of caseTemplates) {
+        // Проверяем, есть ли уже кейс для пользователя и данного шаблона, который не открыт и не истёк
+        const existingCase = await db.Case.findOne({
+          where: {
+            user_id: userId,
+            template_id: template.id,
+            is_opened: false,
+            [db.Sequelize.Op.or]: [
+              { expires_at: null },
+              { expires_at: { [db.Sequelize.Op.gt]: now } }
+            ]
+          }
+        });
+        if (!existingCase) {
+          await db.Case.create({
+            user_id: userId,
+            template_id: template.id,
+            subscription_tier: parseInt(tierId),
+            source: 'subscription',
+            received_date: now,
+            expires_at: new Date(now.getTime() + template.cooldown_hours * 3600000)
+          });
+        }
+      }
+
       // Записываем в историю
       await db.SubscriptionHistory.create({
         user_id: userId,
@@ -843,16 +861,17 @@ async getProfile(req, res) {
         method: method,
         date: now
       });
-      logger.info(`Пользователь ${userId} приобрёл подписку tier=${tier.id}`);
+      logger.info(`Пользователь ${userId} приобрёл подписку tier=${tierId}`);
       return res.json({
         success: true,
         tier: {
-          id: tier.id,
+          id: parseInt(tierId),
           name: tier.name,
           expiry_date: user.subscription_expiry_date,
           bonus: tier.bonus_percentage,
           max_daily_cases: tier.max_daily_cases
         },
+        balance: user.balance,
         message: 'Подписка успешно активирована'
       });
     } catch (error) {
@@ -871,17 +890,17 @@ async getProfile(req, res) {
       const user = await db.User.findByPk(userId);
       if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
       if (!user.subscription_tier) return res.json({ tier: null, expiry_date: null, days_left: 0 });
-      const tier = await db.SubscriptionTier.findByPk(user.subscription_tier);
+      const tier = subscriptionTiers[user.subscription_tier];
       const now = new Date();
       const expiry = user.subscription_expiry_date;
       const daysLeft = expiry ? Math.max(0, Math.floor((expiry - now) / 86400000)) : 0;
       return res.json({
-        id: tier.id,
-        name: tier.name,
+        id: user.subscription_tier,
+        name: tier ? tier.name : null,
         expiry_date: expiry,
         days_left: daysLeft,
-        bonus_percentage: tier.bonus_percentage,
-        max_daily_cases: tier.max_daily_cases
+        bonus_percentage: tier ? tier.bonus_percentage : 0,
+        max_daily_cases: tier ? tier.max_daily_cases : 0
       });
     } catch (error) {
       logger.error('Ошибка получения подписки:', error);
@@ -899,7 +918,7 @@ async getProfile(req, res) {
       const { itemId, tierId } = req.body;
       // Находим правило обмена
       const rule = await db.ItemSubscriptionExchangeRule.findOne({
-        where: { item_id: itemId, subscription_tier_id: tierId },
+        where: { item_id: itemId, subscription_tier_id: parseInt(tierId) },
       });
       if (!rule) return res.status(400).json({ message: 'Нет правила обмена для этого предмета/тарифа' });
       // Проверяем инвентарь

@@ -171,6 +171,12 @@ module.exports = (sequelize) => {
     Item.hasMany(models.Case, { foreignKey: 'result_item_id', as: 'dropped_from_cases' });
     Item.hasMany(models.LiveDrop, { foreignKey: 'item_id', as: 'live_drops' });
     Item.belongsTo(models.ItemCategory, { foreignKey: 'category_id', as: 'category' });
+    Item.belongsToMany(models.CaseTemplate, {
+      through: 'case_template_items',
+      foreignKey: 'item_id',
+      otherKey: 'case_template_id',
+      as: 'case_templates'
+    });
   };
 
   return Item;
