@@ -813,6 +813,8 @@ async getProfile(req, res) {
       }
       user.max_daily_cases = tier.max_daily_cases;
       user.subscription_bonus_percentage = tier.bonus_percentage;
+      // Обновляем cases_available, чтобы сразу был доступен сегодняшний кейс
+      user.cases_available = Math.max(user.cases_available || 0, tier.max_daily_cases);
       await user.save();
 
       // Автоматическая выдача ежедневных кейсов при покупке/продлении подписки
