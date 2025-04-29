@@ -29,13 +29,13 @@ const {
   getBonusStatus,
   getCasesAvailable,
   getAchievementsProgress,
-} = require('../controllers/userController');
+} = require('../controllers/user/userController');
 const authMiddleware = require('../middleware/auth');
 
 
 const router = express.Router();
 
-router.put('/admin/users/:id', authMiddleware, require('../controllers/userController').adminUpdateUser);
+router.put('/admin/users/:id', authMiddleware, require('../controllers/user/userController').adminUpdateUser);
 
 
 // Public routes
