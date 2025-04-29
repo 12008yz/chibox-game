@@ -14,8 +14,12 @@ const logger = winston.createLogger({
 
 async function openCase(req, res) {
   try {
-    const { caseId } = req.body;
+    const caseId = req.body.caseId || req.params.caseId || req.query.caseId;
     const userId = req.user.id;
+
+    if (!caseId) {
+      return res.status(400).json({ message: 'Не указан caseId' });
+    }
 
     const user = await db.User.findByPk(userId);
     if (!user) {
@@ -31,30 +35,26 @@ async function openCase(req, res) {
       return res.status(400).json({ message: 'Следующий кейс будет доступен позже', next_case_available_time: user.next_case_available_time });
     }
 
-    const caseTemplate = await db.CaseTemplate.findByPk(caseId, {
-      include: [{
-        model: db.Item,
-        as: 'items',
-        through: { attributes: [] }
-      }]
-    });
-    if (!caseTemplate) {
-      return res.status(404).json({ message: 'Кейс не найден' });
-    }
-
     const userCase = await db.Case.findOne({
       where: { id: caseId, user_id: userId, is_opened: false },
       include: [
-        { model: db.CaseTemplate, as: 'template' },
+        { model: db.CaseTemplate, as: 'template', include: [{
+          model: db.Item,
+          as: 'items',
+          through: { attributes: [] }
+        }] },
         { model: db.Item, as: 'result_item' }
       ]
     });
+    if (!userCase) {
+      return res.status(404).json({ message: 'Кейс не найден или уже открыт' });
+    }
 
     if (!userCase) {
       return res.status(404).json({ message: 'Кейс не найден или уже открыт' });
     }
 
-    const items = caseTemplate.items || [];
+    const items = userCase.template.items || [];
     if (!items.length) {
       return res.status(404).json({ message: 'В кейсе нет предметов' });
     }
@@ -80,7 +80,7 @@ async function openCase(req, res) {
 
     await db.UserInventory.create({
       user_id: userId,
-      itemId: selectedItem.id,
+      item_id: selectedItem.id,
       quantity: 1,
       case_id: userCase.id
     });

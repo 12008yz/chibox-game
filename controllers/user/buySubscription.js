@@ -1,5 +1,6 @@
 const db = require('../../models');
 const winston = require('winston');
+const { giveDailyCaseToUser } = require('../../services/caseService');
 
 const subscriptionTiers = {
   1: { days: 30, max_daily_cases: 3, bonus_percentage: 3.0, name: 'Статус', price: 1210 },
@@ -61,44 +62,14 @@ async function buySubscription(req, res) {
       user.subscription_purchase_date = now;
       user.subscription_expiry_date = new Date(now.getTime() + tier.days * 86400000);
     }
-    user.max_daily_cases = tier.max_daily_cases;
+
+    user.max_daily_cases = 1; // Устанавливаем 1 кейс в день по подписке
     user.subscription_bonus_percentage = tier.bonus_percentage;
-    user.cases_available = Math.max(user.cases_available || 0, tier.max_daily_cases);
+    user.cases_available = Math.max(user.cases_available || 0, 1); // 1 кейс в день по подписке
     await user.save();
 
-    const caseTemplates = await db.CaseTemplate.findAll({
-      where: {
-        type: 'daily',
-        min_subscription_tier: {
-          [db.Sequelize.Op.lte]: parseInt(tierId)
-        },
-        is_active: true
-      }
-    });
-
-    for (const template of caseTemplates) {
-      const existingCase = await db.Case.findOne({
-        where: {
-          user_id: userId,
-          template_id: template.id,
-          is_opened: false,
-          [db.Sequelize.Op.or]: [
-            { expires_at: null },
-            { expires_at: { [db.Sequelize.Op.gt]: now } }
-          ]
-        }
-      });
-      if (!existingCase) {
-        await db.Case.create({
-          user_id: userId,
-          template_id: template.id,
-          subscription_tier: parseInt(tierId),
-          source: 'subscription',
-          received_date: now,
-          expires_at: new Date(now.getTime() + template.cooldown_hours * 3600000)
-        });
-      }
-    }
+    // Выдаём ежедневный кейс пользователю через сервис
+    await giveDailyCaseToUser(userId, parseInt(tierId));
 
     await db.SubscriptionHistory.create({
       user_id: userId,
