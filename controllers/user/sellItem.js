@@ -14,15 +14,22 @@ const logger = winston.createLogger({
 
 async function sellItem(req, res) {
   try {
-    const userId = req.user.id;
-    const { itemId } = req.body;
+    logger.info('sellItem request body:', req.body);
 
-    const inventoryItem = await db.UserInventory.findOne({ where: { userId, itemId } });
+    const userId = req.user.id;
+    const { itemId, item_id } = req.body;
+    const effectiveItemId = itemId || item_id;
+
+    if (!effectiveItemId) {
+      return res.status(400).json({ message: 'itemId is required' });
+    }
+
+    const inventoryItem = await db.UserInventory.findOne({ where: { user_id: userId, item_id: effectiveItemId } });
     if (!inventoryItem) {
       return res.status(404).json({ message: 'Предмет не найден в инвентаре' });
     }
 
-    const item = await db.Item.findByPk(itemId);
+    const item = await db.Item.findByPk(effectiveItemId);
     if (!item) {
       return res.status(404).json({ message: 'Предмет не найден' });
     }
@@ -31,11 +38,12 @@ async function sellItem(req, res) {
 
     const user = await db.User.findByPk(userId);
     if (user) {
-      user.balance = (user.balance || 0) + item.sellPrice; // предполагается поле sellPrice
+      const sellPrice = parseFloat(item.sellPrice) || 0;
+      user.balance = (parseFloat(user.balance) || 0) + sellPrice;
       await user.save();
     }
 
-    logger.info(`Пользователь ${userId} продал предмет ${itemId} за ${item.sellPrice}`);
+    logger.info(`Пользователь ${userId} продал предмет ${effectiveItemId} за ${item.sellPrice}`);
 
     return res.json({ success: true, message: `Предмет продан за ${item.sellPrice}` });
   } catch (error) {

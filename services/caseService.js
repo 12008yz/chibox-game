@@ -9,13 +9,11 @@ const { Op } = require('sequelize');
 async function giveDailyCaseToUser(userId, subscriptionTier) {
   const now = new Date();
 
-  // Находим подходящие шаблоны кейсов для уровня подписки пользователя
+  // Находим подходящие шаблоны кейсов только для точного уровня подписки пользователя
   const caseTemplates = await db.CaseTemplate.findAll({
     where: {
       type: 'daily',
-      min_subscription_tier: {
-        [Op.lte]: subscriptionTier
-      },
+      min_subscription_tier: subscriptionTier,
       is_active: true
     }
   });

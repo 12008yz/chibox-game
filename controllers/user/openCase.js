@@ -14,26 +14,73 @@ const logger = winston.createLogger({
 
 async function openCase(req, res) {
   try {
-    const caseId = req.body.caseId || req.params.caseId || req.query.caseId;
+    let caseId = req.body.caseId || req.params.caseId || req.query.caseId;
     const userId = req.user.id;
-
-    if (!caseId) {
-      return res.status(400).json({ message: 'Не указан caseId' });
-    }
 
     const user = await db.User.findByPk(userId);
     if (!user) {
       return res.status(404).json({ message: 'Пользователь не найден' });
     }
 
-    if (user.cases_opened_today >= user.max_daily_cases) {
-      return res.status(400).json({ message: 'Достигнут лимит открытия кейсов на сегодня' });
+    if (!caseId) {
+      // Если caseId не передан, ищем первый неоткрытый кейс пользователя
+      const userCase = await db.Case.findOne({
+        where: { user_id: userId, is_opened: false },
+        order: [['received_date', 'ASC']]
+      });
+      if (!userCase) {
+        if (user.next_case_available_time && user.next_case_available_time > new Date()) {
+          const now = new Date();
+          const msRemaining = user.next_case_available_time.getTime() - now.getTime();
+
+          const hours = Math.floor(msRemaining / (1000 * 60 * 60));
+          const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
+
+          const timeString = `${hours}ч ${minutes}м ${seconds}с`;
+
+          return res.status(404).json({ message: `Не найден неоткрытый кейс для пользователя. Следующий кейс будет доступен через ${timeString}`, next_case_available_time: user.next_case_available_time });
+        }
+        return res.status(404).json({ message: 'Не найден неоткрытый кейс для пользователя' });
+      }
+      caseId = userCase.id;
     }
 
     const now = new Date();
-    if (user.next_case_available_time && user.next_case_available_time > now) {
-      return res.status(400).json({ message: 'Следующий кейс будет доступен позже', next_case_available_time: user.next_case_available_time });
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (!user.last_reset_date || user.last_reset_date < today) {
+      user.cases_opened_today = 0;
+      user.last_reset_date = today;
+      await user.save();
     }
+
+    if (user.cases_opened_today >= user.max_daily_cases) {
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const msRemaining = tomorrow.getTime() - now.getTime();
+
+      const hours = Math.floor(msRemaining / (1000 * 60 * 60));
+      const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
+
+      const timeString = `${hours}ч ${minutes}м ${seconds}с`;
+
+      return res.status(400).json({ message: `Достигнут лимит открытия кейсов на сегодня. Следующий кейс будет доступен через ${timeString}` });
+    }
+
+    // Убираем ограничение на время открытия кейса
+    // if (user.next_case_available_time && user.next_case_available_time > now) {
+    //   const msRemaining = user.next_case_available_time.getTime() - now.getTime();
+
+    //   const hours = Math.floor(msRemaining / (1000 * 60 * 60));
+    //   const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
+    //   const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
+
+    //   const timeString = `${hours}ч ${minutes}м ${seconds}с`;
+
+    //   return res.status(400).json({ message: `Следующий кейс будет доступен через ${timeString}`, next_case_available_time: user.next_case_available_time });
+    // }
 
     const userCase = await db.Case.findOne({
       where: { id: caseId, user_id: userId, is_opened: false },
@@ -86,7 +133,9 @@ async function openCase(req, res) {
     });
 
     user.cases_opened_today += 1;
-    user.next_case_available_time = new Date(now.getTime() + 60 * 60 * 1000);
+    // Убираем установку времени следующего доступного кейса
+    // user.next_case_available_time = new Date(now.getTime() + 60 * 60 * 1000);
+    // await user.save();
     await user.save();
 
     logger.info(`Пользователь ${userId} открыл кейс ${caseId} и получил предмет ${selectedItem.id}`);
