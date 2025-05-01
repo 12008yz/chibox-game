@@ -46,9 +46,11 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const userRoutes = require('./routes/userRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 // Регистрация маршрутов
 app.use('/api/users', userRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // Проверка подключения к базе данных и применение миграций
 (async () => {

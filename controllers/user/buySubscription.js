@@ -1,6 +1,7 @@
 const db = require('../../models');
 const winston = require('winston');
 const { giveDailyCaseToUser } = require('../../services/caseService');
+const { createPayment } = require('../../services/paymentService');
 
 const subscriptionTiers = {
   1: { days: 30, max_daily_cases: 3, bonus_percentage: 3.0, name: 'Статус', price: 1210 },
@@ -50,7 +51,14 @@ async function buySubscription(req, res) {
     } else if (method === 'promo') {
       action = 'promo';
     } else if (method === 'card') {
-      return res.status(400).json({ message: 'Платёжные карты ещё не реализованы' });
+      // Создаем платеж через YooMoney и возвращаем ссылку на оплату
+      try {
+        const paymentUrl = await createPayment(price, userId, tierId);
+        return res.json({ paymentUrl, message: 'Перенаправьте пользователя для оплаты' });
+      } catch (error) {
+        logger.error('Ошибка создания платежа через YooMoney:', error);
+        return res.status(500).json({ message: 'Ошибка при создании платежа' });
+      }
     }
 
     const now = new Date();
