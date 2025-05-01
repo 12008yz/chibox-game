@@ -70,17 +70,18 @@ async function openCase(req, res) {
     }
 
     // Убираем ограничение на время открытия кейса
-    // if (user.next_case_available_time && user.next_case_available_time > now) {
-    //   const msRemaining = user.next_case_available_time.getTime() - now.getTime();
+    // Проверяем ограничение времени открытия кейса только для кейсов из подписки (не купленных)
+    if (!userCase.is_paid && user.next_case_available_time && user.next_case_available_time > now) {
+      const msRemaining = user.next_case_available_time.getTime() - now.getTime();
 
-    //   const hours = Math.floor(msRemaining / (1000 * 60 * 60));
-    //   const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
-    //   const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
+      const hours = Math.floor(msRemaining / (1000 * 60 * 60));
+      const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
 
-    //   const timeString = `${hours}ч ${minutes}м ${seconds}с`;
+      const timeString = `${hours}ч ${minutes}м ${seconds}с`;
 
-    //   return res.status(400).json({ message: `Следующий кейс будет доступен через ${timeString}`, next_case_available_time: user.next_case_available_time });
-    // }
+      return res.status(400).json({ message: `Следующий кейс будет доступен через ${timeString}`, next_case_available_time: user.next_case_available_time });
+    }
 
     const userCase = await db.Case.findOne({
       where: { id: caseId, user_id: userId, is_opened: false },

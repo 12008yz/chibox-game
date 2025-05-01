@@ -14,13 +14,12 @@ const logger = winston.createLogger({
   ],
 });
 
-// Schedule the job to run every day at midnight
-cron.schedule('0 0 * * *', async () => {
-  logger.info('Starting daily case issuance job');
+// Schedule the job to run every day at 10:30 UTC (which is 13:30 Moscow time UTC+3)
+cron.schedule('34 13 * * *', async () => {
+  const now = new Date();
+  logger.info(`Starting daily case issuance job at UTC time: ${now.toISOString()}`);
 
   try {
-    const now = new Date();
-
     // Find all users with active subscriptions
     const users = await db.User.findAll({
       where: {
