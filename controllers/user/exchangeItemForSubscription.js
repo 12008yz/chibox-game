@@ -22,10 +22,13 @@ async function exchangeItemForSubscription(req, res) {
     if (!rule) return res.status(400).json({ message: 'Нет правила обмена для этого предмета/тарифа' });
     const inventoryItem = await db.UserInventory.findOne({ where: { userId, itemId } });
     if (!inventoryItem) return res.status(404).json({ message: 'Нет такого предмета для обмена' });
-    await inventoryItem.destroy();
     const user = await db.User.findByPk(userId);
     const now = new Date();
-    if (user.subscription_tier === rule.subscription_tier_id && user.subscription_expiry_date && user.subscription_expiry_date > now) {
+    if (!user.subscription_tier || !user.subscription_expiry_date || user.subscription_expiry_date <= now) {
+      return res.status(400).json({ message: 'Обмен возможен только при активной подписке' });
+    }
+    await inventoryItem.destroy();
+    if (user.subscription_tier === rule.subscription_tier_id) {
       user.subscription_expiry_date = new Date(user.subscription_expiry_date.getTime() + rule.days * 86400000);
     } else {
       user.subscription_tier = rule.subscription_tier_id;

@@ -9,6 +9,9 @@ const { Op } = require('sequelize');
 async function giveDailyCaseToUser(userId, subscriptionTier) {
   const now = new Date();
 
+  // Получаем пользователя, чтобы проверить дату окончания подписки
+  const user = await db.User.findByPk(userId);
+
   // Находим подходящие шаблоны кейсов только для точного уровня подписки пользователя
   const caseTemplates = await db.CaseTemplate.findAll({
     where: {
@@ -33,6 +36,12 @@ async function giveDailyCaseToUser(userId, subscriptionTier) {
     });
 
     if (!existingCase) {
+      // Если у пользователя есть активная подписка, кейс не протухает (expires_at = null)
+      // Иначе кейс протухает через cooldown_hours
+      const expiresAt = (user && user.subscription_expiry_date && user.subscription_expiry_date > now)
+        ? null
+        : new Date(now.getTime() + template.cooldown_hours * 3600000);
+
       // Создаём новый кейс для пользователя
       await db.Case.create({
         user_id: userId,
@@ -40,7 +49,7 @@ async function giveDailyCaseToUser(userId, subscriptionTier) {
         subscription_tier: subscriptionTier,
         source: 'subscription',
         received_date: now,
-        expires_at: new Date(now.getTime() + template.cooldown_hours * 3600000)
+        expires_at: expiresAt
       });
     }
   }

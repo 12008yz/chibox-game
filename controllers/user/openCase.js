@@ -22,9 +22,11 @@ async function openCase(req, res) {
       return res.status(404).json({ message: 'Пользователь не найден' });
     }
 
+    let userCase;
+
     if (!caseId) {
       // Если caseId не передан, ищем первый неоткрытый кейс пользователя
-      const userCase = await db.Case.findOne({
+      userCase = await db.Case.findOne({
         where: { user_id: userId, is_opened: false },
         order: [['received_date', 'ASC']]
       });
@@ -83,7 +85,7 @@ async function openCase(req, res) {
       return res.status(400).json({ message: `Следующий кейс будет доступен через ${timeString}`, next_case_available_time: user.next_case_available_time });
     }
 
-    const userCase = await db.Case.findOne({
+    userCase = await db.Case.findOne({
       where: { id: caseId, user_id: userId, is_opened: false },
       include: [
         { model: db.CaseTemplate, as: 'template', include: [{
@@ -94,10 +96,6 @@ async function openCase(req, res) {
         { model: db.Item, as: 'result_item' }
       ]
     });
-    if (!userCase) {
-      return res.status(404).json({ message: 'Кейс не найден или уже открыт' });
-    }
-
     if (!userCase) {
       return res.status(404).json({ message: 'Кейс не найден или уже открыт' });
     }
