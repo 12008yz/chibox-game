@@ -1,5 +1,6 @@
 const db = require('../../models');
 const winston = require('winston');
+const { updateUserAchievementProgress } = require('../../services/achievementService');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -28,6 +29,9 @@ async function withdrawItem(req, res) {
       status: 'pending',
       type: 'item'
     });
+
+    // Update achievement progress for steam inventory withdrawal
+    await updateUserAchievementProgress(userId, 'steam_inventory', 1);
 
     logger.info(`Пользователь ${userId} запросил вывод предмета ${itemId}`);
 

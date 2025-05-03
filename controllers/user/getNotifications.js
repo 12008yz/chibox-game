@@ -15,7 +15,13 @@ const logger = winston.createLogger({
 async function getNotifications(req, res) {
   try {
     const userId = req.user.id;
-    const notifications = await db.Notification.findAll({ where: { user_id: userId } });
+    const notifications = await db.Notification.findAll({
+      where: { user_id: userId },
+      attributes: [
+        'id', 'user_id', 'title', 'message', 'type', 'category', 'link',
+        'is_read', 'read_at', 'expires_at', 'importance', 'data', 'created_at', 'updated_at'
+      ]
+    });
     return res.json({ notifications });
   } catch (error) {
     logger.error('Ошибка получения уведомлений:', error);
@@ -24,5 +30,5 @@ async function getNotifications(req, res) {
 }
 
 module.exports = {
-  getNotifications
+  getNotifications,
 };

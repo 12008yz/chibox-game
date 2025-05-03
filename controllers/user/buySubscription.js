@@ -2,6 +2,7 @@ const db = require('../../models');
 const winston = require('winston');
 const { giveDailyCaseToUser } = require('../../services/caseService');
 const { createPayment } = require('../../services/paymentService');
+const { updateUserAchievementProgress } = require('../../services/achievementService');
 
 const subscriptionTiers = {
   1: { days: 30, max_daily_cases: 3, bonus_percentage: 3.0, name: 'Статус', price: 1210 },
@@ -75,6 +76,12 @@ async function buySubscription(req, res) {
     user.subscription_bonus_percentage = tier.bonus_percentage;
     user.cases_available = Math.max(user.cases_available || 0, 1); // 1 кейс в день по подписке
     await user.save();
+
+    // Update achievement progress for subscription days
+    await updateUserAchievementProgress(userId, 'subscription_days', 1);
+
+    // Update achievement progress for subscription purchased
+    await updateUserAchievementProgress(userId, 'subscription_purchased', 1);
 
     // Выдаём ежедневный кейс пользователю через сервис
     await giveDailyCaseToUser(userId, parseInt(tierId));

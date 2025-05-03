@@ -76,6 +76,24 @@ module.exports = {
         updated_at: new Date()
       },
       {
+        id: '88888888-8888-8888-8888-888888888888',
+        name: 'Покупатель подписки',
+        description: 'Приобрести любой уровень подписки',
+        xp_reward: 150,
+        icon_url: '/images/achievements/subscription_buyer.png',
+        requirement_type: 'subscription_purchased',
+        requirement_value: 1,
+        bonus_percentage: 2.0,
+        min_item_price_for_bonus: 0.00,
+        is_visible: true,
+        category: 'regular',
+        display_order: 8,
+        badge_color: '#FFA500',
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
+      },
+      {
         id: '55555555-5555-5555-5555-555555555555',
         name: 'Удачливый',
         description: 'Открыть кейс 7 дней подряд',

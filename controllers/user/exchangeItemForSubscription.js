@@ -1,5 +1,6 @@
 const db = require('../../models');
 const winston = require('winston');
+const { updateUserAchievementProgress } = require('../../services/achievementService');
 
 const subscriptionTiers = {
   1: { days: 30, max_daily_cases: 3, bonus_percentage: 3.0, name: 'Статус', price: 1210 },
@@ -76,6 +77,9 @@ async function exchangeItemForSubscription(req, res) {
     await inventoryItem.destroy();
 
     await user.save();
+
+    // Update achievement progress for exchange item
+    await updateUserAchievementProgress(userId, 'exchange_item', 1);
 
     // Создаем запись в истории подписок
     await db.SubscriptionHistory.create({
