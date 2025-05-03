@@ -26,7 +26,7 @@ async function getSubscription(req, res) {
     if (!user.subscription_tier) return res.json({ tier: null, expiry_date: null, days_left: 0 });
     const tier = subscriptionTiers[user.subscription_tier];
     const now = new Date();
-    const expiry = user.subscription_expiry_date;
+    const expiry = user.subscription_expiry_date ? new Date(user.subscription_expiry_date) : null;
     const daysLeft = expiry ? Math.max(0, Math.floor((expiry - now) / 86400000)) : 0;
     return res.json({
       id: user.subscription_tier,

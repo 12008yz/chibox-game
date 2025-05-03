@@ -1,5 +1,6 @@
 const db = require('../../models');
 const winston = require('winston');
+const { updateUserAchievementProgress } = require('../../services/achievementService');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -136,6 +137,14 @@ async function openCase(req, res) {
     // user.next_case_available_time = new Date(now.getTime() + 60 * 60 * 1000);
     // await user.save();
     await user.save();
+
+    // Вызов обновления прогресса достижения для открытия кейса
+    await updateUserAchievementProgress(userId, 'cases_opened', 1);
+
+    // Вызов обновления прогресса достижения для лучшего предмета
+    if (selectedItem.price && selectedItem.price > 0) {
+      await updateUserAchievementProgress(userId, 'best_item_value', selectedItem.price);
+    }
 
     logger.info(`Пользователь ${userId} открыл кейс ${caseId} и получил предмет ${selectedItem.id}`);
 

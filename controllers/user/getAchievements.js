@@ -15,7 +15,7 @@ const logger = winston.createLogger({
 async function getAchievements(req, res) {
   try {
     const userId = req.user.id;
-    const achievements = await db.UserAchievement.findAll({ where: { user_id: userId }, include: db.Achievement });
+const achievements = await db.UserAchievement.findAll({ where: { user_id: userId }, include: { model: db.Achievement, as: 'achievement' } });
     return res.json({ achievements });
   } catch (error) {
     logger.error('Ошибка получения достижений:', error);
