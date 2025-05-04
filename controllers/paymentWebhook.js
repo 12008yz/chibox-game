@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const db = require('../models');
 const winston = require('winston');
 
@@ -13,14 +14,38 @@ const logger = winston.createLogger({
 });
 
 /**
- * Обработчик webhook от YooMoney
+ * Проверка подписи webhook от YooKassa
+ * @param {string} body - тело запроса в виде строки
+ * @param {string} signature - заголовок 'X-Request-Signature-SHA256'
+ * @param {string} secretKey - секретный ключ из настроек YooKassa
+ * @returns {boolean} - true если подпись валидна, иначе false
+ */
+function verifyWebhookSignature(body, signature, secretKey) {
+  const hmac = crypto.createHmac('sha256', secretKey);
+  hmac.update(body);
+  const digest = hmac.digest('base64');
+  console.log('Computed signature:', digest);
+  console.log('Received signature:', signature);
+  console.log('Secret key (masked):', secretKey ? secretKey.substring(0, 4) + '...' : 'undefined');
+  return digest === signature;
+}
+
+/**
+ * Обработчик webhook от YooKassa
  * Ожидает POST запрос с данными платежа
  */
 async function yoomoneyWebhook(req, res) {
   try {
-    const data = req.body;
+    const signature = req.headers['x-request-signature-sha256'];
+    const secretKey = process.env.YOOKASSA_CLIENT_SECRET;
+    const bodyString = req.rawBody || JSON.stringify(req.body);
 
-    // TODO: Проверить подпись webhook, если требуется YooMoney
+    if (!verifyWebhookSignature(bodyString, signature, secretKey)) {
+      logger.error('Неверная подпись webhook YooKassa');
+      return res.status(400).send('Invalid signature');
+    }
+
+    const data = req.body;
 
     // Проверяем статус платежа
     if (data.status !== 'succeeded') {
@@ -28,10 +53,10 @@ async function yoomoneyWebhook(req, res) {
       return res.status(200).send('OK');
     }
 
-    // Ищем платеж в базе по payment_id (id платежа YooMoney)
-    const payment = await db.Payment.findOne({ where: { external_id: data.id } });
+    // Ищем платеж в базе по payment_id (id платежа YooKassa)
+    const payment = await db.Payment.findOne({ where: { payment_id: data.id } });
     if (!payment) {
-      logger.error(`Платеж с external_id ${data.id} не найден`);
+      logger.error(`Платеж с payment_id ${data.id} не найден`);
       return res.status(404).send('Payment not found');
     }
 
@@ -42,6 +67,9 @@ async function yoomoneyWebhook(req, res) {
 
     // Обновляем статус платежа
     payment.status = 'completed';
+    payment.webhook_received = true;
+    payment.webhook_data = data;
+    payment.completed_at = new Date();
     await payment.save();
 
     // Активируем подписку пользователя
@@ -92,7 +120,7 @@ async function yoomoneyWebhook(req, res) {
 
     return res.status(200).send('OK');
   } catch (error) {
-    logger.error('Ошибка обработки webhook YooMoney:', error);
+    logger.error('Ошибка обработки webhook YooKassa:', error);
     return res.status(500).send('Internal Server Error');
   }
 }

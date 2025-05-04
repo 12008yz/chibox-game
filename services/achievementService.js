@@ -66,7 +66,11 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
       if (!userAchievement.bonus_applied && achievement.bonus_percentage > 0) {
         // Пример применения бонуса: увеличить бонус шанса выпадения предметов у пользователя
         const user = await db.User.findByPk(userId);
-        user.bonus_chance = (user.bonus_chance || 0) + achievement.bonus_percentage;
+        if (achievement.requirement_type === 'subscription_purchased') {
+          user.subscription_bonus_percentage = (user.subscription_bonus_percentage || 0) + achievement.bonus_percentage;
+        } else {
+          user.bonus_chance = (user.bonus_chance || 0) + achievement.bonus_percentage;
+        }
         await user.save();
 
         userAchievement.bonus_applied = true;
