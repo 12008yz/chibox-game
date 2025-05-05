@@ -1,7 +1,7 @@
 const db = require('../../models');
 const winston = require('winston');
 const { giveDailyCaseToUser } = require('../../services/caseService');
-const { createPayment } = require('../../services/paymentService');
+const { createLocalPayment, createOnlinePayment } = require('../../services/paymentService');
 const { updateUserAchievementProgress } = require('../../services/achievementService');
 
 const subscriptionTiers = {
@@ -38,6 +38,18 @@ async function buySubscription(req, res) {
       if ((user.balance || 0) < price) return res.status(400).json({ message: 'Недостаточно средств' });
       user.balance -= price;
       logger.info(`Баланс пользователя после покупки: ${user.balance}`);
+
+      try {
+        await createLocalPayment(price, userId, 'subscription', {
+          subscriptionTier: parseInt(tierId),
+          paymentSystem: 'balance',
+          status: 'completed',
+          description: `Оплата подписки через баланс, tier ${tierId}`
+        });
+      } catch (error) {
+        logger.error('Ошибка создания локального платежа через баланс:', error);
+        return res.status(500).json({ message: 'Ошибка при создании платежа' });
+      }
     } else if (method === 'item') {
       const rule = await db.ItemSubscriptionExchangeRule.findOne({
         where: { item_id: itemId, subscription_tier_id: parseInt(tierId) },
@@ -49,12 +61,36 @@ async function buySubscription(req, res) {
       price = 0;
       action = 'exchange_item';
       await inventoryItem.destroy();
+
+      try {
+        await createLocalPayment(price, userId, 'subscription', {
+          subscriptionTier: parseInt(tierId),
+          paymentSystem: 'item',
+          status: 'completed',
+          description: `Оплата подписки через обмен предмета, tier ${tierId}`
+        });
+      } catch (error) {
+        logger.error('Ошибка создания локального платежа через обмен предмета:', error);
+        return res.status(500).json({ message: 'Ошибка при создании платежа' });
+      }
     } else if (method === 'promo') {
       action = 'promo';
+
+      try {
+        await createLocalPayment(price, userId, 'subscription', {
+          subscriptionTier: parseInt(tierId),
+          paymentSystem: 'promo',
+          status: 'completed',
+          description: `Оплата подписки через промокод, tier ${tierId}`
+        });
+      } catch (error) {
+        logger.error('Ошибка создания локального платежа через промокод:', error);
+        return res.status(500).json({ message: 'Ошибка при создании платежа' });
+      }
     } else if (method === 'card') {
       // Создаем платеж через YooMoney и возвращаем ссылку на оплату
       try {
-        const paymentUrl = await createPayment(price, userId, tierId);
+        const paymentUrl = await createOnlinePayment(price, userId, tierId);
         return res.json({ paymentUrl, message: 'Перенаправьте пользователя для оплаты' });
       } catch (error) {
         logger.error('Ошибка создания платежа через YooMoney:', error);

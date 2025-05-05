@@ -1,7 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('../models');
 
-async function createTestPayment(paymentId, userId, amount = 1200.00) {
+async function createTestPayment(paymentId, userId, amount = 1500.00) {
   try {
     // Check if payment with paymentId already exists
     const existingPayment = await db.Payment.findOne({ where: { payment_id: paymentId } });
@@ -19,7 +19,7 @@ async function createTestPayment(paymentId, userId, amount = 1200.00) {
       status: 'created',
       payment_id: paymentId,
       purpose: 'deposit',
-      subscription_tier_id: 1,
+      subscription_tier_id: 2,
       is_test: true
     });
 
@@ -32,8 +32,8 @@ async function createTestPayment(paymentId, userId, amount = 1200.00) {
 }
 
 // Example usage:
-const testUserId = '8d9a4f55-3e18-40da-bdfd-0f42cdc52608';
-const testPaymentId = 'test_payment_id_1';
+const testUserId = '39addfc0-88fe-47fc-b5aa-ea43737e4ca8';
+const testPaymentId = 'test_payment_id_5';
 
 createTestPayment(testPaymentId, testUserId)
   .then(() => process.exit(0))
