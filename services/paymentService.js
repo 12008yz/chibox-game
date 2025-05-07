@@ -35,12 +35,12 @@ async function createLocalPayment(amount, userId, purpose, options = {}) {
   } = options;
 
   try {
-    if (paymentId) {
-      // Check if payment with paymentId already exists
-      const existingPayment = await db.Payment.findOne({ where: { payment_id: paymentId } });
-      if (existingPayment) {
-        return existingPayment;
-      }
+    const paymentIdToUse = paymentId || uuidv4();
+
+    // Check if payment with paymentId already exists
+    const existingPayment = await db.Payment.findOne({ where: { payment_id: paymentIdToUse } });
+    if (existingPayment) {
+      return existingPayment;
     }
 
     const payment = await db.Payment.create({
@@ -49,7 +49,7 @@ async function createLocalPayment(amount, userId, purpose, options = {}) {
       amount,
       payment_system: paymentSystem,
       status,
-      payment_id: paymentId,
+      payment_id: paymentIdToUse,
       purpose,
       description,
       promo_code: promoCode,

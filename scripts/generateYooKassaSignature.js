@@ -1,5 +1,7 @@
+require('dotenv').config();
 const crypto = require('crypto');
 const fs = require('fs');
+const path = require('path');
 
 function generateSignature(body, secret) {
   const hmac = crypto.createHmac('sha256', secret);
@@ -7,22 +9,18 @@ function generateSignature(body, secret) {
   return hmac.digest('base64');
 }
 
-// Example usage:
-// const body = fs.readFileSync('webhookBody.json', 'utf8');
-// const secret = 'test_yHoOWYHGGixrUM8blQTAp3bTMrYGvGwQFsRo2BdaziI';
-// console.log(generateSignature(body, secret));
-
 if (require.main === module) {
-  const args = process.argv.slice(2);
-  if (args.length < 2) {
-    console.error('Usage: node generateYooKassaSignature.js <jsonFilePath> <secretKey>');
+  const jsonFilePath = path.resolve(__dirname, '../webhookBody.json');
+  const secretKey = process.env.YOOKASSA_CLIENT_SECRET;
+
+  if (!secretKey) {
+    console.error('Error: YOOKASSA_CLIENT_SECRET is not set in .env');
     process.exit(1);
   }
-  const jsonFilePath = args[0];
-  const secretKey = args[1];
+
   try {
     const jsonBody = fs.readFileSync(jsonFilePath, 'utf8');
-    JSON.parse(jsonBody); // Validate JSON
+    // Убираем JSON.parse, чтобы не менять формат тела
     const signature = generateSignature(jsonBody, secretKey);
     console.log(signature);
   } catch (e) {

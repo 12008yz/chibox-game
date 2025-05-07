@@ -3,7 +3,7 @@ const db = require('../models');
 const winston = require('winston');
 
 const logger = winston.createLogger({
-  level: 'info',
+  level: 'debug',
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.json()
@@ -24,10 +24,25 @@ function verifyWebhookSignature(body, signature, secretKey) {
   const hmac = crypto.createHmac('sha256', secretKey);
   hmac.update(body);
   const digest = hmac.digest('base64');
-  console.log('Computed signature:', digest);
-  console.log('Received signature:', signature);
+
+  // Логируем длину и содержимое с кавычками для диагностики
+  console.log('Computed signature:', `"${digest}"`, 'length:', digest.length);
+  console.log('Received signature:', `"${signature}"`, 'length:', signature ? signature.length : 0);
   console.log('Secret key (masked):', secretKey ? secretKey.substring(0, 4) + '...' : 'undefined');
-  return digest === signature;
+
+  // Сравниваем подписи с trim()
+  if (digest.trim() === (signature ? signature.trim() : '')) {
+    return true;
+  }
+
+  // Альтернативное сравнение через Buffer
+  const digestBuffer = Buffer.from(digest, 'utf8');
+  const signatureBuffer = Buffer.from(signature || '', 'utf8');
+  if (digestBuffer.equals(signatureBuffer)) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -35,10 +50,15 @@ function verifyWebhookSignature(body, signature, secretKey) {
  * Ожидает POST запрос с данными платежа
  */
 async function yoomoneyWebhook(req, res) {
+  logger.debug('Webhook yoomoneyWebhook called');
   try {
+    logger.debug('Request headers:', req.headers);
     const signature = req.headers['x-request-signature-sha256'];
     const secretKey = process.env.YOOKASSA_CLIENT_SECRET;
     const bodyString = req.rawBody || JSON.stringify(req.body);
+
+    // Логируем rawBody для диагностики
+    logger.debug('Raw body for signature:', bodyString);
 
     if (!verifyWebhookSignature(bodyString, signature, secretKey)) {
       logger.error('Неверная подпись webhook YooKassa');
@@ -71,6 +91,7 @@ async function yoomoneyWebhook(req, res) {
     payment.webhook_data = data;
     payment.completed_at = new Date();
     await payment.save();
+    logger.debug(`Payment status updated to completed for payment_id: ${payment.payment_id}`);
 
     // Активируем подписку пользователя
     const user = await db.User.findByPk(payment.user_id);
@@ -86,6 +107,7 @@ async function yoomoneyWebhook(req, res) {
       3: { days: 30, max_daily_cases: 10, bonus_percentage: 10.0, name: 'Статус++' }
     };
     const tier = subscriptionTiers[tierId];
+    logger.debug(`Payment subscription_tier_id: ${payment.subscription_tier_id}`);
     if (!tier) {
       logger.error(`Тариф ${tierId} не найден`);
       return res.status(400).send('Invalid subscription tier');

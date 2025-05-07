@@ -40,10 +40,10 @@ app.use(rateLimit({
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
 
+const rawBodySaver = require('./middleware/rawBodySaver');
+
 app.use(express.json({
-  verify: (req, res, buf) => {
-    req.rawBody = buf.toString();
-  }
+  verify: rawBodySaver
 }));
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
