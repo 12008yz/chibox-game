@@ -1,77 +1,73 @@
 const axios = require('axios');
+const { Payment } = require('../models');
+const crypto = require('crypto');
 
+const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID;
+const YOOKASSA_CLIENT_SECRET = process.env.YOOKASSA_CLIENT_SECRET;
 const YOOKASSA_API_URL = 'https://api.yookassa.ru/v3/payments';
-const YOOKASSA_OAUTH_URL = 'https://yookassa.ru/oauth/token';
-const YOOKASSA_CLIENT_ID = '4614A5E00E4DE49BE44A54360048F79F4EA6CC48A3F7847CF03BFB4215330973';
-const YOOKASSA_CLIENT_SECRET = '218D27E3F1F97326E17499E59D4DC65E154A4E8C02E68E457BD5C4CF7B03D0CECAE760979D8E07B95D28EE8F535587EBF7D3D6E99FB00698F874E996A8AC99C6';
-const YOOKASSA_RETURN_URL = process.env.YOOKASSA_RETURN_URL || 'https://chibox.com';
-const YOOKASSA_CALLBACK_URL = process.env.YOOKASSA_CALLBACK_URL || 'https://chibox.com/api/payment/webhook';
 
-let accessToken = null;
-let tokenExpiresAt = null;
-
-/**
- * Получение OAuth2 access token с использованием client_id и client_secret
- */
-async function getAccessToken() {
-  if (accessToken && tokenExpiresAt && new Date() < tokenExpiresAt) {
-    return accessToken;
-  }
+async function createPayment(amount, userId, purpose = 'deposit', extraData = {}) {
   try {
-    const response = await axios.post(YOOKASSA_OAUTH_URL, null, {
-      params: {
-        grant_type: 'client_credentials',
-        client_id: YOOKASSA_CLIENT_ID,
-        client_secret: YOOKASSA_CLIENT_SECRET
-      }
-    });
-    accessToken = response.data.access_token;
-    tokenExpiresAt = new Date(Date.now() + response.data.expires_in * 1000);
-    return accessToken;
-  } catch (error) {
-    throw new Error(`Ошибка получения access token: ${error.message}`);
-  }
-}
+    const idempotenceKey = crypto.randomUUID();
 
-/**
- * Создает платеж в YooKassa и возвращает ссылку для оплаты
- * @param {number} amount - сумма платежа в рублях
- * @param {string} userId - ID пользователя
- * @param {string} subscriptionTier - ID тарифа подписки
- * @returns {Promise<string>} - ссылка на оплату
- */
-async function createPayment(amount, userId, subscriptionTier) {
-  try {
-    const token = await getAccessToken();
-    const response = await axios.post(YOOKASSA_API_URL, {
+    const paymentData = {
       amount: {
         value: amount.toFixed(2),
         currency: 'RUB'
       },
       confirmation: {
         type: 'redirect',
-        return_url: YOOKASSA_RETURN_URL
+        return_url: process.env.YOOKASSA_RETURN_URL || 'https://your-return-url.example.com'
       },
-      description: `Оплата подписки Chibox - tier ${subscriptionTier} пользователем ${userId}`,
+      capture: true,
+      description: `Payment for ${purpose} by user ${userId}`,
       metadata: {
         userId,
-        subscriptionTier
+        purpose,
+        ...extraData
+      },
+      payment_method_data: {
+        type: 'bank_card'
       }
-    }, {
+    };
+
+    const response = await axios.post(YOOKASSA_API_URL, paymentData, {
+      auth: {
+        username: YOOKASSA_SHOP_ID,
+        password: YOOKASSA_CLIENT_SECRET
+      },
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Idempotence-Key': `${userId}-${Date.now()}`,
+        'Idempotence-Key': idempotenceKey,
         'Content-Type': 'application/json'
       }
     });
 
-    if (response.data && response.data.confirmation && response.data.confirmation.confirmation_url) {
-      return response.data.confirmation.confirmation_url;
-    } else {
-      throw new Error('Не удалось получить ссылку на оплату от YooKassa');
-    }
+    const payment = response.data;
+
+    // Сохраняем платеж в БД
+    const paymentRecord = await Payment.create({
+      user_id: userId,
+      amount: amount,
+      payment_system: 'ukassa',
+      status: payment.status,
+      payment_id: payment.id,
+      payment_url: payment.confirmation ? payment.confirmation.confirmation_url : null,
+      description: payment.description,
+      purpose: purpose,
+      webhook_received: false,
+      is_test: process.env.NODE_ENV !== 'production',
+      currency: payment.amount.currency,
+      payment_method: payment.payment_method_data ? payment.payment_method_data.type : null,
+      payment_details: payment,
+      metadata: {
+        ...extraData
+      }
+    });
+
+    return paymentRecord.payment_url;
   } catch (error) {
-    throw new Error(`Ошибка создания платежа в YooKassa: ${error.message}`);
+    console.error('Ошибка создания платежа в YooKassa:', error.response ? error.response.data : error.message);
+    throw new Error('Ошибка создания платежа в YooKassa');
   }
 }
 

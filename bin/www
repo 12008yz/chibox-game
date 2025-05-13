@@ -2,7 +2,7 @@
 // ==== HTTPS + SOCKET.IO СТАРТЕР ДЛЯ EXPRESS ====
 
 const fs = require('fs');
-const https = require('https');
+const http = require('http');
 const path = require('path');
 const socketIO = require('socket.io');
 const app = require('../app');
@@ -22,8 +22,8 @@ function getSSLOptions() {
 }
 const sslOptions = getSSLOptions();
 
-// === Создаём HTTPS сервер ===
-const server = https.createServer(sslOptions, app);
+// === Создаём HTTP сервер (временно, для упрощения туннелирования) ===
+const server = http.createServer(app);
 
 // === Подключаем socket.io ===
 const io = socketIO(server);
@@ -32,7 +32,7 @@ io.on('connection', (socket) => {
    socket.emit('hello', { message: 'Привет через WebSocket!' });
 });
 
-server.listen(port);
+server.listen(port, '0.0.0.0');
 server.on('error', onError);
 server.on('listening', onListening);
 

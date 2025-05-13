@@ -3,6 +3,7 @@ const winston = require('winston');
 const { giveDailyCaseToUser } = require('../../services/caseService');
 const { createPayment } = require('../../services/paymentService');
 const { updateUserAchievementProgress } = require('../../services/achievementService');
+const { activateSubscription } = require('../../services/subscriptionService');
 
 const subscriptionTiers = {
   1: { days: 30, max_daily_cases: 3, bonus_percentage: 3.0, name: 'Статус', price: 1210 },
@@ -22,12 +23,19 @@ const logger = winston.createLogger({
 });
 
 async function buySubscription(req, res) {
+  logger.info('buySubscription start');
   try {
     const userId = req.user.id;
     const { tierId, method, itemId, promoCode } = req.body;
+    logger.info(`buySubscription called with userId=${userId}, tierId=${tierId}, method=${method}, itemId=${itemId}, promoCode=${promoCode}`);
     const user = await db.User.findByPk(userId);
+    logger.info(`User loaded: ${JSON.stringify(user)}`);
     const tier = subscriptionTiers[tierId];
-    if (!tier) return res.status(404).json({ message: 'Тариф не найден' });
+    if (!tier) {
+      logger.warn(`Subscription tier not found: ${tierId}`);
+      return res.status(404).json({ message: 'Тариф не найден' });
+    }
+    logger.info(`Subscription tier found: ${JSON.stringify(tier)}`);
 
     let price = tier.price || 0;
     let action = 'purchase';
@@ -35,26 +43,37 @@ async function buySubscription(req, res) {
 
     if (method === 'balance') {
       logger.info(`Баланс пользователя до покупки: ${user.balance}`);
-      if ((user.balance || 0) < price) return res.status(400).json({ message: 'Недостаточно средств' });
+      if ((user.balance || 0) < price) {
+        logger.warn('Недостаточно средств');
+        return res.status(400).json({ message: 'Недостаточно средств' });
+      }
       user.balance -= price;
       logger.info(`Баланс пользователя после покупки: ${user.balance}`);
     } else if (method === 'item') {
       const rule = await db.ItemSubscriptionExchangeRule.findOne({
         where: { item_id: itemId, subscription_tier_id: parseInt(tierId) },
       });
-      if (!rule) return res.status(400).json({ message: 'Нельзя обменять данный предмет' });
+      if (!rule) {
+        logger.warn('Нельзя обменять данный предмет');
+        return res.status(400).json({ message: 'Нельзя обменять данный предмет' });
+      }
       const inventoryItem = await db.UserInventory.findOne({ where: { userId, itemId } });
-      if (!inventoryItem) return res.status(404).json({ message: 'У пользователя нет предмета' });
+      if (!inventoryItem) {
+        logger.warn('У пользователя нет предмета');
+        return res.status(404).json({ message: 'У пользователя нет предмета' });
+      }
       exchangeItemId = itemId;
       price = 0;
       action = 'exchange_item';
       await inventoryItem.destroy();
     } else if (method === 'promo') {
       action = 'promo';
-    } else if (method === 'card') {
+    } else if (method === 'bank_card') {
       // Создаем платеж через YooMoney и возвращаем ссылку на оплату
       try {
-        const paymentUrl = await createPayment(price, userId, tierId);
+        logger.info('Создание платежа через YooMoney');
+        const paymentUrl = await createPayment(price, userId, 'subscription', { tierId });
+        logger.info(`Платеж создан, paymentUrl: ${paymentUrl}`);
         return res.json({ paymentUrl, message: 'Перенаправьте пользователя для оплаты' });
       } catch (error) {
         logger.error('Ошибка создания платежа через YooMoney:', error);
@@ -62,29 +81,9 @@ async function buySubscription(req, res) {
       }
     }
 
-    const now = new Date();
-    if (user.subscription_tier && user.subscription_expiry_date && user.subscription_expiry_date > now && user.subscription_tier === parseInt(tierId)) {
-      user.subscription_expiry_date = new Date(Math.max(now, user.subscription_expiry_date));
-      user.subscription_expiry_date.setDate(user.subscription_expiry_date.getDate() + tier.days);
-    } else {
-      user.subscription_tier = parseInt(tierId);
-      user.subscription_purchase_date = now;
-      user.subscription_expiry_date = new Date(now.getTime() + tier.days * 86400000);
+    if (method !== 'bank_card') {
+      await activateSubscription(userId, parseInt(tierId));
     }
-
-    user.max_daily_cases = 1; // Устанавливаем 1 кейс в день по подписке
-    user.subscription_bonus_percentage = tier.bonus_percentage;
-    user.cases_available = Math.max(user.cases_available || 0, 1); // 1 кейс в день по подписке
-    await user.save();
-
-    // Update achievement progress for subscription days
-    await updateUserAchievementProgress(userId, 'subscription_days', 1);
-
-    // Update achievement progress for subscription purchased
-    await updateUserAchievementProgress(userId, 'subscription_purchased', 1);
-
-    // Выдаём ежедневный кейс пользователю через сервис
-    await giveDailyCaseToUser(userId, parseInt(tierId));
 
     await db.SubscriptionHistory.create({
       user_id: userId,
@@ -93,9 +92,10 @@ async function buySubscription(req, res) {
       price,
       item_id: exchangeItemId,
       method: method,
-      date: now
+      date: new Date()
     });
     logger.info(`Пользователь ${userId} приобрёл подписку tier=${tierId}`);
+    logger.info('buySubscription end');
     return res.json({
       success: true,
       tier: {

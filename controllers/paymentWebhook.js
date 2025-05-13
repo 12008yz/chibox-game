@@ -1,8 +1,10 @@
-const db = require('../models');
+const crypto = require('crypto');
+const { Payment, User } = require('../models');
 const winston = require('winston');
+const { activateSubscription } = require('../services/subscriptionService');
 
 const logger = winston.createLogger({
-  level: 'info',
+  level: 'debug',
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.json()
@@ -12,88 +14,85 @@ const logger = winston.createLogger({
   ],
 });
 
-/**
- * Обработчик webhook от YooMoney
- * Ожидает POST запрос с данными платежа
- */
+function verifySignature(body, signature, secret) {
+  const hmac = crypto.createHmac('sha256', secret);
+  const digest = hmac.update(body).digest('base64');
+  return digest === signature;
+}
+
 async function yoomoneyWebhook(req, res) {
   try {
-    const data = req.body;
-
-    // TODO: Проверить подпись webhook, если требуется YooMoney
-
-    // Проверяем статус платежа
-    if (data.status !== 'succeeded') {
-      logger.info(`Платеж не завершён: ${data.status}`);
-      return res.status(200).send('OK');
+    const secret = process.env.YOOKASSA_CLIENT_SECRET;
+    const signature = req.headers['x-yookassa-signature'];
+    if (!signature) {
+      logger.warn('Signature missing in webhook request');
+      return res.status(400).send('Signature missing');
     }
 
-    // Ищем платеж в базе по payment_id (id платежа YooMoney)
-    const payment = await db.Payment.findOne({ where: { external_id: data.id } });
+    const rawBody = JSON.stringify(req.body);
+    logger.debug(`Raw body for signature verification: ${rawBody}`);
+    logger.debug(`Received signature: ${signature}`);
+
+    if (!verifySignature(rawBody, signature, secret)) {
+      logger.warn('Invalid signature in webhook request');
+      return res.status(400).send('Invalid signature');
+    }
+
+    const event = req.body.event;
+    const paymentData = req.body.object;
+
+    logger.info(`Webhook received: event=${event}, paymentId=${paymentData.id}, status=${paymentData.status}`);
+
+    // Найти платеж в базе
+    const payment = await Payment.findOne({ where: { payment_id: paymentData.id } });
     if (!payment) {
-      logger.error(`Платеж с external_id ${data.id} не найден`);
+      logger.warn(`Payment not found: ${paymentData.id}`);
       return res.status(404).send('Payment not found');
     }
 
-    if (payment.status === 'completed') {
-      logger.info(`Платеж ${data.id} уже обработан`);
-      return res.status(200).send('OK');
+    // Обновить статус платежа
+    let newStatus = paymentData.status;
+    if (newStatus === 'succeeded') {
+      newStatus = 'completed';
     }
 
-    // Обновляем статус платежа
-    payment.status = 'completed';
-    await payment.save();
+    logger.debug(`Current payment status: ${payment.status}, new status: ${newStatus}`);
 
-    // Активируем подписку пользователя
-    const user = await db.User.findByPk(payment.user_id);
-    if (!user) {
-      logger.error(`Пользователь с id ${payment.user_id} не найден`);
-      return res.status(404).send('User not found');
+    if (payment.status !== newStatus) {
+      payment.status = newStatus;
+      payment.webhook_received = true;
+      payment.webhook_data = paymentData;
+      payment.completed_at = newStatus === 'completed' ? new Date() : null;
+      await payment.save();
+
+      logger.info(`Payment status updated to ${newStatus} for paymentId=${paymentData.id}`);
+
+      // Если платеж завершен успешно, активируем подписку или пополняем баланс
+      if (newStatus === 'completed') {
+        const user = await User.findByPk(payment.user_id);
+        if (!user) {
+          logger.warn(`User not found for payment user_id=${payment.user_id}`);
+          return res.status(404).send('User not found');
+        }
+
+    if (payment.purpose === 'subscription') {
+      logger.info(`Activating subscription for user ${user.id} from payment ${payment.id}`);
+      const tierId = payment.metadata && payment.metadata.tierId ? payment.metadata.tierId : 1;
+      await activateSubscription(user.id, tierId);
+    } else if (payment.purpose === 'deposit') {
+      user.balance = (user.balance || 0) + parseFloat(payment.amount);
+      await user.save();
+      logger.info(`User ${user.id} balance updated by deposit payment ${payment.id}`);
     }
-
-    const tierId = payment.subscription_tier_id;
-    const subscriptionTiers = {
-      1: { days: 30, max_daily_cases: 3, bonus_percentage: 3.0, name: 'Статус' },
-      2: { days: 30, max_daily_cases: 5, bonus_percentage: 5.0, name: 'Статус+' },
-      3: { days: 30, max_daily_cases: 10, bonus_percentage: 10.0, name: 'Статус++' }
-    };
-    const tier = subscriptionTiers[tierId];
-    if (!tier) {
-      logger.error(`Тариф ${tierId} не найден`);
-      return res.status(400).send('Invalid subscription tier');
-    }
-
-    const now = new Date();
-    if (user.subscription_tier && user.subscription_expiry_date && user.subscription_expiry_date > now && user.subscription_tier === tierId) {
-      user.subscription_expiry_date = new Date(Math.max(now, user.subscription_expiry_date));
-      user.subscription_expiry_date.setDate(user.subscription_expiry_date.getDate() + tier.days);
+      }
     } else {
-      user.subscription_tier = tierId;
-      user.subscription_purchase_date = now;
-      user.subscription_expiry_date = new Date(now.getTime() + tier.days * 86400000);
+      logger.debug('Payment status unchanged');
     }
 
-    user.max_daily_cases = 1;
-    user.subscription_bonus_percentage = tier.bonus_percentage;
-    user.cases_available = Math.max(user.cases_available || 0, 1);
-    await user.save();
-
-    await db.SubscriptionHistory.create({
-      user_id: user.id,
-      action: 'purchase',
-      days: tier.days,
-      price: payment.amount,
-      item_id: null,
-      method: 'card',
-      date: now
-    });
-
-    logger.info(`Подписка активирована для пользователя ${user.id} по платежу ${payment.id}`);
-
-    return res.status(200).send('OK');
+    res.status(200).send('OK');
   } catch (error) {
-    logger.error('Ошибка обработки webhook YooMoney:', error);
-    return res.status(500).send('Internal Server Error');
+    logger.error('Error processing YooMoney webhook:', error);
+    res.status(500).send('Internal Server Error');
   }
 }
 

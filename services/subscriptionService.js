@@ -1,0 +1,86 @@
+const db = require('../models');
+const { giveDailyCaseToUser } = require('./caseService');
+const { updateUserAchievementProgress } = require('./achievementService');
+const winston = require('winston');
+
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.Console(),
+  ],
+});
+
+/**
+ * Активирует подписку для пользователя
+ * @param {number} userId - ID пользователя
+ * @param {number} tierId - ID тарифа подписки
+ */
+async function activateSubscription(userId, tierId) {
+  try {
+    const subscriptionTiers = {
+      1: { days: 30, max_daily_cases: 3, bonus_percentage: 3.0, name: 'Статус', price: 1210 },
+      2: { days: 30, max_daily_cases: 5, bonus_percentage: 5.0, name: 'Статус+', price: 2890 },
+      3: { days: 30, max_daily_cases: 10, bonus_percentage: 10.0, name: 'Статус++', price: 6819 }
+    };
+
+    const tier = subscriptionTiers[tierId];
+    if (!tier) {
+      logger.warn(`Subscription tier not found: ${tierId}`);
+      throw new Error('Subscription tier not found');
+    }
+
+    const user = await db.User.findByPk(userId);
+    if (!user) {
+      logger.warn(`User not found: ${userId}`);
+      throw new Error('User not found');
+    }
+
+    const now = new Date();
+    if (user.subscription_tier && user.subscription_expiry_date && user.subscription_expiry_date > now && user.subscription_tier === tierId) {
+      user.subscription_expiry_date = new Date(Math.max(now, user.subscription_expiry_date));
+      user.subscription_expiry_date.setDate(user.subscription_expiry_date.getDate() + tier.days);
+    } else {
+      user.subscription_tier = tierId;
+      user.subscription_purchase_date = now;
+      user.subscription_expiry_date = new Date(now.getTime() + tier.days * 86400000);
+    }
+
+    user.max_daily_cases = tier.max_daily_cases;
+    user.subscription_bonus_percentage = tier.bonus_percentage;
+    user.cases_available = Math.max(user.cases_available || 0, 1);
+
+    await user.save();
+
+    // Update achievement progress for subscription days
+    await updateUserAchievementProgress(userId, 'subscription_days', 1);
+
+    // Update achievement progress for subscription purchased
+    await updateUserAchievementProgress(userId, 'subscription_purchased', 1);
+
+    // Give daily case to user
+    await giveDailyCaseToUser(userId, tierId);
+
+    await db.SubscriptionHistory.create({
+      user_id: userId,
+      action: 'purchase',
+      days: tier.days,
+      price: tier.price,
+      item_id: null,
+      method: 'webhook',
+      date: now
+    });
+
+    logger.info(`User ${userId} subscription activated for tier ${tierId}`);
+  } catch (error) {
+    logger.error('Error activating subscription:', error);
+    throw error;
+  }
+}
+
+module.exports = {
+  activateSubscription
+};

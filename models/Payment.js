@@ -251,8 +251,16 @@ module.exports = (sequelize) => {
       {
         fields: ['expires_at']
       }
-    ]
+    ],
+    comment: "Таблица платежей"
   });
+
+  Payment.rawAttributes.metadata = {
+    type: require('sequelize').DataTypes.JSONB,
+    allowNull: true,
+    comment: 'Дополнительные данные платежа (например, tierId)'
+  };
+  Payment.refreshAttributes();
 
   // Ассоциации
   Payment.associate = (models) => {

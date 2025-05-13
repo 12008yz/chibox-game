@@ -8,6 +8,7 @@ const rateLimit = require('express-rate-limit');
 const winston = require('winston');
 const { execSync } = require('child_process');
 
+
 // Winston Logger
 const logger = winston.createLogger({
   level: 'info',
@@ -25,6 +26,8 @@ const { sequelize, testConnection } = require('./config/database');
 
 // Создаем приложение Express
 const app = express();
+
+app.set('trust proxy', 1);
 
 // Защитные миддлвары
 app.use(helmet());
@@ -51,6 +54,7 @@ const paymentRoutes = require('./routes/paymentRoutes');
 // Регистрация маршрутов
 app.use('/api/users', userRoutes);
 app.use('/api/payment', paymentRoutes);
+
 
 // Проверка подключения к базе данных и применение миграций
 (async () => {
