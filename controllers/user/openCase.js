@@ -1,3 +1,4 @@
+
 const db = require('../../models');
 const winston = require('winston');
 const { updateUserAchievementProgress } = require('../../services/achievementService');
@@ -15,6 +16,7 @@ const logger = winston.createLogger({
 
 async function openCase(req, res) {
   try {
+    console.log('req.body:', req.body);
     let caseId = req.body.caseId || req.params.caseId || req.query.caseId;
     const userId = req.user.id;
 
@@ -130,6 +132,21 @@ async function openCase(req, res) {
       item_id: selectedItem.id,
       quantity: 1,
       case_id: userCase.id
+    });
+
+    // Добавлено создание записи LiveDrop
+    await db.LiveDrop.create({
+      user_id: userId,
+      item_id: selectedItem.id,
+      case_id: userCase.id,
+      drop_time: new Date(),
+      is_rare_item: selectedItem.rarity === 'rare' || selectedItem.rarity === 'legendary',
+      item_price: selectedItem.price || null,
+      item_rarity: selectedItem.rarity || null,
+      user_level: user.level || null,
+      user_subscription_tier: user.subscription_tier || null,
+      is_highlighted: selectedItem.price && selectedItem.price > 1000, // например, выделять дорогие предметы
+      is_hidden: false
     });
 
     user.cases_opened_today += 1;

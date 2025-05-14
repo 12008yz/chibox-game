@@ -3,9 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "start": "node ./bin/www",
-    "tunnel": "lt --port 3000",
-    "start-all": "concurrently \"npm run start\" \"npm run tunnel\""
+    "start": "node ./bin/www"
   },
   "dependencies": {
     "argon2": "^0.43.0",
