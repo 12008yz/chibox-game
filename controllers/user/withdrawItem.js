@@ -1,6 +1,7 @@
 const db = require('../../models');
 const winston = require('winston');
 const { updateUserAchievementProgress } = require('../../services/achievementService');
+const { addExperience } = require('../../services/xpService');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -32,6 +33,9 @@ async function withdrawItem(req, res) {
 
     // Update achievement progress for steam inventory withdrawal
     await updateUserAchievementProgress(userId, 'steam_inventory', 1);
+
+    // Добавление опыта за вывод предмета
+    await addExperience(userId, 20, 'withdraw_item', null, 'Вывод предмета');
 
     logger.info(`Пользователь ${userId} запросил вывод предмета ${itemId}`);
 

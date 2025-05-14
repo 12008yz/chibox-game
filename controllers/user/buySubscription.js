@@ -4,6 +4,7 @@ const { giveDailyCaseToUser } = require('../../services/caseService');
 const { createPayment } = require('../../services/paymentService');
 const { updateUserAchievementProgress } = require('../../services/achievementService');
 const { activateSubscription } = require('../../services/subscriptionService');
+const { addExperience } = require('../../services/xpService');
 
 const subscriptionTiers = {
   1: { days: 30, max_daily_cases: 3, bonus_percentage: 3.0, name: 'Статус', price: 1210 },
@@ -152,6 +153,10 @@ async function buySubscription(req, res) {
       date: new Date()
     });
     logger.info(`Пользователь ${userId} приобрёл подписку tier=${tierId}`);
+
+    // Добавление опыта за покупку подписки
+    await addExperience(userId, 50, 'buy_subscription', null, 'Покупка подписки');
+
     logger.info('buySubscription end');
     return res.json({
       success: true,

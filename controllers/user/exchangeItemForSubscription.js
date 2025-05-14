@@ -1,6 +1,7 @@
 const db = require('../../models');
 const winston = require('winston');
 const { updateUserAchievementProgress } = require('../../services/achievementService');
+const { addExperience } = require('../../services/xpService');
 
 const subscriptionTiers = {
   1: { days: 30, max_daily_cases: 3, bonus_percentage: 3.0, name: 'Статус', price: 1210 },
@@ -84,6 +85,9 @@ async function exchangeItemForSubscription(req, res) {
 
     // Update achievement progress for exchange item
     await updateUserAchievementProgress(userId, 'exchange_item', 1);
+
+    // Добавление опыта за обмен предмета на подписку
+    await addExperience(userId, 30, 'exchange_item_for_subscription', null, 'Обмен предмета на подписку');
 
     // Создаем запись в истории подписок
     await db.SubscriptionHistory.create({

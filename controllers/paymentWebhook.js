@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { Payment, User } = require('../models');
 const winston = require('winston');
 const { activateSubscription } = require('../services/subscriptionService');
+const { addExperience } = require('../services/xpService');
 
 const logger = winston.createLogger({
   level: 'debug',
@@ -83,6 +84,9 @@ async function yoomoneyWebhook(req, res) {
       user.balance = (user.balance || 0) + parseFloat(payment.amount);
       await user.save();
       logger.info(`User ${user.id} balance updated by deposit payment ${payment.id}`);
+
+      // Добавление опыта за пополнение баланса
+      await addExperience(user.id, 40, 'deposit', null, 'Пополнение баланса');
     }
       }
     } else {

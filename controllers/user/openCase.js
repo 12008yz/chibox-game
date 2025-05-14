@@ -2,6 +2,7 @@
 const db = require('../../models');
 const winston = require('winston');
 const { updateUserAchievementProgress } = require('../../services/achievementService');
+const { addExperience } = require('../../services/xpService');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -163,6 +164,9 @@ async function openCase(req, res) {
 
     // Вызов обновления прогресса достижения для открытия кейса
     await updateUserAchievementProgress(userId, 'cases_opened', 1);
+
+    // Начисление опыта за открытие кейса
+    await addExperience(userId, 10, 'open_case', caseId, 'Открытие кейса');
 
     // Вызов обновления прогресса достижения для лучшего предмета
     if (selectedItem.price && selectedItem.price > 0) {

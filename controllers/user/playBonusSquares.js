@@ -1,5 +1,6 @@
 const db = require('../../models');
 const winston = require('winston');
+const { addExperience } = require('../../services/xpService');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -23,6 +24,9 @@ async function playBonusSquares(req, res) {
     const ready = !user.next_bonus_available_time || user.next_bonus_available_time <= now;
     if (!ready) return res.status(400).json({ message: 'Бонус пока недоступен', next_time: user.next_bonus_available_time });
 
+    // Добавляем опыт за игру бонусных клеток
+    await addExperience(userId, 5, 'play_bonus_squares', null, 'Игра бонусных клеток');
+
     const totalSquares = 9;
     const prizes = [ 'item', 'sub_days', null, null, null, null, null, null, null ];
     prizes.sort(() => Math.random() - 0.5);
@@ -37,6 +41,8 @@ async function playBonusSquares(req, res) {
 
     if (reward === 'item') {
       rewardMessage = 'Вам выпал предмет!';
+      // Дополнительный опыт за выигрыш предмета
+      await addExperience(userId, 10, 'play_bonus_squares_win', null, 'Выигрыш предмета в бонусной игре');
     } else if (reward === 'sub_days') {
       const bonusDays = 3; // например, 3 дня подписки
       if (!user.subscription_expiry_date || user.subscription_expiry_date < now) {
@@ -53,6 +59,9 @@ async function playBonusSquares(req, res) {
       rewardMessage = `Вам начислено ${bonusDays} дней подписки!`;
       // Сохраняем пользователя после обновления подписки
       await user.save();
+
+      // Дополнительный опыт за выигрыш дней подписки
+      await addExperience(userId, 15, 'play_bonus_squares_win', null, 'Выигрыш дней подписки в бонусной игре');
 
       // Обновляем поле subscription_days_left после сохранения
       // Удаляем повторное объявление переменной msLeft

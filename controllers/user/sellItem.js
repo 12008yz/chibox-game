@@ -1,6 +1,7 @@
 const db = require('../../models');
 const winston = require('winston');
 const { updateUserAchievementProgress } = require('../../services/achievementService');
+const { addExperience } = require('../../services/xpService');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -45,6 +46,9 @@ async function sellItem(req, res) {
 
       // Update achievement progress for sell item
       await updateUserAchievementProgress(userId, 'sell_item', 1);
+
+      // Добавление опыта за продажу предмета
+      await addExperience(userId, 15, 'sell_item', null, 'Продажа предмета');
     }
 
     logger.info(`Пользователь ${userId} продал предмет ${effectiveItemId} за ${item.sellPrice}`);

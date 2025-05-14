@@ -1,5 +1,6 @@
 const db = require('../models');
 const { Op } = require('sequelize');
+const { addExperience } = require('./xpService');
 
 async function sendAchievementNotification(userId, achievement) {
   // Здесь можно реализовать отправку уведомления пользователю
@@ -78,6 +79,9 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
         await sendAchievementNotification(userId, achievement);
         userAchievement.notified = true;
       }
+
+      // Добавление опыта за выполнение достижения
+      await addExperience(userId, 100, 'achievement_completed', achievement.id, 'Достижение выполнено');
 
       completedAchievements.push(achievement);
     }
