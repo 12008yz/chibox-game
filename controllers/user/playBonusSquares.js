@@ -43,6 +43,49 @@ async function playBonusSquares(req, res) {
       rewardMessage = 'Вам выпал предмет!';
       // Дополнительный опыт за выигрыш предмета
       await addExperience(userId, 10, 'play_bonus_squares_win', null, 'Выигрыш предмета в бонусной игре');
+
+      // Логика добавления кейса или предмета в инвентарь в зависимости от подписки
+      if (user.subscription_expiry_date && user.subscription_expiry_date > now) {
+        // Активная подписка - создаем кейс на основе шаблона бонусного кейса
+        const bonusCaseTemplate = await db.CaseTemplate.findOne({ where: { name: 'Бонусный кейс' } });
+        if (!bonusCaseTemplate) {
+          logger.error('Шаблон бонусного кейса не найден');
+          return res.status(500).json({ message: 'Внутренняя ошибка сервера: шаблон бонусного кейса не найден' });
+        }
+        const newCase = await db.Case.create({
+          user_id: userId,
+          template_id: bonusCaseTemplate.id,
+          subscription_tier: user.subscription_tier || 1,
+          source: 'subscription',
+          is_opened: false,
+          received_date: now,
+          name: bonusCaseTemplate.name,
+          description: bonusCaseTemplate.description,
+          expires_at: null
+        });
+        logger.info(`Создан бонусный кейс для пользователя ${userId} с id ${newCase.id}`);
+
+        // Добавляем созданный кейс в инвентарь пользователя
+        await db.UserInventory.create({
+          user_id: userId,
+          case_id: newCase.id,
+          source: 'subscription',
+          status: 'inventory',
+          acquisition_date: now
+        });
+      } else {
+        // Нет подписки - добавляем предмет в инвентарь
+        // Для предмета нужно определить item_id, но в текущем коде предмет не указан, нужно уточнить
+        // Пока добавим заглушку с item_id = null, нужно доработать при наличии данных о предмете
+        await db.UserInventory.create({
+          user_id: userId,
+          item_id: null,
+          source: 'bonus',
+          status: 'inventory',
+          acquisition_date: now
+        });
+        logger.info(`Добавлен предмет в инвентарь пользователя ${userId} из бонусной игры`);
+      }
     } else if (reward === 'sub_days') {
       const bonusDays = 3; // например, 3 дня подписки
       if (!user.subscription_expiry_date || user.subscription_expiry_date < now) {
