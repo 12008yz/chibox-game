@@ -74,7 +74,17 @@ async function buySubscription(req, res) {
         logger.info('Создание платежа через YooMoney');
         const paymentUrl = await createPayment(price, userId, 'subscription', { tierId });
         logger.info(`Платеж создан, paymentUrl: ${paymentUrl}`);
-        return res.json({ paymentUrl, message: 'Перенаправьте пользователя для оплаты' });
+
+        // Получаем актуальные данные пользователя для возврата
+        const updatedUser = await db.User.findByPk(userId);
+
+        return res.json({
+          paymentUrl,
+          message: 'Перенаправьте пользователя для оплаты',
+          subscription_purchase_date: updatedUser.subscription_purchase_date,
+          subscription_expiry_date: updatedUser.subscription_expiry_date,
+          subscription_tier: updatedUser.subscription_tier
+        });
       } catch (error) {
         logger.error('Ошибка создания платежа через YooMoney:', error);
         return res.status(500).json({ message: 'Ошибка при создании платежа' });
@@ -114,6 +124,14 @@ async function buySubscription(req, res) {
 
     if (method !== 'bank_card') {
       await activateSubscription(userId, parseInt(tierId), promoExtendDays);
+      // Заново загружаем пользователя, чтобы получить обновленные данные
+      const updatedUser = await db.User.findByPk(userId);
+      user.subscription_expiry_date = updatedUser.subscription_expiry_date;
+      user.subscription_tier = updatedUser.subscription_tier;
+      user.subscription_purchase_date = updatedUser.subscription_purchase_date;
+      user.max_daily_cases = updatedUser.max_daily_cases;
+      user.subscription_bonus_percentage = updatedUser.subscription_bonus_percentage;
+      user.cases_available = updatedUser.cases_available;
     }
 
     await db.SubscriptionHistory.create({

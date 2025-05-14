@@ -33,21 +33,27 @@ async function openCase(req, res) {
         where: { user_id: userId, is_opened: false },
         order: [['received_date', 'ASC']]
       });
-      if (!userCase) {
-        if (user.next_case_available_time && user.next_case_available_time > new Date()) {
-          const now = new Date();
-          const msRemaining = user.next_case_available_time.getTime() - now.getTime();
+    if (!userCase) {
+      console.log('next_case_available_time:', user.next_case_available_time);
+      if (user.next_case_available_time && user.next_case_available_time > new Date()) {
+        const now = new Date();
+        const msRemaining = user.next_case_available_time.getTime() - now.getTime();
 
-          const hours = Math.floor(msRemaining / (1000 * 60 * 60));
-          const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
-          const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
+        const hours = Math.floor(msRemaining / (1000 * 60 * 60));
+        const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
 
-          const timeString = `${hours}ч ${minutes}м ${seconds}с`;
+        const timeString = `${hours}ч ${minutes}м ${seconds}с`;
 
-          return res.status(404).json({ message: `Не найден неоткрытый кейс для пользователя. Следующий кейс будет доступен через ${timeString}`, next_case_available_time: user.next_case_available_time });
-        }
-        return res.status(404).json({ message: 'Не найден неоткрытый кейс для пользователя' });
+        return res.status(404).json({ message: `Не найден неоткрытый кейс для пользователя. Следующий кейс будет доступен через ${timeString}`, next_case_available_time: user.next_case_available_time });
       }
+      // Если next_case_available_time не установлен, установим его на 1 час вперед
+      const newNextCaseTime = new Date(new Date().getTime() + 60 * 60 * 1000);
+      user.next_case_available_time = newNextCaseTime;
+      await user.save();
+
+      return res.status(404).json({ message: `Не найден неоткрытый кейс для пользователя. Следующий кейс будет доступен через 1ч 0м 0с`, next_case_available_time: newNextCaseTime });
+    }
       caseId = userCase.id;
     }
 

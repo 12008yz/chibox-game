@@ -56,7 +56,8 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
     } else {
       newProgress = userAchievement.current_progress + progressToAdd;
     }
-    userAchievement.current_progress = newProgress;
+    // Приводим прогресс к целому числу, чтобы избежать ошибок с типом integer в БД
+    userAchievement.current_progress = Math.floor(newProgress);
 
     // Проверить выполнение
     if (newProgress >= achievement.requirement_value) {
