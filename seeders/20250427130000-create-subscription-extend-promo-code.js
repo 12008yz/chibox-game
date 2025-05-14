@@ -1,10 +1,12 @@
 'use strict';
 
+const { v4: uuidv4 } = require('uuid');
+
 module.exports = {
   up: async (queryInterface, Sequelize) => {
     // Создаем промокод с типом 'subscription_extend', добавляющий 3 дня к подписке
     await queryInterface.bulkInsert('promo_codes', [{
-      id: Sequelize.literal('uuid_generate_v4()'),
+      id: uuidv4(),
       code: 'TEST3DAYS',
       description: 'Промокод для тестирования: добавляет 3 дня к подписке',
       type: 'subscription_extend',

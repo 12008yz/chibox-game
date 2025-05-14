@@ -98,14 +98,18 @@ async function buySubscription(req, res) {
       await promoCodeUser.save();
 
       // Создаем запись о применении промокода в PromoCodeUsage
-      await db.PromoCodeUsage.create({
-        promo_code_id: promoCodeUser.promo_code_id,
-        user_id: userId,
-        usage_date: new Date(),
-        applied_value: 3,
-        subscription_days_added: 3,
-        status: 'applied'
-      });
+      try {
+        await db.PromoCodeUsage.create({
+          promo_code_id: promoCodeUser.promo_code_id,
+          user_id: userId,
+          usage_date: new Date(),
+          applied_value: 3,
+          subscription_days_added: 3,
+          status: 'applied'
+        });
+      } catch (error) {
+        logger.error('Ошибка при создании записи PromoCodeUsage:', error);
+      }
     }
 
     if (method !== 'bank_card') {
