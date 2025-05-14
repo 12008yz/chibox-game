@@ -81,14 +81,41 @@ async function buySubscription(req, res) {
       }
     }
 
+    // Проверяем наличие активного промокода с типом 'subscription_extend' для пользователя
+    let promoExtendDays = 0;
+    const promoCodeUser = await db.PromoCodeUser.findOne({
+      where: { user_id: userId, is_used: false },
+      include: [{
+        model: db.PromoCode,
+        as: 'promo_code',
+        where: { type: 'subscription_extend', is_active: true }
+      }]
+    });
+    if (promoCodeUser) {
+      promoExtendDays = 3; // Добавляем 3 дня к подписке
+      // Отмечаем промокод как использованный
+      promoCodeUser.is_used = true;
+      await promoCodeUser.save();
+
+      // Создаем запись о применении промокода в PromoCodeUsage
+      await db.PromoCodeUsage.create({
+        promo_code_id: promoCodeUser.promo_code_id,
+        user_id: userId,
+        usage_date: new Date(),
+        applied_value: 3,
+        subscription_days_added: 3,
+        status: 'applied'
+      });
+    }
+
     if (method !== 'bank_card') {
-      await activateSubscription(userId, parseInt(tierId));
+      await activateSubscription(userId, parseInt(tierId), promoExtendDays);
     }
 
     await db.SubscriptionHistory.create({
       user_id: userId,
       action,
-      days: tier.days,
+      days: tier.days + promoExtendDays,
       price,
       item_id: exchangeItemId,
       method: method,

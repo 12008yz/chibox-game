@@ -46,7 +46,7 @@ async function register(req, res) {
     });
   }
   try {
-    let { email, password, username } = req.body;
+    let { email, password, username, promoCode } = req.body;
     email = email.trim().toLowerCase();
 
     const existingUser = await db.User.findOne({ where: { email } });
@@ -66,6 +66,20 @@ async function register(req, res) {
       username: username.trim(),
       password: hashedPassword
     });
+
+    // Если передан промокод, проверяем и сохраняем
+    if (promoCode) {
+      const promo = await db.PromoCode.findOne({
+        where: { code: promoCode.trim(), is_active: true }
+      });
+      if (promo) {
+        await db.PromoCodeUser.create({
+          promo_code_id: promo.id,
+          user_id: newUser.id,
+          is_used: false
+        });
+      }
+    }
 
     const achievements = await db.UserAchievement.findAll({
       where: { user_id: newUser.id },

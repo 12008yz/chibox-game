@@ -19,7 +19,7 @@ const logger = winston.createLogger({
  * @param {number} userId - ID пользователя
  * @param {number} tierId - ID тарифа подписки
  */
-async function activateSubscription(userId, tierId) {
+async function activateSubscription(userId, tierId, promoExtendDays = 0) {
   try {
     const subscriptionTiers = {
       1: { days: 30, max_daily_cases: 3, bonus_percentage: 3.0, name: 'Статус', price: 1210 },
@@ -40,13 +40,14 @@ async function activateSubscription(userId, tierId) {
     }
 
     const now = new Date();
+    const totalDays = tier.days + promoExtendDays;
     if (user.subscription_tier && user.subscription_expiry_date && user.subscription_expiry_date > now && user.subscription_tier === tierId) {
       user.subscription_expiry_date = new Date(Math.max(now, user.subscription_expiry_date));
-      user.subscription_expiry_date.setDate(user.subscription_expiry_date.getDate() + tier.days);
+      user.subscription_expiry_date.setDate(user.subscription_expiry_date.getDate() + totalDays);
     } else {
       user.subscription_tier = tierId;
       user.subscription_purchase_date = now;
-      user.subscription_expiry_date = new Date(now.getTime() + tier.days * 86400000);
+      user.subscription_expiry_date = new Date(now.getTime() + totalDays * 86400000);
     }
 
     user.max_daily_cases = tier.max_daily_cases;
@@ -67,7 +68,7 @@ async function activateSubscription(userId, tierId) {
     await db.SubscriptionHistory.create({
       user_id: userId,
       action: 'purchase',
-      days: tier.days,
+      days: totalDays,
       price: tier.price,
       item_id: null,
       method: 'webhook',
