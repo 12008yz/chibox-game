@@ -73,6 +73,10 @@ async function exchangeItemForSubscription(req, res) {
       user.subscription_expiry_date = new Date(now.getTime() + daysToAdd * 86400000);
     }
 
+    // Обновляем поле subscription_days_left
+    const msLeft = user.subscription_expiry_date.getTime() - new Date().getTime();
+    user.subscription_days_left = msLeft > 0 ? Math.ceil(msLeft / 86400000) : 0;
+
     // Удаляем предмет из инвентаря
     await inventoryItem.destroy();
 

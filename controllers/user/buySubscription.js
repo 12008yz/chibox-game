@@ -123,7 +123,15 @@ async function buySubscription(req, res) {
     }
 
     if (method !== 'bank_card') {
-      await activateSubscription(userId, parseInt(tierId), promoExtendDays);
+      // Перед активацией подписки добавляем pending_subscription_days, если есть
+      const userFromDb = await db.User.findByPk(userId);
+      let totalExtraDays = promoExtendDays + (userFromDb.pending_subscription_days || 0);
+      if (totalExtraDays > 0) {
+        // Обнуляем pending_subscription_days
+        userFromDb.pending_subscription_days = 0;
+        await userFromDb.save();
+      }
+      await activateSubscription(userId, parseInt(tierId), totalExtraDays);
       // Заново загружаем пользователя, чтобы получить обновленные данные
       const updatedUser = await db.User.findByPk(userId);
       user.subscription_expiry_date = updatedUser.subscription_expiry_date;
