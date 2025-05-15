@@ -13,6 +13,11 @@ const logger = winston.createLogger({
 });
 
 async function getProfile(req, res) {
+  // Защита от IDOR: пользователь запрашивает только свой профиль
+  if (!req.user || String(req.user.id) !== String(req.query.id || req.params.id)) {
+    return res.status(403).json({ message: 'Доступ к чужому профилю запрещён' });
+  }
+
   try {
     const userId = req.user.id;
 

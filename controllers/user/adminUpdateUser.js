@@ -15,7 +15,8 @@ const logger = winston.createLogger({
 async function adminUpdateUser(req, res) {
   try {
     const adminUser = req.user;
-    if (!adminUser || adminUser.role !== 'admin') {
+    // Проверка прав администратора — только admin или superadmin имеют доступ
+    if (!adminUser || (adminUser.role !== 'admin' && adminUser.role !== 'superadmin')) {
       return res.status(403).json({ message: 'Доступ запрещён' });
     }
 

@@ -14,12 +14,18 @@ const logger = winston.createLogger({
   ],
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable must be set.');
+}
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1d';
 
 function generateToken(user) {
-  return jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 }
+
+// Для примера в RAM — реальную реализацию храните, напр. в Redis
+const failedLogin = {};
 
 async function login(req, res) {
   try {
@@ -28,15 +34,35 @@ async function login(req, res) {
       return res.status(400).json({ message: 'Email и пароль обязательны' });
     }
 
-    const user = await db.User.findOne({ where: { email: email.trim().toLowerCase() } });
+    const key = email.trim().toLowerCase();
+
+    // Если есть блокировка — замедление или блок
+    if (failedLogin[key] && failedLogin[key].blockUntil && Date.now() < failedLogin[key].blockUntil) {
+      return res.status(429).json({ message: 'Попробуйте позже (блокировка из-за неудачных попыток)' });
+    }
+
+    const user = await db.User.findOne({ where: { email: key } });
     if (!user) {
-      return res.status(401).json({ message: 'Неверный email или пароль' });
+      failedLogin[key] = failedLogin[key] || { count: 0 };
+      failedLogin[key].count++;
+      if (failedLogin[key].count >= 5) {
+        failedLogin[key].blockUntil = Date.now() + 10 * 60 * 1000; // 10 минут блокировка
+      }
+      return res.status(401).json({ message: 'Неверный email или пароль.' });
     }
 
     const passwordMatch = await argon2.verify(user.password, password);
     if (!passwordMatch) {
-      return res.status(401).json({ message: 'Неверный email или пароль' });
+      failedLogin[key] = failedLogin[key] || { count: 0 };
+      failedLogin[key].count++;
+      if (failedLogin[key].count >= 5) {
+        failedLogin[key].blockUntil = Date.now() + 10 * 60 * 1000;
+      }
+      return res.status(401).json({ message: 'Неверный email или пароль.' });
     }
+
+    // Очистка после удачного входа
+    if (failedLogin[key]) delete failedLogin[key];
 
     const achievements = await db.UserAchievement.findAll({
       where: { user_id: user.id },

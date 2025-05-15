@@ -8,7 +8,6 @@ const rateLimit = require('express-rate-limit');
 const winston = require('winston');
 const { execSync } = require('child_process');
 
-
 // Winston Logger
 const logger = winston.createLogger({
   level: 'info',
@@ -31,6 +30,8 @@ app.set('trust proxy', 1);
 
 // Защитные миддлвары
 app.use(helmet());
+
+// Общий лимит на все запросы
 app.use(rateLimit({
   windowMs: 15 * 60 * 1000, // 15 минут
   max: 100,
@@ -38,6 +39,15 @@ app.use(rateLimit({
   legacyHeaders: false,
   message: 'Слишком много запросов с этого IP, попробуйте позже.'
 }));
+
+// Для login и register — отдельный лимит по 5 попыток на 10 минут на IP
+const authLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 минут
+  max: 5,
+  message: 'Слишком много попыток, попробуйте через 10 минут.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Настройка движка представлений
 app.set('views', path.join(__dirname, 'views'));
@@ -51,10 +61,13 @@ app.use(express.static(path.join(__dirname, 'public')));
 const userRoutes = require('./routes/userRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 
-// Регистрация маршрутов
-app.use('/api/users', userRoutes);
-app.use('/api/payment', paymentRoutes);
+// Монтируем лимит к отдельным маршрутам:
+app.use('/api/v1/login', authLimiter);
+app.use('/api/v1/register', authLimiter);
 
+// Регистрация маршрутов
+app.use('/api/v1', userRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // Проверка подключения к базе данных и применение миграций
 (async () => {
