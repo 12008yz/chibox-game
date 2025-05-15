@@ -17,8 +17,9 @@ async function getStatistics(req, res) {
     const userId = req.user.id;
 
     const totalTransactions = await db.Transaction.count({ where: { user_id: userId } });
-    const totalSpent = await db.Transaction.sum('amount', { where: { user_id: userId, type: 'spend' } });
-    const totalEarned = await db.Transaction.sum('amount', { where: { user_id: userId, type: 'earn' } });
+    // Исправляем типы транзакций на корректные enum значения
+    const totalSpent = await db.Transaction.sum('amount', { where: { user_id: userId, type: 'balance_subtract' } });
+    const totalEarned = await db.Transaction.sum('amount', { where: { user_id: userId, type: 'balance_add' } });
 
     const statistics = {
       totalTransactions: totalTransactions || 0,

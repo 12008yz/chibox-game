@@ -76,6 +76,23 @@ async function yoomoneyWebhook(req, res) {
           return res.status(404).send('User not found');
         }
 
+        // Создаем запись транзакции
+        await require('../models').Transaction.create({
+          user_id: user.id,
+          type: payment.purpose === 'subscription' ? 'subscription_purchase' : 'balance_add',
+          amount: parseFloat(payment.amount),
+          description: payment.description,
+          status: 'completed',
+          related_entity_id: payment.id,
+          related_entity_type: 'Payment',
+          balance_before: user.balance,
+          balance_after: payment.purpose === 'subscription' ? user.balance : (user.balance + parseFloat(payment.amount)),
+          ip_address: req.ip,
+          user_agent: req.headers['user-agent'],
+          is_system: false,
+          payment_id: payment.id
+        });
+
     if (payment.purpose === 'subscription') {
       logger.info(`Activating subscription for user ${user.id} from payment ${payment.id}`);
       const tierId = payment.metadata && payment.metadata.tierId ? payment.metadata.tierId : 1;

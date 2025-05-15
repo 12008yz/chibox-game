@@ -5,6 +5,7 @@ module.exports = {
     // Add 'subscription_purchased' to enum enum_achievements_requirement_type
     await queryInterface.sequelize.query(`
       ALTER TYPE enum_achievements_requirement_type ADD VALUE IF NOT EXISTS 'subscription_purchased';
+      ALTER TYPE enum_achievements_requirement_type ADD VALUE IF NOT EXISTS 'exchange_item';
     `);
   },
 

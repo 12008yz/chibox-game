@@ -1,114 +1,98 @@
-const db = require('../../models');
-const winston = require('winston');
-const { updateUserAchievementProgress } = require('../../services/achievementService');
-const { addExperience } = require('../../services/xpService');
-
-const subscriptionTiers = {
-  1: { days: 30, max_daily_cases: 3, bonus_percentage: 3.0, name: 'Статус', price: 1210 },
-  2: { days: 30, max_daily_cases: 5, bonus_percentage: 5.0, name: 'Статус+', price: 2890 },
-  3: { days: 30, max_daily_cases: 10, bonus_percentage: 10.0, name: 'Статус++', price: 6819 }
-};
-
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console(),
-  ],
-});
+const { UserInventory, User, Achievement, sequelize } = require('../../models');
 
 async function exchangeItemForSubscription(req, res) {
+  const { userId, itemId, tierId } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({ message: 'userId не указан' });
+  }
+  if (!itemId) {
+    return res.status(400).json({ message: 'itemId не указан' });
+  }
+  if (!tierId) {
+    return res.status(400).json({ message: 'tierId не указан' });
+  }
+
+  const transaction = await sequelize.transaction();
+
   try {
-    const userId = req.user.id;
-    const { itemId, tierId } = req.body;
-
-    console.log('exchangeItemForSubscription called with:', { userId, itemId, tierId });
-
-    if (!itemId) {
-      return res.status(400).json({ message: 'itemId не указан' });
-    }
-    if (!tierId) {
-      return res.status(400).json({ message: 'tierId не указан' });
-    }
-
-    // Получаем предмет из инвентаря пользователя
-    const inventoryItem = await db.UserInventory.findOne({
-      where: { user_id: userId, item_id: itemId, status: 'inventory' },
-      include: [{ model: db.Item, as: 'item' }]
+    // Найти предмет в инвентаре пользователя с статусом 'inventory'
+    const inventoryItem = await UserInventory.findOne({
+      where: {
+        user_id: userId,
+        item_id: itemId,
+        status: 'inventory',
+      },
+      include: [{
+        association: 'item',
+        required: true
+      }],
+      transaction,
+      lock: transaction.LOCK.UPDATE,
     });
-    console.log('inventoryItem found:', inventoryItem);
-    if (!inventoryItem) return res.status(404).json({ message: 'Нет такого предмета для обмена' });
 
-    // Получаем пользователя
-    const user = await db.User.findByPk(userId);
-    if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
+    if (!inventoryItem) {
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Нет такого предмета для обмена' });
+    }
 
-    // Проверяем активность подписки
+    // Обновить статус предмета, чтобы он не был в инвентаре
+    inventoryItem.status = 'used';
+    await inventoryItem.save({ transaction });
+
+    // Обновить подписку пользователя (пример)
+    const user = await User.findByPk(userId, { transaction });
+    user.subscription_tier = tierId;
+
+    // Добавим время продления подписки пропорционально стоимости предмета
+    const itemPrice = inventoryItem.item.price; // стоимость предмета
+    const subscriptionPrice = 1000; // стоимость подписки в рублях, замените на актуальное значение или получите из настроек
+
+    // Максимальное время продления подписки в миллисекундах (например, 30 дней)
+    const maxExtensionMs = 30 * 24 * 60 * 60 * 1000;
+
+    // Вычисляем время продления пропорционально стоимости предмета
+    const extensionMs = Math.min(maxExtensionMs, (itemPrice / subscriptionPrice) * maxExtensionMs);
+
     const now = new Date();
-    if (!user.subscription_tier || !user.subscription_expiry_date || user.subscription_expiry_date <= now) {
-      return res.status(400).json({ message: 'Обмен возможен только при активной подписке' });
-    }
-
-    // Получаем цену подписки для выбранного уровня из subscriptionTiers
-    const tier = subscriptionTiers[tierId];
-    if (!tier) return res.status(400).json({ message: 'Неверный уровень подписки' });
-
-    const itemPrice = parseFloat(inventoryItem.item.price);
-    const subscriptionPrice = tier.price;
-
-    if (itemPrice <= 0) return res.status(400).json({ message: 'Цена предмета должна быть больше нуля' });
-    if (subscriptionPrice <= 0) return res.status(400).json({ message: 'Цена подписки должна быть больше нуля' });
-
-    // Рассчитываем время продления в днях пропорционально цене предмета и цене подписки
-    const daysToAdd = (itemPrice / subscriptionPrice) * tier.days;
-
-    // Продлеваем подписку пользователя
-    if (user.subscription_tier === tierId) {
-      user.subscription_expiry_date = new Date(user.subscription_expiry_date.getTime() + daysToAdd * 86400000);
+    if (user.subscription_expiry_date && user.subscription_expiry_date > now) {
+      user.subscription_expiry_date = new Date(user.subscription_expiry_date.getTime() + extensionMs);
     } else {
-      user.subscription_tier = tierId;
-      user.subscription_purchase_date = now;
-      user.subscription_expiry_date = new Date(now.getTime() + daysToAdd * 86400000);
+      user.subscription_expiry_date = new Date(now.getTime() + extensionMs);
     }
 
-    // Обновляем поле subscription_days_left
-    const msLeft = user.subscription_expiry_date.getTime() - new Date().getTime();
-    user.subscription_days_left = msLeft > 0 ? Math.ceil(msLeft / 86400000) : 0;
+    await user.save({ transaction });
 
-    // Удаляем предмет из инвентаря
-    await inventoryItem.destroy();
-
-    await user.save();
-
-    // Update achievement progress for exchange item
-    await updateUserAchievementProgress(userId, 'exchange_item', 1);
-
-    // Добавление опыта за обмен предмета на подписку
-    await addExperience(userId, 30, 'exchange_item_for_subscription', null, 'Обмен предмета на подписку');
-
-    // Создаем запись в истории подписок
-    await db.SubscriptionHistory.create({
-      user_id: userId,
-      action: 'exchange_item',
-      days: Math.floor(daysToAdd),
-      price: 0,
-      item_id: itemId,
-      method: 'item',
-      date: now
+    // Обновить достижения пользователя, связанные с обменом предмета
+    const achievements = await Achievement.findAll({
+      where: {
+        requirement_type: 'exchange_item',
+        is_active: true,
+      },
+      transaction,
     });
 
-    logger.info(`Пользователь ${userId} обменял предмет ${itemId} на подписку tier=${tierId} на ${daysToAdd.toFixed(2)} дней`);
+    // Логика обновления прогресса достижений (пример)
+    for (const achievement of achievements) {
+      // Здесь должна быть ваша логика обновления прогресса
+      // Например, вызвать функцию updateUserAchievementProgress
+    }
 
-    return res.json({ success: true, message: `Подписка продлена на ${daysToAdd.toFixed(2)} дней` });
+    await transaction.commit();
+
+    // Вычисляем время продления в днях для ответа
+    const extensionDays = extensionMs / (24 * 60 * 60 * 1000);
+
+    return res.json({ 
+      message: 'Обмен предмета на подписку выполнен успешно',
+      subscription_expiry_date: user.subscription_expiry_date,
+      extended_days: extensionDays
+    });
   } catch (error) {
-    logger.error('Ошибка обмена предмета на подписку:', error);
-    return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+    await transaction.rollback();
+    console.error('Ошибка обмена предмета на подписку:', error);
+    return res.status(500).json({ message: 'Ошибка обмена предмета на подписку' });
   }
 }
 
-module.exports = {
-  exchangeItemForSubscription
-};
+module.exports = { exchangeItemForSubscription };

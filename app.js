@@ -7,6 +7,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const winston = require('winston');
 const { execSync } = require('child_process');
+const csurf = require('csurf');
 
 // Winston Logger
 const logger = winston.createLogger({
@@ -57,6 +58,27 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+
+const csrf = require('csurf');
+
+// Подключение CSRF защиты с использованием cookie
+const csrfProtection = csrf({ cookie: true });
+
+// Исключаем некоторые маршруты из CSRF защиты, например, API маршруты, которые не используют cookie
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+  csrfProtection(req, res, next);
+});
+
+// Добавление middleware для передачи CSRF токена в ответах (например, в locals для шаблонов)
+app.use((req, res, next) => {
+  if (req.csrfToken) {
+    res.locals.csrfToken = req.csrfToken();
+  }
+  next();
+});
 
 const userRoutes = require('./routes/userRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
