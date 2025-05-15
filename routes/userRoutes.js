@@ -73,4 +73,5 @@ router.get('/bonus/status', authMiddleware, getBonusStatus); //+
 router.get('/cases/available', authMiddleware, getCasesAvailable); //+
 router.get('/achievements/progress', authMiddleware, getAchievementsProgress);
 
+
 module.exports = router;
