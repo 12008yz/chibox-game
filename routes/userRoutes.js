@@ -30,6 +30,8 @@ const {
   getCasesAvailable,
   getAchievementsProgress,
 } = require('../controllers/user/userController');
+
+const { loginBot, sendTrade, getSteamInventory } = require('../controllers/user/steamBotController');
 const authMiddleware = require('../middleware/auth');
 
 
@@ -73,5 +75,9 @@ router.get('/bonus/status', authMiddleware, getBonusStatus); //+
 router.get('/cases/available', authMiddleware, getCasesAvailable); //+
 router.get('/achievements/progress', authMiddleware, getAchievementsProgress);
 
+// Steam bot routes
+router.post('/steambot/login', authMiddleware, loginBot); //+
+router.post('/steambot/send-trade', authMiddleware, sendTrade);
+router.get('/steambot/inventory', authMiddleware, getSteamInventory);
 
 module.exports = router;

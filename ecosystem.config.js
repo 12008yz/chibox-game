@@ -1,26 +1,15 @@
 module.exports = {
   apps: [
     {
-      name: 'backend-server',
-      script: 'bin/www',
+      name: 'steam-bot-service',
+      script: './app.js',
       watch: true,
       env: {
-        NODE_ENV: 'development'
+        NODE_ENV: 'development',
       },
       env_production: {
-        NODE_ENV: 'production'
-      }
+        NODE_ENV: 'production',
+      },
     },
-    {
-      name: 'daily-case-issuer',
-      script: 'scripts/dailyCaseIssuer.js',
-      watch: false,
-      env: {
-        NODE_ENV: 'development'
-      },
-      env_production: {
-        NODE_ENV: 'production'
-      }
-    }
-  ]
+  ],
 };
