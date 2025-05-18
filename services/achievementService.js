@@ -81,7 +81,7 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
       }
 
       // Добавление опыта за выполнение достижения
-      await addExperience(userId, 100, 'achievement_completed', achievement.id, 'Достижение выполнено');
+      await addExperience(userId, 100, 'achievement', achievement.id, 'Достижение выполнено');
 
       completedAchievements.push(achievement);
     }

@@ -1,6 +1,7 @@
 const SteamUser = require('steam-user');
 const SteamCommunity = require('steamcommunity');
 const TradeOfferManager = require('steam-tradeoffer-manager');
+const SteamTotp = require('steam-totp');
 
 let instance = null;
 let hasLoggedIn = false;
@@ -31,61 +32,70 @@ class SteamBot {
       return;
     }
     return new Promise((resolve, reject) => {
+      // Генерируем код 2FA для первого логина
+      const twoFactorCode = SteamTotp.generateAuthCode(this.sharedSecret);
       const logOnOptions = {
         accountName: this.accountName,
         password: this.password,
-        twoFactorCode: null, // SteamCommunity будет обрабатывать 2FA
+        twoFactorCode: twoFactorCode
       };
-
+      console.log('Attempting Steam login...');
       this.client.logOn(logOnOptions);
 
-      this.client.on('loggedOn', () => {
+      this.client.once('loggedOn', () => {
         this.loggedIn = true;
         hasLoggedIn = true;
         console.log('Logged into Steam as ' + this.client.steamID.getSteam3RenderedID());
+        // Ждать webSession!
+      });
+
+      this.client.once('webSession', (sessionID, cookies) => {
+        console.log('Steam webSession received, setting cookies to manager & community...');
+        this.manager.setCookies(cookies);
+        this.community.setCookies(cookies);
+        this.community.startConfirmationChecker(10000, this.identitySecret);
+        console.log('Cookies set, confirmation checker started, bot now fully operational.');
         resolve();
       });
 
-      this.client.on('error', (err) => {
+      this.client.once('error', (err) => {
         console.error('Steam login error:', err);
         reject(err);
       });
 
+      // Steam Guard обработка - всегда отправлять актуальный мобильный код из sharedSecret
       this.client.on('steamGuard', (domain, callback) => {
-        // SteamCommunity будет обрабатывать 2FA, поэтому здесь можно оставить пустым или логировать
-        console.log('Steam Guard code requested, but handled by SteamCommunity.');
-        callback(null);
+        if (!domain) {
+          const code = SteamTotp.generateAuthCode(this.sharedSecret);
+          console.log('Generated Steam Guard (2FA Mobile) code:', code);
+          callback(code);
+        } else {
+          console.error('Steam Guard requires code from email:', domain);
+          callback(null); // Если вдруг нужен код с почты — ручное вмешательство
+        }
       });
     });
   }
 
   async buyItem(marketHashName, price) {
-    // This is a placeholder function.
-    // Buying items from Steam Community Market programmatically is restricted.
-    // Usually requires web scraping or using Steam Market API with session cookies.
-    // Implementing this requires advanced handling beyond SteamUser library.
     throw new Error('Buying items programmatically is not supported directly by SteamUser library.');
   }
 
   async sendTradeOffer(partnerSteamId, itemsToGive, itemsToReceive = []) {
     return new Promise((resolve, reject) => {
       const offer = this.manager.createOffer(partnerSteamId);
-
       if (itemsToGive.length > 0) {
         offer.addMyItems(itemsToGive);
       }
       if (itemsToReceive.length > 0) {
         offer.addTheirItems(itemsToReceive);
       }
-
       offer.send(async (err, status) => {
         if (err) {
           console.error('Failed to send trade offer:', err);
           return reject(err);
         }
         console.log('Trade offer sent. Status:', status);
-
-        // Подтверждение торгового предложения через мобильный аутентификатор
         try {
           await this.community.acceptConfirmationForObject(this.identitySecret, offer.id);
           console.log('Trade offer confirmed:', offer.id);
@@ -93,7 +103,6 @@ class SteamBot {
           console.error('Failed to confirm trade offer:', confirmErr);
           return reject(confirmErr);
         }
-
         resolve(status);
       });
     });
@@ -107,8 +116,6 @@ class SteamBot {
           return reject(err);
         }
         console.log('Trade offer accepted:', offerId);
-
-        // Подтверждение принятия торгового предложения через мобильный аутентификатор
         try {
           await this.community.acceptConfirmationForObject(this.identitySecret, offerId);
           console.log('Trade offer acceptance confirmed:', offerId);
@@ -116,7 +123,6 @@ class SteamBot {
           console.error('Failed to confirm trade acceptance:', confirmErr);
           return reject(confirmErr);
         }
-
         resolve();
       });
     });

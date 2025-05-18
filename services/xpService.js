@@ -33,7 +33,7 @@ async function addExperience(userId, amount, sourceType, sourceId = null, descri
 
     // Создаем запись о транзакции опыта с информацией о повышении уровня
     // Validate sourceType against allowed enum values
-    const allowedSourceTypes = ['deposit', 'sell_item', 'withdraw_item', 'exchange_item_for_subscription', 'achievement_completed', 'subscription_purchase', 'bonus_game', 'other'];
+    const allowedSourceTypes = ['deposit', 'sell_item', 'withdraw_item', 'exchange_item_for_subscription', 'achievement', 'subscription_purchase', 'bonus_game', 'other'];
     let validatedSourceType = sourceType;
     if (!allowedSourceTypes.includes(sourceType)) {
       validatedSourceType = 'other';
