@@ -1,5 +1,6 @@
 const axios = require('axios');
 const db = require('../models'); // путь к index.js ваших моделей
+const buffConfig = require('../config/buff_config.json');
 
 const BUFF_MARKET_URL = 'https://buff.163.com/api/market/goods';
 
@@ -51,7 +52,7 @@ async function fetchBuffSkins({ game = 'csgo', page_num = 1, page_size = 80 }, r
         'accept-encoding': 'gzip, deflate, br, zstd',
         'accept-language': 'ru,en;q=0.9',
         'connection': 'keep-alive',
-        'cookie': 'Device-Id=LDrkzZWatN7fUHapS64T; Locale-Supported=ru; game=csgo; NTES_YD_SESS=7qhA0ZiCZmpCwOE5zuc0fVTcv5s79.SRtIIWyTVsEHitePmoLCYQaKlBe2wvJLSg.rjVjKQi278NLqrfNpOYuD0L.4kOLj2aEn7iV07EeSxadiT6Y2hSIfsFap.9qiOtlAprxBcm_pLfA2ymBgEBxCiNp86LqM2R2yB5JtrsMGCuJlbg3K_rPbIXgVP4FcF3lv7YWk1.bgDH.OGo_jmdlsDpheKBARzCM.jNyPPEvKWQN; S_INFO=1745345947|0|0&60##|7-9156914692; P_INFO=7-9156914692|1745345947|1|netease_buff|00&99|null&null&null#RU&null#10#0|&0|null|7-9156914692; remember_me=U1085354158|HyQ4ngsJRGUE7TTSRAR4F4aA5ypNrjuk; session=1-wjVX0UCGc2urhxkBfnwsySPALDzqvzYujo74NZHaJjyu2021634038; csrf_token=ImM4Y2E5YThkM2Q4ZWRkZmU0MTg4OGMyNzc5ZTQyNTdiMDRjZTM1ODIi.aAfeeg.1COJviojARXpO1FclSpX6syxcSU',
+        'cookie': buffConfig.cookies,
         'host': 'buff.163.com',
         'referer': 'https://buff.163.com/market/csgo',
         'sec-ch-ua': '"Chromium";v="128", "Not;A=Brand";v="24", "YaBrowser";v="24.10", "Yowser";v="2.5"',

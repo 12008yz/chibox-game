@@ -13,6 +13,16 @@ const Item = sequelize.define('Item', {
       allowNull: false,
       comment: "Название предмета в CS2"
     },
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: "Описание предмета в формате JSON"
+    },
+    image_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "URL изображения предмета"
+    },
     price: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
@@ -33,6 +43,18 @@ const Item = sequelize.define('Item', {
       allowNull: false,
       defaultValue: 'consumer',
       comment: 'Раритетность предмета как в CS2'
+    },
+    drop_weight: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 1,
+      comment: "Вес выпадения предмета"
+    },
+    min_subscription_tier: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      defaultValue: 0,
+      comment: "Минимальный уровень подписки для доступа"
     },
     weapon_type: {
       type: DataTypes.STRING,
@@ -70,6 +92,11 @@ const Item = sequelize.define('Item', {
       allowNull: true,
       comment: "Качество предмета (StatTrak, Souvenir и т.д.)"
     },
+    stickers: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: "Стикеры на предмете"
+    },
     buff_id: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -80,6 +107,41 @@ const Item = sequelize.define('Item', {
       type: DataTypes.STRING,
       allowNull: true,
       comment: "Источник или коллекция предмета"
+    },
+    buff_rarity: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "RARITY из BUFF"
+    },
+    buff_quality: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "QUALITY из BUFF"
+    },
+    buff_type: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "TYPE из BUFF"
+    },
+    buff_exterior: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "EXTERIOR из BUFF"
+    },
+    buff_weapon: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "WEAPON из BUFF"
+    },
+    buff_category: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "CATEGORY из BUFF"
+    },
+    buff_tags: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: "Теги из BUFF"
     }
   }, {
     timestamps: true,

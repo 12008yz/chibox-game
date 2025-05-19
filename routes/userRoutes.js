@@ -52,8 +52,9 @@ router.post('/logout', authMiddleware, logout); //+
 
 router.get('/inventory', authMiddleware, getInventory); //+
 router.post('/open-case', authMiddleware, openCase); //+
-router.post('/sell-item', authMiddleware, sellItem); 
+router.post('/sell-item', authMiddleware, sellItem);
 router.post('/withdraw-item', authMiddleware, withdrawItem);
+router.get('/withdraw-item/:withdrawalId', authMiddleware, require('../controllers/user/withdrawItem').getWithdrawalStatus);
 router.get('/cases', authMiddleware, getCases); //+
 router.get('/balance', authMiddleware, getBalance); //+
 router.post('/promo', authMiddleware, applyPromo);
@@ -62,7 +63,7 @@ router.post('/deposit', authMiddleware, deposit);
 router.post('/withdraw-balance', authMiddleware, withdrawBalance);
 router.get('/achievements', authMiddleware, getAchievements); //+ (пустое)
 router.get('/missions', authMiddleware, getMissions);
-router.get('/statistics', authMiddleware, getStatistics); //+ 
+router.get('/statistics', authMiddleware, getStatistics); //+
 router.get('/leaderboard', authMiddleware, getLeaderboard); //+
 router.get('/notifications', authMiddleware, getNotifications); //+ (Пустое)
 

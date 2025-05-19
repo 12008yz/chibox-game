@@ -15,7 +15,7 @@ const logger = winston.createLogger({
 });
 
 // Schedule the job to run every day at 10:30 UTC (which is 13:30 Moscow time UTC+3)
-cron.schedule('02 19 * * *', async () => {
+cron.schedule('23 18 * * *', async () => {
   const now = new Date();
   logger.info(`Starting daily case issuance job at UTC time: ${now.toISOString()}`);
 
