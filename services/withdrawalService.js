@@ -1,9 +1,10 @@
 const db = require('../models');
 const winston = require('winston');
 const { Op } = require('sequelize');
-const BuffService = require('./buffService');
+const LisService = require('./lisService');
 const SteamBot = require('./steamBotService');
 const config = require('../config/config');
+const steamBotConfig = require('../config/steam_bot');
 
 // Создаем логгер
 const logger = winston.createLogger({
@@ -18,16 +19,16 @@ const logger = winston.createLogger({
   ],
 });
 
-// Загружаем конфигурацию BUFF
-const buffConfig = BuffService.loadConfig();
-const buffService = new BuffService(buffConfig);
+// Загружаем конфигурацию LIS-Skins
+const lisConfig = LisService.loadConfig();
+const lisService = new LisService(lisConfig);
 
-// Создаем экземпляр Steam бота (предполагается, что данные импортируются из конфига)
+// Создаем экземпляр Steam бота из конфигурационного файла
 const steamBot = new SteamBot(
-  config.steamBot.accountName,
-  config.steamBot.password,
-  config.steamBot.sharedSecret,
-  config.steamBot.identitySecret
+  steamBotConfig.accountName,
+  steamBotConfig.password,
+  steamBotConfig.sharedSecret,
+  steamBotConfig.identitySecret
 );
 
 class WithdrawalService {
@@ -98,104 +99,102 @@ class WithdrawalService {
     logger.info(`Начало обработки заявки на вывод #${withdrawal.id}...`);
 
     try {
-      // Обновляем статус и данные о попытке обработки
-      await withdrawal.update({
-        status: 'processing',
-        processing_date: new Date(),
-        processing_attempts: withdrawal.processing_attempts + 1,
-        last_attempt_date: new Date()
-      });
-
-      // Проверяем трейд-ссылку пользователя
-      const tradeUrl = withdrawal.steam_trade_url || withdrawal.user.steam_trade_url;
-      if (!tradeUrl) {
-        logger.error(`Отсутствует trade URL для заявки #${withdrawal.id}`);
-        await this.failWithdrawal(withdrawal, 'Отсутствует торговая ссылка Steam');
-        return;
+      // Проверяем, что заявка содержит предметы
+      if (!withdrawal.items || withdrawal.items.length === 0) {
+        logger.error(`Заявка #${withdrawal.id} не содержит предметов для вывода`);
+        await this.failWithdrawal(withdrawal, 'Заявка не содержит предметов для вывода');
+        return false;
       }
 
-      // Получаем информацию о предмете для вывода
-      const userInventoryItem = withdrawal.items[0]; // Предполагаем, что у заявки есть хотя бы один предмет
-      if (!userInventoryItem) {
-        logger.error(`Не найдены предметы для вывода в заявке #${withdrawal.id}`);
-        await this.failWithdrawal(withdrawal, 'Не найдены предметы для вывода');
-        return;
+      // Получаем информацию о торговой ссылке пользователя
+      const userTradeUrl = withdrawal.steam_trade_url || withdrawal.user.steam_trade_url;
+      if (!userTradeUrl) {
+        logger.error(`Пользователь #${withdrawal.user_id} не указал торговую ссылку Steam`);
+        await this.failWithdrawal(withdrawal, 'Не указана торговая ссылка Steam');
+        return false;
       }
 
-      const item = userInventoryItem.item;
-      if (!item) {
-        logger.error(`Не найдена информация о предмете для заявки #${withdrawal.id}`);
-        await this.failWithdrawal(withdrawal, 'Не найдена информация о предмете');
-        return;
-      }
+      // Получаем предметы для вывода
+      const userInventoryItem = withdrawal.items[0]; // Берем первый предмет из заявки
+      const item = userInventoryItem.item; // Получаем данные о самом предмете
 
-      logger.info(`Обработка вывода предмета: ${item.name} (${item.exterior}) для заявки #${withdrawal.id}`);
+      // Проверяем наличие предмета в инвентаре бота
+      const botInventory = await steamBot.getInventory(730, 2); // 730 - ID игры CS:GO, 2 - контекст инвентаря
+      const botItem = botInventory.find(invItem =>
+        invItem.market_hash_name === item.steam_market_hash_name
+      );
 
-      // Ищем предмет в инвентаре бота
-      const botItem = await steamBot.findItemInInventory(item.steam_market_hash_name, item.exterior);
-
+      // Если предмет есть у бота - отправляем его сразу
       if (botItem) {
-        // Если предмет уже есть в инвентаре бота, отправляем его напрямую
-        logger.info(`Предмет ${item.steam_market_hash_name} уже в инвентаре бота, отправляем...`);
-        return await this.sendItemFromBot(withdrawal, botItem, tradeUrl);
-      } else {
-        // Если предмета нет в инвентаре бота, пытаемся купить его на BUFF
-        logger.info(`Предмет ${item.steam_market_hash_name} не найден в инвентаре бота, пытаемся купить на BUFF...`);
-        return await this.buyItemFromBuffAndSend(withdrawal, item, tradeUrl);
+        logger.info(`Предмет ${item.steam_market_hash_name} найден в инвентаре бота, отправляем...`);
+        return await this.sendItemFromBot(withdrawal, botItem, userTradeUrl);
       }
+
+      // Если предмета нет - покупаем его на LIS-Skins
+      logger.info(`Предмет ${item.steam_market_hash_name} не найден в инвентаре бота, покупаем на LIS-Skins...`);
+      return await this.buyItemFromLisAndSend(withdrawal, item, userTradeUrl);
+
     } catch (error) {
       logger.error(`Ошибка при обработке заявки #${withdrawal.id}:`, error);
 
-      // Планируем следующую попытку
+      // Увеличиваем счетчик попыток и обновляем дату следующей попытки
+      const newAttempts = (withdrawal.processing_attempts || 0) + 1;
       const nextAttemptDate = new Date(Date.now() + this.retryDelay);
 
       await withdrawal.update({
-        status: 'pending',
+        processing_attempts: newAttempts,
         next_attempt_date: nextAttemptDate,
-        tracking_data: {
-          ...withdrawal.tracking_data,
-          last_error: error.message,
-          last_error_time: new Date().toISOString()
-        }
+        error_message: error.message || 'Неизвестная ошибка при обработке заявки'
       });
+
+      // Если достигнуто максимальное количество попыток - отмечаем заявку как неудачную
+      if (newAttempts >= this.maxProcessingAttempts) {
+        await this.failWithdrawal(withdrawal, 'Превышено максимальное количество попыток обработки');
+      }
 
       return false;
     }
   }
 
-  // Отправка предмета напрямую из инвентаря бота
+  // Отправка предмета из инвентаря бота
   async sendItemFromBot(withdrawal, botItem, tradeUrl) {
     try {
-      // Убеждаемся, что бот залогинен
-      if (!steamBot.loggedIn) {
-        await steamBot.login();
-      }
+      logger.info(`Отправка предмета ${botItem.market_hash_name} пользователю #${withdrawal.user_id}...`);
 
-      // Отправляем трейд
-      logger.info(`Отправка предмета ${botItem.market_hash_name} пользователю через трейд...`);
+      // Инициализируем Steam бота, если необходимо
+      await steamBot.initialize();
+
+      const userInventoryItem = withdrawal.items[0];
+
+      // Отправляем предложение обмена
       const tradeResult = await steamBot.sendTradeOffer(
-        tradeUrl, // Trade URL пользователя
-        [botItem],  // Предметы для отправки
-        []          // Предметы для получения (пустой массив)
+        tradeUrl,
+        [botItem],
+        [], // Пустой массив для предметов, которые мы хотим получить от пользователя
+        `Вывод предмета #${withdrawal.id}`
       );
 
-      logger.info(`Трейд отправлен, ID: ${tradeResult.offerId}, Статус: ${tradeResult.status}`);
+      if (!tradeResult.success) {
+        logger.error(`Ошибка при отправке предложения обмена: ${tradeResult.error}`);
+        await this.failWithdrawal(withdrawal, `Ошибка при отправке предложения обмена: ${tradeResult.error}`);
+        return false;
+      }
 
-      // Обновляем статус заявки
+      logger.info(`Предложение обмена #${tradeResult.offerId} успешно отправлено`);
+
+      // Обновляем статус заявки в БД
       await withdrawal.update({
-        status: 'waiting_confirmation',
+        status: 'sent',
         steam_trade_offer_id: tradeResult.offerId,
-        steam_trade_status: 'sent',
         tracking_data: {
           ...withdrawal.tracking_data,
-          trade_sent: true,
+          trade_offer_sent: true,
           trade_offer_id: tradeResult.offerId,
-          trade_sent_time: new Date().toISOString()
+          trade_offer_time: new Date().toISOString()
         }
       });
 
       // Обновляем статус предмета в инвентаре пользователя
-      const userInventoryItem = withdrawal.items[0];
       await userInventoryItem.update({
         status: 'withdrawn',
         transaction_date: new Date()
@@ -221,104 +220,239 @@ class WithdrawalService {
     }
   }
 
-  // Покупка предмета на BUFF и отправка пользователю
-  async buyItemFromBuffAndSend(withdrawal, item, tradeUrl) {
+  // Покупка предмета на LIS-Skins и отправка пользователю с улучшенной обработкой ошибок
+  async buyItemFromLisAndSend(withdrawal, item, tradeUrl) {
     try {
-      // Инициализируем BUFF сервис
-      await buffService.initialize();
-      if (!buffService.isLoggedIn) {
-        throw new Error('Не удалось авторизоваться на BUFF');
-      }
-
-      // Ищем предмет на BUFF
-      const buffItem = await buffService.searchItem(item.steam_market_hash_name, item.exterior);
-      if (!buffItem) {
-        logger.error(`Предмет ${item.steam_market_hash_name} не найден на BUFF`);
-        await this.failWithdrawal(withdrawal, 'Предмет не найден на BUFF');
+      // Проверка баланса на LIS-Skins перед покупкой
+      await lisService.initialize();
+      if (!lisService.isLoggedIn) {
+        logger.error('Не удалось авторизоваться на LIS-Skins. Проверьте конфигурацию cookies.');
+        await this.failWithdrawal(withdrawal, 'Не удалось авторизоваться на LIS-Skins. Проверьте конфигурацию сервиса.');
         return false;
       }
 
-      // Проверяем наличие доступных предложений
-      if (!buffItem.items || buffItem.items.length === 0) {
-        logger.error(`Нет доступных предложений для ${item.steam_market_hash_name} на BUFF`);
-        await this.failWithdrawal(withdrawal, 'Нет доступных предложений на BUFF');
-        return false;
+      // Проверяем баланс
+      const balanceResult = await lisService.getBalance();
+      if (!balanceResult.success) {
+        logger.error(`Не удалось получить баланс LIS-Skins: ${balanceResult.message}`);
+        // Не отменяем заявку сразу, попробуем все равно найти и купить предмет
+      } else {
+        logger.info(`Текущий баланс на LIS-Skins: ${balanceResult.balance}`);
       }
 
-      // Берем предложение с минимальной ценой
-      const cheapestOffer = buffItem.items[0];
-      logger.info(`Найдено предложение на BUFF: ${buffItem.market_hash_name}, Цена: ${cheapestOffer.price}, ID: ${cheapestOffer.id}`);
+      // Ищем предмет на LIS-Skins
+      logger.info(`Поиск предмета ${item.steam_market_hash_name} (${item.exterior || 'любой износ'}) на LIS-Skins...`);
+      const lisItem = await lisService.searchItem(item.steam_market_hash_name, item.exterior);
 
-      // Покупаем предмет
-      const purchaseResult = await buffService.buyItem(buffItem.goods_id, cheapestOffer.id, cheapestOffer.price);
-      if (!purchaseResult.success) {
-        logger.error(`Ошибка покупки предмета на BUFF: ${purchaseResult.message}`);
-        await this.failWithdrawal(withdrawal, `Ошибка покупки на BUFF: ${purchaseResult.message}`);
-        return false;
-      }
+      if (!lisItem) {
+        logger.error(`Предмет ${item.steam_market_hash_name} не найден на LIS-Skins`);
 
-      logger.info(`Предмет успешно куплен на BUFF. Bill No: ${purchaseResult.bill_no}`);
+        // Обновляем данные о заявке с информацией о поиске
+        await withdrawal.update({
+          tracking_data: {
+            ...withdrawal.tracking_data,
+            lis_search_attempted: true,
+            lis_search_failed: true,
+            search_time: new Date().toISOString()
+          }
+        });
 
-      // Обновляем данные о заявке
-      await withdrawal.update({
-        tracking_data: {
-          ...withdrawal.tracking_data,
-          buff_purchase: true,
-          buff_bill_no: purchaseResult.bill_no,
-          purchase_time: new Date().toISOString(),
-          purchase_price: cheapestOffer.price
+        // Проверяем, может быть предмет без указания степени износа
+        if (item.exterior) {
+          logger.info(`Попытка найти предмет ${item.steam_market_hash_name} без указания степени износа...`);
+          const genericItem = await lisService.searchItem(item.steam_market_hash_name, null);
+
+          if (genericItem) {
+            logger.info(`Найден общий предмет: ${genericItem.market_hash_name}`);
+
+            // Фильтруем предложения по нужному exterior, если они есть
+            if (genericItem.items && genericItem.items.length > 0) {
+              const matchingOffers = genericItem.items.filter(offer =>
+                offer.name && offer.name.includes(item.exterior)
+              );
+
+              if (matchingOffers.length > 0) {
+                logger.info(`Найдено ${matchingOffers.length} предложений с нужным exterior`);
+
+                // Создаем новый объект предмета с правильными предложениями
+                genericItem.items = matchingOffers;
+                return await this.processPurchase(withdrawal, item, genericItem, tradeUrl);
+              }
+            }
+          }
         }
-      });
 
-      // Ждем, пока предмет поступит в инвентарь Steam
-      // Здесь нужно реализовать механизм периодической проверки инвентаря
-      // Поскольку это может занять время, мы должны выйти из текущего процесса
-      // и продолжить проверку через другой механизм (например, cron job)
+        await this.failWithdrawal(withdrawal, 'Предмет не найден на LIS-Skins');
+        return false;
+      }
 
-      // Планируем проверку доставки через 10 минут
-      const nextCheckTime = new Date(Date.now() + 10 * 60 * 1000);
-      await withdrawal.update({
-        status: 'processing', // Оставляем в статусе обработки
-        next_attempt_date: nextCheckTime,
-        tracking_data: {
-          ...withdrawal.tracking_data,
-          delivery_check_scheduled: true,
-          next_check_time: nextCheckTime.toISOString()
-        }
-      });
+      return await this.processPurchase(withdrawal, item, lisItem, tradeUrl);
 
-      return true;
     } catch (error) {
-      logger.error(`Ошибка при покупке предмета на BUFF (заявка #${withdrawal.id}):`, error);
+      logger.error(`Ошибка при покупке предмета на LIS-Skins (заявка #${withdrawal.id}):`, error);
+
+      // Дополнительная информация для диагностики
+      const errorInfo = {
+        message: error.message,
+        stack: error.stack,
+        time: new Date().toISOString()
+      };
+
+      // Обновляем заявку с информацией об ошибке
+      await withdrawal.update({
+        tracking_data: {
+          ...withdrawal.tracking_data,
+          lis_purchase_error: errorInfo
+        }
+      });
+
       throw error;
     }
   }
 
-  // Проверка статуса доставки предмета с BUFF
+  // Отдельный метод для обработки покупки после нахождения предмета
+  async processPurchase(withdrawal, item, lisItem, tradeUrl) {
+    // Проверяем наличие доступных предложений
+    if (!lisItem.items || lisItem.items.length === 0) {
+      logger.error(`Нет доступных предложений для ${item.steam_market_hash_name} на LIS-Skins`);
+      await this.failWithdrawal(withdrawal, 'Нет доступных предложений на LIS-Skins');
+      return false;
+    }
+
+    // Сортируем предложения по цене (от низкой к высокой)
+    const sortedOffers = lisItem.items.sort((a, b) => a.price - b.price);
+    const cheapestOffer = sortedOffers[0];
+
+    logger.info(`Найдено ${sortedOffers.length} предложений на LIS-Skins`);
+    logger.info(`Выбрано самое дешевое предложение: ${lisItem.market_hash_name}, Цена: ${cheapestOffer.price}, ID: ${cheapestOffer.id}`);
+
+    // Получаем баланс перед покупкой
+    const balanceResult = await lisService.getBalance();
+    if (balanceResult.success && balanceResult.balance < cheapestOffer.price) {
+      logger.error(`Недостаточно средств для покупки предмета. Баланс: ${balanceResult.balance}, Цена: ${cheapestOffer.price}`);
+      await this.failWithdrawal(withdrawal, `Недостаточно средств на LIS-Skins. Баланс: ${balanceResult.balance}, Цена: ${cheapestOffer.price}`);
+      return false;
+    }
+
+    // Покупаем предмет
+    logger.info(`Покупка предмета ${lisItem.market_hash_name} (ID: ${lisItem.goods_id}, Asset ID: ${cheapestOffer.id})...`);
+    const purchaseResult = await lisService.buyItem(lisItem.goods_id, cheapestOffer.id, cheapestOffer.price);
+
+    if (!purchaseResult.success) {
+      // Обработка специфичных ошибок
+      if (purchaseResult.error_type === 'insufficient_balance') {
+        logger.error(`Недостаточно средств для покупки: ${purchaseResult.message}`);
+        await this.failWithdrawal(withdrawal, `Недостаточно средств на LIS-Skins: ${purchaseResult.message}`);
+        return false;
+      }
+
+      if (purchaseResult.error_type === 'item_unavailable') {
+        logger.warn(`Предмет недоступен: ${purchaseResult.message}`);
+
+        // Проверяем, есть ли другие предложения
+        if (sortedOffers.length > 1) {
+          logger.info(`Попытка купить следующее предложение (всего доступно: ${sortedOffers.length - 1})...`);
+
+          // Обновляем tracking_data с информацией о неудачной попытке
+          await withdrawal.update({
+            tracking_data: {
+              ...withdrawal.tracking_data,
+              failed_purchase_attempts: (withdrawal.tracking_data?.failed_purchase_attempts || 0) + 1,
+              last_failed_offer: cheapestOffer.id
+            }
+          });
+
+          // Покупаем следующее предложение
+          const nextOffer = sortedOffers[1];
+          const nextPurchaseResult = await lisService.buyItem(lisItem.goods_id, nextOffer.id, nextOffer.price);
+
+          if (nextPurchaseResult.success) {
+            logger.info(`Предмет успешно куплен (второе предложение) на LIS-Skins. Order ID: ${nextPurchaseResult.bill_no}`);
+
+            // Обновляем данные о заявке
+            await withdrawal.update({
+              tracking_data: {
+                ...withdrawal.tracking_data,
+                lis_purchase: true,
+                lis_order_id: nextPurchaseResult.bill_no,
+                purchase_time: new Date().toISOString(),
+                purchase_price: nextOffer.price,
+                used_alternate_offer: true
+              }
+            });
+
+            // Планируем проверку доставки
+            return await this.scheduleDeliveryCheck(withdrawal);
+          }
+        }
+
+        await this.failWithdrawal(withdrawal, `Предмет недоступен на LIS-Skins: ${purchaseResult.message}`);
+        return false;
+      }
+
+      logger.error(`Ошибка покупки предмета на LIS-Skins: ${purchaseResult.message}`);
+      await this.failWithdrawal(withdrawal, `Ошибка покупки на LIS-Skins: ${purchaseResult.message}`);
+      return false;
+    }
+
+    logger.info(`Предмет успешно куплен на LIS-Skins. Order ID: ${purchaseResult.bill_no}`);
+
+    // Обновляем данные о заявке
+    await withdrawal.update({
+      tracking_data: {
+        ...withdrawal.tracking_data,
+        lis_purchase: true,
+        lis_order_id: purchaseResult.bill_no,
+        purchase_time: new Date().toISOString(),
+        purchase_price: cheapestOffer.price
+      }
+    });
+
+    return await this.scheduleDeliveryCheck(withdrawal);
+  }
+
+  // Планирование проверки доставки
+  async scheduleDeliveryCheck(withdrawal) {
+    // Планируем проверку доставки через 2 минуты (снижаем время ожидания с 5 минут)
+    const nextCheckTime = new Date(Date.now() + 2 * 60 * 1000);
+    await withdrawal.update({
+      status: 'processing', // Оставляем в статусе обработки
+      next_attempt_date: nextCheckTime,
+      tracking_data: {
+        ...withdrawal.tracking_data,
+        delivery_check_scheduled: true,
+        next_check_time: nextCheckTime.toISOString()
+      }
+    });
+
+    return true;
+  }
+
+  // Проверка статуса доставки предмета с LIS-Skins
   async checkItemDeliveryStatus(withdrawal) {
     try {
-      if (!withdrawal.tracking_data || !withdrawal.tracking_data.buff_bill_no) {
-        logger.error(`Нет данных о покупке на BUFF для заявки #${withdrawal.id}`);
+      if (!withdrawal.tracking_data || !withdrawal.tracking_data.lis_order_id) {
+        logger.error(`Нет данных о покупке на LIS-Skins для заявки #${withdrawal.id}`);
         return false;
       }
 
-      const billNo = withdrawal.tracking_data.buff_bill_no;
+      const orderId = withdrawal.tracking_data.lis_order_id;
 
-      // Инициализируем BUFF сервис
-      await buffService.initialize();
+      // Инициализируем LIS-Skins сервис
+      await lisService.initialize();
 
       // Проверяем статус доставки
-      const deliveryStatus = await buffService.checkItemDeliveryStatus(billNo);
+      const deliveryStatus = await lisService.checkItemDeliveryStatus(orderId);
 
       if (!deliveryStatus.success) {
-        logger.error(`Ошибка при проверке статуса доставки для Bill No ${billNo}`);
+        logger.error(`Ошибка при проверке статуса доставки для Order ID ${orderId}`);
         return false;
       }
 
-      logger.info(`Статус доставки для Bill No ${billNo}: ${deliveryStatus.status}`);
+      logger.info(`Статус доставки для Order ID ${orderId}: ${deliveryStatus.status}`);
 
       // Если предмет уже доставлен в Steam
-      if (deliveryStatus.status === 'DELIVERED' || deliveryStatus.status === 'COMPLETED') {
+      if (deliveryStatus.status === 'completed' || deliveryStatus.status === 'delivered') {
         // Обновляем данные заявки
         await withdrawal.update({
           tracking_data: {
@@ -350,10 +484,10 @@ class WithdrawalService {
           // Отправляем предмет пользователю
           return await this.sendItemFromBot(withdrawal, botItem, tradeUrl);
         } else {
-          logger.warn(`Предмет ${item.steam_market_hash_name} не найден в инвентаре бота после доставки с BUFF`);
+          logger.warn(`Предмет ${item.steam_market_hash_name} не найден в инвентаре бота после доставки с LIS-Skins`);
 
-          // Планируем еще одну проверку через 10 минут
-          const nextCheckTime = new Date(Date.now() + 10 * 60 * 1000);
+          // Планируем еще одну проверку через 5 минут
+          const nextCheckTime = new Date(Date.now() + 5 * 60 * 1000);
           await withdrawal.update({
             next_attempt_date: nextCheckTime,
             tracking_data: {
@@ -365,17 +499,17 @@ class WithdrawalService {
 
           return false;
         }
-      } else if (deliveryStatus.status === 'FAILED' || deliveryStatus.status === 'CANCELLED') {
+      } else if (deliveryStatus.status === 'failed' || deliveryStatus.status === 'canceled') {
         // Если доставка не удалась
-        logger.error(`Доставка не удалась для Bill No ${billNo}: ${deliveryStatus.status}`);
-        await this.failWithdrawal(withdrawal, `Ошибка доставки с BUFF: ${deliveryStatus.status}`);
+        logger.error(`Доставка не удалась для Order ID ${orderId}: ${deliveryStatus.status}`);
+        await this.failWithdrawal(withdrawal, `Ошибка доставки с LIS-Skins: ${deliveryStatus.status}`);
         return false;
       } else {
         // Если предмет еще в процессе доставки
-        logger.info(`Предмет всё еще в процессе доставки для Bill No ${billNo}: ${deliveryStatus.status}`);
+        logger.info(`Предмет всё еще в процессе доставки для Order ID ${orderId}: ${deliveryStatus.status}`);
 
-        // Планируем следующую проверку через 10 минут
-        const nextCheckTime = new Date(Date.now() + 10 * 60 * 1000);
+        // Планируем следующую проверку через 5 минут
+        const nextCheckTime = new Date(Date.now() + 5 * 60 * 1000);
         await withdrawal.update({
           next_attempt_date: nextCheckTime,
           tracking_data: {
@@ -401,86 +535,51 @@ class WithdrawalService {
         return false;
       }
 
-      // Проверяем статус трейда
-      const tradeStatus = await steamBot.getTradeOfferStatus(withdrawal.steam_trade_offer_id);
+      // Инициализируем Steam бота
+      await steamBot.initialize();
 
-      logger.info(`Статус трейда #${tradeStatus.offerId}: ${tradeStatus.state}`);
+      // Получаем статус трейда
+      const tradeStatus = await steamBot.checkTradeOffer(withdrawal.steam_trade_offer_id);
 
-      // Обновляем данные о статусе трейда
-      await withdrawal.update({
-        tracking_data: {
-          ...withdrawal.tracking_data,
-          trade_status: tradeStatus.state,
-          trade_check_time: new Date().toISOString()
-        }
-      });
+      logger.info(`Статус трейда #${withdrawal.steam_trade_offer_id}: ${tradeStatus.status}`);
 
-      // Проверяем различные статусы трейда
-      switch (tradeStatus.state) {
-        case 2: // Активен
-        case 9: // Ожидает подтверждения другой стороной
-          // Трейд всё еще ожидает действий, проверим позже
-          const nextCheckTime = new Date(Date.now() + 15 * 60 * 1000); // 15 минут
-          await withdrawal.update({
-            next_attempt_date: nextCheckTime,
-            tracking_data: {
-              ...withdrawal.tracking_data,
-              next_check_time: nextCheckTime.toISOString()
-            }
-          });
-          return false;
+      // Если трейд успешно завершен
+      if (tradeStatus.status === 'accepted') {
+        // Обновляем статус заявки
+        await withdrawal.update({
+          status: 'completed',
+          completion_date: new Date(),
+          tracking_data: {
+            ...withdrawal.tracking_data,
+            trade_offer_status: tradeStatus.status,
+            trade_completed: true,
+            trade_completion_time: new Date().toISOString()
+          }
+        });
 
-        case 3: // Принят
-          // Трейд успешно завершен
-          await withdrawal.update({
-            status: 'completed',
-            completion_date: new Date(),
-            steam_trade_status: 'accepted',
-            tracking_data: {
-              ...withdrawal.tracking_data,
-              trade_completed: true,
-              completion_time: new Date().toISOString()
-            }
-          });
+        logger.info(`Заявка #${withdrawal.id} успешно завершена`);
+        return true;
+      }
+      // Если трейд отклонен или отменен
+      else if (tradeStatus.status === 'declined' || tradeStatus.status === 'canceled' || tradeStatus.status === 'invalid') {
+        // Отмечаем заявку как неудачную
+        await this.failWithdrawal(withdrawal, `Трейд не удался: ${tradeStatus.status}`);
+        return false;
+      }
+      // Если трейд всё еще в процессе
+      else {
+        // Планируем следующую проверку через 15 минут
+        const nextCheckTime = new Date(Date.now() + 15 * 60 * 1000);
+        await withdrawal.update({
+          next_attempt_date: nextCheckTime,
+          tracking_data: {
+            ...withdrawal.tracking_data,
+            trade_offer_status: tradeStatus.status,
+            next_check_time: nextCheckTime.toISOString()
+          }
+        });
 
-          // Добавляем уведомление пользователю о успешном выводе
-          await db.Notification.create({
-            user_id: withdrawal.user_id,
-            type: 'item_withdrawal_completed',
-            title: 'Вывод предмета завершен успешно',
-            message: `Ваш предмет был успешно выведен в инвентарь Steam.`,
-            related_id: withdrawal.id,
-            category: 'withdrawal'
-          });
-
-          return true;
-
-        case 4: // Истек
-        case 5: // Отменен
-        case 6: // Отклонен
-        case 7: // Неудачен
-        case 8: // Нужны дополнительные подтверждения
-        case 11: // Email ожидает
-          // Трейд завершился с ошибкой
-          const statusTexts = {
-            4: 'истек срок действия',
-            5: 'отменен',
-            6: 'отклонен',
-            7: 'неудачен',
-            8: 'требуются дополнительные подтверждения',
-            11: 'ожидает подтверждения по email'
-          };
-
-          await this.failWithdrawal(
-            withdrawal,
-            `Ошибка трейда: ${statusTexts[tradeStatus.state] || 'неизвестная ошибка'}`
-          );
-          return false;
-
-        default:
-          logger.warn(`Неизвестный статус трейда: ${tradeStatus.state}`);
-          await this.failWithdrawal(withdrawal, `Неизвестный статус трейда: ${tradeStatus.state}`);
-          return false;
+        return false;
       }
     } catch (error) {
       logger.error(`Ошибка при проверке статуса трейда (заявка #${withdrawal.id}):`, error);
@@ -488,15 +587,16 @@ class WithdrawalService {
     }
   }
 
-  // Пометка заявки как неудачной
+  // Обработка неудачной заявки
   async failWithdrawal(withdrawal, reason) {
     try {
-      logger.error(`Заявка #${withdrawal.id} помечена как неудачная: ${reason}`);
+      logger.warn(`Заявка #${withdrawal.id} помечена как неудачная: ${reason}`);
 
+      // Обновляем заявку в БД
       await withdrawal.update({
         status: 'failed',
         completion_date: new Date(),
-        failed_reason: reason,
+        error_message: reason,
         tracking_data: {
           ...withdrawal.tracking_data,
           failure_reason: reason,
@@ -504,25 +604,23 @@ class WithdrawalService {
         }
       });
 
-      // Создаем уведомление для пользователя
-      await db.Notification.create({
-        user_id: withdrawal.user_id,
-        type: 'item_withdrawal_failed',
-        title: 'Ошибка вывода предмета',
-        message: `К сожалению, вывод вашего предмета не удался: ${reason}. Пожалуйста, попробуйте снова или обратитесь в поддержку.`,
-        related_id: withdrawal.id,
-        category: 'withdrawal'
-      });
-
-      // Возвращаем предмет в инвентарь пользователя
-      const userInventoryItem = withdrawal.items[0];
-      if (userInventoryItem) {
+      // Возвращаем предметы в инвентарь пользователя
+      for (const userInventoryItem of withdrawal.items) {
         await userInventoryItem.update({
-          status: 'inventory', // Возвращаем в инвентарь
-          withdrawal_id: null,
-          transaction_date: null
+          status: 'in_inventory' // Возвращаем статус "в инвентаре"
         });
       }
+
+      // Создаем запись в логе транзакций о неудачной попытке вывода
+      await db.Transaction.create({
+        user_id: withdrawal.user_id,
+        type: 'withdrawal_failed',
+        amount: 0,
+        details: {
+          withdrawal_id: withdrawal.id,
+          reason: reason
+        }
+      });
 
       return true;
     } catch (error) {
@@ -534,67 +632,81 @@ class WithdrawalService {
   // Обработка всех ожидающих заявок
   async processAllPendingWithdrawals() {
     try {
-      logger.info('Начало обработки заявок на вывод...');
-
-      // Инициализируем подключение к Steam
-      if (!steamBot.loggedIn) {
-        await steamBot.login();
-        if (!steamBot.loggedIn) {
-          logger.error('Не удалось выполнить вход в Steam, обработка заявок отменена');
-          return;
-        }
-      }
+      logger.info('Начало обработки всех ожидающих заявок...');
 
       // Получаем список заявок
       const pendingWithdrawals = await this.getPendingWithdrawals();
 
       if (pendingWithdrawals.length === 0) {
-        logger.info('Нет заявок, ожидающих обработки');
-        return;
+        logger.info('Нет ожидающих заявок для обработки');
+        return true;
       }
 
-      logger.info(`Начало обработки ${pendingWithdrawals.length} заявок...`);
+      // Счетчики для статистики
+      let successCount = 0;
+      let failCount = 0;
 
-      // Обрабатываем каждую заявку
+      // Обрабатываем каждую заявку последовательно
       for (const withdrawal of pendingWithdrawals) {
         try {
-          // Проверяем статус заявки
-          if (withdrawal.tracking_data && withdrawal.tracking_data.buff_purchase) {
-            // Если предмет был куплен на BUFF, проверяем статус доставки
-            await this.checkItemDeliveryStatus(withdrawal);
-          } else if (withdrawal.steam_trade_offer_id) {
+          // Отмечаем заявку как "в обработке"
+          await withdrawal.update({
+            status: 'processing',
+            processing_start: new Date()
+          });
+
+          // Проверяем, есть ли данные о трейде
+          if (withdrawal.steam_trade_offer_id) {
             // Если трейд уже был отправлен, проверяем его статус
-            await this.checkTradeOfferStatus(withdrawal);
-          } else {
-            // Иначе обрабатываем заявку с начала
-            await this.processWithdrawal(withdrawal);
+            const tradeCheckResult = await this.checkTradeOfferStatus(withdrawal);
+            if (tradeCheckResult) {
+              successCount++;
+            } else {
+              failCount++;
+            }
+          }
+          // Проверяем, была ли совершена покупка на LIS-Skins
+          else if (withdrawal.tracking_data && withdrawal.tracking_data.lis_order_id) {
+            // Если покупка была совершена, проверяем статус доставки
+            await this.checkItemDeliveryStatus(withdrawal);
+          }
+          // Иначе - это новая заявка, обрабатываем её полностью
+          else {
+            const result = await this.processWithdrawal(withdrawal);
+            if (result) {
+              successCount++;
+            } else {
+              failCount++;
+            }
           }
         } catch (error) {
           logger.error(`Ошибка при обработке заявки #${withdrawal.id}:`, error);
+          failCount++;
 
-          // Обновляем данные о попытке и планируем следующую
+          // Увеличиваем счетчик попыток и откладываем следующую попытку
+          const newAttempts = (withdrawal.processing_attempts || 0) + 1;
           const nextAttemptDate = new Date(Date.now() + this.retryDelay);
+
           await withdrawal.update({
-            status: 'pending',
+            status: 'pending', // Возвращаем статус "ожидание"
+            processing_attempts: newAttempts,
             next_attempt_date: nextAttemptDate,
-            tracking_data: {
-              ...withdrawal.tracking_data,
-              last_error: error.message,
-              last_error_time: new Date().toISOString()
-            }
+            error_message: error.message || 'Неизвестная ошибка'
           });
         }
       }
 
-      logger.info('Обработка заявок на вывод завершена');
+      logger.info(`Обработка заявок завершена. Успешно: ${successCount}, Неудачно: ${failCount}`);
+      return true;
     } catch (error) {
-      logger.error('Ошибка при обработке заявок на вывод:', error);
+      logger.error('Общая ошибка при обработке заявок:', error);
       throw error;
     } finally {
-      // Закрываем сессию BUFF
-      if (buffService.page) {
-        await buffService.close();
+      // Закрываем соединения сервисов
+      if (lisService.page) {
+        await lisService.close();
       }
+      await steamBot.shutdown();
     }
   }
 }

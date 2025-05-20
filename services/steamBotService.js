@@ -314,6 +314,67 @@ class SteamBot {
       });
     });
   }
+
+  // Проверка статуса трейда - исправляем отсутствующий метод
+  async checkTradeOffer(offerId) {
+    return new Promise((resolve, reject) => {
+      logger.info(`Проверка статуса трейда #${offerId}...`);
+      this.manager.getOffer(offerId, (err, offer) => {
+        if (err) {
+          logger.error(`Ошибка при получении трейда #${offerId}: ${err}`);
+          return reject(err);
+        }
+
+        const status = offer.state;
+        logger.info(`Статус трейда #${offerId}: ${status}`);
+        resolve({
+          success: true,
+          offerId,
+          status,
+          offer
+        });
+      });
+    });
+  }
+
+  // Метод для корректного закрытия сервиса
+  async shutdown() {
+    logger.info('Завершение работы Steam бота...');
+    if (this.client && this.client.loggedOn) {
+      logger.info('Выполняется выход из Steam...');
+      this.client.logOff();
+      logger.info('Выход из Steam выполнен');
+    }
+
+    // Остановка подтверждений
+    if (this.community) {
+      try {
+        this.community.stopConfirmationChecker();
+        logger.info('Проверка подтверждений остановлена');
+      } catch (error) {
+        logger.error('Ошибка при остановке проверки подтверждений:', error);
+      }
+    }
+
+    return true;
+  }
+
+  // Инициализации бота - для повторного использования
+  async initialize() {
+    if (this.loggedIn) {
+      logger.info('Бот уже инициализирован и авторизован');
+      return true;
+    }
+
+    try {
+      await this.login();
+      logger.info('Бот инициализирован успешно');
+      return true;
+    } catch (error) {
+      logger.error('Ошибка при инициализации бота:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = SteamBot;

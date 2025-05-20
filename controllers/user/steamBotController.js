@@ -1,13 +1,14 @@
 const SteamBot = require('../../services/steamBotService');
-
-const botAccountName = 'adavan3';
-const botPassword = '9524Vlad1243Stalker';
-const botSharedSecret = 'RfqZkqnNJDGZxXLLmCEuiaMOBiA=';
-const botIdentitySecret = 'P2tHB9XcWaIMcrpzQ1Ogn/0Vulg=';
+const steamBotConfig = require('../../config/steam_bot');
 
 // В логах не выводим пароли и секреты!
 
-const steamBot = new SteamBot(botAccountName, botPassword, botSharedSecret, botIdentitySecret);
+const steamBot = new SteamBot(
+  steamBotConfig.accountName,
+  steamBotConfig.password,
+  steamBotConfig.sharedSecret,
+  steamBotConfig.identitySecret
+);
 
 let isLoggingIn = false;
 let hasLoggedIn = false;
