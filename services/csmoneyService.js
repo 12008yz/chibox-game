@@ -310,7 +310,7 @@ class CSMoneyService {
       // Используем современный API CS.Money (может меняться)
       // Добавляем случайный parameter для обхода кеширования
       const timestamp = Date.now();
-      const apiUrl = `/2.0/market/sell-orders?limit=${limit}&offset=${offset}&order=asc&sort=price&_=${timestamp}`;
+      const apiUrl = `https://cs.money/2.0/market/sell-orders?limit=60&offset=0`;
 
       try {
         // Сначала пробуем через API
