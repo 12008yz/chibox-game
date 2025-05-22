@@ -57,6 +57,8 @@ async function importCSMoneyItems() {
         // Получаем список предметов
         const response = await csmoneyService.getItems(offset, limit);
 
+        logger.info(`Ответ API содержит success: ${response.success}, items: ${response.items ? response.items.length : 0}`);
+
         if (!response.success || !response.items || response.items.length === 0) {
           logger.warn('Нет доступных предметов или ошибка запроса. Завершаем импорт.');
           break;
@@ -150,6 +152,7 @@ async function importCSMoneyItems() {
         } else {
           // Увеличиваем смещение для следующей страницы
           offset += limit;
+          logger.info(`Смещение увеличено, следующий offset: ${offset}`);
           // Делаем паузу перед следующим запросом
           await new Promise(resolve => setTimeout(resolve, 1000));
         }

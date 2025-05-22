@@ -9,9 +9,15 @@ const Item = sequelize.define('Item', {
       primaryKey: true
     },
     name: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(1024),
       allowNull: false,
       comment: "Название предмета в CS2"
+    },
+    csmoney_id: {
+      type: DataTypes.BIGINT,
+      allowNull: true,
+      unique: true,
+      comment: "ID предмета на CSMoney"
     },
     description: {
       type: DataTypes.TEXT,
@@ -19,7 +25,7 @@ const Item = sequelize.define('Item', {
       comment: "Описание предмета в формате JSON"
     },
     image_url: {
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(1024),
       allowNull: true,
       comment: "URL изображения предмета"
     },

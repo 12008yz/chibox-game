@@ -310,7 +310,8 @@ class CSMoneyService {
       // Используем современный API CS.Money (может меняться)
       // Добавляем случайный parameter для обхода кеширования
       const timestamp = Date.now();
-      const apiUrl = `https://cs.money/2.0/market/sell-orders?limit=60&offset=0`;
+
+      const apiUrl = `https://cs.money/2.0/market/sell-orders?limit=60&offset=${offset}`;
 
       try {
         // Сначала пробуем через API
@@ -355,6 +356,18 @@ class CSMoneyService {
           waitUntil: 'networkidle2',
           timeout: 60000
         });
+
+        // Прокручиваем страницу вниз несколько раз, чтобы подгрузить все предметы
+        const scrollTimes = 10;
+        const scrollDelay = 2000;
+
+        for (let i = 0; i < scrollTimes; i++) {
+          logger.info(`Прокрутка страницы вниз: ${i + 1}/${scrollTimes}`);
+          await this.page.evaluate(() => {
+            window.scrollBy(0, window.innerHeight);
+          });
+          await this.page.waitForTimeout(scrollDelay);
+        }
 
         // Ждем загрузки предметов на странице
         await this.page.waitForSelector('.market-items__item, .item-card', { timeout: 30000 });
