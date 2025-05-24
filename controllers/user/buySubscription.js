@@ -157,6 +157,21 @@ async function buySubscription(req, res) {
     // Добавление опыта за покупку подписки
     await addExperience(userId, 50, 'buy_subscription', null, 'Покупка подписки');
 
+    // Создание уведомления о покупке подписки
+    await db.Notification.create({
+      user_id: userId,
+      title: 'Покупка подписки',
+      message: `Вы успешно приобрели подписку "${tier.name}" на ${tier.days} дней.`,
+      type: 'success',
+      category: 'subscription',
+      link: '/subscription',
+      importance: 5,
+      data: {
+        tierId: tierId,
+        days: tier.days + promoExtendDays
+      }
+    });
+
     logger.info('buySubscription end');
     return res.json({
       success: true,

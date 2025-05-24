@@ -90,7 +90,12 @@ async function withdrawItem(req, res) {
       title: 'Запрос на вывод предмета',
       message: `Ваш запрос на вывод предмета "${inventoryItem.item.name}" создан и обрабатывается.`,
       related_id: withdrawal.id,
-      category: 'withdrawal'
+      category: 'withdrawal',
+      importance: 5,
+      data: {
+        itemId: inventoryItem.item.id,
+        itemName: inventoryItem.item.name
+      }
     });
 
     // Начисляем опыт за вывод предмета

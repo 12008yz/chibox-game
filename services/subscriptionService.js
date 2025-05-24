@@ -81,6 +81,19 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
     });
 
     logger.info(`User ${userId} subscription activated for tier ${tierId}`);
+
+    // Проверяем окончание подписки и создаем уведомление, если подписка истекла
+    if (user.subscription_expiry_date && user.subscription_expiry_date <= now) {
+      await db.Notification.create({
+        user_id: userId,
+        title: 'Окончание подписки',
+        message: 'Ваша подписка истекла. Продлите её, чтобы продолжить пользоваться преимуществами.',
+        type: 'warning',
+        category: 'subscription',
+        importance: 7,
+        link: '/subscription'
+      });
+    }
   } catch (error) {
     logger.error('Error activating subscription:', error);
     throw error;

@@ -1,5 +1,7 @@
 const db = require('../models');
 
+const db = require('../models');
+
 async function addExperience(userId, amount, sourceType, sourceId = null, description = '') {
   try {
     // Создаем запись о транзакции опыта
@@ -48,6 +50,21 @@ async function addExperience(userId, amount, sourceType, sourceId = null, descri
       is_level_up: isLevelUp,
       new_level: newLevel
     });
+
+    // Создание уведомления при повышении уровня
+    if (isLevelUp) {
+      await db.Notification.create({
+        user_id: userId,
+        title: 'Повышение уровня',
+        message: `Поздравляем! Вы достигли уровня ${newLevel}.`,
+        type: 'success',
+        category: 'level_up',
+        importance: 5,
+        data: {
+          newLevel: newLevel
+        }
+      });
+    }
 
     return { isLevelUp, newLevel };
 

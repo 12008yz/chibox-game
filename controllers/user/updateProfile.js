@@ -51,6 +51,16 @@ async function updateProfile(req, res) {
 
     await user.save();
 
+    // Создание уведомления при изменении данных профиля
+    await db.Notification.create({
+      user_id: userId,
+      title: 'Обновление профиля',
+      message: 'Ваши данные профиля были изменены.',
+      type: 'success',
+      category: 'general',
+      importance: 5
+    });
+
     logger.info(`Профиль пользователя обновлен: ${user.email}`);
 
     return res.json({

@@ -80,6 +80,21 @@ async function exchangeItemForSubscription(req, res) {
 
     await transaction.commit();
 
+    // Создание уведомления о обмене предмета на подписку
+    await require('../../models').Notification.create({
+      user_id: userId,
+      title: 'Обмен предмета на подписку',
+      message: `Вы успешно обменяли предмет "${inventoryItem.item.name}" на подписку.`,
+      type: 'success',
+      category: 'subscription',
+      importance: 5,
+      data: {
+        itemId: itemId,
+        tierId: tierId,
+        subscription_expiry_date: user.subscription_expiry_date
+      }
+    });
+
     // Вычисляем время продления в днях для ответа
     const extensionDays = extensionMs / (24 * 60 * 60 * 1000);
 
