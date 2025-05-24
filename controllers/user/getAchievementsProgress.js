@@ -15,17 +15,39 @@ const logger = winston.createLogger({
 async function getAchievementsProgress(req, res) {
   try {
     const userId = req.user.id;
-    const achs = await db.UserAchievement.findAll({
-      where: { userId },
-      include: [{ model: db.Achievement }]
+
+    // Получаем все достижения с прогрессом пользователя (если есть)
+    const achievements = await db.Achievement.findAll({
+      where: { is_active: true },
+      include: [{
+        model: db.UserAchievement,
+        as: 'user_achievements',
+        where: { user_id: userId },
+        required: false // LEFT JOIN, чтобы получить все достижения
+      }],
+      order: [['display_order', 'ASC']]
     });
-    const progress = achs.map(entry => ({
-      id: entry.achievement_id,
-      name: entry.Achievement ? entry.Achievement.name : '',
-      description: entry.Achievement ? entry.Achievement.description : '',
-      completed: entry.completed,
-      progress: entry.progress
-    }));
+
+    let progress = achievements.map(ach => {
+      const userAch = ach.user_achievements && ach.user_achievements.length > 0 ? ach.user_achievements[0] : null;
+      return {
+        id: ach.id,
+        name: ach.name,
+        description: ach.description,
+        completed: userAch ? userAch.is_completed : false,
+        progress: userAch ? userAch.current_progress : 0
+      };
+    });
+
+    // Сортируем: выполненные вверху, а с прогрессом 0 внизу
+    progress = progress.sort((a, b) => {
+      if (a.completed && !b.completed) return -1;
+      if (!a.completed && b.completed) return 1;
+      if (a.progress === 0 && b.progress !== 0) return 1;
+      if (a.progress !== 0 && b.progress === 0) return -1;
+      return 0;
+    });
+
     return res.json({ progress });
   } catch (error) {
     logger.error('Ошибка получения прогресса достижений:', error);

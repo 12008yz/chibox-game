@@ -61,7 +61,7 @@ router.post('/promo', authMiddleware, applyPromo);
 router.get('/transactions', authMiddleware, getTransactions);
 router.post('/deposit', authMiddleware, deposit);
 router.post('/withdraw-balance', authMiddleware, withdrawBalance);
-router.get('/achievements', authMiddleware, getAchievements); //+ (пустое)
+router.get('/achievements', authMiddleware, getAchievements); //+
 router.get('/missions', authMiddleware, getMissions);
 router.get('/statistics', authMiddleware, getStatistics); //+
 router.get('/leaderboard', authMiddleware, getLeaderboard); //+
@@ -74,11 +74,11 @@ router.post('/items/exchange-for-subscription', authMiddleware, exchangeItemForS
 router.post('/bonus/play-squares', authMiddleware, playBonusSquares); //+
 router.get('/bonus/status', authMiddleware, getBonusStatus); //+
 router.get('/cases/available', authMiddleware, getCasesAvailable); //+
-router.get('/achievements/progress', authMiddleware, getAchievementsProgress);
+router.get('/achievements/progress', authMiddleware, getAchievementsProgress); //+
 
 // Steam bot routes
 router.post('/steambot/login', authMiddleware, loginBot); //+
 router.post('/steambot/send-trade', authMiddleware, sendTrade);
-router.get('/steambot/inventory', authMiddleware, getSteamInventory);
+router.get('/steambot/inventory', authMiddleware, getSteamInventory); //+
 
 module.exports = router;
