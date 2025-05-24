@@ -93,7 +93,6 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: "Дата окончания временной блокировки (null - бессрочно)"
     },
-
     level: {
       type: DataTypes.INTEGER,
       defaultValue: 1,
