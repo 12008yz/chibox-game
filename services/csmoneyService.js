@@ -203,8 +203,8 @@ class CSMoneyService {
       await new Promise(resolve => setTimeout(resolve, 5000));
 
       // Делаем скриншот для диагностики
-      await this.page.screenshot({ path: 'csmoney-login-check.png' });
-      logger.info('Сделан скриншот страницы для проверки (csmoney-login-check.png)');
+      // await this.page.screenshot({ path: 'csmoney-login-check.png' });
+      // logger.info('Сделан скриншот страницы для проверки (csmoney-login-check.png)');
 
       // Расширяем варианты проверки авторизации
       const isLoggedIn = await this.page.evaluate(() => {
@@ -299,11 +299,8 @@ class CSMoneyService {
   // Метод для получения списка предметов с CS.Money
   async getItems(offset = 0, limit = 60) {
     try {
-      if (!this.isLoggedIn) {
-        await this.initialize();
-        // Даже если не авторизованы, все равно продолжаем
-        logger.warn('Не авторизован на CS.Money. Продолжаем без авторизации.');
-      }
+      // Для импорта используем только API, браузер не инициализируем для производительности
+      logger.info('Импорт предметов через CSMoney API (без браузера для оптимизации)');
 
       logger.info(`Запрос предметов с CS.Money (offset: ${offset}, limit: ${limit})...`);
 
@@ -347,26 +344,35 @@ class CSMoneyService {
           };
         }
       } catch (apiError) {
-        logger.warn(`Ошибка API для получения предметов: ${apiError.message}. Пробуем через парсинг страницы...`);
+        logger.error(`Ошибка API для получения предметов: ${apiError.message}`);
+        logger.info('API недоступен. Завершаем импорт без браузерного парсинга.');
+
+        return {
+          success: false,
+          message: `API недоступен: ${apiError.message}`,
+          items: []
+        };
       }
 
-      // Если API не сработал, пробуем через парсинг страницы
+      // Код браузерного парсинга удален для оптимизации импорта - используем только API
+      logger.warn('Импорт использует только API метод для максимальной производительности');
+
+      /*
+      // ОТКЛЮЧЕННЫЙ КОД: Браузерный парсинг (слишком медленный для массового импорта)
       try {
-        await this.page.goto(`https://cs.money/ru/market/buy/`, {
+        await this.page.goto(\`https://cs.money/ru/market/buy/\`, {
           waitUntil: 'networkidle2',
           timeout: 60000
         });
 
-        // Ждем загрузки предметов на странице
         await this.page.waitForSelector('.market-items__item, .item-card', { timeout: 30000 });
 
-        // Интеллектуальная прокрутка страницы для загрузки всех предметов
         let previousItemCount = 0;
         let currentItemCount = 0;
         let noNewItemsCount = 0;
-        const maxScrollAttempts = 100; // Максимум попыток прокрутки
-        const scrollDelay = 3000; // Увеличенная задержка для загрузки
-        const maxNoNewItems = 3; // Максимум попыток без новых предметов
+        const maxScrollAttempts = 100;
+        const scrollDelay = 3000;
+        const maxNoNewItems = 3;
 
         logger.info('Начинаем интеллектуальную прокрутку для загрузки всех предметов...');
 
@@ -538,7 +544,7 @@ class CSMoneyService {
         });
 
         if (itemsFromPage.length > 0) {
-          logger.info(`Получено ${itemsFromPage.length} предметов с CS.Money через парсинг страницы`);
+          logger.info(\`Получено \${itemsFromPage.length} предметов с CS.Money через парсинг страницы\`);
           return {
             success: true,
             items: itemsFromPage,
@@ -554,13 +560,14 @@ class CSMoneyService {
         };
 
       } catch (pageError) {
-        logger.error(`Ошибка при получении предметов через страницу: ${pageError.message}`);
+        logger.error(\`Ошибка при получении предметов через страницу: \${pageError.message}\`);
         return {
           success: false,
           message: pageError.message,
           items: []
         };
       }
+      */ // КОНЕЦ ОТКЛЮЧЕННОГО БРАУЗЕРНОГО КОДА
     } catch (error) {
       logger.error('Ошибка при запросе предметов с CS.Money:', error);
       return {

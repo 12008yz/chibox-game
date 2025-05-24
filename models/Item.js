@@ -114,41 +114,6 @@ const Item = sequelize.define('Item', {
       allowNull: true,
       comment: "Источник или коллекция предмета"
     },
-    buff_rarity: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      comment: "RARITY из BUFF"
-    },
-    buff_quality: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      comment: "QUALITY из BUFF"
-    },
-    buff_type: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      comment: "TYPE из BUFF"
-    },
-    buff_exterior: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      comment: "EXTERIOR из BUFF"
-    },
-    buff_weapon: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      comment: "WEAPON из BUFF"
-    },
-    buff_category: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      comment: "CATEGORY из BUFF"
-    },
-    buff_tags: {
-      type: DataTypes.JSONB,
-      allowNull: true,
-      comment: "Теги из BUFF"
-    }
   }, {
     timestamps: true,
     underscored: true,
