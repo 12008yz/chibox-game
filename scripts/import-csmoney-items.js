@@ -45,30 +45,52 @@ async function importCSMoneyItems() {
     let updatedItems = 0;
     let errors = 0;
 
-    // Импорт по страницам
+    // Импорт по страницам с улучшенной логикой
     let offset = 0;
     const limit = 60; // Это максимальный лимит, указанный в API
     let hasMoreItems = true;
+    let emptyResponsesCount = 0;
+    const maxEmptyResponses = 3; // Максимум пустых ответов подряд
+
+    logger.info('=== Начало импорта предметов с CS.Money ===');
+    logger.info('Используется улучшенная логика с infinite scroll и множественными селекторами');
 
     while (hasMoreItems) {
-      logger.info(`Загрузка предметов с CS.Money (offset: ${offset}, limit: ${limit})...`);
+      logger.info(`\n--- Загрузка предметов с CS.Money (offset: ${offset}, limit: ${limit}) ---`);
 
       try {
         // Получаем список предметов
         const response = await csmoneyService.getItems(offset, limit);
 
-        logger.info(`Ответ API содержит success: ${response.success}, items: ${response.items ? response.items.length : 0}`);
+        logger.info(`Ответ содержит success: ${response.success}, items: ${response.items ? response.items.length : 0}`);
 
         if (!response.success || !response.items || response.items.length === 0) {
-          logger.warn('Нет доступных предметов или ошибка запроса. Завершаем импорт.');
-          break;
+          emptyResponsesCount++;
+          logger.warn(`Нет доступных предметов или ошибка запроса (попытка ${emptyResponsesCount}/${maxEmptyResponses})`);
+
+          if (emptyResponsesCount >= maxEmptyResponses) {
+            logger.info('Достигнут максимум пустых ответов. Завершаем импорт.');
+            break;
+          }
+
+          // Увеличиваем offset даже при пустом ответе, чтобы попробовать следующую "страницу"
+          offset += limit;
+          continue;
         }
 
+        // Сбрасываем счетчик пустых ответов
+        emptyResponsesCount = 0;
+
         const items = response.items;
-        logger.info(`Получено ${items.length} предметов с CS.Money`);
+        logger.info(`✓ Получено ${items.length} предметов с CS.Money`);
+
+        if (response.total) {
+          logger.info(`Общее количество доступных предметов на сайте: ${response.total}`);
+        }
 
         // Обновляем статистику
         totalItems += items.length;
+        logger.info(`Общий прогресс: ${totalItems} предметов обработано`);
 
         // Импортируем предметы в БД
         for (const item of items) {
@@ -129,11 +151,15 @@ async function importCSMoneyItems() {
             if (dbItem) {
               await dbItem.update(itemData);
               updatedItems++;
-              logger.info(`Обновлен предмет: ${item.name}`);
+              if (updatedItems % 10 === 0) {
+                logger.info(`Обновлено предметов: ${updatedItems}`);
+              }
             } else {
               dbItem = await db.Item.create(itemData);
               newItems++;
-              logger.info(`Создан новый предмет: ${item.name}`);
+              if (newItems % 10 === 0) {
+                logger.info(`Создано новых предметов: ${newItems}`);
+              }
             }
 
             // Делаем небольшую паузу, чтобы не перегружать API
@@ -145,16 +171,19 @@ async function importCSMoneyItems() {
           }
         }
 
-        // Проверяем, есть ли еще предметы для загрузки
+        // Логика определения продолжения импорта
         if (items.length < limit) {
+          // Если получили меньше предметов чем лимит, значит достигли конца
           hasMoreItems = false;
-          logger.info('Все доступные предметы загружены.');
+          logger.info('✓ Все доступные предметы загружены (получено меньше лимита).');
         } else {
-          // Увеличиваем смещение для следующей страницы
+          // Увеличиваем смещение для следующей "страницы"
           offset += limit;
-          logger.info(`Смещение увеличено, следующий offset: ${offset}`);
-          // Делаем паузу перед следующим запросом
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          logger.info(`→ Переходим к следующей части. Новый offset: ${offset}`);
+
+          // Делаем паузу перед следующим запросом для избежания блокировки
+          logger.info('Пауза 3 секунды перед следующим запросом...');
+          await new Promise(resolve => setTimeout(resolve, 3000));
         }
 
       } catch (pageError) {

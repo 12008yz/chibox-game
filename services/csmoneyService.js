@@ -352,47 +352,183 @@ class CSMoneyService {
 
       // Если API не сработал, пробуем через парсинг страницы
       try {
-        await this.page.goto(`https://cs.money/ru/market/buy/?limit=${limit}&offset=${offset}`, {
+        await this.page.goto(`https://cs.money/ru/market/buy/`, {
           waitUntil: 'networkidle2',
           timeout: 60000
         });
 
-        // Прокручиваем страницу вниз несколько раз, чтобы подгрузить все предметы
-        const scrollTimes = 10;
-        const scrollDelay = 2000;
-
-        for (let i = 0; i < scrollTimes; i++) {
-          logger.info(`Прокрутка страницы вниз: ${i + 1}/${scrollTimes}`);
-          await this.page.evaluate(() => {
-            window.scrollBy(0, window.innerHeight);
-          });
-          await this.page.waitForTimeout(scrollDelay);
-        }
-
         // Ждем загрузки предметов на странице
         await this.page.waitForSelector('.market-items__item, .item-card', { timeout: 30000 });
 
-        // Парсим предметы со страницы
+        // Интеллектуальная прокрутка страницы для загрузки всех предметов
+        let previousItemCount = 0;
+        let currentItemCount = 0;
+        let noNewItemsCount = 0;
+        const maxScrollAttempts = 100; // Максимум попыток прокрутки
+        const scrollDelay = 3000; // Увеличенная задержка для загрузки
+        const maxNoNewItems = 3; // Максимум попыток без новых предметов
+
+        logger.info('Начинаем интеллектуальную прокрутку для загрузки всех предметов...');
+
+        for (let scrollAttempt = 0; scrollAttempt < maxScrollAttempts; scrollAttempt++) {
+          // Считаем текущее количество предметов
+          currentItemCount = await this.page.evaluate(() => {
+            return document.querySelectorAll('.market-items__item, .item-card').length;
+          });
+
+          logger.info(`Попытка прокрутки ${scrollAttempt + 1}/${maxScrollAttempts}: найдено ${currentItemCount} предметов`);
+
+          // Если количество предметов не изменилось, увеличиваем счетчик
+          if (currentItemCount === previousItemCount) {
+            noNewItemsCount++;
+            logger.info(`Новые предметы не загрузились (${noNewItemsCount}/${maxNoNewItems})`);
+
+            if (noNewItemsCount >= maxNoNewItems) {
+              logger.info('Достигнут лимит попыток без новых предметов. Завершаем прокрутку.');
+              break;
+            }
+          } else {
+            // Сбрасываем счетчик если загрузились новые предметы
+            noNewItemsCount = 0;
+            logger.info(`Загружено ${currentItemCount - previousItemCount} новых предметов`);
+          }
+
+          previousItemCount = currentItemCount;
+
+          // Прокручиваем страницу вниз плавно
+          await this.page.evaluate(() => {
+            // Прокручиваем до конца страницы
+            window.scrollTo(0, document.body.scrollHeight);
+          });
+
+          // Ждем загрузки новых предметов
+          await this.page.waitForTimeout(scrollDelay);
+
+          // Дополнительно ждем появления новых элементов
+          try {
+            await this.page.waitForFunction(
+              (prevCount) => document.querySelectorAll('.market-items__item, .item-card').length > prevCount,
+              { timeout: 5000 },
+              currentItemCount
+            );
+            logger.info('Обнаружены новые предметы после прокрутки');
+          } catch (waitError) {
+            logger.info('Новые предметы не появились в течение 5 секунд');
+          }
+        }
+
+        logger.info(`Завершена прокрутка. Итого найдено: ${currentItemCount} предметов`);
+
+        // Парсим предметы со страницы с улучшенной логикой
         const itemsFromPage = await this.page.evaluate(() => {
           const items = [];
-          const itemElements = document.querySelectorAll('.market-items__item, .item-card');
+          // Расширенный список селекторов для поиска предметов
+          const itemSelectors = [
+            '.market-items__item',
+            '.item-card',
+            '[data-testid="market-item"]',
+            '.cs-market-item',
+            '.market-item',
+            '.item'
+          ];
+
+          let itemElements = [];
+
+          // Пробуем разные селекторы
+          for (const selector of itemSelectors) {
+            const elements = document.querySelectorAll(selector);
+            if (elements.length > 0) {
+              itemElements = elements;
+              console.log(`Найдено ${elements.length} предметов с селектором: ${selector}`);
+              break;
+            }
+          }
+
+          if (itemElements.length === 0) {
+            console.warn('Не удалось найти предметы ни с одним селектором');
+            return [];
+          }
 
           itemElements.forEach((itemEl, index) => {
             try {
-              const nameEl = itemEl.querySelector('.item-card__name, .market-items__item-name');
-              const priceEl = itemEl.querySelector('.item-card__price, .market-items__item-price');
+              // Расширенный список селекторов для названия
+              const nameSelectors = [
+                '.item-card__name',
+                '.market-items__item-name',
+                '.item-name',
+                '.name',
+                '[data-testid="item-name"]',
+                '.cs-item-name'
+              ];
 
-              // Получаем ID из атрибутов элемента
-              const id = itemEl.getAttribute('data-id') || itemEl.getAttribute('data-item-id') || `parsed_${index}`;
-              const image = itemEl.querySelector('img')?.src || '';
+              // Расширенный список селекторов для цены
+              const priceSelectors = [
+                '.item-card__price',
+                '.market-items__item-price',
+                '.item-price',
+                '.price',
+                '[data-testid="item-price"]',
+                '.cs-item-price'
+              ];
+
+              let nameEl = null;
+              let priceEl = null;
+
+              // Ищем название
+              for (const selector of nameSelectors) {
+                nameEl = itemEl.querySelector(selector);
+                if (nameEl) break;
+              }
+
+              // Ищем цену
+              for (const selector of priceSelectors) {
+                priceEl = itemEl.querySelector(selector);
+                if (priceEl) break;
+              }
+
+              // Получаем ID из различных атрибутов
+              const id = itemEl.getAttribute('data-id') ||
+                        itemEl.getAttribute('data-item-id') ||
+                        itemEl.getAttribute('data-testid') ||
+                        itemEl.getAttribute('id') ||
+                        `parsed_${Date.now()}_${index}`;
+
+              // Ищем изображение
+              const image = itemEl.querySelector('img')?.src ||
+                           itemEl.querySelector('img')?.getAttribute('data-src') ||
+                           '';
+
+              // Извлекаем текст названия
+              const itemName = nameEl?.textContent?.trim() ||
+                              nameEl?.innerText?.trim() ||
+                              itemEl.getAttribute('title') ||
+                              `Item ${index + 1}`;
+
+              // Извлекаем и парсим цену
+              let itemPrice = 0;
+              if (priceEl) {
+                const priceText = priceEl.textContent || priceEl.innerText || '';
+                const priceMatch = priceText.match(/[\d.,]+/);
+                if (priceMatch) {
+                  itemPrice = parseFloat(priceMatch[0].replace(',', '.')) || 0;
+                }
+              }
+
+              // Дополнительная информация
+              const rarityEl = itemEl.querySelector('.rarity, .item-rarity, [data-rarity]');
+              const typeEl = itemEl.querySelector('.type, .item-type, [data-type]');
 
               items.push({
                 id: id,
-                name: nameEl?.textContent.trim() || `Item ${index+1}`,
-                price: parseFloat(priceEl?.textContent.replace(/[^\d.,]/g, '').replace(',', '.')) || 0,
+                name: itemName,
+                price: itemPrice,
                 image: image,
-                in_stock: true
+                rarity: rarityEl?.textContent?.trim() || rarityEl?.getAttribute('data-rarity') || '',
+                type: typeEl?.textContent?.trim() || typeEl?.getAttribute('data-type') || '',
+                in_stock: true,
+                is_tradable: true
               });
+
             } catch (err) {
               console.error('Ошибка при парсинге элемента:', err);
             }
