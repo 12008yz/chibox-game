@@ -1,7 +1,5 @@
 const db = require('../models');
 
-const db = require('../models');
-
 async function addExperience(userId, amount, sourceType, sourceId = null, description = '') {
   try {
     // Создаем запись о транзакции опыта
