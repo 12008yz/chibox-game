@@ -18,23 +18,51 @@ async function updateProfile(req, res) {
     const userId = req.user.id;
     const { username, password, steam_trade_url } = req.body;
 
+    // Валидация типов для защиты от Type Confusion
+    if (username !== undefined && typeof username !== 'string') {
+      return res.status(400).json({ message: 'Username должен быть строкой' });
+    }
+
+    if (password !== undefined && typeof password !== 'string') {
+      return res.status(400).json({ message: 'Пароль должен быть строкой' });
+    }
+
+    if (steam_trade_url !== undefined && typeof steam_trade_url !== 'string') {
+      return res.status(400).json({ message: 'Steam trade URL должен быть строкой' });
+    }
+
+    // Дополнительная валидация длины
+    if (username && username.length > 50) {
+      return res.status(400).json({ message: 'Username слишком длинный' });
+    }
+
+    if (password && password.length > 128) {
+      return res.status(400).json({ message: 'Пароль слишком длинный' });
+    }
+
+    if (steam_trade_url && steam_trade_url.length > 500) {
+      return res.status(400).json({ message: 'Steam trade URL слишком длинный' });
+    }
+
     const user = await db.User.findByPk(userId);
     if (!user) {
       return res.status(404).json({ message: 'Пользователь не найден' });
     }
 
     if (username && username.trim() !== user.username) {
+      const trimmedUsername = username.trim();
       const usernameExists = await db.User.findOne({
-        where: { username: username.trim(), id: { [db.Sequelize.Op.ne]: userId } }
+        where: { username: trimmedUsername, id: { [db.Sequelize.Op.ne]: userId } }
       });
       if (usernameExists) {
         return res.status(409).json({ message: 'Такой username уже занят' });
       }
-      user.username = username.trim();
+      user.username = trimmedUsername;
     }
 
     if (password) {
-      if (password.length < 8
+      // Проверяем, что password это строка (уже проверили выше, но для уверенности)
+      if (typeof password !== 'string' || password.length < 8
           || !/[A-Z]/.test(password)
           || !/[a-z]/.test(password)
           || !/[0-9]/.test(password)
@@ -46,7 +74,12 @@ async function updateProfile(req, res) {
     }
 
     if (steam_trade_url) {
-      user.steam_trade_url = steam_trade_url.trim();
+      const trimmedUrl = steam_trade_url.trim();
+      // Дополнительная валидация URL
+      if (trimmedUrl && !trimmedUrl.includes('steamcommunity.com')) {
+        return res.status(400).json({ message: 'Неверный формат Steam trade URL' });
+      }
+      user.steam_trade_url = trimmedUrl;
     }
 
     await user.save();

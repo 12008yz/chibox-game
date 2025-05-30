@@ -24,45 +24,55 @@ function generateToken(user) {
   return jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 }
 
-// Для примера в RAM — реальную реализацию храните, напр. в Redis
-const failedLogin = {};
+// Используем Map для безопасного хранения неудачных попыток входа (защита от Prototype Pollution)
+const failedLogin = new Map();
 
 async function login(req, res) {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email и пароль обязательны' });
+
+    // Валидация типов для защиты от Prototype Pollution
+    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ message: 'Email и пароль обязательны и должны быть строками' });
+    }
+
+    // Дополнительная валидация email
+    if (email.length > 254 || password.length > 128) {
+      return res.status(400).json({ message: 'Неверный формат данных' });
     }
 
     const key = email.trim().toLowerCase();
 
     // Если есть блокировка — замедление или блок
-    if (failedLogin[key] && failedLogin[key].blockUntil && Date.now() < failedLogin[key].blockUntil) {
+    const userAttempts = failedLogin.get(key);
+    if (userAttempts && userAttempts.blockUntil && Date.now() < userAttempts.blockUntil) {
       return res.status(429).json({ message: 'Попробуйте позже (блокировка из-за неудачных попыток)' });
     }
 
     const user = await db.User.findOne({ where: { email: key } });
     if (!user) {
-      failedLogin[key] = failedLogin[key] || { count: 0 };
-      failedLogin[key].count++;
-      if (failedLogin[key].count >= 5) {
-        failedLogin[key].blockUntil = Date.now() + 10 * 60 * 1000; // 10 минут блокировка
+      const attempts = failedLogin.get(key) || { count: 0 };
+      attempts.count++;
+      if (attempts.count >= 5) {
+        attempts.blockUntil = Date.now() + 10 * 60 * 1000; // 10 минут блокировка
       }
+      failedLogin.set(key, attempts);
       return res.status(401).json({ message: 'Неверный email или пароль.' });
     }
 
     const passwordMatch = await argon2.verify(user.password, password);
     if (!passwordMatch) {
-      failedLogin[key] = failedLogin[key] || { count: 0 };
-      failedLogin[key].count++;
-      if (failedLogin[key].count >= 5) {
-        failedLogin[key].blockUntil = Date.now() + 10 * 60 * 1000;
+      const attempts = failedLogin.get(key) || { count: 0 };
+      attempts.count++;
+      if (attempts.count >= 5) {
+        attempts.blockUntil = Date.now() + 10 * 60 * 1000;
       }
+      failedLogin.set(key, attempts);
       return res.status(401).json({ message: 'Неверный email или пароль.' });
     }
 
     // Очистка после удачного входа
-    if (failedLogin[key]) delete failedLogin[key];
+    failedLogin.delete(key);
 
     const achievements = await db.UserAchievement.findAll({
       where: { user_id: user.id },

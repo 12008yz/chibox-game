@@ -50,19 +50,23 @@ function encryptData(data, key) {
     hash.update(key || 'default_key');
     const keyBuffer = hash.digest();
 
-    // Генерируем IV
-    const iv = crypto.randomBytes(16);
+    // Генерируем IV для GCM (12 байт рекомендуется для GCM)
+    const iv = crypto.randomBytes(12);
 
-    // Создаем шифр
-    const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
+    // Создаем шифр AES-256-GCM (обеспечивает целостность и аутентификацию)
+    const cipher = crypto.createCipheriv('aes-256-gcm', keyBuffer, iv);
 
     // Шифруем данные
     let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'hex');
     encrypted += cipher.final('hex');
 
-    // Возвращаем IV и зашифрованные данные
+    // Получаем тег аутентификации
+    const authTag = cipher.getAuthTag();
+
+    // Возвращаем IV, тег аутентификации и зашифрованные данные
     return {
       iv: iv.toString('hex'),
+      authTag: authTag.toString('hex'),
       data: encrypted
     };
   } catch (error) {
@@ -123,12 +127,31 @@ function parseCommandLineArgs() {
 // Функция для загрузки конфигурации из файла
 function loadConfigFromFile(filePath) {
   try {
-    if (!fs.existsSync(filePath)) {
-      logger.error(`Файл не найден: ${filePath}`);
+    // Защита от Path Traversal - нормализуем путь и проверяем, что он находится в разрешенной директории
+    const normalizedPath = path.normalize(filePath);
+    const allowedDir = path.resolve(__dirname, '..');
+    const resolvedPath = path.resolve(normalizedPath);
+
+    // Проверяем, что файл находится в разрешенной директории
+    if (!resolvedPath.startsWith(allowedDir)) {
+      logger.error(`Попытка доступа к файлу вне разрешенной директории: ${filePath}`);
       return null;
     }
 
-    const fileContent = fs.readFileSync(filePath, 'utf8');
+    // Проверяем расширение файла
+    const allowedExtensions = ['.json', '.js'];
+    const fileExt = path.extname(resolvedPath);
+    if (!allowedExtensions.includes(fileExt)) {
+      logger.error(`Недопустимое расширение файла: ${fileExt}`);
+      return null;
+    }
+
+    if (!fs.existsSync(resolvedPath)) {
+      logger.error(`Файл не найден: ${resolvedPath}`);
+      return null;
+    }
+
+    const fileContent = fs.readFileSync(resolvedPath, 'utf8');
     const config = JSON.parse(fileContent);
 
     // Проверяем наличие необходимых полей

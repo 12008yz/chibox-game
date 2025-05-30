@@ -59,19 +59,23 @@ function encryptData(data, key = getEncryptionKey()) {
     hash.update(key);
     const keyBuffer = hash.digest();
 
-    // Генерируем IV
-    const iv = crypto.randomBytes(16);
+    // Генерируем IV для GCM (12 байт рекомендуется для GCM)
+    const iv = crypto.randomBytes(12);
 
-    // Создаем шифр
-    const cipher = crypto.createCipheriv('aes-256-cbc', keyBuffer, iv);
+    // Создаем шифр AES-256-GCM (обеспечивает целостность и аутентификацию)
+    const cipher = crypto.createCipheriv('aes-256-gcm', keyBuffer, iv);
 
     // Шифруем данные
     let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'hex');
     encrypted += cipher.final('hex');
 
-    // Возвращаем IV и зашифрованные данные
+    // Получаем тег аутентификации
+    const authTag = cipher.getAuthTag();
+
+    // Возвращаем IV, тег аутентификации и зашифрованные данные
     return {
       iv: iv.toString('hex'),
+      authTag: authTag.toString('hex'),
       data: encrypted
     };
   } catch (error) {
@@ -85,16 +89,23 @@ function encryptData(data, key = getEncryptionKey()) {
  */
 function decryptData(encryptedData, key = getEncryptionKey()) {
   try {
+    // Проверяем наличие всех необходимых полей
+    if (!encryptedData.iv || !encryptedData.authTag || !encryptedData.data) {
+      throw new Error('Отсутствуют необходимые поля для дешифрования');
+    }
+
     // Создаем хеш ключа
     const hash = crypto.createHash('sha256');
     hash.update(key);
     const keyBuffer = hash.digest();
 
-    // Получаем IV из зашифрованных данных
+    // Получаем IV и тег аутентификации из зашифрованных данных
     const iv = Buffer.from(encryptedData.iv, 'hex');
+    const authTag = Buffer.from(encryptedData.authTag, 'hex');
 
-    // Создаем дешифр
-    const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
+    // Создаем дешифр AES-256-GCM
+    const decipher = crypto.createDecipheriv('aes-256-gcm', keyBuffer, iv);
+    decipher.setAuthTag(authTag);
 
     // Дешифруем данные
     let decrypted = decipher.update(encryptedData.data, 'hex', 'utf8');

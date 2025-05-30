@@ -50,14 +50,30 @@ async function register(req, res) {
   }
   try {
     let { email, password, username, promoCode } = req.body;
+
+    // Валидация типов для защиты от Type Confusion
+    if (typeof email !== 'string' || typeof password !== 'string' || typeof username !== 'string') {
+      return res.status(400).json({ message: 'Email, пароль и имя пользователя должны быть строками' });
+    }
+
+    if (promoCode && typeof promoCode !== 'string') {
+      return res.status(400).json({ message: 'Промокод должен быть строкой' });
+    }
+
+    // Дополнительная валидация длины
+    if (email.length > 254 || password.length > 128 || username.length > 50) {
+      return res.status(400).json({ message: 'Превышена максимальная длина полей' });
+    }
+
     email = email.trim().toLowerCase();
+    username = username.trim();
 
     const existingUser = await db.User.findOne({ where: { email } });
     if (existingUser) {
       return res.status(409).json({ message: 'Почта уже используется' });
     }
 
-    const existingUsername = await db.User.findOne({ where: { username: username.trim() } });
+    const existingUsername = await db.User.findOne({ where: { username } });
     if (existingUsername) {
       return res.status(409).json({ message: 'Имя пользователя уже занято' });
     }
@@ -66,21 +82,24 @@ async function register(req, res) {
 
     const newUser = await db.User.create({
       email,
-      username: username.trim(),
+      username,
       password: hashedPassword
     });
 
     // Если передан промокод, проверяем и сохраняем
-    if (promoCode) {
-      const promo = await db.PromoCode.findOne({
-        where: { code: promoCode.trim(), is_active: true }
-      });
-      if (promo) {
-        await db.PromoCodeUser.create({
-          promo_code_id: promo.id,
-          user_id: newUser.id,
-          is_used: false
+    if (promoCode && typeof promoCode === 'string') {
+      const trimmedPromoCode = promoCode.trim();
+      if (trimmedPromoCode.length > 0) {
+        const promo = await db.PromoCode.findOne({
+          where: { code: trimmedPromoCode, is_active: true }
         });
+        if (promo) {
+          await db.PromoCodeUser.create({
+            promo_code_id: promo.id,
+            user_id: newUser.id,
+            is_used: false
+          });
+        }
       }
     }
 
