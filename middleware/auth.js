@@ -6,6 +6,8 @@ const revokedTokens = new Set();
 // Экспортируем функцию (чтобы добавить токены извне, напр. при logout)
 module.exports.revokedTokens = revokedTokens;
 
+// TODO: Implement rate limiting middleware for critical endpoints like login, register, payment webhook, etc.
+
 module.exports = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {

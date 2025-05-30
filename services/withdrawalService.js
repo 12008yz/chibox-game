@@ -1,7 +1,12 @@
 const { Withdrawal, Item, User, UserInventory, sequelize } = require('../models');
 const winston = require('winston');
 const SteamBotService = require('./steamBotService');
-const steamBotConfig = require('../config/steam_bot');
+const steamBotConfig = {
+  accountName: process.env.STEAM_ACCOUNT_NAME || '',
+  password: process.env.STEAM_PASSWORD || '',
+  sharedSecret: process.env.STEAM_SHARED_SECRET || '',
+  identitySecret: process.env.STEAM_IDENTITY_SECRET || ''
+};
 const CSMoneyService = require('./csmoneyService');
 const csmoneyService = new CSMoneyService(CSMoneyService.loadConfig());
 const { Op } = require('sequelize');

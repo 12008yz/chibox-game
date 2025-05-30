@@ -8,6 +8,7 @@ const rateLimit = require('express-rate-limit');
 const winston = require('winston');
 const { execSync } = require('child_process');
 const csurf = require('csurf');
+const corsMiddleware = require('./middleware/cors');
 
 // Winston Logger
 const logger = winston.createLogger({
@@ -31,6 +32,9 @@ app.set('trust proxy', 1);
 
 // Защитные миддлвары
 app.use(helmet());
+
+// CORS middleware
+app.use(corsMiddleware);
 
 // Общий лимит на все запросы
 app.use(rateLimit({
@@ -82,10 +86,17 @@ app.use((req, res, next) => {
 
 const userRoutes = require('./routes/userRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const { logLoginAttempt, logPayment } = require('./middleware/logger');
 
 // Монтируем лимит к отдельным маршрутам:
 app.use('/api/v1/login', authLimiter);
 app.use('/api/v1/register', authLimiter);
+
+// Логирование попыток входа
+app.use(logLoginAttempt);
+
+// Логирование платежей
+app.use(logPayment);
 
 // Регистрация маршрутов
 app.use('/api/v1', userRoutes);
