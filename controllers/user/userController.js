@@ -27,6 +27,7 @@ const { getCasesAvailable } = require('./getCasesAvailable');
 const { getAchievementsProgress } = require('./getAchievementsProgress');
 const { adminUpdateUser } = require('./adminUpdateUser');
 const { getInventory } = require('./getInventory');
+const { buyCase, getCasePurchaseInfo } = require('./buyCase');
 
 module.exports = {
   registerValidation,
@@ -58,5 +59,7 @@ module.exports = {
   getCasesAvailable,
   getAchievementsProgress,
   adminUpdateUser,
-  getInventory
+  getInventory,
+  buyCase,
+  getCasePurchaseInfo
 };

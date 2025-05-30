@@ -58,6 +58,17 @@ module.exports = {
         is_active: true,
         created_at: new Date(),
         updated_at: new Date()
+      },
+      {
+        id: '66666666-6666-6666-6666-666666666666',
+        name: 'Ежедневный кейс',
+        description: 'Кейс, который можно купить за 50 рублей',
+        type: 'premium',
+        min_subscription_tier: 0,
+        cooldown_hours: 0,
+        is_active: true,
+        created_at: new Date(),
+        updated_at: new Date()
       }
     ], {});
   },

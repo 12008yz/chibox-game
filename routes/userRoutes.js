@@ -29,6 +29,8 @@ const {
   getBonusStatus,
   getCasesAvailable,
   getAchievementsProgress,
+  buyCase,
+  getCasePurchaseInfo,
 } = require('../controllers/user/userController');
 
 const { loginBot, sendTrade, getSteamInventory } = require('../controllers/user/steamBotController');
@@ -75,6 +77,10 @@ router.post('/bonus/play-squares', authMiddleware, playBonusSquares); //+
 router.get('/bonus/status', authMiddleware, getBonusStatus); //+
 router.get('/cases/available', authMiddleware, getCasesAvailable); //+
 router.get('/achievements/progress', authMiddleware, getAchievementsProgress); //+
+
+// Case purchase routes
+router.post('/cases/buy', authMiddleware, buyCase); //+
+router.get('/cases/purchase-info', authMiddleware, getCasePurchaseInfo); //+
 
 // Steam bot routes
 router.post('/steambot/login', authMiddleware, loginBot); //+

@@ -7,9 +7,9 @@ const { activateSubscription } = require('../../services/subscriptionService');
 const { addExperience } = require('../../services/xpService');
 
 const subscriptionTiers = {
-  1: { days: 30, max_daily_cases: 3, bonus_percentage: 3.0, name: 'Статус', price: 1210 },
-  2: { days: 30, max_daily_cases: 5, bonus_percentage: 5.0, name: 'Статус+', price: 2890 },
-  3: { days: 30, max_daily_cases: 10, bonus_percentage: 10.0, name: 'Статус++', price: 6819 }
+  1: { days: 30, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус', price: 1210 },
+  2: { days: 30, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус+', price: 2890 },
+  3: { days: 30, max_daily_cases: 1, bonus_percentage: 10.0, name: 'Статус++', price: 6819 }
 };
 
 const logger = winston.createLogger({

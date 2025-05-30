@@ -1,4 +1,3 @@
-
 const db = require('../../models');
 const winston = require('winston');
 const { updateUserAchievementProgress } = require('../../services/achievementService');
@@ -67,7 +66,13 @@ async function openCase(req, res) {
       await user.save();
     }
 
-    if (user.cases_opened_today >= user.max_daily_cases) {
+    // Новые лимиты: общий лимит открытия кейсов
+    // Подписочные кейсы: max_daily_cases (1 для любой подписки)
+    // Покупные кейсы: без лимита открытия (лимит только на покупку - 5 в день)
+    // Общий лимит остается для подписочных кейсов
+    const totalCasesLimit = (user.max_daily_cases || 0) + 50; // Подписочные + высокий лимит для покупных
+
+    if (user.cases_opened_today >= totalCasesLimit) {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const msRemaining = tomorrow.getTime() - now.getTime();
@@ -78,7 +83,7 @@ async function openCase(req, res) {
 
       const timeString = `${hours}ч ${minutes}м ${seconds}с`;
 
-      return res.status(400).json({ message: `Достигнут лимит открытия кейсов на сегодня. Следующий кейс будет доступен через ${timeString}` });
+      return res.status(400).json({ message: `Достигнут общий лимит открытия кейсов на сегодня. Следующий кейс будет доступен через ${timeString}` });
     }
 
     // Убираем ограничение на время открытия кейса
