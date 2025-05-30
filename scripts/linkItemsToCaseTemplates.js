@@ -5,7 +5,7 @@ async function linkItemsToCaseTemplates() {
     // Получаем все активные шаблоны кейсов типа 'daily'
     const caseTemplates = await db.CaseTemplate.findAll({
       where: {
-        type: 'daily',
+        type: 'premium',
         is_active: true
       }
     });

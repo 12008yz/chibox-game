@@ -85,7 +85,7 @@ async function buyCase(req, res) {
 
       // Получаем дефолтный шаблон кейса
       const defaultTemplate = await db.CaseTemplate.findOne({
-        where: { name: 'Ежедневный кейс' }
+        where: { name: 'Ежедневный кейс', type: 'premium' }
       });
 
       if (!defaultTemplate) {
