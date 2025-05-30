@@ -12,6 +12,18 @@ const logger = winston.createLogger({
   ],
 });
 
+const { body, validationResult } = require('express-validator');
+
+const allowedFields = ['username', 'email', 'role', 'subscription_tier', 'balance'];
+
+const validateUpdateData = [
+  body('username').optional().isString().trim().notEmpty(),
+  body('email').optional().isEmail().normalizeEmail(),
+  body('role').optional().isIn(['user', 'admin', 'superadmin']),
+  body('subscription_tier').optional().isInt({ min: 0 }),
+  body('balance').optional().isFloat({ min: 0 }),
+];
+
 async function adminUpdateUser(req, res) {
   try {
     const adminUser = req.user;
@@ -20,8 +32,19 @@ async function adminUpdateUser(req, res) {
       return res.status(403).json({ message: 'Доступ запрещён' });
     }
 
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: 'Ошибка валидации', errors: errors.array() });
+    }
+
     const userId = req.params.id;
-    const updateData = req.body;
+    const updateData = {};
+
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        updateData[field] = req.body[field];
+      }
+    }
 
     if (updateData.password) {
       delete updateData.password;
@@ -45,5 +68,11 @@ async function adminUpdateUser(req, res) {
 }
 
 module.exports = {
-  adminUpdateUser
+  adminUpdateUser,
+  validateUpdateData
+};
+
+module.exports = {
+  adminUpdateUser,
+  validateUpdateData
 };

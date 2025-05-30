@@ -161,11 +161,13 @@ async function openCase(req, res) {
       is_hidden: false
     });
 
-    user.cases_opened_today += 1;
-    // Убираем установку времени следующего доступного кейса
-    // user.next_case_available_time = new Date(now.getTime() + 60 * 60 * 1000);
-    // await user.save();
-    await user.save();
+const { sequelize } = require('../../models');
+
+await sequelize.transaction(async (t) => {
+  const userForUpdate = await sequelize.models.User.findByPk(user.id, { transaction: t, lock: t.LOCK.UPDATE });
+  userForUpdate.cases_opened_today += 1;
+  await userForUpdate.save({ transaction: t });
+});
 
     // Вызов обновления прогресса достижения для открытия кейса
     await updateUserAchievementProgress(userId, 'cases_opened', 1);

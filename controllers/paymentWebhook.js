@@ -24,6 +24,10 @@ function verifySignature(body, signature, secret) {
 async function yoomoneyWebhook(req, res) {
   try {
     const secret = process.env.YOOKASSA_CLIENT_SECRET;
+    if (!secret) {
+      logger.error('YOOKASSA_CLIENT_SECRET is not set in environment variables');
+      return res.status(500).send('Server configuration error');
+    }
     const signature = req.headers['x-yookassa-signature'];
     if (!signature) {
       logger.warn('Signature missing in webhook request');
@@ -31,8 +35,9 @@ async function yoomoneyWebhook(req, res) {
     }
 
     const rawBody = JSON.stringify(req.body);
-    logger.debug(`Raw body for signature verification: ${rawBody}`);
-    logger.debug(`Received signature: ${signature}`);
+    // Убираем логирование чувствительных данных
+    // logger.debug(`Raw body for signature verification: ${rawBody}`);
+    // logger.debug(`Received signature: ${signature}`);
 
     if (!verifySignature(rawBody, signature, secret)) {
       logger.warn('Invalid signature in webhook request');

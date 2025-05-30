@@ -43,7 +43,10 @@ if (!fs.existsSync(logsDir)) {
  * В продакшене всегда следует использовать переменную окружения!
  */
 function getEncryptionKey() {
-  return process.env.ENCRYPTION_KEY || 'default_encryption_key_change_in_production';
+if (!process.env.ENCRYPTION_KEY) {
+  throw new Error('ENCRYPTION_KEY environment variable must be set');
+}
+return process.env.ENCRYPTION_KEY;
 }
 
 /**

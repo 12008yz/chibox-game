@@ -1,5 +1,10 @@
 const SteamBot = require('../../services/steamBotService');
-const steamBotConfig = require('../../config/steam_bot');
+const steamBotConfig = {
+  accountName: process.env.STEAM_ACCOUNT_NAME || '',
+  password: process.env.STEAM_PASSWORD || '',
+  sharedSecret: process.env.STEAM_SHARED_SECRET || '',
+  identitySecret: process.env.STEAM_IDENTITY_SECRET || ''
+};
 
 // В логах не выводим пароли и секреты!
 
