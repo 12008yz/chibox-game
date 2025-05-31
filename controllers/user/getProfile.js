@@ -1,5 +1,6 @@
 const db = require('../../models');
 const winston = require('winston');
+const cache = require('../../middleware/cache');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -31,6 +32,19 @@ async function getProfile(req, res) {
         'drop_rate_modifier', 'achievements_bonus_percentage', 'subscription_bonus_percentage', 'total_drop_bonus_percentage',
         'balance',
         'steam_id', 'steam_username', 'steam_avatar', 'steam_profile_url', 'steam_trade_url'
+      ],
+      include: [
+        {
+          model: db.UserAchievement,
+          as: 'achievements',
+          include: [{ model: db.Achievement, as: 'achievement' }]
+        },
+        {
+          model: db.UserInventory,
+          as: 'inventory',
+          include: [{ model: db.Item, as: 'item' }],
+          limit: 50
+        }
       ]
     });
 
@@ -38,21 +52,9 @@ async function getProfile(req, res) {
       return res.status(404).json({ message: 'Пользователь не найден' });
     }
 
-    const achievements = await db.UserAchievement.findAll({
-      where: { user_id: userId },
-      include: [{ model: db.Achievement, as: 'achievement' }]
-    });
-
-    const inventory = await db.UserInventory.findAll({
-      where: { user_id: userId },
-      include: [{ model: db.Item, as: 'item' }]
-    });
-
     return res.json({
       success: true,
-      user,
-      achievements,
-      inventory
+      user
     });
 
   } catch (error) {
@@ -61,6 +63,9 @@ async function getProfile(req, res) {
   }
 }
 
+// Оборачиваем getProfile в middleware кэширования
+const cachedGetProfile = [cache(300), getProfile];
+
 module.exports = {
-  getProfile
+  getProfile: cachedGetProfile
 };

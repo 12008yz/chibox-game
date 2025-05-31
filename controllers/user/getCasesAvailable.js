@@ -29,6 +29,10 @@ async function getCasesAvailable(req, res) {
   }
 }
 
+// Оборачиваем getCasesAvailable в middleware кэширования
+const cache = require('../../middleware/cache');
+const cachedGetCasesAvailable = [cache(300), getCasesAvailable];
+
 module.exports = {
-  getCasesAvailable
+  getCasesAvailable: cachedGetCasesAvailable
 };

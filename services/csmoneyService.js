@@ -1,9 +1,10 @@
 const axios = require('axios');
 const winston = require('winston');
 const cheerio = require('cheerio');
-const puppeteer = require('puppeteer');
 const path = require('path');
 const fs = require('fs');
+const { csmoneyQueue } = require('./csmoneyWorker');
+const puppeteer = require('puppeteer');
 const { Op } = require('sequelize');
 const { Item } = require('../models'); // Импорт модели Item
 
@@ -45,133 +46,8 @@ class CSMoneyService {
   }
 
   async initialize() {
-    if (this.browser) return;
-
-    logger.info('Инициализация браузера для работы с CS.Money...');
-
-    // Запускаем браузер с headless, как в продакшене мы обычно не хотим видеть браузер
-    this.browser = await puppeteer.launch({
-      headless: 'new',  // В продакшн-режиме используем headless
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--disable-gpu',
-        '--window-size=1920,1080',
-        '--disable-web-security',  // Отключаем проверку безопасности
-        '--disable-features=IsolateOrigins,site-per-process' // Отключаем изоляцию, что может помочь с определёнными куки
-      ]
-    });
-
-    this.page = await this.browser.newPage();
-
-    // Устанавливаем современный User-Agent
-    await this.page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
-
-    // Устанавливаем больший viewport
-    await this.page.setViewport({ width: 1920, height: 1080 });
-
-    // Добавляем обход для обнаружения автоматизации
-    await this.page.evaluateOnNewDocument(() => {
-      // Скрываем webdriver
-      Object.defineProperty(navigator, 'webdriver', {
-        get: () => false,
-      });
-
-      // Добавляем plugins и mimeTypes
-      window.navigator.plugins = [1, 2, 3, 4, 5];
-      window.navigator.plugins.refresh = () => {};
-
-      window.navigator.mimeTypes = [1, 2, 3, 4, 5];
-
-      // Добавляем языки
-      Object.defineProperty(navigator, 'languages', {
-        get: () => ['ru-RU', 'ru', 'en-US', 'en'],
-      });
-
-      // Исправляем определение автоматизации
-      const originalQuery = window.navigator.permissions.query;
-      window.navigator.permissions.query = (parameters) => (
-        parameters.name === 'notifications' ?
-          Promise.resolve({ state: Notification.permission }) :
-          originalQuery(parameters)
-      );
-    });
-
-    // Более продвинутый обход обнаружения
-    await this.page.evaluateOnNewDocument(() => {
-      // Перехватываем проверки Puppeteer
-      const newProto = navigator.__proto__;
-      delete newProto.webdriver;
-      navigator.__proto__ = newProto;
-    });
-
-    // Включаем JavaScript
-    await this.page.setJavaScriptEnabled(true);
-
-    // Установка cookies
-    if (this.cookies) {
-      try {
-        let cookiesArr = [];
-
-        if (typeof this.cookies === 'string') {
-          // Разбиваем строку cookies на части
-          const cookiePairs = this.cookies.split(';');
-
-          for (const cookiePair of cookiePairs) {
-            if (!cookiePair.trim()) continue;
-
-            // Более безопасный способ парсинга cookies
-            const firstEqualIndex = cookiePair.indexOf('=');
-            if (firstEqualIndex > 0) {
-              const name = cookiePair.substring(0, firstEqualIndex).trim();
-              const value = cookiePair.substring(firstEqualIndex + 1).trim();
-
-              if (name && value) {
-                // Определяем домен и path в зависимости от типа cookie
-                // Для cf_clearance, cookie должна быть точной
-                let domain = '.cs.money';
-                let path = '/';
-
-                if (name === 'cf_clearance') {
-                  domain = '.cs.money';  // Cloudflare должен быть на домене верхнего уровня
-                } else if (name === 'csp-nonce' || name === 'seconds_on_page_-1653249155' ||
-                           name === 'seconds_on_page_104055' || name === 'settings_visual_card_size' ||
-                           name === 'u_dpi' || name === 'u_vp') {
-                  domain = 'cs.money';  // Некоторые cookies устанавливаются без поддомена
-                }
-
-                cookiesArr.push({
-                  name,
-                  value,
-                  domain,
-                  path,
-                  httpOnly: name === 'cf_clearance' || name === 'csgo_ses' || name === 'support_token',
-                  secure: name === 'cf_clearance'
-                });
-              }
-            }
-          }
-        } else if (Array.isArray(this.cookies)) {
-          cookiesArr = this.cookies;
-        }
-
-        if (cookiesArr.length > 0) {
-          // Устанавливаем cookies
-          await this.page.setCookie(...cookiesArr);
-          logger.info(`Установлено ${cookiesArr.length} cookies`);
-
-          // Выводим имена установленных cookies для отладки
-          logger.info(`Установленные cookies: ${cookiesArr.map(c => c.name).join(', ')}`);
-        }
-      } catch (error) {
-        logger.error('Ошибка при установке cookies:', error);
-      }
-    }
-
-    // Проверяем авторизацию
-    await this.checkLogin();
+    // Убрана инициализация Puppeteer из основного сервиса
+    logger.info('Инициализация браузера перенесена в worker');
   }
 
   async checkLogin() {

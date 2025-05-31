@@ -20,8 +20,26 @@ const sequelize = new Sequelize(
   dbConfig.username,
   dbConfig.password,
   {
-    host: dbConfig.host,
     dialect: dbConfig.dialect,
+    replication: {
+      read: [
+        {
+          host: process.env.DB_READ_HOST_1 || config[env].readHost1,
+          username: process.env.DB_USERNAME || config[env].username,
+          password: process.env.DB_PASSWORD || config[env].password,
+          database: process.env.DB_DATABASE || config[env].database,
+          dialect: dbConfig.dialect,
+        },
+        // Можно добавить дополнительные read реплики
+      ],
+      write: {
+        host: dbConfig.host,
+        username: dbConfig.username,
+        password: dbConfig.password,
+        database: dbConfig.database,
+        dialect: dbConfig.dialect,
+      }
+    },
     logging: console.log, // Можно установить false для отключения логов SQL-запросов
     define: {
       timestamps: true, // Добавляем timestamps во все модели по умолчанию
@@ -29,10 +47,12 @@ const sequelize = new Sequelize(
       freezeTableName: false // Не преобразовывать имена таблиц
     },
     pool: {
-      max: 5, // Максимальное количество соединений в пуле
-      min: 0, // Минимальное количество соединений в пуле
-      acquire: 30000, // Максимальное время в мс для получения соединения из пуля
-      idle: 10000 // Максимальное время в мс, в течение которого соединение может быть неактивным
+      max: 20,              // Увеличено до 20
+      min: 5,               // Минимум 5 соединений
+      acquire: 60000,       // Увеличен timeout
+      idle: 30000,          // Увеличен idle time
+      evict: 1000,          // Добавлен eviction
+      handleDisconnects: true
     }
   }
 );

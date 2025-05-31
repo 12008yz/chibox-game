@@ -34,8 +34,8 @@ const logger = winston.createLogger({
 
 logger.info('Настройка cron-задач запущена...');
 
-// Запуск обработки выводов каждые 5 минут
-cron.schedule('*/5 * * * *', async () => {
+// Запуск обработки выводов каждые 15 минут (увеличен интервал для оптимизации)
+cron.schedule('*/15 * * * *', async () => {
   logger.info('Запуск обработки заявок на вывод...');
   try {
     await processWithdrawals();
@@ -44,6 +44,8 @@ cron.schedule('*/5 * * * *', async () => {
     logger.error('Ошибка при обработке заявок:', error);
   }
 });
+
+// TODO: Добавить event-driven обработку для срочных выводов
 
 // Проверка баланса на LIS-Skins каждый час
 cron.schedule('0 * * * *', async () => {

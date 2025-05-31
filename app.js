@@ -4,6 +4,7 @@ const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const winston = require('winston');
 const { execSync } = require('child_process');
@@ -32,6 +33,9 @@ app.set('trust proxy', 1);
 
 // Защитные миддлвары
 app.use(helmet());
+
+// Добавляем compression middleware для сжатия ответов
+app.use(compression());
 
 // CORS middleware
 app.use(corsMiddleware);

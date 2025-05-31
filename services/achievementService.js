@@ -29,20 +29,36 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
 
   const completedAchievements = [];
 
+  // Получить все UserAchievement для пользователя и достижений
+  const userAchievements = await db.UserAchievement.findAll({
+    where: {
+      user_id: userId,
+      achievement_id: achievements.map(a => a.id)
+    }
+  });
+
+  // Создать карту для быстрого доступа
+  const userAchievementMap = new Map();
+  userAchievements.forEach(ua => {
+    userAchievementMap.set(ua.achievement_id, ua);
+  });
+
+  // Массив для bulk операций
+  const bulkOperations = [];
+
   for (const achievement of achievements) {
-    // Найти или создать запись UserAchievement для пользователя и достижения
-    let [userAchievement, created] = await db.UserAchievement.findOrCreate({
-      where: {
+    let userAchievement = userAchievementMap.get(achievement.id);
+
+    if (!userAchievement) {
+      userAchievement = db.UserAchievement.build({
         user_id: userId,
-        achievement_id: achievement.id
-      },
-      defaults: {
+        achievement_id: achievement.id,
         current_progress: 0,
         is_completed: false,
         notified: false,
         bonus_applied: false
-      }
-    });
+      });
+    }
 
     if (userAchievement.is_completed) {
       // Уже выполнено, пропускаем
@@ -52,12 +68,10 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
     // Обновить прогресс
     let newProgress;
     if (requirementType === 'best_item_value') {
-      // Для достижения best_item_value прогресс - максимальная цена предмета
       newProgress = Math.max(userAchievement.current_progress, progressToAdd);
     } else {
       newProgress = userAchievement.current_progress + progressToAdd;
     }
-    // Приводим прогресс к целому числу, чтобы избежать ошибок с типом integer в БД
     userAchievement.current_progress = Math.floor(newProgress);
 
     // Проверить выполнение
@@ -66,7 +80,7 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
       userAchievement.completion_date = new Date();
 
       if (!userAchievement.bonus_applied && achievement.bonus_percentage > 0) {
-        // Пример применения бонуса: увеличить бонус шанса выпадения предметов у пользователя
+        // Применение бонуса
         const user = await db.User.findByPk(userId);
         user.bonus_chance = (user.bonus_chance || 0) + achievement.bonus_percentage;
         await user.save();
@@ -74,20 +88,21 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
         userAchievement.bonus_applied = true;
       }
 
-      // Отправить уведомление, если еще не отправлено
       if (!userAchievement.notified) {
         await sendAchievementNotification(userId, achievement);
         userAchievement.notified = true;
       }
 
-      // Добавление опыта за выполнение достижения
       await addExperience(userId, 100, 'achievement', achievement.id, 'Достижение выполнено');
 
       completedAchievements.push(achievement);
     }
 
-    await userAchievement.save();
+    bulkOperations.push(userAchievement);
   }
+
+  // Сохраняем все изменения bulk операцией
+  await Promise.all(bulkOperations.map(ua => ua.save()));
 
   return completedAchievements;
 }

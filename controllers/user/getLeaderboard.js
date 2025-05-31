@@ -14,13 +14,18 @@ const logger = winston.createLogger({
 
 async function getLeaderboard(req, res) {
   try {
-    let leaderboard = await db.LeaderboardEntry.findAll({
-      limit: 50,
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = (page - 1) * limit;
+
+    let { count, rows: leaderboard } = await db.LeaderboardEntry.findAndCountAll({
+      limit,
+      offset,
       order: [['score', 'DESC']],
       include: [{ model: db.User, as: 'user', attributes: ['id', 'username'] }]
     });
 
-    if (leaderboard.length === 0) {
+    if (count === 0) {
       // Если таблица пустая, добавляем первых 10 пользователей с нулевым счетом
       const users = await db.User.findAll({
         limit: 10,
@@ -58,14 +63,23 @@ async function getLeaderboard(req, res) {
 
       await db.LeaderboardEntry.bulkCreate(entries);
 
-      leaderboard = await db.LeaderboardEntry.findAll({
-        limit: 50,
+      const result = await db.LeaderboardEntry.findAndCountAll({
+        limit,
+        offset,
         order: [['score', 'DESC']],
         include: [{ model: db.User, as: 'user', attributes: ['id', 'username'] }]
       });
+
+      count = result.count;
+      leaderboard = result.rows;
     }
 
-    return res.json({ leaderboard });
+    return res.json({
+      leaderboard,
+      totalItems: count,
+      currentPage: page,
+      totalPages: Math.ceil(count / limit)
+    });
   } catch (error) {
     logger.error('Ошибка получения лидерборда:', error);
     return res.status(500).json({ message: 'Внутренняя ошибка сервера' });

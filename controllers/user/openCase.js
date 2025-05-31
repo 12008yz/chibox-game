@@ -15,13 +15,17 @@ const logger = winston.createLogger({
 });
 
 async function openCase(req, res) {
+  const { sequelize } = require('../../models');
+  const t = await sequelize.transaction();
+
   try {
     console.log('req.body:', req.body);
     let caseId = req.body.caseId || req.params.caseId || req.query.caseId;
     const userId = req.user.id;
 
-    const user = await db.User.findByPk(userId);
+    const user = await db.User.findByPk(userId, { transaction: t, lock: t.LOCK.UPDATE });
     if (!user) {
+      await t.rollback();
       return res.status(404).json({ message: 'Пользователь не найден' });
     }
 
@@ -31,29 +35,32 @@ async function openCase(req, res) {
       // Если caseId не передан, ищем первый неоткрытый кейс пользователя
       userCase = await db.Case.findOne({
         where: { user_id: userId, is_opened: false },
-        order: [['received_date', 'ASC']]
+        order: [['received_date', 'ASC']],
+        transaction: t
       });
-    if (!userCase) {
-      console.log('next_case_available_time:', user.next_case_available_time);
-      if (user.next_case_available_time && user.next_case_available_time > new Date()) {
-        const now = new Date();
-        const msRemaining = user.next_case_available_time.getTime() - now.getTime();
+      if (!userCase) {
+        console.log('next_case_available_time:', user.next_case_available_time);
+        if (user.next_case_available_time && user.next_case_available_time > new Date()) {
+          const now = new Date();
+          const msRemaining = user.next_case_available_time.getTime() - now.getTime();
 
-        const hours = Math.floor(msRemaining / (1000 * 60 * 60));
-        const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
+          const hours = Math.floor(msRemaining / (1000 * 60 * 60));
+          const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
 
-        const timeString = `${hours}ч ${minutes}м ${seconds}с`;
+          const timeString = `${hours}ч ${minutes}м ${seconds}с`;
 
-        return res.status(404).json({ message: `Не найден неоткрытый кейс для пользователя. Следующий кейс будет доступен через ${timeString}`, next_case_available_time: user.next_case_available_time });
+          await t.rollback();
+          return res.status(404).json({ message: `Не найден неоткрытый кейс для пользователя. Следующий кейс будет доступен через ${timeString}`, next_case_available_time: user.next_case_available_time });
+        }
+        // Если next_case_available_time не установлен, установим его на 1 час вперед
+        const newNextCaseTime = new Date(new Date().getTime() + 60 * 60 * 1000);
+        user.next_case_available_time = newNextCaseTime;
+        await user.save({ transaction: t });
+
+        await t.rollback();
+        return res.status(404).json({ message: `Не найден неоткрытый кейс для пользователя. Следующий кейс будет доступен через 1ч 0м 0с`, next_case_available_time: newNextCaseTime });
       }
-      // Если next_case_available_time не установлен, установим его на 1 час вперед
-      const newNextCaseTime = new Date(new Date().getTime() + 60 * 60 * 1000);
-      user.next_case_available_time = newNextCaseTime;
-      await user.save();
-
-      return res.status(404).json({ message: `Не найден неоткрытый кейс для пользователя. Следующий кейс будет доступен через 1ч 0м 0с`, next_case_available_time: newNextCaseTime });
-    }
       caseId = userCase.id;
     }
 
@@ -63,7 +70,7 @@ async function openCase(req, res) {
     if (!user.last_reset_date || user.last_reset_date < today) {
       user.cases_opened_today = 0;
       user.last_reset_date = today;
-      await user.save();
+      await user.save({ transaction: t });
     }
 
     // Новые лимиты: общий лимит открытия кейсов
@@ -83,6 +90,7 @@ async function openCase(req, res) {
 
       const timeString = `${hours}ч ${minutes}м ${seconds}с`;
 
+      await t.rollback();
       return res.status(400).json({ message: `Достигнут общий лимит открытия кейсов на сегодня. Следующий кейс будет доступен через ${timeString}` });
     }
 
@@ -97,6 +105,7 @@ async function openCase(req, res) {
 
       const timeString = `${hours}ч ${minutes}м ${seconds}с`;
 
+      await t.rollback();
       return res.status(400).json({ message: `Следующий кейс будет доступен через ${timeString}`, next_case_available_time: user.next_case_available_time });
     }
 
@@ -109,14 +118,17 @@ async function openCase(req, res) {
           through: { attributes: [] }
         }] },
         { model: db.Item, as: 'result_item' }
-      ]
+      ],
+      transaction: t
     });
     if (!userCase) {
+      await t.rollback();
       return res.status(404).json({ message: 'Кейс не найден или уже открыт' });
     }
 
     const items = userCase.template.items || [];
     if (!items.length) {
+      await t.rollback();
       return res.status(404).json({ message: 'В кейсе нет предметов' });
     }
 
@@ -137,14 +149,14 @@ async function openCase(req, res) {
     userCase.is_opened = true;
     userCase.opened_date = new Date();
     userCase.result_item_id = selectedItem.id;
-    await userCase.save();
+    await userCase.save({ transaction: t });
 
     await db.UserInventory.create({
       user_id: userId,
       item_id: selectedItem.id,
       quantity: 1,
       case_id: userCase.id
-    });
+    }, { transaction: t });
 
     // Добавлено создание записи LiveDrop
     await db.LiveDrop.create({
@@ -159,15 +171,12 @@ async function openCase(req, res) {
       user_subscription_tier: user.subscription_tier || null,
       is_highlighted: selectedItem.price && selectedItem.price > 1000, // например, выделять дорогие предметы
       is_hidden: false
-    });
+    }, { transaction: t });
 
-const { sequelize } = require('../../models');
+    user.cases_opened_today += 1;
+    await user.save({ transaction: t });
 
-await sequelize.transaction(async (t) => {
-  const userForUpdate = await sequelize.models.User.findByPk(user.id, { transaction: t, lock: t.LOCK.UPDATE });
-  userForUpdate.cases_opened_today += 1;
-  await userForUpdate.save({ transaction: t });
-});
+    await t.commit();
 
     // Вызов обновления прогресса достижения для открытия кейса
     await updateUserAchievementProgress(userId, 'cases_opened', 1);
@@ -184,6 +193,7 @@ await sequelize.transaction(async (t) => {
 
     return res.json({ item: selectedItem, message: 'Кейс успешно открыт' });
   } catch (error) {
+    await t.rollback();
     logger.error('Ошибка открытия кейса:', error);
     return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
   }
