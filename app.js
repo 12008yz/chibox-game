@@ -6,22 +6,9 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
-const winston = require('winston');
 const { execSync } = require('child_process');
-const csurf = require('csurf');
 const corsMiddleware = require('./middleware/cors');
-
-// Winston Logger
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console(),
-  ],
-});
+const { logger } = require('./utils/logger');
 
 // Импортируем настроенное подключение к базе данных
 const { sequelize, testConnection } = require('./config/database');
@@ -70,36 +57,24 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const csrf = require('csurf');
+// CSRF защита убрана, так как пакет csurf deprecated
+// Для API используем JWT токены, что более безопасно
 
-// Подключение CSRF защиты с использованием cookie
-const csrfProtection = csrf({ cookie: true });
-
-// Исключаем некоторые маршруты из CSRF защиты, например, API маршруты, которые не используют cookie
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api/')) {
-    return next();
-  }
-  csrfProtection(req, res, next);
-});
-
-// Добавление middleware для передачи CSRF токена в ответах (например, в locals для шаблонов)
-app.use((req, res, next) => {
-  if (req.csrfToken) {
-    res.locals.csrfToken = req.csrfToken();
-  }
-  next();
-});
+// CSRF защита удалена - используем JWT для API
+// Для веб-форм можно добавить альтернативную защиту при необходимости
 
 const userRoutes = require('./routes/userRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
-const { logLoginAttempt, logPayment } = require('./middleware/logger');
+const { requestLogger, logLoginAttempt, logPayment } = require('./utils/logger');
 
 // Монтируем лимит к отдельным маршрутам:
 app.use('/api/v1/login', authLimiter);
 app.use('/api/v1/register', authLimiter);
 
 // Логирование попыток входа
+// Умное логирование запросов (только важные события)
+app.use(requestLogger);
+
 app.use(logLoginAttempt);
 
 // Логирование платежей
