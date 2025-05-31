@@ -1,7 +1,6 @@
 const db = require('../../models');
 const winston = require('winston');
-const { createPayment } = require('../../services/paymentService');
-const { addExperience } = require('../../services/xpService');
+const { addJob } = require('../../services/queueService');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -160,12 +159,21 @@ async function buyCase(req, res) {
 
         const totalPrice = CASE_PRICE * allowedQuantity;
 
-        const paymentUrl = await createPayment(totalPrice, userId, 'case_purchase', {
-          quantity: allowedQuantity,
-          case_price: CASE_PRICE
+        // Добавляем платеж в очередь для обработки
+        const paymentJob = await addJob.processPayment({
+          userId,
+          amount: totalPrice,
+          purpose: 'case_purchase',
+          extraData: {
+            quantity: allowedQuantity,
+            case_price: CASE_PRICE
+          }
         });
 
-        logger.info(`Создан платеж для покупки ${allowedQuantity} кейсов на сумму ${totalPrice}₽`);
+        logger.info(`Платеж добавлен в очередь для покупки ${allowedQuantity} кейсов на сумму ${totalPrice}₽`);
+
+        // Пока что возвращаем временную ссылку, в реальности нужно дождаться обработки
+        const paymentUrl = `payment-processing-${paymentJob.id}`;
 
         return res.json({
           paymentUrl,

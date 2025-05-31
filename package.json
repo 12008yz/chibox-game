@@ -4,6 +4,10 @@
   "private": true,
   "scripts": {
     "start": "node ./bin/www",
+    "workers": "node ./scripts/start-workers.js",
+    "dev": "concurrently \"npm start\" \"npm run workers\"",
+    "queue:stats": "node -e \"require('./services/queueService').getQueueStats().then(console.log)\"",
+    "queue:clean": "node -e \"require('./services/queueService').cleanQueues().then(() => console.log('Queues cleaned'))\"",
     "security-audit": "npm audit",
     "security-fix": "npm audit fix",
     "security-snyk": "snyk test",
@@ -13,6 +17,7 @@
   "dependencies": {
     "argon2": "^0.43.0",
     "axios": "^1.9.0",
+    "bull": "^4.16.5",
     "cheerio": "^1.0.0",
     "compression": "^1.8.0",
     "cookie-parser": "~1.4.4",

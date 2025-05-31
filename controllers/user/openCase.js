@@ -1,7 +1,6 @@
 const db = require('../../models');
 const winston = require('winston');
-const { updateUserAchievementProgress } = require('../../services/achievementService');
-const { addExperience } = require('../../services/xpService');
+const { addJob } = require('../../services/queueService');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -178,15 +177,25 @@ async function openCase(req, res) {
 
     await t.commit();
 
-    // Вызов обновления прогресса достижения для открытия кейса
-    await updateUserAchievementProgress(userId, 'cases_opened', 1);
+    // Добавляем задачи в очереди (асинхронно для лучшей производительности)
+    addJob.updateAchievements(userId, {
+      achievementType: 'cases_opened',
+      value: 1
+    }).catch(err => logger.error('Failed to queue achievement update:', err));
 
     // Начисление опыта за открытие кейса
-    await addExperience(userId, 10, 'open_case', caseId, 'Открытие кейса');
+    addJob.updateAchievements(userId, {
+      userId,
+      amount: 10,
+      reason: 'Открытие кейса'
+    }, { jobType: 'add-experience' }).catch(err => logger.error('Failed to queue experience update:', err));
 
-    // Вызов обновления прогресса достижения для лучшего предмета
+    // Обновление достижений для лучшего предмета
     if (selectedItem.price && selectedItem.price > 0) {
-      await updateUserAchievementProgress(userId, 'best_item_value', selectedItem.price);
+      addJob.updateAchievements(userId, {
+        achievementType: 'best_item_value',
+        value: selectedItem.price
+      }).catch(err => logger.error('Failed to queue achievement update:', err));
     }
 
     logger.info(`Пользователь ${userId} открыл кейс ${caseId} и получил предмет ${selectedItem.id}`);
