@@ -106,14 +106,29 @@ app.use(logPayment);
 app.use('/api/v1', userRoutes);
 app.use('/api/payment', paymentRoutes);
 
-// Проверка подключения к базе данных и применение миграций
+// Проверка подключений к базе данных и Redis
 (async () => {
   try {
-    // Проверяем подключение
+    // Проверяем подключение к базе данных
     const connected = await testConnection();
 
     if (connected) {
       logger.info('База данных подключена успешно.');
+
+      // Проверяем подключение к Redis
+      try {
+        const redis = require('redis');
+        const testRedisClient = redis.createClient({
+          url: process.env.REDIS_URL || 'redis://127.0.0.1:6379'
+        });
+        await testRedisClient.connect();
+        await testRedisClient.ping();
+        logger.info('Redis подключен успешно');
+        await testRedisClient.disconnect();
+      } catch (redisError) {
+        logger.warn('Предупреждение: Не удалось подключиться к Redis:', redisError.message);
+        logger.warn('Кэширование будет недоступно, но приложение продолжит работу');
+      }
 
       // Запуск миграций через Sequelize CLI
       if (process.env.RUN_MIGRATIONS === 'true') {

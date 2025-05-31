@@ -16,7 +16,14 @@ const logger = winston.createLogger({
 });
 
 // Создаем очередь Bull для задач импорта CS.Money
-const csmoneyQueue = new Queue('csmoney import', 'redis://127.0.0.1:6379');
+const csmoneyQueue = new Queue('csmoney import', {
+  redis: {
+    port: process.env.REDIS_PORT || 6379,
+    host: process.env.REDIS_HOST || '127.0.0.1',
+    password: process.env.REDIS_PASSWORD || undefined,
+    db: process.env.REDIS_DB || 0
+  }
+});
 
 // Обработчик задач очереди
 csmoneyQueue.process('import-items', 5, async (job) => {
