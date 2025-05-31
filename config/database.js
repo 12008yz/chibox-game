@@ -47,10 +47,10 @@ const sequelize = new Sequelize(
       freezeTableName: false // Не преобразовывать имена таблиц
     },
     pool: {
-      max: 20,              // Увеличено до 20
-      min: 5,               // Минимум 5 соединений
-      acquire: 60000,       // Увеличен timeout
-      idle: 30000,          // Увеличен idle time
+      max: 10,              // Достаточно для большинства нагрузок
+      min: 2,               // Минимальные соединения
+      acquire: 30000,       // Уменьшить timeout
+      idle: 10000,          // Быстрее освобождать соединения
       evict: 1000,          // Добавлен eviction
       handleDisconnects: true
     }

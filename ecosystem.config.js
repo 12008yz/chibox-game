@@ -1,20 +1,29 @@
 module.exports = {
   apps: [
     {
-      name: "main-app",
+      name: "chibox-main",
       script: "app.js",
-      instances: 1,
+      instances: "max", // Использовать все CPU
+      exec_mode: "cluster",
+      max_memory_restart: "512M", // Меньше памяти на инстанс
+      node_args: "--max-old-space-size=512",
       autorestart: true,
       watch: false,
-      max_memory_restart: "1G",
       env: {
-        NODE_ENV: "production"
+        NODE_ENV: "production",
+        PORT: 3000
+      },
+      env_development: {
+        NODE_ENV: "development",
+        PORT: 3000
       }
     },
     {
-      name: "withdrawal-processor",
+      name: "chibox-worker",
       script: "scripts/withdrawalProcessor.js",
-      instances: 1,
+      instances: 2, // Отдельные воркеры для очередей
+      exec_mode: "fork",
+      max_memory_restart: "256M",
       autorestart: true,
       watch: false,
       cron_restart: "*/10 * * * *", // restart every 10 minutes

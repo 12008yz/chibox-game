@@ -15,6 +15,7 @@
     "security-full": "npm run security-audit && npm run security-snyk && npm run security-lint"
   },
   "dependencies": {
+    "@playwright/test": "^1.52.0",
     "argon2": "^0.43.0",
     "axios": "^1.9.0",
     "bull": "^4.16.5",
@@ -37,9 +38,8 @@
     "node-fetch": "^2.7.0",
     "pg": "^8.16.0",
     "pg-hstore": "^2.3.4",
+    "playwright-core": "^1.52.0",
     "pug": "^3.0.3",
-    "puppeteer": "^24.9.0",
-    "puppeteer-page-proxy": "^1.3.0",
     "redis": "^5.1.1",
     "sequelize": "^6.37.7",
     "socket.io": "^4.8.1",

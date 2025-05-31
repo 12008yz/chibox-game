@@ -40,23 +40,26 @@ app.use(compression());
 // CORS middleware
 app.use(corsMiddleware);
 
-// Общий лимит на все запросы
-app.use(rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 минут
-  max: 100,
+const createRateLimit = (windowMs, max, message) => rateLimit({
+  windowMs,
+  max,
+  message,
   standardHeaders: true,
   legacyHeaders: false,
-  message: 'Слишком много запросов с этого IP, попробуйте позже.'
-}));
-
-// Для login и register — отдельный лимит по 5 попыток на 10 минут на IP
-const authLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 минут
-  max: 5,
-  message: 'Слишком много попыток, попробуйте через 10 минут.',
-  standardHeaders: true,
-  legacyHeaders: false,
+  skip: (req) => req.ip === '127.0.0.1' // Пропускать localhost
 });
+
+// Общий лимит - более щедрый
+app.use(createRateLimit(15 * 60 * 1000, 1000, 'Общий лимит превышен'));
+
+// Строгие лимиты для аутентификации
+const authLimiter = createRateLimit(10 * 60 * 1000, 5, 'Слишком много попыток, попробуйте через 10 минут.');
+app.use('/api/v1/login', authLimiter);
+app.use('/api/v1/register', createRateLimit(10 * 60 * 1000, 3, 'Слишком много регистраций'));
+
+// Лимиты для игровых действий
+app.use('/api/v1/openCase', createRateLimit(60 * 1000, 30, 'Слишком быстро открываете кейсы'));
+app.use('/api/v1/buyCase', createRateLimit(60 * 1000, 10, 'Слишком много покупок'));
 
 // Настройка движка представлений
 app.set('views', path.join(__dirname, 'views'));

@@ -1,18 +1,7 @@
 const argon2 = require('argon2');
 const db = require('../../models');
 const jwt = require('jsonwebtoken');
-const winston = require('winston');
-
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console(),
-  ],
-});
+const { logger } = require('../../middleware/logger');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
@@ -74,15 +63,35 @@ async function login(req, res) {
     // Очистка после удачного входа
     failedLogin.delete(key);
 
-    const achievements = await db.UserAchievement.findAll({
-      where: { user_id: user.id },
-      include: [{ model: db.Achievement, as: 'achievement' }]
+    // Объединяем запросы для избежания N+1
+    const userWithDetails = await db.User.findByPk(user.id, {
+      include: [
+        {
+          model: db.UserAchievement,
+          as: 'achievements',
+          include: [{
+            model: db.Achievement,
+            as: 'achievement',
+            attributes: ['id', 'name', 'description']
+          }],
+          limit: 20
+        },
+        {
+          model: db.UserInventory,
+          as: 'inventory',
+          include: [{
+            model: db.Item,
+            as: 'item',
+            attributes: ['id', 'name', 'rarity', 'price', 'image_url']
+          }],
+          limit: 50,
+          order: [['created_at', 'DESC']]
+        }
+      ]
     });
 
-    const inventory = await db.UserInventory.findAll({
-      where: { user_id: user.id },
-      include: [{ model: db.Item, as: 'item' }]
-    });
+    const achievements = userWithDetails ? userWithDetails.achievements : [];
+    const inventory = userWithDetails ? userWithDetails.inventory : [];
 
     const token = generateToken(user);
 

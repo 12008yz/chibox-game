@@ -4,7 +4,7 @@ const cheerio = require('cheerio');
 const path = require('path');
 const fs = require('fs');
 const { csmoneyQueue } = require('./csmoneyWorker');
-const puppeteer = require('puppeteer');
+const { chromium } = require('playwright');
 const { Op } = require('sequelize');
 const { Item } = require('../models'); // Импорт модели Item
 
@@ -60,23 +60,30 @@ class CSMoneyService {
     logger.info('Переход на страницу CS.Money для проверки авторизации...');
 
     try {
+      // Запуск браузера Playwright
+      this.browser = await chromium.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+      this.page = await this.browser.newPage();
+
       // Сначала переходим на главную страницу, чтобы инициализировать cookies правильно
       await this.page.goto('https://cs.money/', {
-        waitUntil: 'networkidle2',
+        waitUntil: 'networkidle',
         timeout: 60000
       });
 
       // Добавляем задержку для правильной обработки страницы
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await this.page.waitForTimeout(5000);
 
       // Затем переходим на страницу маркета
       await this.page.goto('https://cs.money/ru/market/buy/', {
-        waitUntil: 'networkidle2',
+        waitUntil: 'networkidle',
         timeout: 60000
       });
 
       // Добавляем ещё одну задержку перед проверкой авторизации
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await this.page.waitForTimeout(5000);
 
       // Делаем скриншот для диагностики
       // await this.page.screenshot({ path: 'csmoney-login-check.png' });

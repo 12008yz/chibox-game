@@ -1,17 +1,6 @@
 const db = require('../../models');
-const winston = require('winston');
+const { logger } = require('../../middleware/logger');
 const cache = require('../../middleware/cache');
-
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console(),
-  ],
-});
 
 async function getProfile(req, res) {
   // Защита от IDOR: пользователь запрашивает только свой профиль
@@ -37,13 +26,23 @@ async function getProfile(req, res) {
         {
           model: db.UserAchievement,
           as: 'achievements',
-          include: [{ model: db.Achievement, as: 'achievement' }]
+          include: [{
+            model: db.Achievement,
+            as: 'achievement',
+            attributes: ['id', 'name', 'description']
+          }],
+          limit: 20
         },
         {
           model: db.UserInventory,
           as: 'inventory',
-          include: [{ model: db.Item, as: 'item' }],
-          limit: 50
+          include: [{
+            model: db.Item,
+            as: 'item',
+            attributes: ['id', 'name', 'rarity', 'price', 'image_url']
+          }],
+          limit: 50,
+          order: [['created_at', 'DESC']]
         }
       ]
     });
