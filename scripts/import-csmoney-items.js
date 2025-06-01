@@ -13,7 +13,7 @@ async function getItemsWithPuppeteer(csmoneyService, offset = 0, limit = 60) {
 
     console.log('🌐 Переходим на страницу маркета CS.Money...');
 
-    await csmoneyService.page.goto('https://cs.money/ru/market/buy/', {
+    await csmoneyService.page.goto('https://cs.money/ru/market/sell-orders?limit=60&offset=0&deliverySpeed=instant', {
       waitUntil: 'networkidle2',
       timeout: 60000
     });

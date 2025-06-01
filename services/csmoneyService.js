@@ -308,7 +308,7 @@ class CSMoneyService {
       // Добавляем случайный parameter для обхода кеширования
       const timestamp = Date.now();
 
-      const apiUrl = `https://cs.money/2.0/market/sell-orders?limit=60&offset=${offset}`;
+      const apiUrl = `https://cs.money/2.0/market/sell-orders?limit=60&offset=${offset}&deliverySpeed=instant`;
 
       try {
         // Сначала пробуем через API
