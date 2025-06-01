@@ -33,11 +33,17 @@ class CSMoneyService {
     this.axiosInstance = axios.create({
       baseURL: 'https://cs.money',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+        'User-Agent': this.config.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 YaBrowser/24.10.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
         'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
         'X-Requested-With': 'XMLHttpRequest',
-        'Referer': 'https://cs.money/ru/market/buy/',
+        'Referer': 'https://cs.money/ru/market/sell-orders/',
         'Origin': 'https://cs.money',
         'Cookie': this.cookies
       }
@@ -66,8 +72,9 @@ class CSMoneyService {
 
     this.page = await this.browser.newPage();
 
-    // Устанавливаем современный User-Agent
-    await this.page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
+    // Устанавливаем User-Agent из конфигурации
+    const userAgent = this.config.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 YaBrowser/24.10.0.0 Safari/537.36';
+    await this.page.setUserAgent(userAgent);
 
     // Устанавливаем больший viewport
     await this.page.setViewport({ width: 1920, height: 1080 });
@@ -130,16 +137,47 @@ class CSMoneyService {
 
               if (name && value) {
                 // Определяем домен и path в зависимости от типа cookie
-                // Для cf_clearance, cookie должна быть точной
                 let domain = '.cs.money';
                 let path = '/';
+                let httpOnly = false;
+                let secure = false;
 
+                // Cloudflare cookies
                 if (name === 'cf_clearance') {
-                  domain = '.cs.money';  // Cloudflare должен быть на домене верхнего уровня
-                } else if (name === 'csp-nonce' || name === 'seconds_on_page_-1653249155' ||
-                           name === 'seconds_on_page_104055' || name === 'settings_visual_card_size' ||
-                           name === 'u_dpi' || name === 'u_vp') {
-                  domain = 'cs.money';  // Некоторые cookies устанавливаются без поддомена
+                  domain = '.cs.money';
+                  httpOnly = true;
+                  secure = true;
+                }
+                // CS.Money session cookies
+                else if (name === 'csgo_ses' || name === 'support_token') {
+                  domain = 'cs.money';
+                  httpOnly = true;
+                }
+                // Session-specific cookies
+                else if (name.includes('seconds_on_page_') || name.includes('was_called_in_current_session_') ||
+                         name === 'csp-nonce' || name === 'settings_visual_card_size' ||
+                         name === 'u_dpi' || name === 'u_vp') {
+                  domain = 'cs.money';
+                }
+                // Yandex cookies
+                else if (name.includes('_ym_') || name.includes('yandex') || name.includes('Session_id') ||
+                         name.includes('sessionid') || name.includes('yashr') || name.includes('yp') ||
+                         name.includes('ys') || name.includes('yuidss') || name.includes('bh') ||
+                         name.includes('cycada') || name.includes('font_loaded') || name.includes('gdpr') ||
+                         name.includes('gpb') || name.includes('i') || name.includes('is_gdpr') ||
+                         name.includes('isa') || name.includes('my') || name.includes('sae') ||
+                         name.includes('sessar') || name.includes('skid') || name.includes('ymex')) {
+                  domain = '.yandex.ru';
+                  if (name.includes('Session_id') || name.includes('sessionid') || name.includes('sessar')) {
+                    httpOnly = true;
+                    secure = true;
+                  }
+                }
+                // Other tracking cookies
+                else if (name.includes('_ga') || name.includes('_fb') || name.includes('_gcl') ||
+                         name.includes('_sc') || name.includes('_uet') || name.includes('amplitude') ||
+                         name.includes('_hj') || name.includes('AMP_')) {
+                  domain = '.cs.money';
                 }
 
                 cookiesArr.push({
@@ -147,8 +185,8 @@ class CSMoneyService {
                   value,
                   domain,
                   path,
-                  httpOnly: name === 'cf_clearance' || name === 'csgo_ses' || name === 'support_token',
-                  secure: name === 'cf_clearance'
+                  httpOnly,
+                  secure
                 });
               }
             }
@@ -308,10 +346,15 @@ class CSMoneyService {
       // Добавляем случайный parameter для обхода кеширования
       const timestamp = Date.now();
 
-      const apiUrl = `https://cs.money/2.0/market/sell-orders?limit=60&offset=${offset}&deliverySpeed=instant`;
+      const apiUrl = `/2.0/market/sell-orders?limit=${limit}&offset=${offset}&deliverySpeed=instant`;
 
       try {
-        // Сначала пробуем через API
+        // Добавляем задержку между запросами для избежания блокировки
+        if (offset > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+        }
+
+        logger.info(`Запрос к API: ${apiUrl}`);
         const response = await this.axiosInstance.get(apiUrl);
 
         if (response.data && Array.isArray(response.data.items)) {
@@ -319,27 +362,46 @@ class CSMoneyService {
 
           // Преобразуем формат данных для совместимости с остальным кодом
           const formattedItems = response.data.items.map(item => {
+            // Определяем качество износа из названия
+            let exterior = null;
+            const fullName = item.asset?.names?.full || '';
+            if (fullName.includes('Factory New')) exterior = 'Factory New';
+            else if (fullName.includes('Minimal Wear')) exterior = 'Minimal Wear';
+            else if (fullName.includes('Field-Tested')) exterior = 'Field-Tested';
+            else if (fullName.includes('Well-Worn')) exterior = 'Well-Worn';
+            else if (fullName.includes('Battle-Scarred')) exterior = 'Battle-Scarred';
+
             return {
               id: item.id,
-              name: item.asset?.names?.full || item.asset?.names?.market || '',
-              fullName: item.asset?.names?.full || '',
-              price: item.pricing?.default || 0,
+              name: fullName,
+              fullName: fullName,
+              price: item.pricing?.computed || item.pricing?.default || 0,
               float: item.asset?.float || null,
-              image: item.asset?.images?.steam || '',
-              type: item.asset?.type || '',
+              image: item.asset?.images?.steam || item.asset?.images?.screenshot || '',
+              type: this.getWeaponType(fullName),
               rarity: item.asset?.rarity || '',
               quality: item.asset?.quality || '',
+              exterior: exterior,
+              pattern: item.asset?.pattern || null,
+              stickers: item.stickers || [],
+              keychains: item.keychains || [],
+              isStatTrak: item.asset?.isStatTrak || false,
+              isSouvenir: item.asset?.isSouvenir || false,
               tags: item.asset?.tags || {},
               is_tradable: !item.isMySellOrder,
               in_stock: true,
-              assetId: item.asset?.id || null
+              assetId: item.asset?.id || null,
+              sellerId: item.seller?.botId || null,
+              inspectLink: item.links?.inspectLink || null,
+              rawItem: item // Сохраняем оригинальные данные для отладки
             };
           });
 
           return {
             success: true,
             items: formattedItems,
-            total: response.data.meta?.total || formattedItems.length,
+            total: response.data.items.length,
+            hasMore: response.data.items.length === limit,
             rawItems: response.data.items
           };
         }
@@ -839,6 +901,65 @@ class CSMoneyService {
     }
   }
 
+  // Вспомогательный метод для определения типа оружия
+  getWeaponType(itemName) {
+    if (!itemName) return 'Unknown';
+
+    const name = itemName.toLowerCase();
+
+    // Ножи
+    if (name.includes('knife') || name.includes('bayonet') || name.includes('karambit') ||
+        name.includes('butterfly') || name.includes('flip') || name.includes('gut') ||
+        name.includes('huntsman') || name.includes('falchion') || name.includes('bowie') ||
+        name.includes('shadow daggers') || name.includes('navaja') || name.includes('stiletto') ||
+        name.includes('ursus') || name.includes('talon') || name.includes('cleaver') ||
+        name.includes('classic') || name.includes('paracord') || name.includes('survival') ||
+        name.includes('nomad') || name.includes('skeleton') || name.includes('kukri')) {
+      return 'Knife';
+    }
+
+    // Перчатки
+    if (name.includes('gloves')) {
+      return 'Gloves';
+    }
+
+    // Винтовки
+    if (name.includes('ak-47') || name.includes('m4a4') || name.includes('m4a1-s') ||
+        name.includes('awp') || name.includes('ssg 08') || name.includes('scar-20') ||
+        name.includes('g3sg1') || name.includes('aug') || name.includes('sg 553') ||
+        name.includes('famas') || name.includes('galil ar')) {
+      return 'Rifle';
+    }
+
+    // Пистолеты
+    if (name.includes('glock-18') || name.includes('usp-s') || name.includes('p2000') ||
+        name.includes('p250') || name.includes('tec-9') || name.includes('five-seven') ||
+        name.includes('cz75-auto') || name.includes('desert eagle') || name.includes('dual berettas') ||
+        name.includes('r8 revolver')) {
+      return 'Pistol';
+    }
+
+    // ПП
+    if (name.includes('mp9') || name.includes('mac-10') || name.includes('pp-bizon') ||
+        name.includes('ump-45') || name.includes('p90') || name.includes('mp7') ||
+        name.includes('mp5-sd')) {
+      return 'SMG';
+    }
+
+    // Дробовики
+    if (name.includes('nova') || name.includes('xm1014') || name.includes('sawed-off') ||
+        name.includes('mag-7')) {
+      return 'Shotgun';
+    }
+
+    // Пулеметы
+    if (name.includes('m249') || name.includes('negev')) {
+      return 'Machinegun';
+    }
+
+    return 'Other';
+  }
+
   // Импорт предметов в базу данных
   async importItemsToDb(items) {
     for (const itemData of items) {
@@ -880,14 +1001,22 @@ class CSMoneyService {
           price: itemData.price || 0,
           image_url: itemData.image || '',
           csmoney_id: itemData.id,
-          exterior: exterior,
+          exterior: itemData.exterior || exterior,
           float_value: itemData.float || null,
-          rarity: rarityMap[itemData.rarity] || 'consumer',
+          rarity: rarityMap[itemData.rarity?.toLowerCase()] || 'consumer',
           weapon_type: itemData.type || null,
           csmoney_tags: itemData.tags || {},
           asset_id: itemData.assetId || null,
           is_tradable: itemData.is_tradable !== false,
-          in_stock: itemData.in_stock !== false
+          in_stock: itemData.in_stock !== false,
+          // Дополнительные поля
+          pattern: itemData.pattern || null,
+          stickers: itemData.stickers ? JSON.stringify(itemData.stickers) : null,
+          keychains: itemData.keychains ? JSON.stringify(itemData.keychains) : null,
+          is_stattrak: itemData.isStatTrak || false,
+          is_souvenir: itemData.isSouvenir || false,
+          seller_id: itemData.sellerId || null,
+          inspect_link: itemData.inspectLink || null
         };
 
         if (existingItem) {
