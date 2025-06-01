@@ -188,6 +188,12 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: "Время, когда будет доступен следующий ежедневный кейс"
     },
+    paid_cases_bought_today: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      allowNull: false,
+      comment: "Количество покупных кейсов, купленных сегодня"
+    },
     max_daily_cases: {
       type: DataTypes.INTEGER,
       defaultValue: 0,

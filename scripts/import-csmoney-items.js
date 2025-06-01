@@ -1,228 +1,282 @@
-#!/usr/bin/env node
-
-/**
- * Скрипт для импорта предметов с CS.Money в базу данных
- * Запускается командой: node scripts/import-csmoney-items.js
- */
-
-const CSMoneyService = require('../services/csmoneyService');
+const { chromium } = require('playwright');
 const db = require('../models');
-const winston = require('winston');
+const path = require('path');
+const fs = require('fs');
 
-// Настройка логгера
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ filename: 'import-csmoney-items.log' })
-  ],
-});
-
-async function importCSMoneyItems() {
-  logger.info('Начало импорта предметов с CS.Money...');
-
-  // Загружаем конфигурацию CS.Money
-  const csmoneyConfig = CSMoneyService.loadConfig();
-  const csmoneyService = new CSMoneyService(csmoneyConfig);
+async function importCSMoneyItemsBrowser() {
+  let browser = null;
+  let page = null;
 
   try {
-    // Инициализация сервиса
-    logger.info('Инициализация сервиса CS.Money...');
-    await csmoneyService.initialize();
+    console.log('🚀 Запуск импорта предметов CSMoney через браузер...');
 
-    // Проверяем авторизацию, но для CS.Money возможен импорт и без неё
-    if (!csmoneyService.isLoggedIn) {
-      logger.warn('Авторизация на CS.Money не выполнена. Продолжаем импорт без авторизации.');
+    // Загружаем конфигурацию
+    const configPath = path.join(__dirname, '../config/csmoney_config.json');
+    let config = {};
+
+    if (fs.existsSync(configPath)) {
+      config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      console.log('✅ Конфигурация загружена');
+    } else {
+      console.log('⚠️  Конфигурация не найдена, работаем без cookies');
     }
 
-    // Статистика импорта
-    let totalItems = 0;
-    let newItems = 0;
-    let updatedItems = 0;
-    let errors = 0;
+    // Запускаем браузер
+    browser = await chromium.launch({
+      headless: false, // Покажем браузер для отладки
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor'
+      ]
+    });
 
-    // Импорт по страницам с улучшенной логикой
-    let offset = 0;
-    const limit = 60; // Это максимальный лимит, указанный в API
-    let hasMoreItems = true;
-    let emptyResponsesCount = 0;
-    const maxEmptyResponses = 3; // Максимум пустых ответов подряд
+    const context = await browser.newContext({
+      viewport: { width: 1920, height: 1080 },
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+    });
 
-    logger.info('=== Начало импорта предметов с CS.Money ===');
-    logger.info('Используется улучшенная логика с infinite scroll и множественными селекторами');
+    page = await context.newPage();
 
-    while (hasMoreItems) {
-      logger.info(`\n--- Загрузка предметов с CS.Money (offset: ${offset}, limit: ${limit}) ---`);
+    // Добавляем cookies если есть
+    if (config.cookies) {
+      console.log('🍪 Добавляем cookies...');
 
+      const cookies = config.cookies.split('; ').map(cookie => {
+        const [name, value] = cookie.split('=');
+        return {
+          name: name.trim(),
+          value: value ? value.trim() : '',
+          domain: '.cs.money',
+          path: '/'
+        };
+      });
+
+      await context.addCookies(cookies);
+      console.log(`✅ Добавлено ${cookies.length} cookies`);
+    }
+
+    // Идем на страницу маркета
+    console.log('🌐 Переходим на CSMoney...');
+    await page.goto('https://cs.money/ru/market/buy/', {
+      waitUntil: 'networkidle',
+      timeout: 30000
+    });
+
+    console.log('⏳ Ждем загрузки страницы...');
+    await page.waitForTimeout(3000);
+
+    // Проверяем авторизацию
+    try {
+      const isLoggedIn = await page.locator('[data-testid="user-avatar"], .user-avatar, .avatar').first().isVisible({ timeout: 5000 });
+      if (isLoggedIn) {
+        console.log('✅ Пользователь авторизован');
+      } else {
+        console.log('⚠️  Пользователь не авторизован, но продолжаем');
+      }
+    } catch (e) {
+      console.log('⚠️  Не удалось определить статус авторизации');
+    }
+
+    // Ждем загрузки предметов
+    console.log('🔍 Ищем предметы на странице...');
+
+    const itemSelectors = [
+      '[data-testid="skin-card"]',
+      '.skin-card',
+      '.item-card',
+      '.market-item',
+      '.inventory-item',
+      '[class*="item"]',
+      '[class*="skin"]',
+      '[class*="card"]'
+    ];
+
+    let items = [];
+
+    // Пробуем разные селекторы
+    for (const selector of itemSelectors) {
       try {
-        // Получаем список предметов
-        const response = await csmoneyService.getItems(offset, limit);
-
-        logger.info(`Ответ содержит success: ${response.success}, items: ${response.items ? response.items.length : 0}`);
-
-        if (!response.success || !response.items || response.items.length === 0) {
-          emptyResponsesCount++;
-          logger.warn(`Нет доступных предметов или ошибка запроса (попытка ${emptyResponsesCount}/${maxEmptyResponses})`);
-
-          if (emptyResponsesCount >= maxEmptyResponses) {
-            logger.info('Достигнут максимум пустых ответов. Завершаем импорт.');
-            break;
-          }
-
-          // Увеличиваем offset даже при пустом ответе, чтобы попробовать следующую "страницу"
-          offset += limit;
-          continue;
+        await page.waitForSelector(selector, { timeout: 10000 });
+        items = await page.locator(selector).all();
+        if (items.length > 0) {
+          console.log(`✅ Найдено ${items.length} предметов с селектором: ${selector}`);
+          break;
         }
-
-        // Сбрасываем счетчик пустых ответов
-        emptyResponsesCount = 0;
-
-        const items = response.items;
-        logger.info(`✓ Получено ${items.length} предметов с CS.Money`);
-
-        if (response.total) {
-          logger.info(`Общее количество доступных предметов на сайте: ${response.total}`);
-        }
-
-        // Обновляем статистику
-        totalItems += items.length;
-        logger.info(`Общий прогресс: ${totalItems} предметов обработано`);
-
-        // Импортируем предметы в БД
-        for (const item of items) {
-          try {
-            // Проверяем, существует ли предмет в нашей базе
-            let dbItem = await db.Item.findOne({
-              where: {
-                [db.Sequelize.Op.or]: [
-                  { csmoney_id: item.id },
-                  { steam_market_hash_name: item.name }
-                ]
-              }
-            });
-
-            // Определяем редкость предмета
-            const rarityMap = {
-              'common': 'consumer',
-              'uncommon': 'industrial',
-              'rare': 'milspec',
-              'mythical': 'restricted',
-              'legendary': 'covert',
-              'ancient': 'exotic',
-              'immortal': 'contraband'
-            };
-
-            // Определяем quality и exterior
-            let exterior = null;
-            if (item.name) {
-              const exteriorMatch = item.name.match(/\((Factory New|Minimal Wear|Field-Tested|Well-Worn|Battle-Scarred)\)/);
-              if (exteriorMatch) {
-                exterior = exteriorMatch[1];
-              }
-            }
-
-            // Подготавливаем данные для создания/обновления записи
-            const itemData = {
-              name: item.name || '',
-              steam_market_hash_name: item.name || '',
-              image_url: item.image || '',
-              price: item.price || 0,
-              csmoney_id: item.id,
-              rarity: rarityMap[item.rarity] || 'consumer',
-              drop_weight: 1,
-              weapon_type: item.type || null,
-              exterior: exterior,
-              float_value: item.float || null,
-              quality: item.quality || null,
-              csmoney_rarity: item.rarity || '',
-              csmoney_quality: item.quality || '',
-              csmoney_type: item.type || '',
-              csmoney_tags: item.tags || {},
-              asset_id: item.assetId || null,
-              is_tradable: item.is_tradable !== false,
-              in_stock: item.in_stock !== false
-            };
-
-            // Создаем или обновляем запись в базе данных
-            if (dbItem) {
-              await dbItem.update(itemData);
-              updatedItems++;
-              if (updatedItems % 10 === 0) {
-                logger.info(`Обновлено предметов: ${updatedItems}`);
-              }
-            } else {
-              dbItem = await db.Item.create(itemData);
-              newItems++;
-              if (newItems % 10 === 0) {
-                logger.info(`Создано новых предметов: ${newItems}`);
-              }
-            }
-
-            // Делаем небольшую паузу, чтобы не перегружать API
-            await new Promise(resolve => setTimeout(resolve, 100));
-
-          } catch (itemError) {
-            logger.error(`Ошибка при обработке предмета ID: ${item.id}:`, itemError);
-            errors++;
-          }
-        }
-
-        // Логика определения продолжения импорта
-        if (items.length < limit) {
-          // Если получили меньше предметов чем лимит, значит достигли конца
-          hasMoreItems = false;
-          logger.info('✓ Все доступные предметы загружены (получено меньше лимита).');
-        } else {
-          // Увеличиваем смещение для следующей "страницы"
-          offset += limit;
-          logger.info(`→ Переходим к следующей части. Новый offset: ${offset}`);
-
-          // Делаем паузу перед следующим запросом для избежания блокировки
-          logger.info('Пауза 3 секунды перед следующим запросом...');
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        }
-
-      } catch (pageError) {
-        logger.error(`Ошибка при загрузке страницы (offset: ${offset}):`, pageError);
-        errors++;
-        // Прерываем цикл в случае ошибки
-        break;
+      } catch (e) {
+        console.log(`❌ Селектор ${selector} не сработал`);
       }
     }
 
-    // Выводим статистику импорта
-    logger.info('=== Статистика импорта предметов CS.Money ===');
-    logger.info(`Всего обработано: ${totalItems} предметов`);
-    logger.info(`Создано новых: ${newItems} предметов`);
-    logger.info(`Обновлено: ${updatedItems} предметов`);
-    logger.info(`Ошибок: ${errors}`);
+    if (items.length === 0) {
+      console.log('❌ Предметы не найдены на странице');
 
-    console.log('\n=== Статистика импорта предметов CS.Money ===');
-    console.log(`Всего обработано: ${totalItems} предметов`);
-    console.log(`Создано новых: ${newItems} предметов`);
-    console.log(`Обновлено: ${updatedItems} предметов`);
-    console.log(`Ошибок: ${errors}`);
+      // Делаем скриншот для отладки
+      await page.screenshot({ path: 'csmoney_debug.png', fullPage: true });
+      console.log('📸 Скриншот сохранен как csmoney_debug.png');
+
+      // Выводим HTML страницы
+      const content = await page.content();
+      fs.writeFileSync('csmoney_page.html', content);
+      console.log('📄 HTML страницы сохранен как csmoney_page.html');
+
+      return;
+    }
+
+    console.log(`🎯 Начинаем парсинг ${items.length} предметов...`);
+
+    let processedCount = 0;
+    let createdCount = 0;
+    let updatedCount = 0;
+    let errorCount = 0;
+
+    // Обрабатываем первые 10 предметов для теста
+    const itemsToProcess = items.slice(0, Math.min(10, items.length));
+
+    for (let i = 0; i < itemsToProcess.length; i++) {
+      try {
+        const item = itemsToProcess[i];
+
+        console.log(`📦 Обработка предмета ${i + 1}/${itemsToProcess.length}...`);
+
+        // Извлекаем данные о предмете
+        const itemData = await item.evaluate((element) => {
+          // Ищем название
+          const nameSelectors = [
+            '[data-testid="skin-name"]',
+            '.skin-name',
+            '.item-name',
+            '.card-title',
+            'h3', 'h4', 'h5',
+            '[class*="name"]',
+            '[class*="title"]'
+          ];
+
+          let name = '';
+          for (const selector of nameSelectors) {
+            const nameEl = element.querySelector(selector);
+            if (nameEl && nameEl.textContent.trim()) {
+              name = nameEl.textContent.trim();
+              break;
+            }
+          }
+
+          // Ищем цену
+          const priceSelectors = [
+            '[data-testid="price"]',
+            '.price',
+            '.cost',
+            '[class*="price"]',
+            '[class*="cost"]',
+            '[class*="money"]'
+          ];
+
+          let price = '';
+          for (const selector of priceSelectors) {
+            const priceEl = element.querySelector(selector);
+            if (priceEl && priceEl.textContent.trim()) {
+              price = priceEl.textContent.trim();
+              break;
+            }
+          }
+
+          // Ищем изображение
+          const imgSelectors = [
+            'img[src*="steamcommunity"]',
+            'img[src*="steam"]',
+            'img',
+            '[data-testid="skin-image"] img'
+          ];
+
+          let imageUrl = '';
+          for (const selector of imgSelectors) {
+            const imgEl = element.querySelector(selector);
+            if (imgEl && imgEl.src) {
+              imageUrl = imgEl.src;
+              break;
+            }
+          }
+
+          return {
+            name: name || 'Unknown Item',
+            price: price,
+            imageUrl: imageUrl,
+            rawHTML: element.innerHTML.substring(0, 500) // Для отладки
+          };
+        });
+
+        if (itemData.name && itemData.name !== 'Unknown Item') {
+          console.log(`  📝 ${itemData.name}`);
+          console.log(`  💰 ${itemData.price}`);
+
+          // Парсим цену
+          let numericPrice = 0;
+          if (itemData.price) {
+            const priceMatch = itemData.price.match(/[\d,]+\.?\d*/);
+            if (priceMatch) {
+              numericPrice = parseFloat(priceMatch[0].replace(',', ''));
+            }
+          }
+
+          // Проверяем, существует ли предмет в базе
+          const existingItem = await db.Item.findOne({
+            where: { name: itemData.name }
+          });
+
+          if (existingItem) {
+            // Обновляем существующий предмет
+            await existingItem.update({
+              price: numericPrice,
+              image_url: itemData.imageUrl || existingItem.image_url,
+              is_available: true
+            });
+            updatedCount++;
+          } else {
+            // Создаем новый предмет
+            await db.Item.create({
+              name: itemData.name,
+              price: numericPrice,
+              image_url: itemData.imageUrl,
+              rarity: 'consumer', // По умолчанию
+              drop_weight: 1.0, // По умолчанию
+              min_subscription_tier: 0,
+              is_available: true
+            });
+            createdCount++;
+          }
+
+          processedCount++;
+        } else {
+          console.log(`  ⚠️  Предмет ${i + 1}: данные не извлечены`);
+          console.log(`     HTML: ${itemData.rawHTML.substring(0, 100)}...`);
+          errorCount++;
+        }
+
+        // Небольшая пауза между предметами
+        await page.waitForTimeout(500);
+
+      } catch (error) {
+        console.error(`❌ Ошибка при обработке предмета ${i + 1}:`, error.message);
+        errorCount++;
+      }
+    }
+
+    console.log('\n📊 РЕЗУЛЬТАТЫ ИМПОРТА:');
+    console.log(`✅ Обработано: ${processedCount}`);
+    console.log(`🆕 Создано: ${createdCount}`);
+    console.log(`🔄 Обновлено: ${updatedCount}`);
+    console.log(`❌ Ошибок: ${errorCount}`);
 
   } catch (error) {
-    logger.error('Общая ошибка при импорте предметов:', error);
-    console.log('\x1b[31m%s\x1b[0m', `Ошибка при импорте предметов: ${error.message}`);
+    console.error('❌ Критическая ошибка:', error);
   } finally {
-    // Закрываем сервис
-    logger.info('Закрытие сервиса CS.Money...');
-    await csmoneyService.close();
+    if (page) await page.close();
+    if (browser) await browser.close();
+    console.log('🔐 Браузер закрыт');
   }
 }
 
 // Запускаем импорт
-importCSMoneyItems().catch(error => {
-  logger.error('Необработанная ошибка:', error);
-  console.log('\x1b[31m%s\x1b[0m', `Необработанная ошибка: ${error.message}`);
-  process.exit(1);
-}).finally(() => {
-  // Даем логгеру время завершить запись
-  setTimeout(() => process.exit(0), 2000);
-});
+importCSMoneyItemsBrowser();
