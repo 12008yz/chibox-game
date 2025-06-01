@@ -114,6 +114,28 @@ const Item = sequelize.define('Item', {
       allowNull: true,
       comment: "Источник или коллекция предмета"
     },
+    in_stock: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: "Находится ли предмет на складе (Steam боте/аккаунте для выдачи)"
+    },
+    is_tradable: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+      comment: "Можно ли сейчас передать предмет в трейде (учёт блокировки Steam)"
+    },
+    csmoney_tags: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: "Теги предмета с CS.Money в формате JSON"
+    },
+    asset_id: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "ID ассета на CS.Money"
+    },
   }, {
     timestamps: true,
     underscored: true,
