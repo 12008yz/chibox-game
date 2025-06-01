@@ -15,6 +15,7 @@
     "security-full": "npm run security-audit && npm run security-snyk && npm run security-lint"
   },
   "dependencies": {
+    "@fastify/csrf-protection": "^6.0.0",
     "@playwright/test": "^1.52.0",
     "argon2": "^0.43.0",
     "axios": "^1.9.0",
@@ -22,7 +23,6 @@
     "cheerio": "^1.0.0",
     "compression": "^1.8.0",
     "cookie-parser": "~1.4.4",
-    "@fastify/csrf-protection": "^6.0.0",
     "debug": "~2.6.9",
     "dotenv": "^16.5.0",
     "express": "^4.21.2",
@@ -30,7 +30,6 @@
     "express-validator": "^7.2.1",
     "helmet": "^8.1.0",
     "http-errors": "~1.6.3",
-
     "jsonwebtoken": "^9.0.2",
     "morgan": "~1.9.1",
     "ngrok": "^5.0.0-beta.2",
@@ -40,6 +39,7 @@
     "pg-hstore": "^2.3.4",
     "playwright-core": "^1.52.0",
     "pug": "^3.0.3",
+    "puppeteer": "^24.9.0",
     "redis": "^5.1.1",
     "sequelize": "^6.37.7",
     "socket.io": "^4.8.1",
@@ -54,7 +54,6 @@
     "concurrently": "^7.6.0",
     "eslint": "^9.27.0",
     "eslint-plugin-security": "^3.0.1",
-
     "selfsigned": "^2.4.1",
     "sequelize-cli": "^6.6.2"
   }
