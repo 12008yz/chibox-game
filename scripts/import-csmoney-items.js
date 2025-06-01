@@ -26,93 +26,64 @@ async function importWithBrowser() {
     }
 
     console.log('✅ Успешно авторизованы на CS.Money');
-    console.log('🌐 Переходим на страницу маркета...');
+    console.log('🌐 Загружаем предметы через API...');
 
-    // Переходим на страницу маркета
-    await csmoneyService.page.goto('https://cs.money/ru/market/sell-orders/', {
-      waitUntil: 'networkidle2',
-      timeout: 60000
-    });
+    // Загружаем предметы через API endpoint
+    const limit = 60; // Максимальное количество предметов за один запрос (ограничение API)
+    let offset = 0;
+    const maxItems = 500; // Максимальное количество предметов для импорта
+    let allItems = [];
 
-    console.log('⏳ Ждем загрузки предметов...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    while (allItems.length < maxItems) {
+      const apiUrl = `https://cs.money/2.0/market/sell-orders/?limit=${limit}&offset=${offset}`;
+      console.log(`📡 Запрос к API: ${apiUrl} (offset: ${offset})`);
 
-    // Настраиваем перехват сетевых запросов для получения JSON данных
-    const interceptedData = [];
+      try {
+        await csmoneyService.page.goto(apiUrl, {
+          waitUntil: 'networkidle2',
+          timeout: 30000
+        });
 
-    csmoneyService.page.on('response', async (response) => {
-      const url = response.url();
-      if (url.includes('/2.0/market/sell-orders') && url.includes('deliverySpeed=instant')) {
-        try {
-          const jsonData = await response.json();
-          if (jsonData && jsonData.items && Array.isArray(jsonData.items)) {
-            console.log(`📦 Перехвачен ответ API: ${jsonData.items.length} предметов`);
-            interceptedData.push(...jsonData.items);
+        // Получаем JSON ответ со страницы
+        const jsonResponse = await csmoneyService.page.evaluate(() => {
+          try {
+            return JSON.parse(document.body.innerText);
+          } catch {
+            return null;
           }
-        } catch (error) {
-          console.log('⚠️ Не удалось распарсить JSON ответ');
+        });
+
+        if (jsonResponse && jsonResponse.items && Array.isArray(jsonResponse.items)) {
+          console.log(`✅ Получено ${jsonResponse.items.length} предметов с offset ${offset}`);
+          allItems.push(...jsonResponse.items);
+
+          // Если получили меньше предметов чем limit, значит это последняя страница
+          if (jsonResponse.items.length < limit) {
+            console.log('📄 Достигнут конец списка предметов');
+            break;
+          }
+
+          offset += limit;
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Пауза между запросами
+        } else {
+          console.log('❌ Не удалось получить данные или неожиданная структура ответа');
+          console.log('🔍 Ответ сервера:', JSON.stringify(jsonResponse).substring(0, 200));
+          break;
         }
-      }
-    });
-
-    let totalImported = 0;
-    let scrollAttempts = 0;
-    const maxScrollAttempts = 20;
-    const targetItems = 300; // Целевое количество предметов
-
-    console.log('📜 Начинаем прокрутку для загрузки предметов...');
-
-    while (scrollAttempts < maxScrollAttempts && interceptedData.length < targetItems) {
-      scrollAttempts++;
-
-      console.log(`📊 Попытка прокрутки ${scrollAttempts}/${maxScrollAttempts}`);
-      console.log(`📦 Собрано предметов: ${interceptedData.length}`);
-
-      // Считаем текущее количество предметов на странице
-      const currentItemCount = await csmoneyService.page.evaluate(() => {
-        return document.querySelectorAll('[data-testid="market-item"], .market-item, .item-card').length;
-      });
-
-      console.log(`🎯 Предметов на странице: ${currentItemCount}`);
-
-      // Плавная прокрутка вниз
-      await csmoneyService.page.evaluate(() => {
-        window.scrollTo({
-          top: document.body.scrollHeight,
-          behavior: 'smooth'
-        });
-      });
-
-      // Ждем загрузки новых предметов
-      await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
-
-      // Дополнительная прокрутка для активации ленивой загрузки
-      await csmoneyService.page.evaluate(() => {
-        window.scrollBy(0, 500);
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Проверяем, загрузились ли новые предметы
-      const newItemCount = await csmoneyService.page.evaluate(() => {
-        return document.querySelectorAll('[data-testid="market-item"], .market-item, .item-card').length;
-      });
-
-      if (newItemCount === currentItemCount && scrollAttempts > 3) {
-        console.log('⏸️ Новые предметы не загружаются, попробуем ещё раз...');
-        // Прокручиваем вверх и снова вниз для активации загрузки
-        await csmoneyService.page.evaluate(() => {
-          window.scrollTo(0, document.body.scrollHeight * 0.8);
-        });
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        await csmoneyService.page.evaluate(() => {
-          window.scrollTo(0, document.body.scrollHeight);
-        });
-        await new Promise(resolve => setTimeout(resolve, 3000));
+      } catch (error) {
+        console.error(`❌ Ошибка загрузки API: ${error.message}`);
+        break;
       }
     }
 
-    console.log(`\n📋 Завершена прокрутка. Собрано ${interceptedData.length} предметов из API`);
+    console.log(`📦 Всего загружено предметов: ${allItems.length}`);
+
+    // Используем загруженные данные
+    const interceptedData = allItems;
+
+    console.log(`\n📋 Загружено ${interceptedData.length} предметов через API`);
+
+
 
     if (interceptedData.length === 0) {
       console.log('⚠️ Не удалось получить данные через API, попробуем парсинг страницы...');
@@ -160,9 +131,18 @@ async function importWithBrowser() {
 
     // Обрабатываем и форматируем данные
     console.log('\n🔄 Обработка полученных данных...');
+    console.log(`📊 Всего получено записей: ${interceptedData.length}`);
+
+    // Показываем примеры сырых данных
+    if (interceptedData.length > 0) {
+      console.log('🔍 Пример сырых данных:');
+      console.log(JSON.stringify(interceptedData[0], null, 2).substring(0, 500) + '...');
+    }
 
     const formattedItems = interceptedData.map(item => {
-      // Если это данные от API
+      // Данные приходят напрямую как объекты предметов
+      // Структура: { id, asset: { names, images, ... }, pricing, stickers, etc }
+
       if (item.asset) {
         const fullName = item.asset?.names?.full || '';
         let exterior = null;
@@ -227,6 +207,7 @@ async function importWithBrowser() {
     let importedCount = 0;
     for (const item of uniqueItems) {
       try {
+        console.log(`🔄 Импортирую: ${item.name} (ID: ${item.id})`);
         await csmoneyService.importItemsToDb([item]);
         importedCount++;
 
@@ -235,6 +216,7 @@ async function importWithBrowser() {
         }
       } catch (error) {
         console.error(`❌ Ошибка импорта ${item.name}: ${error.message}`);
+        console.error(`📋 Данные предмета:`, JSON.stringify(item, null, 2));
       }
     }
 

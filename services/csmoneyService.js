@@ -964,25 +964,24 @@ class CSMoneyService {
   async importItemsToDb(items) {
     for (const itemData of items) {
       try {
-        // Поиск существующего предмета по уникальному идентификатору
+        // Поиск существующего предмета по csmoney_id
         const existingItem = await Item.findOne({
           where: {
-            [Op.or]: [
-              { csmoney_id: itemData.id },
-              { steam_market_hash_name: itemData.name }
-            ]
+            csmoney_id: itemData.id
           }
         });
 
-        // Определение редкости предмета
+        // Определение редкости предмета (правильное мапирование для CS:GO)
         const rarityMap = {
-          'common': 'consumer',
-          'uncommon': 'industrial',
-          'rare': 'milspec',
-          'mythical': 'restricted',
-          'legendary': 'covert',
-          'ancient': 'exotic',
-          'immortal': 'contraband'
+          'consumer': 'consumer',
+          'industrial': 'industrial',
+          'mil-spec': 'milspec',
+          'milspec': 'milspec',
+          'restricted': 'restricted',
+          'classified': 'classified',
+          'covert': 'covert',
+          'contraband': 'contraband',
+          'exotic': 'exotic'
         };
 
         // Определение качества износа
@@ -994,29 +993,44 @@ class CSMoneyService {
           }
         }
 
+        // Извлекаем weapon_type и skin_name из названия
+        let weapon_type = null;
+        let skin_name = null;
+        if (itemData.name) {
+          // Для ножей
+          if (itemData.name.includes('★')) {
+            const knifeMatch = itemData.name.match(/★\s*([^|]+)\s*\|\s*([^(]+)/);
+            if (knifeMatch) {
+              weapon_type = knifeMatch[1].trim();
+              skin_name = knifeMatch[2].trim();
+            }
+          } else {
+            // Для обычного оружия
+            const weaponMatch = itemData.name.match(/^([^|]+)\s*\|\s*([^(]+)/);
+            if (weaponMatch) {
+              weapon_type = weaponMatch[1].trim();
+              skin_name = weaponMatch[2].trim();
+            }
+          }
+        }
+
         // Данные для создания/обновления предмета
         const data = {
           name: itemData.name,
           steam_market_hash_name: itemData.name,
-          price: itemData.price || 0,
+          price: parseFloat(itemData.price) || 0,
           image_url: itemData.image || '',
           csmoney_id: itemData.id,
           exterior: itemData.exterior || exterior,
           float_value: itemData.float || null,
           rarity: rarityMap[itemData.rarity?.toLowerCase()] || 'consumer',
-          weapon_type: itemData.type || null,
-          csmoney_tags: itemData.tags || {},
-          asset_id: itemData.assetId || null,
+          weapon_type: weapon_type || itemData.type || null,
+          skin_name: skin_name,
+          asset_id: itemData.assetId ? String(itemData.assetId) : null,
           is_tradable: itemData.is_tradable !== false,
           in_stock: itemData.in_stock !== false,
-          // Дополнительные поля
-          pattern: itemData.pattern || null,
           stickers: itemData.stickers ? JSON.stringify(itemData.stickers) : null,
-          keychains: itemData.keychains ? JSON.stringify(itemData.keychains) : null,
-          is_stattrak: itemData.isStatTrak || false,
-          is_souvenir: itemData.isSouvenir || false,
-          seller_id: itemData.sellerId || null,
-          inspect_link: itemData.inspectLink || null
+          quality: itemData.isStatTrak ? 'StatTrak' : (itemData.isSouvenir ? 'Souvenir' : null)
         };
 
         if (existingItem) {
@@ -1030,6 +1044,9 @@ class CSMoneyService {
         }
       } catch (error) {
         logger.error(`Ошибка при импорте предмета ${itemData.name}:`, error);
+        logger.error('Детали ошибки:', error.stack);
+        // Не останавливаем весь процесс из-за одной ошибки
+        continue;
       }
     }
   }
