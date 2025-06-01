@@ -470,7 +470,7 @@ class CSMoneyService {
           });
 
           // Ждем загрузки новых предметов
-          await this.page.waitForTimeout(scrollDelay);
+          await new Promise(resolve => setTimeout(resolve, scrollDelay));
 
           // Дополнительно ждем появления новых элементов
           try {

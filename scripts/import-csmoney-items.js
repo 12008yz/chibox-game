@@ -84,14 +84,14 @@ async function importWithBrowser() {
       });
 
       // Ждем загрузки новых предметов
-      await csmoneyService.page.waitForTimeout(3000 + Math.random() * 2000);
+      await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
 
       // Дополнительная прокрутка для активации ленивой загрузки
       await csmoneyService.page.evaluate(() => {
         window.scrollBy(0, 500);
       });
 
-      await csmoneyService.page.waitForTimeout(2000);
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Проверяем, загрузились ли новые предметы
       const newItemCount = await csmoneyService.page.evaluate(() => {
@@ -104,11 +104,11 @@ async function importWithBrowser() {
         await csmoneyService.page.evaluate(() => {
           window.scrollTo(0, document.body.scrollHeight * 0.8);
         });
-        await csmoneyService.page.waitForTimeout(1000);
+        await new Promise(resolve => setTimeout(resolve, 1000));
         await csmoneyService.page.evaluate(() => {
           window.scrollTo(0, document.body.scrollHeight);
         });
-        await csmoneyService.page.waitForTimeout(3000);
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
 
