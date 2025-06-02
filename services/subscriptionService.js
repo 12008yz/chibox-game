@@ -1,6 +1,7 @@
 const db = require('../models');
 const { giveDailyCaseToUser } = require('./caseService');
 const { updateUserAchievementProgress } = require('./achievementService');
+const { updateSubscriptionBonus } = require('../utils/userBonusCalculator');
 const winston = require('winston');
 
 const logger = winston.createLogger({
@@ -51,10 +52,12 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
     }
 
     user.max_daily_cases = tier.max_daily_cases;
-    user.subscription_bonus_percentage = tier.bonus_percentage;
     user.cases_available = Math.max(user.cases_available || 0, 1);
 
     await user.save();
+
+    // Обновляем бонус от подписки и пересчитываем общий бонус
+    await updateSubscriptionBonus(userId, tierId);
 
     // Обновляем поле subscription_days_left
     const msLeft = user.subscription_expiry_date.getTime() - new Date().getTime();

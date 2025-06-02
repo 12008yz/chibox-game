@@ -1,6 +1,7 @@
 const db = require('../../models');
 const { logger } = require('../../utils/logger');
 const { addJob } = require('../../services/queueService');
+const { calculateModifiedDropWeights, selectItemWithModifiedWeights } = require('../../utils/dropWeightCalculator');
 
 async function openCase(req, res) {
   try {
@@ -110,18 +111,32 @@ async function openCase(req, res) {
       return res.status(404).json({ message: 'В кейсе нет предметов' });
     }
 
-    const totalWeight = items.reduce((sum, item) => sum + (item.drop_weight || 1), 0);
-    let randomWeight = Math.random() * totalWeight;
+    // Применяем модифицированные веса с учетом бонусов пользователя
+    const userDropBonus = user.total_drop_bonus_percentage || 0;
+
     let selectedItem = null;
-    for (const item of items) {
-      randomWeight -= (item.drop_weight || 1);
-      if (randomWeight <= 0) {
-        selectedItem = item;
-        break;
+    if (userDropBonus > 0) {
+      // Используем модифицированную систему весов
+      const modifiedItems = calculateModifiedDropWeights(items, userDropBonus);
+      selectedItem = selectItemWithModifiedWeights(modifiedItems);
+
+      // Логируем использование бонуса для статистики
+      logger.info(`Пользователь ${userId} открывает кейс с бонусом ${userDropBonus.toFixed(2)}%`);
+    } else {
+      // Стандартная система без бонусов
+      const totalWeight = items.reduce((sum, item) => sum + (item.drop_weight || 1), 0);
+      let randomWeight = Math.random() * totalWeight;
+
+      for (const item of items) {
+        randomWeight -= (item.drop_weight || 1);
+        if (randomWeight <= 0) {
+          selectedItem = item;
+          break;
+        }
       }
-    }
-    if (!selectedItem) {
-      selectedItem = items[items.length - 1];
+      if (!selectedItem) {
+        selectedItem = items[items.length - 1];
+      }
     }
 
     // Транзакция только для критических операций изменения данных

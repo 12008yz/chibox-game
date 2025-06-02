@@ -1,4 +1,5 @@
 const db = require('../models');
+const { updateLevelBonus } = require('../utils/userBonusCalculator');
 
 async function addExperience(userId, amount, sourceType, sourceId = null, description = '') {
   try {
@@ -49,17 +50,23 @@ async function addExperience(userId, amount, sourceType, sourceId = null, descri
       new_level: newLevel
     });
 
-    // Создание уведомления при повышении уровня
+    // Создание уведомления при повышении уровня и обновление бонусов
     if (isLevelUp) {
+      // Обновляем бонус от уровня
+      const bonusInfo = await updateLevelBonus(userId, newLevel);
+
       await db.Notification.create({
         user_id: userId,
         title: 'Повышение уровня',
-        message: `Поздравляем! Вы достигли уровня ${newLevel}.`,
+        message: `Поздравляем! Вы достигли уровня ${newLevel}. Бонус к шансу дорогих предметов: +${bonusInfo.newLevelBonus.toFixed(1)}%`,
         type: 'success',
         category: 'level_up',
         importance: 5,
         data: {
-          newLevel: newLevel
+          newLevel: newLevel,
+          oldLevelBonus: bonusInfo.oldLevelBonus,
+          newLevelBonus: bonusInfo.newLevelBonus,
+          totalBonus: bonusInfo.totalBonus
         }
       });
     }

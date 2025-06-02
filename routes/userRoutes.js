@@ -34,6 +34,7 @@ const {
 } = require('../controllers/user/userController');
 
 const { loginBot, sendTrade, getSteamInventory } = require('../controllers/user/steamBotController');
+const { getUserBonusInfoController } = require('../controllers/user/getUserBonusInfo');
 const authMiddleware = require('../middleware/auth');
 
 
@@ -66,6 +67,7 @@ router.post('/withdraw-balance', authMiddleware, withdrawBalance);
 router.get('/achievements', authMiddleware, getAchievements); //+
 router.get('/missions', authMiddleware, getMissions);
 router.get('/statistics', authMiddleware, getStatistics); //+
+router.get('/bonus-info', authMiddleware, getUserBonusInfoController); // Получить информацию о бонусах
 router.get('/leaderboard', authMiddleware, getLeaderboard); //+
 router.get('/notifications', authMiddleware, getNotifications); //+ (Пустое)
 
