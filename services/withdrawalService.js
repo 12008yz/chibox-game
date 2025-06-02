@@ -54,15 +54,36 @@ class WithdrawalService {
     });
 
     try {
-      // Получаем пользователя и предмет
-      const user = await User.findByPk(withdrawal.user_id);
-      const item = await Item.findByPk(withdrawal.item_id);
+      // Загружаем полные данные заявки с пользователем и предметами
+      const fullWithdrawal = await Withdrawal.findByPk(withdrawal.id, {
+        include: [
+          {
+            model: User,
+            attributes: ['id', 'username', 'steam_trade_url'],
+            as: 'user'
+          },
+          {
+            model: UserInventory,
+            attributes: ['id', 'item_id', 'acquisition_date', 'source'],
+            as: 'items',
+            include: [
+              {
+                model: Item,
+                attributes: ['id', 'name', 'steam_market_hash_name', 'exterior', 'price'],
+                as: 'item'
+              }
+            ]
+          }
+        ]
+      });
 
-      if (!user || !item) {
-        logger.error(`Не найден пользователь (${withdrawal.user_id}) или предмет (${withdrawal.item_id})`);
-        await this.failWithdrawal(withdrawal, 'Пользователь или предмет не найден');
+      if (!fullWithdrawal || !fullWithdrawal.user) {
+        logger.error(`Не найден пользователь для заявки #${withdrawal.id}`);
+        await this.failWithdrawal(withdrawal, 'Пользователь не найден');
         return;
       }
+
+      const user = fullWithdrawal.user;
 
       // Проверяем, есть ли у пользователя trade URL
       const userTradeUrl = user.steam_trade_url;
@@ -72,14 +93,31 @@ class WithdrawalService {
         return;
       }
 
-      // Проверяем, есть ли предмет в инвентаре бота
-      if (await this.checkItemInBotInventory(item)) {
-        logger.info(`Предмет ${item.steam_market_hash_name} найден в инвентаре бота, отправляем...`);
-        return await this.sendItemFromBot(withdrawal, item, userTradeUrl);
-      } else {
-        // Если предмета нет - покупаем его (универсальный метод)
-        logger.info(`Предмет ${item.steam_market_hash_name} не найден в инвентаре бота, ищем на маркетплейсах...`);
-        return await this.buyItemAndSend(withdrawal, item, userTradeUrl);
+      // Получаем предметы для вывода
+      if (!fullWithdrawal.items || fullWithdrawal.items.length === 0) {
+        logger.error(`Нет предметов для вывода в заявке #${withdrawal.id}`);
+        await this.failWithdrawal(withdrawal, 'Нет предметов для вывода');
+        return;
+      }
+
+      // Обрабатываем каждый предмет в заявке
+      for (const inventoryItem of fullWithdrawal.items) {
+        if (!inventoryItem.item) {
+          logger.error(`Предмет не найден для inventory item #${inventoryItem.id}`);
+          continue;
+        }
+
+        const item = inventoryItem.item;
+
+        // Проверяем, есть ли предмет в инвентаре бота
+        if (await this.checkItemInBotInventory(item)) {
+          logger.info(`Предмет ${item.steam_market_hash_name} найден в инвентаре бота, отправляем...`);
+          await this.sendItemFromBot(withdrawal, item, userTradeUrl);
+        } else {
+          // Если предмета нет - покупаем его (универсальный метод)
+          logger.info(`Предмет ${item.steam_market_hash_name} не найден в инвентаре бота, ищем на маркетплейсах...`);
+          await this.buyItemAndSend(withdrawal, item, userTradeUrl);
+        }
       }
     } catch (error) {
       logger.error(`Ошибка при обработке заявки #${withdrawal.id}:`, error);
@@ -470,14 +508,44 @@ class WithdrawalService {
 
       logger.info(`Найдено ${pendingWithdrawals.length} ожидающих заявок на вывод`);
 
-      // Обрабатываем каждую заявку
-      const promises = pendingWithdrawals.map(withdrawal => this.processWithdrawal(withdrawal));
-      await Promise.all(promises);
+      if (pendingWithdrawals.length === 0) {
+        return {
+          success: true,
+          successCount: 0,
+          failCount: 0,
+          totalCount: 0
+        };
+      }
 
-      return pendingWithdrawals.length;
+      let successCount = 0;
+      let failCount = 0;
+
+      // Обрабатываем каждую заявку последовательно
+      for (const withdrawal of pendingWithdrawals) {
+        try {
+          await this.processWithdrawal(withdrawal);
+          successCount++;
+        } catch (error) {
+          logger.error(`Ошибка при обработке заявки #${withdrawal.id}:`, error);
+          failCount++;
+        }
+      }
+
+      return {
+        success: true,
+        successCount,
+        failCount,
+        totalCount: pendingWithdrawals.length
+      };
     } catch (error) {
       logger.error('Ошибка при обработке ожидающих заявок:', error);
-      throw error;
+      return {
+        success: false,
+        successCount: 0,
+        failCount: 0,
+        totalCount: 0,
+        error: error.message
+      };
     }
   }
 
@@ -530,50 +598,110 @@ class WithdrawalService {
   }
 
   // Метод для создания новой заявки на вывод
-  async createWithdrawal(userId, itemId) {
+  async createWithdrawal(userId, inventoryItemIds) {
     try {
-      // Проверяем, существуют ли пользователь и предмет
+      // Проверяем, существует ли пользователь
       const user = await User.findByPk(userId);
-      const item = await Item.findByPk(itemId);
-
-      if (!user || !item) {
-        throw new Error('Пользователь или предмет не найден');
+      if (!user) {
+        throw new Error('Пользователь не найден');
       }
 
-      // Проверяем, есть ли предмет в инвентаре пользователя
-      const userInventoryItem = await UserInventory.findOne({
+      // Проверяем trade URL пользователя
+      if (!user.steam_trade_url) {
+        throw new Error('У пользователя не указан Steam Trade URL');
+      }
+
+      // Если передан одиночный ID предмета, преобразуем в массив
+      const itemIds = Array.isArray(inventoryItemIds) ? inventoryItemIds : [inventoryItemIds];
+
+      // Проверяем, существуют ли предметы в инвентаре пользователя
+      const userInventoryItems = await UserInventory.findAll({
         where: {
+          id: itemIds,
           user_id: userId,
-          item_id: itemId,
-          status: 'active'
-        }
+          status: 'inventory'
+        },
+        include: [
+          {
+            model: Item,
+            attributes: ['id', 'name', 'steam_market_hash_name', 'exterior', 'price'],
+            as: 'item'
+          }
+        ]
       });
 
-      if (!userInventoryItem) {
-        throw new Error('Предмет не найден в инвентаре пользователя или уже выведен');
+      if (userInventoryItems.length === 0) {
+        throw new Error('Предметы не найдены в инвентаре пользователя или уже выведены');
+      }
+
+      if (userInventoryItems.length !== itemIds.length) {
+        throw new Error('Некоторые предметы не найдены в инвентаре');
       }
 
       // Создаем заявку на вывод
       const withdrawal = await Withdrawal.create({
         user_id: userId,
-        item_id: itemId,
+        steam_trade_url: user.steam_trade_url,
         status: 'pending',
+        total_items_count: userInventoryItems.length,
+        total_items_value: userInventoryItems.reduce((sum, item) => sum + parseFloat(item.item.price || 0), 0),
         tracking_data: {
           created_time: new Date().toISOString(),
-          inventory_item_id: userInventoryItem.id
+          inventory_item_ids: itemIds
         }
       });
 
-      // Обновляем статус предмета в инвентаре
-      await userInventoryItem.update({
-        status: 'withdrawal_pending'
-      });
+      // Обновляем статус предметов в инвентаре и связываем их с заявкой
+      for (const inventoryItem of userInventoryItems) {
+        await inventoryItem.update({
+          status: 'withdrawn',
+          withdrawal_id: withdrawal.id,
+          transaction_date: new Date()
+        });
+      }
 
-      logger.info(`Создана заявка на вывод #${withdrawal.id} для пользователя ${user.username} (ID: ${userId}), предмет: ${item.name} (ID: ${itemId})`);
+      logger.info(`Создана заявка на вывод #${withdrawal.id} для пользователя ${user.username} (ID: ${userId}), предметов: ${userInventoryItems.length}`);
 
       return withdrawal;
     } catch (error) {
       logger.error('Ошибка при создании заявки на вывод:', error);
+      throw error;
+    }
+  }
+
+  // Получение ожидающих заявок на вывод
+  async getPendingWithdrawals() {
+    try {
+      const pendingWithdrawals = await Withdrawal.findAll({
+        where: {
+          status: 'pending'
+        },
+        include: [
+          {
+            model: User,
+            attributes: ['id', 'username', 'steam_trade_url'],
+            as: 'user'
+          },
+          {
+            model: UserInventory,
+            attributes: ['id', 'item_id', 'acquisition_date', 'source'],
+            as: 'items',
+            include: [
+              {
+                model: Item,
+                attributes: ['id', 'name', 'steam_market_hash_name', 'exterior', 'price'],
+                as: 'item'
+              }
+            ]
+          }
+        ],
+        order: [['createdAt', 'ASC']]
+      });
+
+      logger.info(`Найдено ${pendingWithdrawals.length} ожидающих заявок на вывод`);
+      return pendingWithdrawals;
+    } catch (error) {
+      logger.error('Ошибка при получении ожидающих заявок:', error);
       throw error;
     }
   }

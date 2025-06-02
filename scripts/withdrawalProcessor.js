@@ -125,14 +125,13 @@ function removeLockFile() {
 // Функция для отправки уведомления в базу данных
 async function sendNotification(message, type = 'error') {
   try {
-    await db.Notification.create({
-      user_id: null, // Для системных уведомлений
-      type: type,
-      title: 'Обработка вывода предметов',
-      message: message,
-      category: 'system'
-    });
-    logger.info(`Уведомление отправлено: ${message}`);
+    // Пока просто логируем системные уведомления
+    // В будущем можно создать отдельную таблицу для системных логов
+    logger.warn(`СИСТЕМНОЕ УВЕДОМЛЕНИЕ [${type.toUpperCase()}]: ${message}`);
+
+    // Можно также отправить email администратору или в Slack/Discord
+    // await notifyAdministrators(message, type);
+
   } catch (error) {
     logger.error(`Ошибка при отправке уведомления: ${error.message}`);
   }
