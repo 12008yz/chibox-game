@@ -28,7 +28,7 @@ const logger = winston.createLogger({
 });
 
 // Пути к файлам конфигурации
-const lisConfigPath = path.join(__dirname, './lis_config.json');
+const csmoneyConfigPath = path.join(__dirname, './csmoney_config.json');
 const steamBotConfigPath = path.join(__dirname, './steam_bot.js');
 const encryptedConfigPath = path.join(__dirname, './encrypted_config.json');
 
@@ -119,36 +119,38 @@ function decryptData(encryptedData, key = getEncryptionKey()) {
 }
 
 /**
- * Функция для безопасной загрузки конфигурации LIS-Skins
+ * Функция для безопасной загрузки конфигурации CS.Money
  */
-function loadLisConfig() {
+function loadCSMoneyConfig() {
   try {
-    if (fs.existsSync(lisConfigPath)) {
-      const config = JSON.parse(fs.readFileSync(lisConfigPath, 'utf8'));
+    if (fs.existsSync(csmoneyConfigPath)) {
+      const config = JSON.parse(fs.readFileSync(csmoneyConfigPath, 'utf8'));
 
       // Проверка наличия необходимых полей
       if (!config.cookies || config.cookies.trim() === '') {
-        logger.warn('В конфигурации LIS-Skins отсутствуют cookies');
+        logger.warn('В конфигурации CS.Money отсутствуют cookies');
       }
 
       return config;
     } else {
-      logger.warn(`Файл конфигурации LIS-Skins не найден по пути: ${lisConfigPath}`);
+      logger.warn(`Файл конфигурации CS.Money не найден по пути: ${csmoneyConfigPath}`);
       return {
         cookies: '',
         csrfToken: '',
         sessionId: '',
-        apiKey: '',
+        steamId: '',
+        userAgent: '',
         lastUpdated: new Date().toISOString()
       };
     }
   } catch (error) {
-    logger.error('Ошибка при загрузке конфигурации LIS-Skins:', error);
+    logger.error('Ошибка при загрузке конфигурации CS.Money:', error);
     return {
       cookies: '',
       csrfToken: '',
       sessionId: '',
-      apiKey: '',
+      steamId: '',
+      userAgent: '',
       lastUpdated: new Date().toISOString()
     };
   }
@@ -236,13 +238,13 @@ function loadEncryptedConfig() {
  * Проверка на наличие необходимых конфигураций
  */
 function checkConfigurations() {
-  const lisConfig = loadLisConfig();
+  const csmoneyConfig = loadCSMoneyConfig();
   const steamBotConfig = loadSteamBotConfig();
 
   const issues = [];
 
-  if (!lisConfig.cookies || lisConfig.cookies.trim() === '') {
-    issues.push('Отсутствуют cookies для LIS-Skins');
+  if (!csmoneyConfig.cookies || csmoneyConfig.cookies.trim() === '') {
+    issues.push('Отсутствуют cookies для CS.Money');
   }
 
   if (!steamBotConfig.accountName || !steamBotConfig.password) {
@@ -268,7 +270,7 @@ if (!configStatus.isValid) {
 }
 
 module.exports = {
-  loadLisConfig,
+  loadCSMoneyConfig,
   loadSteamBotConfig,
   saveEncryptedConfig,
   loadEncryptedConfig,

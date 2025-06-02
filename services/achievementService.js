@@ -118,25 +118,6 @@ module.exports = {
   updateUserAchievementProgress,
   sendAchievementNotification
 };
-const db = require('../models');
-const { Op } = require('sequelize');
-const { addExperience } = require('./xpService');
-
-async function sendAchievementNotification(userId, achievement) {
-  // Здесь можно реализовать отправку уведомления пользователю
-  // Например, через email, push-уведомление или websocket
-  console.log(`Уведомление: Пользователь ${userId} получил достижение "${achievement.name}"`);
-
-  // Создать запись в таблице Notification
-  await db.Notification.create({
-    user_id: userId,
-    type: 'success',  // исправлено на допустимое значение
-    title: 'Достижение получено',  // добавлено обязательное поле
-    category: 'achievement',  // добавлено обязательное поле
-    message: `Вы получили достижение: ${achievement.name}`,
-    date: new Date()
-  });
-}
 
 async function updateUserAchievementProgress(userId, requirementType, progressToAdd) {
   // Найти активные достижения с данным типом требования
