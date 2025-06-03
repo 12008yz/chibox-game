@@ -1,19 +1,19 @@
 const { Withdrawal, Item, User, UserInventory, sequelize } = require('../models');
 const winston = require('winston');
-const SteamBotService = require('./steamBotService');
-const steamBotConfig = {
-  accountName: process.env.STEAM_ACCOUNT_NAME || '',
-  password: process.env.STEAM_PASSWORD || '',
-  sharedSecret: process.env.STEAM_SHARED_SECRET || '',
-  identitySecret: process.env.STEAM_IDENTITY_SECRET || ''
-};
+const SteamBot = require('./steamBotService');
+const steamBotConfig = require('../config/steam_bot.js');
 const CSMoneyService = require('./csmoneyService');
 const csmoneyService = new CSMoneyService(CSMoneyService.loadConfig());
 const { Op } = require('sequelize');
 const moment = require('moment');
 
 // Инициализируем SteamBot
-const steamBotService = new SteamBotService(steamBotConfig);
+const steamBotService = new SteamBot(
+  steamBotConfig.accountName,
+  steamBotConfig.password,
+  steamBotConfig.sharedSecret,
+  steamBotConfig.identitySecret
+);
 
 // Логгер
 const logger = winston.createLogger({
@@ -358,7 +358,7 @@ class WithdrawalService {
         const nextCheckTime = new Date(Date.now() + 5 * 60 * 1000); // через 5 минут
         await withdrawal.update({
           next_attempt_date: nextCheckTime,
-          attempts: (withdrawal.attempts || 0) + 1
+          processing_attempts: (withdrawal.processing_attempts || 0) + 1
         });
 
         return false;
@@ -380,8 +380,7 @@ class WithdrawalService {
       // Поиск предмета в инвентаре
       const botInventory = await steamBotService.getInventory();
       const inventoryItem = botInventory.find(i =>
-        i.market_hash_name === item.steam_market_hash_name &&
-        (!item.exterior || i.exterior === item.exterior)
+        i.market_hash_name === item.steam_market_hash_name
       );
 
       if (!inventoryItem) {
@@ -445,8 +444,7 @@ class WithdrawalService {
 
       // Ищем предмет в инвентаре
       const found = botInventory.some(inventoryItem =>
-        inventoryItem.market_hash_name === item.steam_market_hash_name &&
-        (!item.exterior || inventoryItem.exterior === item.exterior)
+        inventoryItem.market_hash_name === item.steam_market_hash_name
       );
 
       if (found) {
@@ -575,7 +573,7 @@ class WithdrawalService {
           }
 
           // Увеличиваем счетчик попыток
-          if (withdrawal.attempts >= 10) {
+          if (withdrawal.processing_attempts >= 10) {
             logger.warn(`Превышено максимальное количество попыток для заявки #${withdrawal.id}`);
             await this.failWithdrawal(withdrawal, 'Превышено максимальное количество попыток проверки');
           }
@@ -585,7 +583,7 @@ class WithdrawalService {
           const nextCheckTime = new Date(Date.now() + 10 * 60 * 1000); // через 10 минут
           await withdrawal.update({
             next_attempt_date: nextCheckTime,
-            attempts: (withdrawal.attempts || 0) + 1
+            processing_attempts: (withdrawal.processing_attempts || 0) + 1
           });
         }
       }

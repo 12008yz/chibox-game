@@ -222,23 +222,88 @@ class SteamBot {
       offer.send(async (err, status) => {
         if (err) {
           logger.error('Failed to send trade offer:', err);
-          return reject(err);
+          return resolve({
+            success: false,
+            message: err.message,
+            error: err
+          });
         }
         logger.info(`Trade offer sent. Status: ${status}, Offer ID: ${offer.id}`);
         try {
           await this.community.acceptConfirmationForObject(this.identitySecret, offer.id);
           logger.info(`Trade offer confirmed: ${offer.id}`);
+          resolve({
+            success: true,
+            tradeOfferId: offer.id,
+            status,
+            offer
+          });
         } catch (confirmErr) {
           logger.error('Failed to confirm trade offer:', confirmErr);
-          return reject(confirmErr);
+          resolve({
+            success: false,
+            message: confirmErr.message,
+            error: confirmErr
+          });
         }
-        resolve({
-          status,
-          offerId: offer.id,
-          offer
-        });
       });
     });
+  }
+
+  // Метод для отправки трейда с Trade URL (удобная обертка)
+  async sendTrade(tradeUrl, assetIds) {
+    try {
+      // Извлекаем partner ID из Trade URL
+      const partnerMatch = tradeUrl.match(/partner=(\d+)/);
+      if (!partnerMatch) {
+        return {
+          success: false,
+          message: 'Неверный формат Trade URL - не найден partner ID'
+        };
+      }
+
+      // Преобразуем partner ID в SteamID64
+      const partnerId = partnerMatch[1];
+      const partnerSteamId = (BigInt(partnerId) + BigInt('76561197960265728')).toString();
+
+      logger.info(`Извлечен partner ID: ${partnerId}, SteamID64: ${partnerSteamId}`);
+
+      // Получаем предметы из инвентаря по assetIds
+      const inventory = await this.getInventory();
+      const itemsToGive = [];
+
+      for (const assetId of assetIds) {
+        const item = inventory.find(i => i.assetid === assetId.toString());
+        if (item) {
+          itemsToGive.push(item);
+          logger.info(`Добавлен предмет для трейда: ${item.market_hash_name} (${item.assetid})`);
+        } else {
+          logger.error(`Предмет с assetid ${assetId} не найден в инвентаре`);
+          return {
+            success: false,
+            message: `Предмет с assetid ${assetId} не найден в инвентаре`
+          };
+        }
+      }
+
+      if (itemsToGive.length === 0) {
+        return {
+          success: false,
+          message: 'Не найдено предметов для отправки'
+        };
+      }
+
+      // Отправляем трейд
+      return await this.sendTradeOffer(partnerSteamId, itemsToGive, []);
+
+    } catch (error) {
+      logger.error('Ошибка при отправке трейда:', error);
+      return {
+        success: false,
+        message: error.message,
+        error
+      };
+    }
   }
 
   // Принятие торгового предложения
