@@ -402,6 +402,164 @@ class SteamBot {
     });
   }
 
+  // Метод для принятия входящего trade offer
+  async acceptTradeOffer(tradeOfferId) {
+    try {
+      if (!this.loggedIn) {
+        logger.error('Бот не авторизован для принятия trade offer');
+        return {
+          success: false,
+          message: 'Бот не авторизован'
+        };
+      }
+
+      logger.info(`Принимаем trade offer с ID: ${tradeOfferId}`);
+
+      return new Promise((resolve, reject) => {
+        // Получаем trade offer по ID
+        this.manager.getOffer(tradeOfferId, (err, offer) => {
+          if (err) {
+            logger.error(`Ошибка при получении trade offer ${tradeOfferId}:`, err);
+            return resolve({
+              success: false,
+              message: `Ошибка получения trade offer: ${err.message}`
+            });
+          }
+
+          if (!offer) {
+            logger.error(`Trade offer ${tradeOfferId} не найден`);
+            return resolve({
+              success: false,
+              message: 'Trade offer не найден'
+            });
+          }
+
+          // Проверяем состояние trade offer
+          if (offer.state !== 2) { // TradeOfferState.Active = 2
+            logger.warn(`Trade offer ${tradeOfferId} не активен. Состояние: ${offer.state}`);
+            return resolve({
+              success: false,
+              message: `Trade offer не активен. Состояние: ${offer.state}`
+            });
+          }
+
+          // Принимаем trade offer
+          offer.accept((err, status) => {
+            if (err) {
+              logger.error(`Ошибка при принятии trade offer ${tradeOfferId}:`, err);
+              return resolve({
+                success: false,
+                message: `Ошибка принятия trade offer: ${err.message}`
+              });
+            }
+
+            logger.info(`Trade offer ${tradeOfferId} успешно принят. Статус: ${status}`);
+
+            // Подтверждаем trade offer через мобильное приложение
+            if (status === 'pending') {
+              logger.info(`Trade offer ${tradeOfferId} требует подтверждения через мобильное приложение`);
+
+              // Ищем подтверждение
+              this.community.getConfirmations((err, confirmations) => {
+                if (err) {
+                  logger.error(`Ошибка при получении подтверждений для trade offer ${tradeOfferId}:`, err);
+                  return resolve({
+                    success: true,
+                    message: 'Trade offer принят, но требует ручного подтверждения',
+                    status: 'pending_confirmation'
+                  });
+                }
+
+                // Ищем подтверждение для данного trade offer
+                const confirmation = confirmations.find(conf =>
+                  conf.type === 2 && conf.creator === tradeOfferId
+                );
+
+                if (confirmation) {
+                  // Подтверждаем
+                  this.community.respondToConfirmation(confirmation.id, confirmation.key, true, (err) => {
+                    if (err) {
+                      logger.error(`Ошибка при подтверждении trade offer ${tradeOfferId}:`, err);
+                      return resolve({
+                        success: true,
+                        message: 'Trade offer принят, но автоподтверждение не удалось',
+                        status: 'pending_confirmation'
+                      });
+                    }
+
+                    logger.info(`Trade offer ${tradeOfferId} успешно подтвержден`);
+                    resolve({
+                      success: true,
+                      message: 'Trade offer принят и подтвержден',
+                      status: 'accepted'
+                    });
+                  });
+                } else {
+                  logger.warn(`Подтверждение для trade offer ${tradeOfferId} не найдено`);
+                  resolve({
+                    success: true,
+                    message: 'Trade offer принят, но подтверждение не найдено',
+                    status: 'pending_confirmation'
+                  });
+                }
+              });
+            } else {
+              resolve({
+                success: true,
+                message: 'Trade offer успешно принят',
+                status: 'accepted'
+              });
+            }
+          });
+        });
+      });
+    } catch (error) {
+      logger.error(`Критическая ошибка при принятии trade offer ${tradeOfferId}:`, error);
+      return {
+        success: false,
+        message: `Критическая ошибка: ${error.message}`
+      };
+    }
+  }
+
+  // Метод для получения входящих trade offers
+  async getIncomingTradeOffers() {
+    try {
+      if (!this.loggedIn) {
+        logger.error('Бот не авторизован для получения trade offers');
+        return {
+          success: false,
+          message: 'Бот не авторизован'
+        };
+      }
+
+      return new Promise((resolve, reject) => {
+        this.manager.getOffers(1, (err, sent, received) => { // 1 = EOfferFilter.ActiveOnly
+          if (err) {
+            logger.error('Ошибка при получении trade offers:', err);
+            return resolve({
+              success: false,
+              message: `Ошибка получения trade offers: ${err.message}`
+            });
+          }
+
+          logger.info(`Получено ${received.length} входящих trade offers`);
+          resolve({
+            success: true,
+            received: received,
+            sent: sent
+          });
+        });
+      });
+    } catch (error) {
+      logger.error('Критическая ошибка при получении trade offers:', error);
+      return {
+        success: false,
+        message: `Критическая ошибка: ${error.message}`
+      };
+    }
+  }
+
   // Метод для корректного закрытия сервиса
   async shutdown() {
     logger.info('Завершение работы Steam бота...');

@@ -227,9 +227,9 @@ class WithdrawalService {
       return false;
     }
 
-    // Покупаем предмет
-    logger.info(`Покупка предмета ${csmoneyItem.market_hash_name} (ID: ${csmoneyItem.goods_id}, Asset ID: ${cheapestOffer.id})...`);
-    const purchaseResult = await csmoneyService.buyItem(csmoneyItem.goods_id, cheapestOffer.id, cheapestOffer.price);
+    // Покупаем предмет через корзину
+    logger.info(`Покупка предмета ${csmoneyItem.market_hash_name} (ID: ${csmoneyItem.goods_id}, Asset ID: ${cheapestOffer.id}) через корзину...`);
+    const purchaseResult = await csmoneyService.buyItemViaCart(csmoneyItem.goods_id, cheapestOffer.id, cheapestOffer.price);
 
     if (!purchaseResult.success) {
       // Обработка специфичных ошибок
@@ -239,8 +239,8 @@ class WithdrawalService {
         return false;
       }
 
-      if (purchaseResult.error_type === 'item_unavailable') {
-        logger.warn(`Предмет недоступен: ${purchaseResult.message}`);
+      if (purchaseResult.step === 'add_to_cart') {
+        logger.warn(`Не удалось добавить предмет в корзину: ${purchaseResult.message}`);
 
         // Проверяем, есть ли другие предложения
         if (sortedOffers.length > 1) {
@@ -257,25 +257,28 @@ class WithdrawalService {
 
           // Покупаем следующее предложение
           const nextOffer = sortedOffers[1];
-          const nextPurchaseResult = await csmoneyService.buyItem(csmoneyItem.goods_id, nextOffer.id, nextOffer.price);
+          const nextPurchaseResult = await csmoneyService.buyItemViaCart(csmoneyItem.goods_id, nextOffer.id, nextOffer.price);
 
           if (nextPurchaseResult.success) {
-            logger.info(`Предмет успешно куплен (второе предложение) на CS.Money. Order ID: ${nextPurchaseResult.bill_no}`);
+            logger.info(`Предмет успешно куплен (второе предложение) на CS.Money. Order ID: ${nextPurchaseResult.order_id}`);
 
             // Обновляем данные о заявке
             await withdrawal.update({
+              status: 'cart_paid',
               tracking_data: {
                 ...withdrawal.tracking_data,
                 csmoney_purchase: true,
-                csmoney_order_id: nextPurchaseResult.bill_no,
+                csmoney_order_id: nextPurchaseResult.order_id,
                 purchase_time: new Date().toISOString(),
                 purchase_price: nextOffer.price,
-                used_alternate_offer: true
+                used_alternate_offer: true,
+                cart_id: nextPurchaseResult.cart_id,
+                step: 'waiting_trade_offer'
               }
             });
 
-            // Планируем проверку доставки
-            return await this.scheduleDeliveryCheck(withdrawal);
+            // Планируем проверку доставки trade offer
+            return await this.scheduleTradeOfferCheck(withdrawal);
           }
         }
 
@@ -288,20 +291,23 @@ class WithdrawalService {
       return false;
     }
 
-    logger.info(`Предмет успешно куплен на CS.Money. Order ID: ${purchaseResult.bill_no}`);
+    logger.info(`Предмет успешно куплен на CS.Money через корзину. Order ID: ${purchaseResult.order_id}`);
 
-    // Обновляем данные о заявке
+    // Обновляем данные о заявке - теперь статус "оплачено, ждем trade offer"
     await withdrawal.update({
+      status: 'cart_paid',
       tracking_data: {
         ...withdrawal.tracking_data,
         csmoney_purchase: true,
-        csmoney_order_id: purchaseResult.bill_no,
+        csmoney_order_id: purchaseResult.order_id,
         purchase_time: new Date().toISOString(),
-        purchase_price: cheapestOffer.price
+        purchase_price: cheapestOffer.price,
+        cart_id: purchaseResult.cart_id,
+        step: 'waiting_trade_offer'
       }
     });
 
-    return await this.scheduleDeliveryCheck(withdrawal);
+    return await this.scheduleTradeOfferCheck(withdrawal);
   }
 
   // Проверка статуса доставки предмета с CS.Money
@@ -735,6 +741,302 @@ class WithdrawalService {
       return formattedStats;
     } catch (error) {
       logger.error('Ошибка при получении статистики по заявкам:', error);
+      throw error;
+    }
+  }
+
+  // Обработка всех ожидающих заявок на вывод
+  async processAllPendingWithdrawals() {
+    try {
+      let successCount = 0;
+      let failCount = 0;
+
+      // Получаем заявки в разных статусах для обработки
+      const pendingWithdrawals = await this.getPendingWithdrawals();
+      const cartPaidWithdrawals = await this.getCartPaidWithdrawals();
+      const tradeReceivedWithdrawals = await this.getTradeReceivedWithdrawals();
+
+      const allWithdrawals = [...pendingWithdrawals, ...cartPaidWithdrawals, ...tradeReceivedWithdrawals];
+
+      logger.info(`Обрабатываем ${allWithdrawals.length} заявок: ${pendingWithdrawals.length} новых, ${cartPaidWithdrawals.length} ожидающих trade offer, ${tradeReceivedWithdrawals.length} полученных trade offer`);
+
+      for (const withdrawal of allWithdrawals) {
+        try {
+          let result = false;
+
+          if (withdrawal.status === 'pending') {
+            // Обрабатываем новые заявки
+            result = await this.processWithdrawal(withdrawal);
+          } else if (withdrawal.status === 'cart_paid') {
+            // Проверяем статус trade offer для оплаченных заявок
+            result = await this.checkTradeOfferStatus(withdrawal);
+          } else if (withdrawal.status === 'trade_received') {
+            // Обрабатываем полученные trade offer
+            const tradeOffer = withdrawal.tracking_data?.trade_offer_data;
+            if (tradeOffer) {
+              result = await this.acceptTradeOfferAndSendToUser(withdrawal, tradeOffer);
+            }
+          }
+
+          if (result) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } catch (error) {
+          logger.error(`Ошибка при обработке заявки #${withdrawal.id}:`, error);
+          failCount++;
+        }
+      }
+
+      logger.info(`Обработка завершена. Успешно: ${successCount}, С ошибками: ${failCount}`);
+
+      return {
+        success: true,
+        successCount,
+        failCount,
+        totalProcessed: allWithdrawals.length
+      };
+    } catch (error) {
+      logger.error('Ошибка при обработке всех заявок на вывод:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  }
+
+  // Получение заявок со статусом cart_paid (ожидающих trade offer)
+  async getCartPaidWithdrawals() {
+    try {
+      const cartPaidWithdrawals = await Withdrawal.findAll({
+        where: {
+          status: 'cart_paid',
+          next_attempt_date: {
+            [Op.lte]: new Date() // Время следующей попытки наступило
+          }
+        },
+        include: [
+          {
+            model: User,
+            attributes: ['id', 'username', 'steam_trade_url'],
+            as: 'user'
+          },
+          {
+            model: UserInventory,
+            attributes: ['id', 'item_id', 'acquisition_date', 'source'],
+            as: 'items',
+            include: [
+              {
+                model: Item,
+                attributes: ['id', 'name', 'steam_market_hash_name', 'exterior', 'price'],
+                as: 'item'
+              }
+            ]
+          }
+        ],
+        order: [['createdAt', 'ASC']]
+      });
+
+      logger.info(`Найдено ${cartPaidWithdrawals.length} заявок, ожидающих trade offer`);
+      return cartPaidWithdrawals;
+    } catch (error) {
+      logger.error('Ошибка при получении заявок cart_paid:', error);
+      throw error;
+    }
+  }
+
+  // Получение заявок со статусом trade_received (полученные trade offer)
+  async getTradeReceivedWithdrawals() {
+    try {
+      const tradeReceivedWithdrawals = await Withdrawal.findAll({
+        where: {
+          status: 'trade_received'
+        },
+        include: [
+          {
+            model: User,
+            attributes: ['id', 'username', 'steam_trade_url'],
+            as: 'user'
+          },
+          {
+            model: UserInventory,
+            attributes: ['id', 'item_id', 'acquisition_date', 'source'],
+            as: 'items',
+            include: [
+              {
+                model: Item,
+                attributes: ['id', 'name', 'steam_market_hash_name', 'exterior', 'price'],
+                as: 'item'
+              }
+            ]
+          }
+        ],
+        order: [['createdAt', 'ASC']]
+      });
+
+      logger.info(`Найдено ${tradeReceivedWithdrawals.length} заявок с полученными trade offer`);
+      return tradeReceivedWithdrawals;
+    } catch (error) {
+      logger.error('Ошибка при получении заявок trade_received:', error);
+      throw error;
+    }
+  }
+
+  // Планирование проверки trade offer от CS.Money
+  async scheduleTradeOfferCheck(withdrawal) {
+    try {
+      logger.info(`Планируем проверку trade offer для заявки #${withdrawal.id}`);
+
+      // Устанавливаем время следующей проверки - через 10 минут
+      const nextCheckTime = new Date(Date.now() + 10 * 60 * 1000);
+
+      await withdrawal.update({
+        next_attempt_date: nextCheckTime,
+        tracking_data: {
+          ...withdrawal.tracking_data,
+          trade_offer_checks_scheduled: true,
+          next_check_time: nextCheckTime.toISOString(),
+          max_wait_until: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString() // 12 часов максимум
+        }
+      });
+
+      logger.info(`Следующая проверка trade offer запланирована на ${nextCheckTime.toISOString()}`);
+      return true;
+    } catch (error) {
+      logger.error(`Ошибка при планировании проверки trade offer для заявки #${withdrawal.id}:`, error);
+      return false;
+    }
+  }
+
+  // Проверка статуса trade offer от CS.Money
+  async checkTradeOfferStatus(withdrawal) {
+    try {
+      if (!withdrawal.tracking_data || !withdrawal.tracking_data.csmoney_order_id) {
+        logger.error(`Нет данных о заказе CS.Money для заявки #${withdrawal.id}`);
+        return false;
+      }
+
+      const orderId = withdrawal.tracking_data.csmoney_order_id;
+      logger.info(`Проверяем статус trade offer для заказа ${orderId}`);
+
+      // Инициализируем CS.Money сервис
+      await csmoneyService.initialize();
+
+      // Проверяем статус trade offer
+      const tradeStatus = await csmoneyService.checkTradeStatus(orderId);
+
+      if (!tradeStatus.success) {
+        logger.error(`Ошибка при проверке статуса trade offer для Order ID ${orderId}: ${tradeStatus.message}`);
+        return false;
+      }
+
+      // Обновляем tracking data с последней информацией
+      await withdrawal.update({
+        tracking_data: {
+          ...withdrawal.tracking_data,
+          last_trade_check: new Date().toISOString(),
+          last_trade_status: tradeStatus.status,
+          trade_offer_data: tradeStatus.trade_offer
+        }
+      });
+
+      // Если trade offer готов к принятию
+      if (tradeStatus.is_ready && tradeStatus.trade_offer) {
+        logger.info(`Trade offer готов для заказа ${orderId}. Статус: ${tradeStatus.status}`);
+
+        // Обновляем статус заявки
+        await withdrawal.update({
+          status: 'trade_received',
+          tracking_data: {
+            ...withdrawal.tracking_data,
+            trade_offer_received: true,
+            trade_offer_received_time: new Date().toISOString(),
+            steam_trade_offer_id: tradeStatus.trade_offer.id
+          }
+        });
+
+        // Принимаем trade offer и отправляем пользователю
+        return await this.acceptTradeOfferAndSendToUser(withdrawal, tradeStatus.trade_offer);
+      } else {
+        logger.info(`Trade offer еще не готов для заказа ${orderId}. Статус: ${tradeStatus.status}`);
+
+        // Проверяем, не истекло ли время ожидания (12 часов)
+        const purchaseTime = new Date(withdrawal.tracking_data.purchase_time);
+        const maxWaitTime = new Date(purchaseTime.getTime() + 12 * 60 * 60 * 1000); // 12 часов после покупки
+
+        if (new Date() > maxWaitTime) {
+          logger.warn(`Превышено время ожидания trade offer для заказа ${orderId}. Заявка будет помечена как неудачная.`);
+          await this.failWithdrawal(withdrawal, 'Превышено время ожидания trade offer от CS.Money (12 часов)');
+          return false;
+        }
+
+        // Планируем следующую проверку через 30 минут
+        const nextCheckTime = new Date(Date.now() + 30 * 60 * 1000);
+        await withdrawal.update({
+          next_attempt_date: nextCheckTime,
+          processing_attempts: (withdrawal.processing_attempts || 0) + 1,
+          tracking_data: {
+            ...withdrawal.tracking_data,
+            next_check_time: nextCheckTime.toISOString()
+          }
+        });
+
+        return false;
+      }
+    } catch (error) {
+      logger.error(`Ошибка при проверке статуса trade offer:`, error);
+      throw error;
+    }
+  }
+
+  // Принятие trade offer и отправка предмета пользователю
+  async acceptTradeOfferAndSendToUser(withdrawal, tradeOffer) {
+    try {
+      logger.info(`Принимаем trade offer ${tradeOffer.id} и отправляем предмет пользователю для заявки #${withdrawal.id}`);
+
+      // Инициализируем Steam bot
+      await steamBotService.initialize();
+
+      // Принимаем входящий trade offer от CS.Money
+      const acceptResult = await steamBotService.acceptTradeOffer(tradeOffer.id);
+
+      if (!acceptResult.success) {
+        logger.error(`Не удалось принять trade offer ${tradeOffer.id}: ${acceptResult.message}`);
+        await this.failWithdrawal(withdrawal, `Ошибка принятия trade offer: ${acceptResult.message}`);
+        return false;
+      }
+
+      logger.info(`Trade offer ${tradeOffer.id} успешно принят`);
+
+      // Обновляем статус
+      await withdrawal.update({
+        status: 'trade_accepted',
+        tracking_data: {
+          ...withdrawal.tracking_data,
+          trade_offer_accepted: true,
+          trade_offer_accepted_time: new Date().toISOString()
+        }
+      });
+
+      // Ждем небольшое время для поступления предмета в инвентарь
+      setTimeout(async () => {
+        try {
+          // Отправляем предмет пользователю
+          const userTradeUrl = withdrawal.user.steam_trade_url;
+          const sendResult = await this.sendItemFromBot(withdrawal, withdrawal.items[0].item, userTradeUrl);
+
+          if (sendResult) {
+            logger.info(`Предмет успешно отправлен пользователю для заявки #${withdrawal.id}`);
+          }
+        } catch (error) {
+          logger.error(`Ошибка при отправке предмета пользователю для заявки #${withdrawal.id}:`, error);
+        }
+      }, 30000); // Ждем 30 секунд для поступления предмета
+
+      return true;
+    } catch (error) {
+      logger.error(`Ошибка при принятии trade offer и отправке пользователю:`, error);
       throw error;
     }
   }

@@ -884,9 +884,16 @@ class CSMoneyService {
       // Получаем баланс со страницы через браузер
       await this.page.goto('https://cs.money/ru/market/buy/', { waitUntil: 'networkidle2', timeout: 30000 });
 
+      // Ждем дополнительное время для полной загрузки
+      await this.page.waitForTimeout(3000);
+
       const balance = await this.page.evaluate(() => {
-        // Расширенный поиск элемента баланса
+        // Новые селекторы для актуального HTML CS.Money
         const balanceSelectors = [
+          // Основные селекторы для новой структуры
+          '.csm_77ec012e .csm_541445e7', // Класс из вашего HTML
+          '.csm_541445e7', // Прямой класс суммы
+          // Старые селекторы на всякий случай
           '.balance',
           '.user-balance',
           '.user-panel__balance',
@@ -898,24 +905,170 @@ class CSMoneyService {
         for (const selector of balanceSelectors) {
           const balanceEl = document.querySelector(selector);
           if (balanceEl) {
-            // Извлекаем только число из текста
             const balanceText = balanceEl.textContent.trim();
-            const balanceMatch = balanceText.match(/\d+(\.\d+)?/);
+            console.log(`Найден элемент баланса с селектором ${selector}: "${balanceText}"`);
+
+            // Ищем доллары ($ 1.20) или просто числа
+            let balanceMatch = balanceText.match(/\$\s*(\d+(?:\.\d+)?)/);
             if (balanceMatch) {
-              return parseFloat(balanceMatch[0]);
+              console.log(`Найден баланс в долларах: ${balanceMatch[1]}`);
+              return parseFloat(balanceMatch[1]);
+            }
+
+            // Если не нашли доллары, ищем просто число
+            balanceMatch = balanceText.match(/(\d+(?:\.\d+)?)/);
+            if (balanceMatch) {
+              console.log(`Найден числовой баланс: ${balanceMatch[1]}`);
+              return parseFloat(balanceMatch[1]);
             }
           }
         }
+
+        // Дополнительный поиск по всем элементам, содержащим $ и число
+        const allElements = document.querySelectorAll('*');
+        for (const element of allElements) {
+          if (element.children.length === 0) { // Только текстовые элементы
+            const text = element.textContent.trim();
+            const dollarMatch = text.match(/^\$\s*(\d+(?:\.\d+)?)$/);
+            if (dollarMatch) {
+              console.log(`Найден баланс через поиск по всем элементам: ${dollarMatch[1]}`);
+              return parseFloat(dollarMatch[1]);
+            }
+          }
+        }
+
+        console.log('Баланс не найден, возвращаем 0');
         return 0;
       });
 
-      logger.info(`Текущий баланс на CS.Money: ${balance}`);
+      // Дополнительное логирование для отладки
+      const pageInfo = await this.page.evaluate(() => {
+        return {
+          title: document.title,
+          url: window.location.href,
+          bodyText: document.body.textContent.substring(0, 500),
+          csm77_elements: document.querySelectorAll('.csm_77ec012e').length,
+          csm541_elements: document.querySelectorAll('.csm_541445e7').length,
+          dollar_signs: (document.body.textContent.match(/\$/g) || []).length
+        };
+      });
+
+      logger.info('Информация о странице CS.Money:', JSON.stringify(pageInfo, null, 2));
+      logger.info(`Текущий баланс на CS.Money через парсинг: ${balance}`);
+
+      // Если парсинг не сработал, попробуем API запрос
+      if (balance === 0) {
+        logger.info('Парсинг баланса вернул 0, пробуем получить через API...');
+        try {
+          const apiBalance = await this.getBalanceViaAPI();
+          if (apiBalance.success && apiBalance.balance > 0) {
+            logger.info(`Баланс через API: ${apiBalance.balance}`);
+            return apiBalance;
+          }
+        } catch (apiError) {
+          logger.warn('API запрос баланса не удался:', apiError);
+        }
+      }
+
       return {
         success: true,
         balance: balance
       };
     } catch (error) {
       logger.error('Ошибка при получении баланса CS.Money:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  }
+
+  // Альтернативный метод получения баланса через API
+  async getBalanceViaAPI() {
+    try {
+      if (!this.isLoggedIn) {
+        await this.initialize();
+        if (!this.isLoggedIn) {
+          return {
+            success: false,
+            message: 'Не авторизован на CS.Money'
+          };
+        }
+      }
+
+      // Пробуем различные API endpoints для получения информации о пользователе
+      const endpoints = [
+        '/2.0/user/profile',
+        '/2.0/user/balance',
+        '/2.0/user/info',
+        '/api/user/balance',
+        '/api/profile'
+      ];
+
+      for (const endpoint of endpoints) {
+        try {
+          logger.info(`Пробуем получить баланс через API endpoint: ${endpoint}`);
+          const response = await this.axiosInstance.get(endpoint);
+
+          if (response.data) {
+            logger.info(`Ответ API ${endpoint}:`, JSON.stringify(response.data).substring(0, 500));
+
+            // Ищем баланс в различных полях ответа
+            const balanceFields = ['balance', 'money', 'wallet', 'usd', 'dollars', 'funds'];
+            for (const field of balanceFields) {
+              if (response.data[field] !== undefined) {
+                const balanceValue = parseFloat(response.data[field]);
+                if (!isNaN(balanceValue)) {
+                  logger.info(`Найден баланс через API ${endpoint}, поле ${field}: ${balanceValue}`);
+                  return {
+                    success: true,
+                    balance: balanceValue,
+                    source: `API_${endpoint}_${field}`
+                  };
+                }
+              }
+            }
+
+            // Ищем баланс в вложенных объектах
+            if (typeof response.data === 'object') {
+              const searchInObject = (obj, path = '') => {
+                for (const [key, value] of Object.entries(obj)) {
+                  const currentPath = path ? `${path}.${key}` : key;
+
+                  if (typeof value === 'number' && balanceFields.some(field => key.toLowerCase().includes(field))) {
+                    logger.info(`Найден баланс в вложенном объекте ${currentPath}: ${value}`);
+                    return value;
+                  }
+
+                  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                    const nestedResult = searchInObject(value, currentPath);
+                    if (nestedResult !== null) return nestedResult;
+                  }
+                }
+                return null;
+              };
+
+              const nestedBalance = searchInObject(response.data);
+              if (nestedBalance !== null) {
+                return {
+                  success: true,
+                  balance: nestedBalance,
+                  source: `API_${endpoint}_nested`
+                };
+              }
+            }
+          }
+        } catch (endpointError) {
+          logger.warn(`API endpoint ${endpoint} не доступен:`, endpointError.message);
+        }
+      }
+
+      return {
+        success: false,
+        message: 'Не удалось получить баланс ни через один API endpoint'
+      };
+    } catch (error) {
+      logger.error('Ошибка при получении баланса через API:', error);
       return {
         success: false,
         message: error.message
@@ -1114,6 +1267,289 @@ class CSMoneyService {
         // Не останавливаем весь процесс из-за одной ошибки
         continue;
       }
+    }
+  }
+
+  // Новые методы для работы с корзиной CS.Money
+
+  // Метод для добавления предмета в корзину
+  async addToCart(itemId, assetId) {
+    if (!this.isLoggedIn) {
+      await this.initialize();
+      if (!this.isLoggedIn) {
+        throw new Error('Необходимо авторизоваться на CS.Money для добавления в корзину');
+      }
+    }
+
+    logger.info(`Добавление предмета в корзину: Item ID ${itemId}, Asset ID ${assetId}`);
+
+    try {
+      // URL для добавления в корзину
+      const addToCartUrl = '/2.0/market/cart/add';
+
+      // Данные для запроса
+      const data = {
+        item_id: itemId,
+        asset_id: assetId,
+        _csrf: this.csrfToken
+      };
+
+      // Отправляем запрос на добавление в корзину
+      const response = await this.axiosInstance.post(addToCartUrl, data);
+
+      if (response.data && response.data.success) {
+        logger.info(`Предмет успешно добавлен в корзину: ${response.data.cart_id || 'Нет ID корзины'}`);
+        return {
+          success: true,
+          cart_id: response.data.cart_id,
+          data: response.data
+        };
+      } else {
+        logger.warn(`Ошибка добавления предмета в корзину: ${response.data.message || JSON.stringify(response.data)}`);
+        return {
+          success: false,
+          message: response.data.message || 'Неизвестная ошибка',
+          error_type: response.data.error || 'unknown',
+          data: response.data
+        };
+      }
+    } catch (error) {
+      logger.error(`Ошибка при добавлении предмета в корзину (ID: ${itemId}):`, error);
+      throw error;
+    }
+  }
+
+  // Метод для получения содержимого корзины
+  async getCart() {
+    if (!this.isLoggedIn) {
+      await this.initialize();
+      if (!this.isLoggedIn) {
+        throw new Error('Необходимо авторизоваться на CS.Money для просмотра корзины');
+      }
+    }
+
+    try {
+      const response = await this.axiosInstance.get('/2.0/market/cart');
+
+      if (response.data) {
+        logger.info(`Получено содержимое корзины: ${response.data.items?.length || 0} предметов`);
+        return {
+          success: true,
+          items: response.data.items || [],
+          total_price: response.data.total_price || 0,
+          data: response.data
+        };
+      } else {
+        return {
+          success: false,
+          message: 'Неверный формат ответа корзины'
+        };
+      }
+    } catch (error) {
+      logger.error('Ошибка при получении корзины:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  }
+
+  // Метод для оплаты корзины
+  async payCart() {
+    if (!this.isLoggedIn) {
+      await this.initialize();
+      if (!this.isLoggedIn) {
+        throw new Error('Необходимо авторизоваться на CS.Money для оплаты корзины');
+      }
+    }
+
+    logger.info('Оплата корзины на CS.Money...');
+
+    try {
+      // Сначала получаем текущий баланс и содержимое корзины
+      const cartResult = await this.getCart();
+      if (!cartResult.success) {
+        return {
+          success: false,
+          message: 'Не удалось получить содержимое корзины'
+        };
+      }
+
+      const balanceResult = await this.getBalance();
+      if (!balanceResult.success) {
+        return {
+          success: false,
+          message: 'Не удалось получить баланс'
+        };
+      }
+
+      // Проверяем достаточность средств
+      if (balanceResult.balance < cartResult.total_price) {
+        logger.error(`Недостаточно средств для оплаты корзины. Баланс: ${balanceResult.balance}, Цена: ${cartResult.total_price}`);
+        return {
+          success: false,
+          message: `Недостаточно средств. Баланс: ${balanceResult.balance}, Требуется: ${cartResult.total_price}`,
+          error_type: 'insufficient_balance'
+        };
+      }
+
+      // URL для оплаты корзины
+      const payUrl = '/2.0/market/cart/pay';
+
+      // Данные для запроса
+      const data = {
+        _csrf: this.csrfToken
+      };
+
+      // Отправляем запрос на оплату
+      const response = await this.axiosInstance.post(payUrl, data);
+
+      if (response.data && response.data.success) {
+        logger.info(`Корзина успешно оплачена. Order ID: ${response.data.order_id || 'Нет ID заказа'}`);
+        return {
+          success: true,
+          order_id: response.data.order_id,
+          total_paid: cartResult.total_price,
+          data: response.data
+        };
+      } else {
+        logger.warn(`Ошибка оплаты корзины: ${response.data.message || JSON.stringify(response.data)}`);
+        return {
+          success: false,
+          message: response.data.message || 'Неизвестная ошибка оплаты',
+          error_type: response.data.error || 'unknown',
+          data: response.data
+        };
+      }
+    } catch (error) {
+      logger.error('Ошибка при оплате корзины:', error);
+      throw error;
+    }
+  }
+
+  // Метод для очистки корзины
+  async clearCart() {
+    if (!this.isLoggedIn) {
+      await this.initialize();
+      if (!this.isLoggedIn) {
+        throw new Error('Необходимо авторизоваться на CS.Money для очистки корзины');
+      }
+    }
+
+    try {
+      const response = await this.axiosInstance.post('/2.0/market/cart/clear', {
+        _csrf: this.csrfToken
+      });
+
+      if (response.data && response.data.success) {
+        logger.info('Корзина успешно очищена');
+        return { success: true };
+      } else {
+        logger.warn(`Ошибка очистки корзины: ${response.data.message || JSON.stringify(response.data)}`);
+        return {
+          success: false,
+          message: response.data.message || 'Ошибка очистки корзины'
+        };
+      }
+    } catch (error) {
+      logger.error('Ошибка при очистке корзины:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  }
+
+  // Метод для проверки статуса trade offer
+  async checkTradeStatus(orderId) {
+    if (!this.isLoggedIn) {
+      await this.initialize();
+      if (!this.isLoggedIn) {
+        throw new Error('Необходимо авторизоваться на CS.Money для проверки статуса');
+      }
+    }
+
+    try {
+      const response = await this.axiosInstance.get(`/2.0/market/order/${orderId}/status`);
+
+      if (response.data) {
+        const status = response.data.status;
+        const tradeOffer = response.data.trade_offer;
+
+        logger.info(`Статус заказа ${orderId}: ${status}`);
+
+        return {
+          success: true,
+          status: status,
+          trade_offer: tradeOffer,
+          is_ready: status === 'trade_sent' || status === 'completed',
+          data: response.data
+        };
+      } else {
+        return {
+          success: false,
+          message: 'Неверный формат ответа статуса'
+        };
+      }
+    } catch (error) {
+      logger.error(`Ошибка при проверке статуса заказа ${orderId}:`, error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  }
+
+  // Комбинированный метод для покупки через корзину
+  async buyItemViaCart(itemId, assetId, price) {
+    logger.info(`Начинаем покупку предмета через корзину: Item ID ${itemId}, Asset ID ${assetId}, Цена ${price}`);
+
+    try {
+      // Шаг 1: Очищаем корзину на всякий случай
+      await this.clearCart();
+
+      // Шаг 2: Добавляем предмет в корзину
+      const addResult = await this.addToCart(itemId, assetId);
+      if (!addResult.success) {
+        return {
+          success: false,
+          message: `Не удалось добавить предмет в корзину: ${addResult.message}`,
+          step: 'add_to_cart'
+        };
+      }
+
+      // Шаг 3: Оплачиваем корзину
+      const payResult = await this.payCart();
+      if (!payResult.success) {
+        // Очищаем корзину в случае ошибки
+        await this.clearCart();
+        return {
+          success: false,
+          message: `Не удалось оплатить корзину: ${payResult.message}`,
+          error_type: payResult.error_type,
+          step: 'pay_cart'
+        };
+      }
+
+      logger.info(`Предмет успешно куплен через корзину. Order ID: ${payResult.order_id}`);
+
+      return {
+        success: true,
+        order_id: payResult.order_id,
+        total_paid: payResult.total_paid,
+        cart_id: addResult.cart_id,
+        step: 'completed'
+      };
+
+    } catch (error) {
+      logger.error(`Ошибка при покупке предмета через корзину (ID: ${itemId}):`, error);
+      // Пытаемся очистить корзину в случае любой ошибки
+      try {
+        await this.clearCart();
+      } catch (clearError) {
+        logger.warn('Не удалось очистить корзину после ошибки:', clearError);
+      }
+      throw error;
     }
   }
 
