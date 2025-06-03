@@ -687,12 +687,32 @@ class CSMoneyService {
 
       logger.info(`Поиск предмета на CS.Money: ${name} (${exterior || 'любой износ'})...`);
 
-      // Используем обновленный API поиска CS.Money
-      const searchUrl = `/2.0/market/search?q=${encodeURIComponent(name)}&limit=20`;
-      const response = await this.axiosInstance.get(searchUrl);
+      // Используем браузер вместо axios для обхода CloudFlare
+      const searchUrl = `https://cs.money/2.0/market/sell-orders/?limit=60&offset=0`;
 
-      if (response.data && Array.isArray(response.data.items)) {
-        const items = response.data.items;
+      logger.info(`Переход к URL поиска через браузер: ${searchUrl}`);
+      await this.page.goto(searchUrl, {
+        waitUntil: 'networkidle2',
+        timeout: 30000
+      });
+
+      // Получаем JSON ответ со страницы
+      const response = await this.page.evaluate(() => {
+        try {
+          const bodyText = document.body.innerText;
+          console.log('Raw body text:', bodyText.substring(0, 500)); // Логируем первые 500 символов
+          return JSON.parse(bodyText);
+        } catch (error) {
+          console.log('JSON parse error:', error.message);
+          console.log('Document body HTML:', document.body.innerHTML.substring(0, 500));
+          return null;
+        }
+      });
+
+      logger.info(`Ответ поиска CS.Money: ${JSON.stringify(response).substring(0, 200)}`);
+
+      if (response && Array.isArray(response.items)) {
+        const items = response.items;
         logger.info(`Найдено ${items.length} предметов по запросу "${name}"`);
 
         // Преобразуем формат данных
@@ -829,16 +849,30 @@ class CSMoneyService {
     }
 
     try {
-      // Получаем баланс со страницы
+      // Получаем баланс со страницы через браузер
       await this.page.goto('https://cs.money/ru/market/buy/', { waitUntil: 'networkidle2', timeout: 30000 });
 
       const balance = await this.page.evaluate(() => {
-        const balanceEl = document.querySelector('.balance');
-        if (balanceEl) {
-          // Извлекаем только число из текста
-          const balanceText = balanceEl.textContent.trim();
-          const balanceMatch = balanceText.match(/\d+(\.\d+)?/);
-          return balanceMatch ? parseFloat(balanceMatch[0]) : 0;
+        // Расширенный поиск элемента баланса
+        const balanceSelectors = [
+          '.balance',
+          '.user-balance',
+          '.user-panel__balance',
+          '.profile-balance',
+          '[data-testid="balance"]',
+          '.wallet-balance'
+        ];
+
+        for (const selector of balanceSelectors) {
+          const balanceEl = document.querySelector(selector);
+          if (balanceEl) {
+            // Извлекаем только число из текста
+            const balanceText = balanceEl.textContent.trim();
+            const balanceMatch = balanceText.match(/\d+(\.\d+)?/);
+            if (balanceMatch) {
+              return parseFloat(balanceMatch[0]);
+            }
+          }
         }
         return 0;
       });
