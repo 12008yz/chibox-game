@@ -687,8 +687,11 @@ class CSMoneyService {
 
       logger.info(`Поиск предмета на CS.Money: ${name} (${exterior || 'любой износ'})...`);
 
-      // Используем браузер вместо axios для обхода CloudFlare
-      const searchUrl = `https://cs.money/2.0/market/sell-orders/?limit=60&offset=0`;
+      // Попробуем разные варианты поиска
+      const encodedName = encodeURIComponent(name);
+
+      // Используем правильный API endpoint с параметром name
+      const searchUrl = `https://cs.money/2.0/market/sell-orders?limit=60&offset=0&name=${encodedName}`;
 
       logger.info(`Переход к URL поиска через браузер: ${searchUrl}`);
       await this.page.goto(searchUrl, {
@@ -697,7 +700,7 @@ class CSMoneyService {
       });
 
       // Получаем JSON ответ со страницы
-      const response = await this.page.evaluate(() => {
+      let response = await this.page.evaluate(() => {
         try {
           const bodyText = document.body.innerText;
           console.log('Raw body text:', bodyText.substring(0, 500)); // Логируем первые 500 символов
@@ -710,6 +713,27 @@ class CSMoneyService {
       });
 
       logger.info(`Ответ поиска CS.Money: ${JSON.stringify(response).substring(0, 200)}`);
+
+      // Если поиск по name не сработал, попробуем без параметров и отфильтруем на клиенте
+      if (!response || !Array.isArray(response.items) || response.items.length === 0) {
+        logger.info('Поиск с параметрами не дал результатов, пробуем общий список...');
+        const fallbackUrl = `https://cs.money/2.0/market/sell-orders?limit=200&offset=0`;
+        await this.page.goto(fallbackUrl, {
+          waitUntil: 'networkidle2',
+          timeout: 30000
+        });
+
+        response = await this.page.evaluate(() => {
+          try {
+            const bodyText = document.body.innerText;
+            return JSON.parse(bodyText);
+          } catch (error) {
+            return null;
+          }
+        });
+
+        logger.info(`Ответ общего списка CS.Money: найдено ${response?.items?.length || 0} предметов`);
+      }
 
       if (response && Array.isArray(response.items)) {
         const items = response.items;
@@ -727,50 +751,58 @@ class CSMoneyService {
           };
         });
 
-        // Ищем точное соответствие
+        // Ищем точное соответствие с улучшенной логикой
         let exactMatch = null;
-        if (exterior) {
+
+        // Сначала пытаемся найти точное соответствие полного названия
+        exactMatch = formattedItems.find(item =>
+          item.name === marketHashName
+        );
+
+        // Если не найдено, ищем по базовому названию с износом
+        if (!exactMatch && exterior) {
           exactMatch = formattedItems.find(item =>
-            item.name.includes(name) && item.name.includes(exterior)
+            item.name.includes(name) &&
+            item.name.includes(exterior) &&
+            !item.name.toLowerCase().includes('sticker') &&
+            !item.name.toLowerCase().includes('case') &&
+            !item.name.toLowerCase().includes('key')
           );
-        } else {
+        }
+
+        // Если все еще не найдено, ищем только по базовому названию (без износа)
+        if (!exactMatch) {
           exactMatch = formattedItems.find(item =>
-            item.name === marketHashName
+            item.name.includes(name) &&
+            !item.name.toLowerCase().includes('sticker') &&
+            !item.name.toLowerCase().includes('case') &&
+            !item.name.toLowerCase().includes('key')
           );
         }
 
         if (exactMatch) {
-          logger.info(`Найдено точное соответствие: ${exactMatch.name} (ID: ${exactMatch.id})`);
+          logger.info(`Найдено соответствие: ${exactMatch.name} (ID: ${exactMatch.id})`);
 
-          // Получаем детальную информацию о предмете
-          const detailsResponse = await this.getItemDetails(exactMatch.id);
-          if (detailsResponse.success) {
-            return {
-              success: true,
-              goods_id: exactMatch.id,
-              market_hash_name: exactMatch.name,
-              items: [
-                {
-                  id: exactMatch.id,
-                  price: exactMatch.price,
-                  name: exactMatch.name,
-                  float: exactMatch.float || null,
-                  image: exactMatch.image || null
-                }
-              ]
-            };
-          }
-        }
-
-        // Если точное соответствие не найдено, возвращаем первый предмет из списка
-        if (formattedItems.length > 0) {
-          logger.info(`Точное соответствие не найдено, возвращаем первый предмет: ${formattedItems[0].name}`);
+          // Возвращаем результат сразу, без запроса деталей (избегаем 403 ошибку)
           return {
             success: true,
-            goods_id: formattedItems[0].id,
-            market_hash_name: formattedItems[0].name,
-            items: [formattedItems[0]]
+            goods_id: exactMatch.id,
+            market_hash_name: exactMatch.name,
+            items: [
+              {
+                id: exactMatch.id,
+                price: exactMatch.price,
+                name: exactMatch.name,
+                float: exactMatch.float || null,
+                image: exactMatch.image || null
+              }
+            ]
           };
+        }
+
+        // Если точное соответствие не найдено, не возвращаем случайный предмет
+        if (formattedItems.length > 0) {
+          logger.warn(`Точное соответствие для "${marketHashName}" не найдено среди ${formattedItems.length} результатов. Найденные предметы: ${formattedItems.slice(0, 3).map(item => item.name).join(', ')}`);
         }
       }
 
