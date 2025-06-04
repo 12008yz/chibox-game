@@ -111,6 +111,18 @@ class SteamBot {
         this.manager.setCookies(cookies);
         this.community.setCookies(cookies);
         this.community.startConfirmationChecker(10000, this.identitySecret);
+
+        // Сохраняем session данные для Steam Market
+        this.sessionId = sessionID;
+        this.cookies = cookies;
+
+        // Извлекаем steamLoginSecure из cookies
+        const steamLoginSecureCookie = cookies.find(cookie => cookie.startsWith('steamLoginSecure='));
+        if (steamLoginSecureCookie) {
+          this.steamLoginSecure = steamLoginSecureCookie.replace('steamLoginSecure=', '').split(';')[0];
+          logger.info('Steam session data extracted successfully');
+        }
+
         logger.info('Cookies set, confirmation checker started, bot now fully operational.');
         resolve();
       });
@@ -597,6 +609,25 @@ class SteamBot {
       logger.error('Ошибка при инициализации бота:', error);
       throw error;
     }
+  }
+
+  // Получение session данных для Steam Market
+  getSessionData() {
+    if (!this.loggedIn || !this.sessionId || !this.steamLoginSecure) {
+      throw new Error('Steam session данные недоступны. Требуется авторизация.');
+    }
+
+    return {
+      sessionId: this.sessionId,
+      steamLoginSecure: this.steamLoginSecure,
+      steamId: this.client.steamID.getSteamID64(),
+      cookies: this.cookies
+    };
+  }
+
+  // Проверка валидности session
+  isSessionValid() {
+    return this.loggedIn && this.sessionId && this.steamLoginSecure;
   }
 }
 

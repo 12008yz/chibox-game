@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * Новый процессор заявок на вывод через Steam Market
- * Заменяет старый CS.Money подход
+ * Улучшенный процессор Steam withdrawal с автоматической покупкой и отправкой
  */
 
 const SteamWithdrawalService = require('../services/steamWithdrawalService');
+const SteamMarketService = require('../services/steamMarketService');
+const { Withdrawal } = require('../models');
 const winston = require('winston');
-const fs = require('fs');
-const path = require('path');
+const cron = require('node-cron');
 
 // Настройка логгера
 const logger = winston.createLogger({
@@ -18,211 +18,425 @@ const logger = winston.createLogger({
     winston.format.json()
   ),
   transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ filename: 'steam-withdrawal-processor.log' })
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      )
+    }),
+    new winston.transports.File({
+      filename: 'steam-withdrawal-processor.log',
+      format: winston.format.json()
+    })
   ],
 });
-
-// Lock файл для предотвращения параллельных запусков
-const LOCK_FILE = path.join(__dirname, '../.lock-steam-withdrawals');
 
 class SteamWithdrawalProcessor {
   constructor() {
     this.withdrawalService = new SteamWithdrawalService();
     this.isProcessing = false;
-    this.startTime = null;
+    this.lastProcessTime = null;
+    this.stats = {
+      totalProcessed: 0,
+      successfulWithdrawals: 0,
+      failedWithdrawals: 0,
+      totalCost: 0
+    };
   }
 
   /**
-   * Проверка lock файла
-   */
-  checkLockFile() {
-    if (fs.existsSync(LOCK_FILE)) {
-      const lockData = fs.readFileSync(LOCK_FILE, 'utf8');
-      const lockTime = new Date(lockData);
-      const now = new Date();
-
-      // Если lock файл старше 30 минут - удаляем его
-      if (now - lockTime > 30 * 60 * 1000) {
-        logger.warn('Удаляем устаревший lock файл');
-        fs.unlinkSync(LOCK_FILE);
-        return false;
-      }
-
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * Создание lock файла
-   */
-  createLockFile() {
-    fs.writeFileSync(LOCK_FILE, new Date().toISOString());
-  }
-
-  /**
-   * Удаление lock файла
-   */
-  removeLockFile() {
-    if (fs.existsSync(LOCK_FILE)) {
-      fs.unlinkSync(LOCK_FILE);
-      logger.info('Lock файл удален');
-    }
-  }
-
-  /**
-   * Форматирование времени
-   */
-  formatDuration(startTime, endTime) {
-    const duration = (endTime - startTime) / 1000;
-    return `${duration.toFixed(2)} секунд`;
-  }
-
-  /**
-   * Основной метод обработки
+   * Основной метод обработки withdrawal
    */
   async processWithdrawals() {
-    // Проверяем lock файл
-    if (this.checkLockFile()) {
-      logger.warn('⚠️ Обработка уже запущена, пропускаем текущий запуск');
-      return false;
+    if (this.isProcessing) {
+      logger.warn('⚠️ Обработка уже выполняется, пропускаем...');
+      return;
     }
 
-    // Создаем lock файл
-    this.createLockFile();
     this.isProcessing = true;
-    this.startTime = new Date();
+    logger.info('🚀 Начинаем обработку Steam withdrawal...');
 
     try {
-      logger.info('🚀 Запуск обработки заявок через Steam Market...');
-      logger.info(`⏰ Время начала: ${this.startTime.toISOString()}`);
+      // Получаем все pending withdrawal
+      const pendingWithdrawals = await this.getPendingWithdrawals();
 
-      // Обработка заявок
-      const result = await this.withdrawalService.processAllPendingWithdrawals();
+      if (!pendingWithdrawals.length) {
+        logger.info('📝 Нет ожидающих withdrawal для обработки');
+        return;
+      }
 
-      const endTime = new Date();
-      const duration = this.formatDuration(this.startTime, endTime);
+      logger.info(`📋 Найдено ${pendingWithdrawals.length} withdrawal для обработки`);
 
-      if (result.success) {
-        logger.info('✅ Обработка заявок успешно завершена');
-        logger.info(`📊 Статистика:`);
-        logger.info(`   - Обработано заявок: ${result.processed}`);
-        logger.info(`   - Успешно: ${result.successful}`);
-        logger.info(`   - С ошибками: ${result.failed}`);
-        logger.info(`   - Время выполнения: ${duration}`);
+      // Обрабатываем по одному
+      for (const withdrawal of pendingWithdrawals) {
+        await this.processSingleWithdrawal(withdrawal);
 
-        // Системное уведомление если есть ошибки
-        if (result.failed > 0) {
-          logger.warn(`⚠️ СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Завершена обработка заявок через Steam Market. С ошибками: ${result.failed} из ${result.processed}`);
-        } else {
-          logger.info(`🎉 СИСТЕМНОЕ УВЕДОМЛЕНИЕ: Все заявки обработаны успешно! Обработано: ${result.processed}`);
+        // Задержка между обработкой
+        await this.delay(10000); // 10 секунд между withdrawal
+      }
+
+      logger.info('✅ Обработка всех withdrawal завершена');
+      this.lastProcessTime = new Date();
+
+    } catch (error) {
+      logger.error('💥 Критическая ошибка обработки withdrawal:', error);
+    } finally {
+      this.isProcessing = false;
+    }
+  }
+
+  /**
+   * Обработка одного withdrawal
+   */
+  async processSingleWithdrawal(withdrawal) {
+    const startTime = Date.now();
+    logger.info(`🎯 Обработка withdrawal #${withdrawal.id}`);
+
+    try {
+      // Получаем детальную информацию о withdrawal
+      const withdrawalData = await this.getWithdrawalDetails(withdrawal.id);
+
+      if (!withdrawalData) {
+        await this.markWithdrawalFailed(withdrawal, 'Не удалось получить данные withdrawal');
+        return;
+      }
+
+      const { user, items } = withdrawalData;
+
+      // Проверяем trade URL
+      if (!user.steam_trade_url) {
+        await this.markWithdrawalFailed(withdrawal, 'Отсутствует trade URL пользователя');
+        return;
+      }
+
+      // Обновляем статус
+      await withdrawal.update({
+        status: 'processing',
+        tracking_data: {
+          ...withdrawal.tracking_data,
+          processing_start: new Date().toISOString(),
+          processor_version: '2.0'
         }
+      });
 
-        return true;
+      // Покупаем предметы
+      const purchaseResults = await this.purchaseItems(items);
+
+      if (!purchaseResults.success) {
+        await this.markWithdrawalFailed(withdrawal, purchaseResults.message);
+        return;
+      }
+
+      // Ждем появления предметов в инвентаре
+      logger.info('⏱️ Ожидаем появления предметов в инвентаре...');
+      await this.delay(30000); // 30 секунд
+
+      // Отправляем trade offer
+      const tradeResult = await this.sendTradeOffer(user.steam_trade_url, purchaseResults.items);
+
+      if (tradeResult.success) {
+        // Успешно отправлен trade
+        await withdrawal.update({
+          status: 'trade_sent',
+          tracking_data: {
+            ...withdrawal.tracking_data,
+            trade_offer_id: tradeResult.tradeOfferId,
+            trade_sent_time: new Date().toISOString(),
+            purchase_results: purchaseResults,
+            processing_time_ms: Date.now() - startTime
+          }
+        });
+
+        this.stats.successfulWithdrawals++;
+        this.stats.totalCost += purchaseResults.totalCost;
+
+        logger.info(`✅ Withdrawal #${withdrawal.id} успешно обработан. Trade ID: ${tradeResult.tradeOfferId}`);
       } else {
-        logger.error('❌ Обработка заявок завершена с ошибками');
-        logger.error(`💥 Ошибка: ${result.message}`);
-        logger.error(`⏱️ Время выполнения: ${duration}`);
-
-        logger.error('🚨 СИСТЕМНОЕ УВЕДОМЛЕНИЕ [ERROR]: Критическая ошибка обработки заявок через Steam Market');
-
-        return false;
+        await this.markWithdrawalFailed(withdrawal, `Ошибка отправки trade: ${tradeResult.message}`);
       }
 
     } catch (error) {
-      const endTime = new Date();
-      const duration = this.formatDuration(this.startTime, endTime);
+      logger.error(`💥 Ошибка обработки withdrawal #${withdrawal.id}:`, error);
+      await this.markWithdrawalFailed(withdrawal, `Системная ошибка: ${error.message}`);
+    }
 
-      logger.error('💥 Критическая ошибка процессора:', error);
-      logger.error(`⏱️ Время до ошибки: ${duration}`);
-      logger.error('🚨 СИСТЕМНОЕ УВЕДОМЛЕНИЕ [CRITICAL]: Критический сбой процессора withdrawal');
+    this.stats.totalProcessed++;
+  }
 
-      return false;
+  /**
+   * Покупка предметов для withdrawal
+   */
+  async purchaseItems(items) {
+    logger.info(`🛒 Покупаем ${items.length} предметов...`);
 
-    } finally {
-      this.isProcessing = false;
-      this.removeLockFile();
+    const purchasedItems = [];
+    let totalCost = 0;
 
-      const endTime = new Date();
-      logger.info('📋 Итоговая статистика обработки:');
-      logger.info(`    Время начала: ${this.startTime.toISOString()}`);
-      logger.info(`    Время окончания: ${endTime.toISOString()}`);
-      logger.info(`    Длительность: ${this.formatDuration(this.startTime, endTime)}`);
+    try {
+      // Инициализируем Steam Market с актуальной сессией
+      const config = await SteamMarketService.loadConfigFromBot();
+      const steamMarket = new SteamMarketService(config);
+
+      for (const userItem of items) {
+        const item = userItem.item;
+        const marketHashName = item.steam_market_hash_name || item.name;
+        const maxPrice = item.price * 1.2; // Максимум 120% от базовой цены
+
+        logger.info(`🔍 Покупаем: ${marketHashName} (макс. ${maxPrice} руб.)`);
+
+        const purchaseResult = await steamMarket.purchaseItemFromMarket(marketHashName, maxPrice);
+
+        if (purchaseResult.success) {
+          purchasedItems.push({
+            item_id: item.id,
+            market_hash_name: marketHashName,
+            purchase_price: purchaseResult.item.purchasePrice,
+            purchase_time: purchaseResult.item.purchaseTime,
+            asset_id: purchaseResult.item.assetId
+          });
+
+          totalCost += purchaseResult.item.purchasePrice;
+          logger.info(`✅ ${marketHashName} куплен за ${purchaseResult.item.purchasePrice} руб.`);
+        } else {
+          logger.error(`❌ Не удалось купить ${marketHashName}: ${purchaseResult.message}`);
+          return {
+            success: false,
+            message: `Не удалось купить ${marketHashName}: ${purchaseResult.message}`
+          };
+        }
+
+        // Задержка между покупками
+        await this.delay(5000);
+      }
+
+      return {
+        success: true,
+        items: purchasedItems,
+        totalCost: totalCost,
+        count: purchasedItems.length
+      };
+
+    } catch (error) {
+      logger.error('💥 Критическая ошибка покупки предметов:', error);
+      return {
+        success: false,
+        message: `Критическая ошибка покупки: ${error.message}`
+      };
     }
   }
 
   /**
-   * Graceful shutdown
+   * Отправка trade offer
    */
-  setupGracefulShutdown() {
-    const signals = ['SIGTERM', 'SIGINT'];
+  async sendTradeOffer(tradeUrl, purchasedItems) {
+    try {
+      logger.info('📤 Отправляем trade offer...');
 
-    signals.forEach(signal => {
-      process.on(signal, () => {
-        logger.info(`🛑 Получен сигнал ${signal}, завершаем работу...`);
+      // Используем withdrawal service для отправки trade
+      const result = await this.withdrawalService.sendTradeOffer(tradeUrl, purchasedItems);
 
-        if (this.isProcessing) {
-          logger.info('⏳ Ожидаем завершения текущей обработки...');
-          // Даем время завершить текущую операцию
-          setTimeout(() => {
-            this.removeLockFile();
-            process.exit(0);
-          }, 10000); // 10 секунд на graceful shutdown
-        } else {
-          this.removeLockFile();
-          process.exit(0);
+      return result;
+
+    } catch (error) {
+      logger.error('💥 Ошибка отправки trade offer:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  }
+
+  /**
+   * Получение pending withdrawal
+   */
+  async getPendingWithdrawals() {
+    try {
+      return await Withdrawal.findAll({
+        where: {
+          status: 'pending',
+          withdrawal_type: 'steam'
+        },
+        order: [['created_at', 'ASC']],
+        limit: 10 // Обрабатываем максимум 10 за раз
+      });
+    } catch (error) {
+      logger.error('Ошибка получения pending withdrawal:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Получение детальной информации о withdrawal
+   */
+  async getWithdrawalDetails(withdrawalId) {
+    try {
+      const { User, UserInventory, Item } = require('../models');
+
+      return await Withdrawal.findByPk(withdrawalId, {
+        include: [
+          {
+            model: User,
+            attributes: ['id', 'username', 'steam_trade_url'],
+            as: 'user'
+          },
+          {
+            model: UserInventory,
+            attributes: ['id', 'item_id'],
+            as: 'items',
+            include: [
+              {
+                model: Item,
+                attributes: ['id', 'name', 'steam_market_hash_name', 'price'],
+                as: 'item'
+              }
+            ]
+          }
+        ]
+      });
+    } catch (error) {
+      logger.error(`Ошибка получения данных withdrawal ${withdrawalId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Отметка withdrawal как неудачного
+   */
+  async markWithdrawalFailed(withdrawal, reason) {
+    try {
+      await withdrawal.update({
+        status: 'failed',
+        tracking_data: {
+          ...withdrawal.tracking_data,
+          failure_reason: reason,
+          failure_time: new Date().toISOString()
         }
       });
+
+      this.stats.failedWithdrawals++;
+      logger.error(`❌ Withdrawal #${withdrawal.id} отмечен как неудачный: ${reason}`);
+    } catch (error) {
+      logger.error(`Ошибка обновления статуса withdrawal #${withdrawal.id}:`, error);
+    }
+  }
+
+  /**
+   * Задержка
+   */
+  async delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Получение статистики
+   */
+  getStats() {
+    return {
+      ...this.stats,
+      lastProcessTime: this.lastProcessTime,
+      isProcessing: this.isProcessing
+    };
+  }
+
+  /**
+   * Запуск планировщика
+   */
+  startScheduler() {
+    logger.info('⏰ Запускаем планировщик withdrawal (каждые 5 минут)...');
+
+    // Каждые 5 минут
+    cron.schedule('*/5 * * * *', async () => {
+      logger.info('⏰ Планировщик: проверка новых withdrawal...');
+      await this.processWithdrawals();
     });
+
+    // Каждый час выводим статистику
+    cron.schedule('0 * * * *', () => {
+      const stats = this.getStats();
+      logger.info('📊 Статистика withdrawal за час:', stats);
+    });
+
+    logger.info('✅ Планировщик запущен');
+  }
+
+  /**
+   * Остановка процессора
+   */
+  async shutdown() {
+    logger.info('🛑 Завершение работы withdrawal processor...');
+
+    if (this.withdrawalService && this.withdrawalService.steamBot) {
+      await this.withdrawalService.steamBot.shutdown();
+    }
+
+    logger.info('✅ Withdrawal processor остановлен');
   }
 }
 
-// Функция для разового запуска
-async function runOnce() {
+// Функции для CLI использования
+async function processOnce() {
   const processor = new SteamWithdrawalProcessor();
-  processor.setupGracefulShutdown();
 
-  const success = await processor.processWithdrawals();
-  process.exit(success ? 0 : 1);
+  try {
+    await processor.processWithdrawals();
+    logger.info('📊 Финальная статистика:', processor.getStats());
+  } catch (error) {
+    logger.error('💥 Ошибка обработки:', error);
+  } finally {
+    await processor.shutdown();
+    process.exit(0);
+  }
 }
 
-// Функция для мониторинга (запуск каждые N минут)
-async function runMonitoring(intervalMinutes = 5) {
-  logger.info(`🔄 Запуск мониторинга withdrawal (интервал: ${intervalMinutes} минут)`);
-
+async function startScheduler() {
   const processor = new SteamWithdrawalProcessor();
-  processor.setupGracefulShutdown();
 
-  // Первый запуск
-  await processor.processWithdrawals();
+  try {
+    processor.startScheduler();
 
-  // Затем по расписанию
-  setInterval(async () => {
-    if (!processor.isProcessing) {
-      await processor.processWithdrawals();
-    } else {
-      logger.info('⏳ Пропускаем запуск - предыдущая обработка еще не завершена');
-    }
-  }, intervalMinutes * 60 * 1000);
+    // Сразу запускаем первую обработку
+    await processor.processWithdrawals();
+
+    // Обработчики сигналов для корректного завершения
+    process.on('SIGINT', async () => {
+      logger.info('Получен SIGINT, завершаем работу...');
+      await processor.shutdown();
+      process.exit(0);
+    });
+
+    process.on('SIGTERM', async () => {
+      logger.info('Получен SIGTERM, завершаем работу...');
+      await processor.shutdown();
+      process.exit(0);
+    });
+
+    logger.info('🎯 Withdrawal processor запущен в режиме демона');
+
+  } catch (error) {
+    logger.error('💥 Критическая ошибка:', error);
+    await processor.shutdown();
+    process.exit(1);
+  }
 }
 
-// Определяем режим запуска
-const args = process.argv.slice(2);
+// CLI интерфейс
+if (require.main === module) {
+  const command = process.argv[2];
 
-if (args.includes('--monitor')) {
-  const interval = parseInt(args[args.indexOf('--monitor') + 1]) || 5;
-  runMonitoring(interval);
-} else if (args.includes('--help')) {
-  console.log('🔧 Steam Withdrawal Processor');
-  console.log('');
-  console.log('Использование:');
-  console.log('  node process-steam-withdrawals.js           # Разовый запуск');
-  console.log('  node process-steam-withdrawals.js --monitor [минуты]  # Мониторинг');
-  console.log('');
-  console.log('Примеры:');
-  console.log('  node process-steam-withdrawals.js --monitor 10   # Каждые 10 минут');
-  console.log('  node process-steam-withdrawals.js --monitor       # Каждые 5 минут (по умолчанию)');
-} else {
-  runOnce();
+  switch (command) {
+    case 'once':
+      processOnce();
+      break;
+    case 'daemon':
+    case 'scheduler':
+      startScheduler();
+      break;
+    default:
+      logger.info('📖 Использование:');
+      logger.info('  node process-steam-withdrawals-improved.js once     - Однократная обработка');
+      logger.info('  node process-steam-withdrawals-improved.js daemon   - Запуск в режиме демона');
+      process.exit(1);
+  }
 }
+
+module.exports = SteamWithdrawalProcessor;
