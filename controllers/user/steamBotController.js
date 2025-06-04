@@ -12,7 +12,8 @@ const steamBot = new SteamBot(
   steamBotConfig.accountName,
   steamBotConfig.password,
   steamBotConfig.sharedSecret,
-  steamBotConfig.identitySecret
+  steamBotConfig.identitySecret,
+  process.env.STEAM_API_KEY
 );
 
 let isLoggingIn = false;

@@ -26,7 +26,7 @@ class SteamPuppeteerService {
 
     // Настройки
     this.config = {
-      headless: false, // Показываем браузер для отладки
+      headless: true, // Включаем headless режим для контейнера
       slowMo: 100, // Замедляем действия
       timeout: 30000,
       viewport: { width: 1920, height: 1080 }
@@ -51,8 +51,17 @@ class SteamPuppeteerService {
           '--no-first-run',
           '--no-zygote',
           '--disable-gpu',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--disable-background-networking',
+          '--disable-ipc-flooding-protection',
+          '--single-process',
           '--window-size=1920,1080'
-        ]
+        ],
+        executablePath: process.env.CHROME_BIN || undefined
       });
 
       this.page = await this.browser.newPage();
@@ -94,65 +103,244 @@ class SteamPuppeteerService {
         return true;
       }
 
-      // Переходим на страницу авторизации
-      await this.page.goto('https://steamcommunity.com/login', {
-        waitUntil: 'networkidle2'
-      });
+      // Пробуем несколько вариантов страниц входа
+      const loginUrls = [
+        'https://steamcommunity.com/login',
+        'https://steamcommunity.com/login/home/',
+        'https://store.steampowered.com/login/'
+      ];
 
-      // Ждем форму авторизации
-      await this.page.waitForSelector('input[name="username"]', { timeout: 10000 });
+      let loginSuccess = false;
 
-      // Вводим логин
-      await this.page.type('input[name="username"]', this.steamConfig.accountName);
-      await this.delay(1000);
+      for (const loginUrl of loginUrls) {
+        try {
+          logger.info(`🌐 Пробуем войти через: ${loginUrl}`);
 
-      // Вводим пароль
-      await this.page.type('input[name="password"]', this.steamConfig.password);
-      await this.delay(1000);
+          await this.page.goto(loginUrl, {
+            waitUntil: 'networkidle2',
+            timeout: 15000
+          });
 
-      // Нажимаем кнопку входа
-      await this.page.click('button[type="submit"]');
+          await this.delay(2000);
 
-      // Ждем появления формы 2FA или редиректа
-      await this.delay(3000);
+          // Проверяем различные селекторы для поля логина
+          const usernameSelectors = [
+            'input[name="username"]',
+            'input[id="input_username"]',
+            'input[class*="username"]',
+            'input[placeholder*="логин"]',
+            'input[placeholder*="Login"]',
+            'input[placeholder*="Имя"]',
+            'input[type="text"]:first-of-type'
+          ];
 
-      // Проверяем, нужен ли 2FA код
-      const needsMobileAuth = await this.page.$('input[name="twofactorcode"]');
+          let usernameField = null;
+          let usedSelector = null;
 
-      if (needsMobileAuth) {
-        logger.info('📱 Требуется код 2FA...');
+          for (const selector of usernameSelectors) {
+            try {
+              await this.page.waitForSelector(selector, { timeout: 3000 });
+              usernameField = await this.page.$(selector);
+              if (usernameField) {
+                usedSelector = selector;
+                logger.info(`✅ Найдено поле логина: ${selector}`);
+                break;
+              }
+            } catch (e) {
+              // Продолжаем поиск
+            }
+          }
 
-        // Генерируем код 2FA
-        const SteamTotp = require('steam-totp');
-        const authCode = SteamTotp.generateAuthCode(this.steamConfig.sharedSecret);
+          if (!usernameField) {
+            logger.warn(`❌ Не найдено поле логина на ${loginUrl}`);
+            continue;
+          }
 
-        logger.info(`🔢 Вводим 2FA код: ${authCode}`);
+          // Очищаем поле и вводим логин
+          await this.page.focus(usedSelector);
+          await this.page.keyboard.down('Control');
+          await this.page.keyboard.press('a');
+          await this.page.keyboard.up('Control');
+          await this.page.type(usedSelector, this.steamConfig.accountName, { delay: 100 });
+          await this.delay(1000);
 
-        // Вводим код
-        await this.page.type('input[name="twofactorcode"]', authCode);
-        await this.delay(1000);
+          // Ищем поле пароля
+          const passwordSelectors = [
+            'input[name="password"]',
+            'input[id="input_password"]',
+            'input[type="password"]',
+            'input[class*="password"]'
+          ];
 
-        // Нажимаем подтвердить
-        await this.page.click('button[type="submit"]');
+          let passwordField = null;
+          let passwordSelector = null;
+
+          for (const selector of passwordSelectors) {
+            try {
+              passwordField = await this.page.$(selector);
+              if (passwordField) {
+                passwordSelector = selector;
+                logger.info(`✅ Найдено поле пароля: ${selector}`);
+                break;
+              }
+            } catch (e) {
+              // Продолжаем поиск
+            }
+          }
+
+          if (!passwordField) {
+            logger.warn(`❌ Не найдено поле пароля на ${loginUrl}`);
+            continue;
+          }
+
+          // Вводим пароль
+          await this.page.focus(passwordSelector);
+          await this.page.keyboard.down('Control');
+          await this.page.keyboard.press('a');
+          await this.page.keyboard.up('Control');
+          await this.page.type(passwordSelector, this.steamConfig.password, { delay: 100 });
+          await this.delay(1000);
+
+          // Ищем кнопку входа
+          const submitSelectors = [
+            'button[type="submit"]',
+            'input[type="submit"]',
+            'button[class*="submit"]',
+            'button[class*="login"]',
+            '.login_btn',
+            '.btn_signin',
+            '.btn_medium'
+          ];
+
+          let submitButton = null;
+
+          for (const selector of submitSelectors) {
+            try {
+              submitButton = await this.page.$(selector);
+              if (submitButton) {
+                const isVisible = await submitButton.isIntersectingViewport();
+                if (isVisible) {
+                  logger.info(`✅ Найдена кнопка входа: ${selector}`);
+                  break;
+                }
+              }
+            } catch (e) {
+              // Продолжаем поиск
+            }
+          }
+
+          if (!submitButton) {
+            // Пробуем нажать Enter
+            logger.info('🔍 Пробуем нажать Enter для входа');
+            await this.page.keyboard.press('Enter');
+          } else {
+            // Нажимаем кнопку входа
+            await submitButton.click();
+          }
+
+          // Ждем реакции
+          await this.delay(3000);
+
+          // Проверяем, нужен ли 2FA код
+          const authCodeSelectors = [
+            'input[name="twofactorcode"]',
+            'input[id="twofactorcode_entry"]',
+            'input[placeholder*="код"]',
+            'input[placeholder*="code"]'
+          ];
+
+          let needsMobileAuth = false;
+          let authCodeField = null;
+
+          for (const selector of authCodeSelectors) {
+            try {
+              authCodeField = await this.page.$(selector);
+              if (authCodeField) {
+                needsMobileAuth = true;
+                logger.info(`📱 Требуется код 2FA, найдено поле: ${selector}`);
+                break;
+              }
+            } catch (e) {
+              // Продолжаем поиск
+            }
+          }
+
+          if (needsMobileAuth && authCodeField) {
+            logger.info('📱 Генерируем код 2FA...');
+
+            // Генерируем код 2FA
+            const SteamTotp = require('steam-totp');
+            const authCode = SteamTotp.generateAuthCode(this.steamConfig.sharedSecret);
+
+            logger.info(`🔢 Вводим 2FA код: ${authCode}`);
+
+            // Очищаем поле и вводим код
+            await authCodeField.focus();
+            await authCodeField.click({ clickCount: 3 });
+            await this.page.type('input[name="twofactorcode"], input[id="twofactorcode_entry"]', authCode, { delay: 100 });
+            await this.delay(1000);
+
+            // Ищем кнопку подтверждения 2FA
+            const confirmSelectors = [
+              'button[type="submit"]',
+              'input[type="submit"]',
+              '.auth_button',
+              '.btn_signin'
+            ];
+
+            let confirmButton = null;
+
+            for (const selector of confirmSelectors) {
+              try {
+                confirmButton = await this.page.$(selector);
+                if (confirmButton) {
+                  const isVisible = await confirmButton.isIntersectingViewport();
+                  if (isVisible) {
+                    break;
+                  }
+                }
+              } catch (e) {
+                // Продолжаем поиск
+              }
+            }
+
+            if (confirmButton) {
+              await confirmButton.click();
+            } else {
+              await this.page.keyboard.press('Enter');
+            }
+          }
+
+          // Ждем успешной авторизации или ошибки
+          await this.delay(5000);
+
+          // Проверяем, авторизовались ли мы
+          const isLoggedIn = await this.checkLoginStatus();
+
+          if (isLoggedIn) {
+            this.isLoggedIn = true;
+            loginSuccess = true;
+
+            // Сохраняем сессию
+            await this.saveSession();
+
+            logger.info('✅ Успешная авторизация в Steam');
+            break;
+          } else {
+            logger.warn(`❌ Авторизация неудачна через ${loginUrl}`);
+          }
+
+        } catch (error) {
+          logger.warn(`Ошибка на ${loginUrl}: ${error.message}`);
+          continue;
+        }
       }
 
-      // Ждем успешной авторизации
-      await this.page.waitForNavigation({ waitUntil: 'networkidle2' });
-
-      // Проверяем, авторизовались ли мы
-      const isLoggedIn = await this.checkLoginStatus();
-
-      if (isLoggedIn) {
-        this.isLoggedIn = true;
-
-        // Сохраняем сессию
-        await this.saveSession();
-
-        logger.info('✅ Успешная авторизация в Steam');
-        return true;
-      } else {
-        throw new Error('Не удалось авторизоваться в Steam');
+      if (!loginSuccess) {
+        throw new Error('Не удалось авторизоваться ни через одну из страниц входа');
       }
+
+      return true;
 
     } catch (error) {
       logger.error(`Ошибка авторизации: ${error.message}`);
@@ -490,12 +678,57 @@ class SteamPuppeteerService {
       // Проверяем URL и элементы страницы
       if (currentUrl.includes('steamcommunity.com') && !currentUrl.includes('login')) {
         // Ищем элементы, которые есть только у авторизованных пользователей
-        const profileLink = await this.page.$('.playerAvatar, .account_pulldown');
-        return profileLink !== null;
+        const authSelectors = [
+          '.playerAvatar',
+          '.account_pulldown',
+          '.profile_small_header_avatar',
+          '.user_avatar',
+          '.global_header .playerAvatar',
+          '.account_dropdown',
+          '#account_pulldown'
+        ];
+
+        for (const selector of authSelectors) {
+          try {
+            const element = await this.page.$(selector);
+            if (element) {
+              logger.info(`✅ Найден элемент авторизованного пользователя: ${selector}`);
+              return true;
+            }
+          } catch (e) {
+            // Продолжаем поиск
+          }
+        }
+      }
+
+      // Дополнительная проверка - ищем кнопку входа
+      const loginSelectors = [
+        'a[href*="login"]',
+        '.login_btn',
+        '.btn_signin'
+      ];
+
+      for (const selector of loginSelectors) {
+        try {
+          const loginElement = await this.page.$(selector);
+          if (loginElement) {
+            logger.info(`❌ Найдена кнопка входа: ${selector}, пользователь не авторизован`);
+            return false;
+          }
+        } catch (e) {
+          // Игнорируем ошибки
+        }
+      }
+
+      // Если URL содержит профильную информацию, считаем пользователя авторизованным
+      if (currentUrl.includes('/my/') || currentUrl.includes('/profiles/')) {
+        logger.info('✅ URL указывает на авторизованного пользователя');
+        return true;
       }
 
       return false;
     } catch (error) {
+      logger.warn(`Ошибка проверки статуса авторизации: ${error.message}`);
       return false;
     }
   }

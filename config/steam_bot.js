@@ -3,7 +3,7 @@ module.exports = {
   password: process.env.STEAM_PASSWORD || '9524Vlad1243Stalker',
   sharedSecret: process.env.STEAM_SHARED_SECRET || 'RfqZkqnNJDGZxXLLmCEuiaMOBiA=',
   identitySecret: process.env.STEAM_IDENTITY_SECRET || 'P2tHB9XcWaIMcrpzQ1Ogn/0Vulg=',
-  steamApiKey: process.env.STEAM_API_KEY || '',
+  steamApiKey: process.env.STEAM_API_KEY || '8C8EECB761BBE51563EF7741CE5110EF',
   steamId: '76561198115128811',
 
   // Session данные - будут заполнены автоматически после логина

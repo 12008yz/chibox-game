@@ -21,7 +21,7 @@ let instance = null;
 let hasLoggedIn = false;
 
 class SteamBot {
-  constructor(accountName, password, sharedSecret, identitySecret) {
+  constructor(accountName, password, sharedSecret, identitySecret, steamApiKey = null) {
     if (instance) {
       return instance;
     }
@@ -36,6 +36,7 @@ class SteamBot {
     this.password = password;
     this.sharedSecret = sharedSecret;
     this.identitySecret = identitySecret;
+    this.steamApiKey = steamApiKey;
     this.loggedIn = false;
 
     // Регистрируем обработчик событий для трейдов
@@ -111,6 +112,14 @@ class SteamBot {
         this.manager.setCookies(cookies);
         this.community.setCookies(cookies);
         this.community.startConfirmationChecker(10000, this.identitySecret);
+
+        // Устанавливаем API ключ если он есть
+        if (this.steamApiKey) {
+          this.manager.apiKey = this.steamApiKey;
+          logger.info('Steam API key set for Trade Manager');
+        } else {
+          logger.warn('Steam API key not provided - trade functionality may be limited');
+        }
 
         // Сохраняем session данные для Steam Market
         this.sessionId = sessionID;
