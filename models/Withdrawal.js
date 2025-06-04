@@ -18,7 +18,7 @@ module.exports = (sequelize) => {
       comment: "ID пользователя, запросившего вывод предметов"
     },
     status: {
-      type: DataTypes.ENUM('pending', 'queued', 'processing', 'waiting_confirmation', 'completed', 'failed', 'cancelled', 'rejected', 'expired'),
+      type: DataTypes.ENUM('pending', 'queued', 'processing', 'waiting_confirmation', 'completed', 'failed', 'cancelled', 'rejected', 'expired', 'direct_trade_pending', 'direct_trade_sent'),
       defaultValue: 'pending',
       comment: "Статус запроса на вывод предметов"
     },

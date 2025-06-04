@@ -34,17 +34,21 @@ class CSMoneyService {
       baseURL: 'https://cs.money',
       headers: {
         'User-Agent': this.config.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 YaBrowser/24.10.0.0 Safari/537.36',
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept': '*/*',
+        'Accept-Language': 'ru,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br, zstd',
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
+        'Sec-Ch-Ua': '"Chromium";v="128", "Not;A=Brand";v="24", "YaBrowser";v="24.10", "Yowser";v="2.5"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
         'Sec-Fetch-Dest': 'empty',
         'Sec-Fetch-Mode': 'cors',
         'Sec-Fetch-Site': 'same-origin',
         'X-Requested-With': 'XMLHttpRequest',
-        'Referer': 'https://cs.money/ru/market/sell-orders/',
+        'Referer': 'https://cs.money/ru/market/buy/',
         'Origin': 'https://cs.money',
+        'Priority': 'u=1, i',
         'Cookie': this.cookies
       }
     });
@@ -1272,7 +1276,7 @@ class CSMoneyService {
 
   // Новые методы для работы с корзиной CS.Money
 
-  // Метод для добавления предмета в корзину
+  // Метод для добавления предмета в корзину (обновленный для актуального API)
   async addToCart(itemId, assetId) {
     if (!this.isLoggedIn) {
       await this.initialize();
@@ -1284,42 +1288,133 @@ class CSMoneyService {
     logger.info(`Добавление предмета в корзину: Item ID ${itemId}, Asset ID ${assetId}`);
 
     try {
-      // URL для добавления в корзину
-      const addToCartUrl = '/2.0/market/cart/add';
+      // Используем правильный API endpoint из реальных запросов
+      const addToCartUrl = '/1.0/market/cart/items';
 
-      // Данные для запроса
+      // Генерируем trace ID для отслеживания (как в реальных запросах)
+      const traceId = this.generateTraceId();
+      const spanId = this.generateSpanId();
+
+      // Данные для запроса в формате, соответствующем реальным запросам
+      const data = {
+        itemId: itemId
+      };
+
+      // Обновленные заголовки на основе реальных запросов
+      const headers = {
+        ...this.axiosInstance.defaults.headers,
+        'Content-Type': 'application/json',
+        'x-client-app': 'web',
+        'sentry-trace': `${traceId}-${spanId}-1`,
+        'traceparent': `00-${traceId}-${spanId}-01`,
+        'baggage': `sentry-environment=production,sentry-release=2025-06-03-0636-production,sentry-public_key=da19e2c6e5d741efbda9d313341ab6d6,sentry-trace_id=${traceId},sentry-sampled=true,sentry-sample_rand=0.14949963212859751,sentry-sample_rate=0.2`
+      };
+
+      // Отправляем запрос на добавление в корзину
+      const response = await this.axiosInstance.post(addToCartUrl, data, { headers });
+
+      if (response.status === 200) {
+        logger.info(`Предмет успешно добавлен в корзину: Item ID ${itemId}`);
+
+        // Отправляем также статус события для аналитики
+        await this.sendStatusCartEvent(itemId, 'added_to_cart');
+
+        return {
+          success: true,
+          item_id: itemId,
+          data: response.data
+        };
+      } else {
+        logger.warn(`Ошибка добавления предмета в корзину: ${response.data?.message || JSON.stringify(response.data)}`);
+        return {
+          success: false,
+          message: response.data?.message || 'Неизвестная ошибка',
+          error_type: response.data?.error || 'unknown',
+          data: response.data
+        };
+      }
+    } catch (error) {
+      logger.error(`Ошибка при добавлении предмета в корзину (ID: ${itemId}):`, error);
+
+      // Fallback на старый API в случае ошибки
+      logger.info('Пробуем fallback на старый API корзины...');
+      return await this.addToCartFallback(itemId, assetId);
+    }
+  }
+
+  // Метод для отправки статуса корзины (аналитика)
+  async sendStatusCartEvent(itemId, action) {
+    try {
+      const statusCartUrl = '/2.0/events/status-cart';
+      const traceId = this.generateTraceId();
+      const spanId = this.generateSpanId();
+
+      // Создаем событие в том же формате, что и реальные запросы
+      const eventData = {
+        events: [
+          {
+            event_type: 'cart_interaction',
+            user_id: this.config.steamId || null,
+            item_id: itemId,
+            action: action,
+            timestamp: Date.now(),
+            session_id: this.sessionId,
+            platform: 'web'
+          }
+        ]
+      };
+
+      const headers = {
+        ...this.axiosInstance.defaults.headers,
+        'Content-Type': 'application/json',
+        'x-client-app': 'web',
+        'sentry-trace': `${traceId}-${spanId}-1`,
+        'traceparent': `00-${traceId}-${spanId}-01`,
+        'baggage': `sentry-environment=production,sentry-release=2025-06-03-0636-production,sentry-public_key=da19e2c6e5d741efbda9d313341ab6d6,sentry-trace_id=${traceId},sentry-sampled=true,sentry-sample_rand=0.14949963212859751,sentry-sample_rate=0.2`
+      };
+
+      await this.axiosInstance.post(statusCartUrl, eventData, { headers });
+      logger.info(`Отправлено событие корзины: ${action} для предмета ${itemId}`);
+    } catch (error) {
+      logger.warn(`Не удалось отправить событие корзины: ${error.message}`);
+      // Не прерываем выполнение, так как это только аналитика
+    }
+  }
+
+  // Fallback метод с оригинальным API
+  async addToCartFallback(itemId, assetId) {
+    try {
+      const addToCartUrl = '/2.0/market/cart/add';
       const data = {
         item_id: itemId,
         asset_id: assetId,
         _csrf: this.csrfToken
       };
 
-      // Отправляем запрос на добавление в корзину
       const response = await this.axiosInstance.post(addToCartUrl, data);
 
       if (response.data && response.data.success) {
-        logger.info(`Предмет успешно добавлен в корзину: ${response.data.cart_id || 'Нет ID корзины'}`);
+        logger.info(`Предмет успешно добавлен в корзину через fallback API: ${response.data.cart_id || 'Нет ID корзины'}`);
         return {
           success: true,
           cart_id: response.data.cart_id,
           data: response.data
         };
       } else {
-        logger.warn(`Ошибка добавления предмета в корзину: ${response.data.message || JSON.stringify(response.data)}`);
         return {
           success: false,
-          message: response.data.message || 'Неизвестная ошибка',
-          error_type: response.data.error || 'unknown',
+          message: response.data.message || 'Fallback API также не сработал',
+          error_type: 'fallback_failed',
           data: response.data
         };
       }
-    } catch (error) {
-      logger.error(`Ошибка при добавлении предмета в корзину (ID: ${itemId}):`, error);
-      throw error;
+    } catch (fallbackError) {
+      logger.error('Fallback API также не сработал:', fallbackError);
+      throw fallbackError;
     }
   }
 
-  // Метод для получения содержимого корзины
+  // Метод для получения содержимого корзины (обновленный)
   async getCart() {
     if (!this.isLoggedIn) {
       await this.initialize();
@@ -1329,7 +1424,14 @@ class CSMoneyService {
     }
 
     try {
-      const response = await this.axiosInstance.get('/2.0/market/cart');
+      // Пробуем новый метод - через браузер, так как корзина может быть только в веб-интерфейсе
+      const cartData = await this.getCartViaBrowser();
+      if (cartData.success) {
+        return cartData;
+      }
+
+      // Используем правильный API endpoint
+      const response = await this.axiosInstance.get('/1.0/market/cart/items');
 
       if (response.data) {
         logger.info(`Получено содержимое корзины: ${response.data.items?.length || 0} предметов`);
@@ -1354,7 +1456,107 @@ class CSMoneyService {
     }
   }
 
-  // Метод для оплаты корзины
+  // Метод для получения корзины через браузер
+  async getCartViaBrowser() {
+    try {
+      if (!this.page) {
+        logger.warn('Браузер не инициализирован для получения корзины');
+        return { success: false, message: 'Браузер не инициализирован' };
+      }
+
+      // Переходим на страницу с корзиной или ищем элементы корзины на текущей странице
+      await this.page.goto('https://cs.money/ru/market/buy/', {
+        waitUntil: 'networkidle2',
+        timeout: 30000
+      });
+
+      // Ждем загрузки корзины
+      await this.page.waitForTimeout(3000);
+
+      // Извлекаем данные корзины из DOM с обновленными селекторами
+      const cartData = await this.page.evaluate(() => {
+        // Ищем кнопку корзины для получения общей суммы
+        const cartButton = document.querySelector('.csm_f3fc0850');
+        if (!cartButton) {
+          return { items: [], total_price: 0 };
+        }
+
+        // Извлекаем общую сумму из кнопки корзины
+        const priceElement = cartButton.querySelector('.csm_541445e7');
+        let total_price = 0;
+        if (priceElement) {
+          const priceText = priceElement.textContent.trim();
+          // Убираем символы валюты и пробелы, заменяем запятую на точку
+          const priceMatch = priceText.replace(/[^\d.,]/g, '').replace(',', '.');
+          total_price = parseFloat(priceMatch) || 0;
+        }
+
+        // Пробуем найти детализированные товары в корзине
+        // Обновленные селекторы для карточек товаров
+        const itemCards = document.querySelectorAll('[data-testid="cart-item"], .cart-item, .csm_cart_item');
+        const items = [];
+
+        itemCards.forEach((card, index) => {
+          try {
+            const nameEl = card.querySelector('.item-name, .csm_item_name, [data-testid="item-name"]');
+            const priceEl = card.querySelector('.csm_541445e7, .item-price, [data-testid="item-price"]');
+            const imageEl = card.querySelector('img');
+            const id = card.getAttribute('data-item-id') ||
+                      card.getAttribute('data-card-id') ||
+                      card.getAttribute('data-id') ||
+                      `cart_item_${index}`;
+
+            const name = nameEl ? nameEl.textContent.trim() : `Item ${index + 1}`;
+            let price = 0;
+
+            if (priceEl) {
+              const priceText = priceEl.textContent.trim();
+              const priceMatch = priceText.replace(/[^\d.,]/g, '').replace(',', '.');
+              price = parseFloat(priceMatch) || 0;
+            }
+
+            items.push({
+              id: id,
+              name: name,
+              price: price,
+              image: imageEl ? imageEl.src : null
+            });
+          } catch (error) {
+            console.error('Ошибка при обработке товара в корзине:', error);
+          }
+        });
+
+        // Если не нашли детализированные товары, но есть общая сумма - создаем один условный товар
+        if (items.length === 0 && total_price > 0) {
+          items.push({
+            id: 'cart_total',
+            name: 'Товары в корзине',
+            price: total_price,
+            image: null
+          });
+        }
+
+        return { items, total_price };
+      });
+
+      if (cartData.items.length > 0 || cartData.total_price > 0) {
+        logger.info(`Получено содержимое корзины через браузер: ${cartData.items.length} предметов, общая сумма: ${cartData.total_price}`);
+        return {
+          success: true,
+          items: cartData.items,
+          total_price: cartData.total_price,
+          source: 'browser'
+        };
+      }
+
+      return { success: false, message: 'Корзина пуста или не найдена' };
+    } catch (error) {
+      logger.error('Ошибка при получении корзины через браузер:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  // Метод для оплаты корзины (обновленный для работы через браузер)
   async payCart() {
     if (!this.isLoggedIn) {
       await this.initialize();
@@ -1368,10 +1570,10 @@ class CSMoneyService {
     try {
       // Сначала получаем текущий баланс и содержимое корзины
       const cartResult = await this.getCart();
-      if (!cartResult.success) {
+      if (!cartResult.success || !cartResult.items || cartResult.items.length === 0) {
         return {
           success: false,
-          message: 'Не удалось получить содержимое корзины'
+          message: 'Корзина пуста или не удалось получить содержимое корзины'
         };
       }
 
@@ -1393,19 +1595,22 @@ class CSMoneyService {
         };
       }
 
-      // URL для оплаты корзины
-      const payUrl = '/2.0/market/cart/pay';
+      // Попробуем оплатить через браузер (как пользователь)
+      const browserPayResult = await this.payCartViaBrowser();
+      if (browserPayResult.success) {
+        return browserPayResult;
+      }
 
-      // Данные для запроса
+      // Fallback на API
+      const payUrl = '/2.0/market/cart/pay';
       const data = {
         _csrf: this.csrfToken
       };
 
-      // Отправляем запрос на оплату
       const response = await this.axiosInstance.post(payUrl, data);
 
       if (response.data && response.data.success) {
-        logger.info(`Корзина успешно оплачена. Order ID: ${response.data.order_id || 'Нет ID заказа'}`);
+        logger.info(`Корзина успешно оплачена через API. Order ID: ${response.data.order_id || 'Нет ID заказа'}`);
         return {
           success: true,
           order_id: response.data.order_id,
@@ -1422,12 +1627,138 @@ class CSMoneyService {
         };
       }
     } catch (error) {
-      logger.error('Ошибка при оплате корзины:', error);
+      logger.error('Ошибка при получении корзины:', error);
       throw error;
     }
   }
 
-  // Метод для очистки корзины
+  // Метод для покупки конкретного предмета напрямую (новый API)
+  async buyItemDirect(itemId) {
+    if (!this.isLoggedIn) {
+      await this.initialize();
+      if (!this.isLoggedIn) {
+        throw new Error('Необходимо авторизоваться на CS.Money для покупки предмета');
+      }
+    }
+
+    logger.info(`Прямая покупка предмета: Item ID ${itemId}`);
+
+    try {
+      // Используем новый API endpoint для покупки
+      const buyUrl = `/1.0/market/cart/items/${itemId}`;
+
+      const traceId = this.generateTraceId();
+      const spanId = this.generateSpanId();
+
+      const headers = {
+        ...this.axiosInstance.defaults.headers,
+        'Content-Type': 'application/json',
+        'x-client-app': 'web',
+        'sentry-trace': `${traceId}-${spanId}-1`,
+        'traceparent': `00-${traceId}-${spanId}-01`,
+        'baggage': `sentry-environment=production,sentry-release=2025-06-03-0636-production,sentry-public_key=da19e2c6e5d741efbda9d313341ab6d6,sentry-trace_id=${traceId},sentry-sampled=true,sentry-sample_rand=0.14949963212859751,sentry-sample_rate=0.2`
+      };
+
+      // Отправляем DELETE запрос для покупки (как в реальном API)
+      const response = await this.axiosInstance.delete(buyUrl, { headers });
+
+      if (response.status === 200) {
+        logger.info(`Предмет успешно куплен напрямую: Item ID ${itemId}`);
+
+        // Отправляем событие покупки
+        await this.sendStatusCartEvent(itemId, 'purchased');
+
+        return {
+          success: true,
+          item_id: itemId,
+          order_id: `direct_${itemId}_${Date.now()}`,
+          method: 'direct_api',
+          data: response.data
+        };
+      } else {
+        logger.warn(`Ошибка прямой покупки предмета: ${response.data?.message || JSON.stringify(response.data)}`);
+        return {
+          success: false,
+          message: response.data?.message || 'Неизвестная ошибка прямой покупки',
+          error_type: response.data?.error || 'unknown',
+          data: response.data
+        };
+      }
+    } catch (error) {
+      logger.error(`Ошибка при прямой покупке предмета (ID: ${itemId}):`, error);
+      throw error;
+    }
+  }
+
+  // Метод для оплаты корзины через браузер
+  async payCartViaBrowser() {
+    try {
+      if (!this.page) {
+        return { success: false, message: 'Браузер не инициализирован' };
+      }
+
+      logger.info('Оплачиваем корзину через браузер...');
+
+      // Переходим на страницу корзины или убеждаемся, что мы на правильной странице
+      await this.page.goto('https://cs.money/ru/market/buy/', {
+        waitUntil: 'networkidle2',
+        timeout: 30000
+      });
+
+      // Ищем кнопку "Купить" в корзине
+      const buyButtonSelector = '.csm_953298e7'; // Класс кнопки из предоставленного HTML
+
+      try {
+        await this.page.waitForSelector(buyButtonSelector, { timeout: 10000 });
+
+        // Кликаем по кнопке "Купить"
+        await this.page.click(buyButtonSelector);
+        logger.info('Нажали кнопку "Купить" в корзине');
+
+        // Ждем ответа сервера
+        await this.page.waitForTimeout(5000);
+
+        // Проверяем, была ли покупка успешной (например, корзина очистилась)
+        const cartEmpty = await this.page.evaluate(() => {
+          const cartItems = document.querySelectorAll('.csm_06d323e9[data-card-id]');
+          return cartItems.length === 0;
+        });
+
+        if (cartEmpty) {
+          logger.info('Корзина очистилась после покупки - оплата прошла успешно');
+
+          // Генерируем order ID на основе времени (так как реальный может быть недоступен)
+          const orderId = `browser_order_${Date.now()}`;
+
+          return {
+            success: true,
+            order_id: orderId,
+            method: 'browser_purchase',
+            total_paid: 'unknown' // Сумма неизвестна, так как корзина очистилась
+          };
+        } else {
+          return {
+            success: false,
+            message: 'Корзина не очистилась после попытки покупки'
+          };
+        }
+      } catch (elementError) {
+        logger.warn('Не удалось найти кнопку покупки в корзине:', elementError.message);
+        return {
+          success: false,
+          message: 'Кнопка покупки не найдена в корзине'
+        };
+      }
+    } catch (error) {
+      logger.error('Ошибка при оплате корзины через браузер:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  }
+
+  // Метод для очистки корзины (обновленный)
   async clearCart() {
     if (!this.isLoggedIn) {
       await this.initialize();
@@ -1437,12 +1768,19 @@ class CSMoneyService {
     }
 
     try {
+      // Попробуем очистить через браузер
+      const browserClearResult = await this.clearCartViaBrowser();
+      if (browserClearResult.success) {
+        return browserClearResult;
+      }
+
+      // Fallback на API
       const response = await this.axiosInstance.post('/2.0/market/cart/clear', {
         _csrf: this.csrfToken
       });
 
       if (response.data && response.data.success) {
-        logger.info('Корзина успешно очищена');
+        logger.info('Корзина успешно очищена через API');
         return { success: true };
       } else {
         logger.warn(`Ошибка очистки корзины: ${response.data.message || JSON.stringify(response.data)}`);
@@ -1457,6 +1795,53 @@ class CSMoneyService {
         success: false,
         message: error.message
       };
+    }
+  }
+
+  // Метод для очистки корзины через браузер
+  async clearCartViaBrowser() {
+    try {
+      if (!this.page) {
+        return { success: false, message: 'Браузер не инициализирован' };
+      }
+
+      logger.info('Очищаем корзину через браузер...');
+
+      await this.page.goto('https://cs.money/ru/market/buy/', {
+        waitUntil: 'networkidle2',
+        timeout: 30000
+      });
+
+      // Ищем иконку закрытия корзины (X)
+      const closeIconSelector = '.csm_60e9d6a4'; // SVG иконка закрытия из HTML
+
+      try {
+        await this.page.waitForSelector(closeIconSelector, { timeout: 5000 });
+        await this.page.click(closeIconSelector);
+        logger.info('Нажали кнопку закрытия корзины');
+
+        // Ждем, пока корзина очистится
+        await this.page.waitForTimeout(2000);
+
+        // Проверяем, очистилась ли корзина
+        const cartEmpty = await this.page.evaluate(() => {
+          const cartItems = document.querySelectorAll('.csm_06d323e9[data-card-id]');
+          return cartItems.length === 0;
+        });
+
+        if (cartEmpty) {
+          logger.info('Корзина успешно очищена через браузер');
+          return { success: true, method: 'browser_clear' };
+        } else {
+          return { success: false, message: 'Корзина не очистилась после клика' };
+        }
+      } catch (elementError) {
+        logger.warn('Не удалось найти кнопку очистки корзины:', elementError.message);
+        return { success: false, message: 'Кнопка очистки не найдена' };
+      }
+    } catch (error) {
+      logger.error('Ошибка при очистке корзины через браузер:', error);
+      return { success: false, message: error.message };
     }
   }
 
@@ -1497,6 +1882,432 @@ class CSMoneyService {
         success: false,
         message: error.message
       };
+    }
+  }
+
+  // Метод для проверки статуса прямого trade offer пользователю
+  async checkDirectTradeStatus(orderId) {
+    if (!this.isLoggedIn) {
+      await this.initialize();
+      if (!this.isLoggedIn) {
+        throw new Error('Необходимо авторизоваться на CS.Money для проверки статуса');
+      }
+    }
+
+    try {
+      logger.info(`Проверка статуса прямого trade offer для заказа ${orderId}`);
+
+      const response = await this.axiosInstance.get(`/2.0/market/order/${orderId}/status`);
+
+      if (response.data) {
+        const status = response.data.status;
+        const tradeOffer = response.data.trade_offer;
+
+        logger.info(`Статус прямого trade offer ${orderId}: ${status}`);
+
+        // Возможные статусы для прямых trade offers:
+        // 'pending' - заказ создан, ожидается обработка
+        // 'trade_sent' - trade offer отправлен пользователю
+        // 'trade_accepted' - пользователь принял trade offer
+        // 'completed' - транзакция завершена
+        // 'declined' - пользователь отклонил trade offer
+        // 'expired' - trade offer истек
+        // 'cancelled' - заказ отменен
+
+        const isTradeOfferSent = status === 'trade_sent' || status === 'trade_accepted' || status === 'completed';
+        const isCompleted = status === 'completed' || status === 'trade_accepted';
+        const isFailed = status === 'declined' || status === 'expired' || status === 'cancelled';
+
+        return {
+          success: true,
+          status: status,
+          trade_offer: tradeOffer,
+          is_trade_offer_sent: isTradeOfferSent,
+          is_completed: isCompleted,
+          is_failed: isFailed,
+          user_needs_action: status === 'trade_sent', // пользователь должен принять trade offer
+          data: response.data
+        };
+      } else {
+        return {
+          success: false,
+          message: 'Неверный формат ответа статуса'
+        };
+      }
+    } catch (error) {
+      logger.error(`Ошибка при проверке статуса прямого trade offer ${orderId}:`, error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  }
+
+  // Метод для валидации trade URL
+  async validateTradeURL(tradeUrl) {
+    if (!this.isLoggedIn) {
+      await this.initialize();
+      if (!this.isLoggedIn) {
+        throw new Error('Необходимо авторизоваться на CS.Money для валидации trade URL');
+      }
+    }
+
+    try {
+      logger.info(`Валидация trade URL: ${tradeUrl}`);
+
+      const encodedTradeUrl = encodeURIComponent(tradeUrl);
+      const response = await this.axiosInstance.get(`/1.0/tradelink-validity?tradeLink=${encodedTradeUrl}`);
+
+      if (response.data && response.data.valid) {
+        logger.info('Trade URL валиден');
+        return {
+          success: true,
+          valid: true,
+          data: response.data
+        };
+      } else {
+        logger.warn(`Trade URL невалиден: ${response.data?.message || 'неизвестная ошибка'}`);
+        return {
+          success: false,
+          valid: false,
+          message: response.data?.message || 'Trade URL невалиден'
+        };
+      }
+    } catch (error) {
+      logger.error(`Ошибка при валидации trade URL:`, error);
+      return {
+        success: false,
+        valid: false,
+        message: error.message
+      };
+    }
+  }
+
+  // Метод для получения информации о пользователе
+  async getUserInfo() {
+    if (!this.isLoggedIn) {
+      await this.initialize();
+      if (!this.isLoggedIn) {
+        throw new Error('Необходимо авторизоваться на CS.Money для получения user info');
+      }
+    }
+
+    try {
+      logger.info('Получение информации о пользователе');
+      const response = await this.axiosInstance.get('/2.0/user_info');
+
+      if (response.data) {
+        logger.info('Информация о пользователе получена');
+        return {
+          success: true,
+          data: response.data
+        };
+      } else {
+        return {
+          success: false,
+          message: 'Неверный формат ответа user_info'
+        };
+      }
+    } catch (error) {
+      logger.error('Ошибка при получении информации о пользователе:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  }
+
+  // Метод для обновления trade URL в настройках CS.Money (через браузер)
+  async updateTradeURL(tradeUrl) {
+    if (!this.isLoggedIn) {
+      await this.initialize();
+      if (!this.isLoggedIn) {
+        throw new Error('Необходимо авторизоваться на CS.Money для изменения trade URL');
+      }
+    }
+
+    try {
+      logger.info(`Обновление trade URL на CS.Money: ${tradeUrl}`);
+
+      // Шаг 1: Валидация trade URL
+      const validationResult = await this.validateTradeURL(tradeUrl);
+      if (!validationResult.success || !validationResult.valid) {
+        logger.error(`Trade URL не прошел валидацию: ${validationResult.message}`);
+        return {
+          success: false,
+          message: `Trade URL невалиден: ${validationResult.message}`,
+          step: 'validation'
+        };
+      }
+
+      // Шаг 2: Обновление через браузер (более надежный метод)
+      const browserUpdateResult = await this.updateTradeURLViaBrowser(tradeUrl);
+      if (browserUpdateResult.success) {
+        return browserUpdateResult;
+      }
+
+      // Шаг 3: Fallback на API
+      logger.info('Браузерное обновление не удалось, пробуем API...');
+      const updateData = {
+        trade_link: tradeUrl
+      };
+
+      const response = await this.axiosInstance.post('/add_trade_link', updateData, {
+        headers: {
+          'Content-Type': 'application/json;charset=UTF-8'
+        }
+      });
+
+      if (response.status === 200) {
+        logger.info(`Trade URL успешно обновлен через API на CS.Money: ${tradeUrl}`);
+        return {
+          success: true,
+          message: 'Trade URL успешно обновлен через API',
+          previous_url: this.currentTradeUrl || null,
+          new_url: tradeUrl,
+          method: 'api'
+        };
+      } else {
+        logger.error(`Ошибка обновления trade URL. Status: ${response.status}, Data: ${JSON.stringify(response.data)}`);
+        return {
+          success: false,
+          message: `Ошибка сервера при обновлении trade URL: ${response.status}`,
+          step: 'update'
+        };
+      }
+    } catch (error) {
+      logger.error(`Ошибка при обновлении trade URL:`, error);
+      return {
+        success: false,
+        message: error.message,
+        step: 'request_error'
+      };
+    }
+  }
+
+  // Метод для обновления trade URL через браузер
+  async updateTradeURLViaBrowser(tradeUrl) {
+    try {
+      if (!this.page) {
+        return { success: false, message: 'Браузер не инициализирован' };
+      }
+
+      logger.info('Обновляем trade URL через браузер...');
+
+      // Переходим на страницу настроек
+      await this.page.goto('https://cs.money/ru/personal-info/', {
+        waitUntil: 'networkidle2',
+        timeout: 30000
+      });
+
+      // Ждем загрузки поля ввода trade URL
+      await this.page.waitForSelector('input[placeholder*="steamcommunity.com/tradeoffer"], input.styles_input__1Ld76', { timeout: 10000 });
+
+      // Очищаем поле и вводим новый trade URL
+      await this.page.evaluate((newTradeUrl) => {
+        const input = document.querySelector('input[placeholder*="steamcommunity.com/tradeoffer"]') ||
+                     document.querySelector('input.styles_input__1Ld76');
+        if (input) {
+          input.value = '';
+          input.value = newTradeUrl;
+
+          // Триггерим события change и input
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }, tradeUrl);
+
+      // Ищем и нажимаем кнопку сохранения
+      const saveButtonSelectors = [
+        'button[type="submit"]',
+        'button:contains("Сохранить")',
+        'button:contains("Save")',
+        '.save-button',
+        '.submit-button'
+      ];
+
+      let saveButtonFound = false;
+      for (const selector of saveButtonSelectors) {
+        try {
+          await this.page.waitForSelector(selector, { timeout: 2000 });
+          await this.page.click(selector);
+          saveButtonFound = true;
+          logger.info(`Нажата кнопка сохранения с селектором: ${selector}`);
+          break;
+        } catch (selectorError) {
+          // Продолжаем поиск с другим селектором
+        }
+      }
+
+      if (!saveButtonFound) {
+        // Пробуем нажать Enter в поле ввода
+        await this.page.keyboard.press('Enter');
+        logger.info('Нажата клавиша Enter для сохранения');
+      }
+
+      // Ждем ответа сервера
+      await this.page.waitForTimeout(3000);
+
+      // Проверяем, что URL сохранился
+      const savedUrl = await this.page.evaluate(() => {
+        const input = document.querySelector('input[placeholder*="steamcommunity.com/tradeoffer"]') ||
+                     document.querySelector('input.styles_input__1Ld76');
+        return input ? input.value : null;
+      });
+
+      if (savedUrl === tradeUrl) {
+        logger.info(`Trade URL успешно обновлен через браузер: ${tradeUrl}`);
+        this.currentTradeUrl = tradeUrl;
+        return {
+          success: true,
+          message: 'Trade URL успешно обновлен через браузер',
+          previous_url: this.currentTradeUrl || null,
+          new_url: tradeUrl,
+          method: 'browser'
+        };
+      } else {
+        return {
+          success: false,
+          message: 'Trade URL не сохранился или сохранился некорректно',
+          expected: tradeUrl,
+          actual: savedUrl
+        };
+      }
+    } catch (error) {
+      logger.error('Ошибка при обновлении trade URL через браузер:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  }
+
+  // Метод для получения текущего trade URL из настроек
+  async getCurrentTradeURL() {
+    if (!this.isLoggedIn) {
+      await this.initialize();
+      if (!this.isLoggedIn) {
+        throw new Error('Необходимо авторизоваться на CS.Money для получения trade URL');
+      }
+    }
+
+    try {
+      logger.info('Получение текущего trade URL из настроек CS.Money');
+
+      // Переходим на страницу настроек
+      await this.page.goto('https://cs.money/ru/personal-info/', {
+        waitUntil: 'networkidle2',
+        timeout: 30000
+      });
+
+      // Ждем загрузки input поля
+      await this.page.waitForSelector('input.styles_input__1Ld76', { timeout: 10000 });
+
+      // Получаем текущее значение trade URL
+      const currentTradeUrl = await this.page.evaluate(() => {
+        const input = document.querySelector('input.styles_input__1Ld76');
+        return input ? input.value : null;
+      });
+
+      if (currentTradeUrl) {
+        logger.info(`Текущий trade URL: ${currentTradeUrl}`);
+        this.currentTradeUrl = currentTradeUrl;
+        return {
+          success: true,
+          trade_url: currentTradeUrl
+        };
+      } else {
+        logger.warn('Trade URL не найден на странице настроек');
+        return {
+          success: false,
+          message: 'Trade URL не найден на странице'
+        };
+      }
+    } catch (error) {
+      logger.error('Ошибка при получении текущего trade URL:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  }
+
+  // Комбинированный метод для покупки предмета с прямой отправкой пользователю
+  async buyItemForDirectTrade(itemId, assetId, price, userTradeUrl) {
+    logger.info(`Начинаем покупку предмета для прямой отправки пользователю: Item ID ${itemId}, Asset ID ${assetId}, Цена ${price}, User Trade URL: ${userTradeUrl}`);
+
+    try {
+      // Шаг 1: Сохраняем текущий trade URL (если нужно восстановить)
+      const currentTradeResult = await this.getCurrentTradeURL();
+      let originalTradeUrl = null;
+      if (currentTradeResult.success) {
+        originalTradeUrl = currentTradeResult.trade_url;
+        logger.info(`Сохранен оригинальный trade URL: ${originalTradeUrl}`);
+      }
+
+      // Шаг 2: Устанавливаем trade URL пользователя
+      const updateResult = await this.updateTradeURL(userTradeUrl);
+      if (!updateResult.success) {
+        return {
+          success: false,
+          message: `Не удалось установить trade URL пользователя: ${updateResult.message}`,
+          step: 'update_trade_url'
+        };
+      }
+
+      // Шаг 3: Пробуем прямую покупку сначала (новый API)
+      let purchaseResult;
+      try {
+        purchaseResult = await this.buyItemDirect(itemId);
+        if (purchaseResult.success) {
+          logger.info(`Предмет успешно куплен через прямой API: ${purchaseResult.order_id}`);
+          return {
+            success: true,
+            order_id: purchaseResult.order_id,
+            item_id: itemId,
+            user_trade_url: userTradeUrl,
+            original_trade_url: originalTradeUrl,
+            method: 'direct_api',
+            step: 'completed'
+          };
+        }
+      } catch (directError) {
+        logger.warn(`Прямая покупка не удалась, пробуем через корзину: ${directError.message}`);
+      }
+
+      // Шаг 4: Fallback - покупаем предмет через корзину
+      purchaseResult = await this.buyItemViaCart(itemId, assetId, price);
+      if (!purchaseResult.success) {
+        // В случае ошибки покупки, пытаемся восстановить оригинальный trade URL
+        if (originalTradeUrl && originalTradeUrl !== userTradeUrl) {
+          logger.info('Покупка не удалась, восстанавливаем оригинальный trade URL');
+          await this.updateTradeURL(originalTradeUrl);
+        }
+
+        return {
+          success: false,
+          message: `Не удалось купить предмет: ${purchaseResult.message}`,
+          step: 'purchase',
+          error_type: purchaseResult.error_type
+        };
+      }
+
+      logger.info(`Предмет успешно куплен для прямой отправки пользователю. Order ID: ${purchaseResult.order_id}`);
+
+      return {
+        success: true,
+        order_id: purchaseResult.order_id,
+        total_paid: purchaseResult.total_paid,
+        cart_id: purchaseResult.cart_id,
+        user_trade_url: userTradeUrl,
+        original_trade_url: originalTradeUrl,
+        method: 'cart_api',
+        step: 'completed'
+      };
+
+    } catch (error) {
+      logger.error(`Ошибка при покупке предмета для прямой отправки (ID: ${itemId}):`, error);
+      throw error;
     }
   }
 
@@ -1577,6 +2388,168 @@ class CSMoneyService {
       return true;
     } catch (error) {
       logger.error('Ошибка при сохранении конфигурации CS.Money:', error);
+      return false;
+    }
+  }
+
+  // Метод для проверки уведомлений
+  async checkNotifications(updatedFrom = null) {
+    if (!this.isLoggedIn) {
+      await this.initialize();
+      if (!this.isLoggedIn) {
+        throw new Error('Необходимо авторизоваться на CS.Money для проверки уведомлений');
+      }
+    }
+
+    try {
+      const timestamp = updatedFrom || Date.now() - 24 * 60 * 60 * 1000; // последние 24 часа
+      const url = `/1.0/market/notifications?updatedFrom=${timestamp}&limit=15`;
+
+      const response = await this.axiosInstance.get(url);
+
+      if (response.status === 200) {
+        logger.info(`Получено ${response.data?.notifications?.length || 0} уведомлений`);
+        return {
+          success: true,
+          notifications: response.data?.notifications || [],
+          data: response.data
+        };
+      } else {
+        return {
+          success: false,
+          message: 'Ошибка получения уведомлений'
+        };
+      }
+    } catch (error) {
+      logger.error('Ошибка при проверке уведомлений:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  }
+
+  // Метод для проверки активных предложений
+  async checkActiveOffers(updatedFrom = null) {
+    if (!this.isLoggedIn) {
+      await this.initialize();
+      if (!this.isLoggedIn) {
+        throw new Error('Необходимо авторизоваться на CS.Money для проверки активных предложений');
+      }
+    }
+
+    try {
+      const timestamp = updatedFrom || Date.now() - 24 * 60 * 60 * 1000; // последние 24 часа
+      const url = `/1.0/market/active-offers?updatedFrom=${timestamp}`;
+
+      const response = await this.axiosInstance.get(url);
+
+      if (response.status === 200) {
+        logger.info(`Получено ${response.data?.offers?.length || 0} активных предложений`);
+        return {
+          success: true,
+          offers: response.data?.offers || [],
+          data: response.data
+        };
+      } else {
+        return {
+          success: false,
+          message: 'Ошибка получения активных предложений'
+        };
+      }
+    } catch (error) {
+      logger.error('Ошибка при проверке активных предложений:', error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  }
+
+  // Вспомогательные методы для генерации trace ID (как в реальных запросах)
+  generateTraceId() {
+    // Генерируем 32-символьный hex ID
+    return Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  }
+
+  generateSpanId() {
+    // Генерируем 16-символьный hex ID
+    return Array.from({ length: 16 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  }
+
+  // Метод для обновления cookies из браузера
+  async updateCookiesFromBrowser() {
+    try {
+      if (!this.page) {
+        logger.warn('Браузер не инициализирован для обновления cookies');
+        return { success: false, message: 'Браузер не инициализирован' };
+      }
+
+      logger.info('Обновляем cookies из текущей сессии браузера...');
+
+      // Получаем все cookies из браузера
+      const browserCookies = await this.page.cookies();
+
+      if (browserCookies.length === 0) {
+        logger.warn('Не найдено cookies в браузере');
+        return { success: false, message: 'Cookies не найдены' };
+      }
+
+      // Преобразуем cookies в строку формата "name=value; name2=value2"
+      const cookieString = browserCookies
+        .filter(cookie => cookie.domain.includes('cs.money'))
+        .map(cookie => `${cookie.name}=${cookie.value}`)
+        .join('; ');
+
+      if (cookieString) {
+        // Обновляем cookies в конфигурации
+        this.cookies = cookieString;
+        this.config.cookies = cookieString;
+
+        // Обновляем заголовки axios
+        this.axiosInstance.defaults.headers.Cookie = cookieString;
+
+        // Сохраняем обновленную конфигурацию
+        CSMoneyService.saveConfig(this.config);
+
+        logger.info(`Cookies успешно обновлены. Найдено ${browserCookies.length} cookies`);
+        return {
+          success: true,
+          cookiesCount: browserCookies.length,
+          cookieString: cookieString.substring(0, 100) + '...' // Показываем первые 100 символов
+        };
+      }
+
+      return { success: false, message: 'Не найдено cookies для cs.money' };
+    } catch (error) {
+      logger.error('Ошибка при обновлении cookies:', error);
+      return { success: false, message: error.message };
+    }
+  }
+
+  // Метод для проверки и восстановления соединения
+  async ensureConnection() {
+    try {
+      // Проверяем текущий статус авторизации
+      if (!this.isLoggedIn) {
+        logger.info('Не авторизован, пытаемся восстановить соединение...');
+        await this.checkLogin();
+      }
+
+      // Если все еще не авторизован, пробуем обновить cookies
+      if (!this.isLoggedIn) {
+        logger.info('Пробуем обновить cookies...');
+        const updateResult = await this.updateCookiesFromBrowser();
+
+        if (updateResult.success) {
+          // Повторная проверка авторизации с новыми cookies
+          await this.checkLogin();
+        }
+      }
+
+      return this.isLoggedIn;
+    } catch (error) {
+      logger.error('Ошибка при восстановлении соединения:', error);
       return false;
     }
   }
