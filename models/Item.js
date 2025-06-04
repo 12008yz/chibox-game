@@ -13,12 +13,6 @@ const Item = sequelize.define('Item', {
       allowNull: false,
       comment: "Название предмета в CS2"
     },
-    csmoney_id: {
-      type: DataTypes.BIGINT,
-      allowNull: true,
-      unique: true,
-      comment: "ID предмета на CSMoney"
-    },
     description: {
       type: DataTypes.TEXT,
       allowNull: true,
@@ -103,12 +97,6 @@ const Item = sequelize.define('Item', {
       allowNull: true,
       comment: "Стикеры на предмете"
     },
-    buff_id: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      unique: true,
-      comment: "ID или ссылка на BUFF для автоматизации обновлений"
-    },
     origin: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -125,11 +113,6 @@ const Item = sequelize.define('Item', {
       allowNull: false,
       defaultValue: true,
       comment: "Можно ли сейчас передать предмет в трейде (учёт блокировки Steam)"
-    },
-    csmoney_tags: {
-      type: DataTypes.JSONB,
-      allowNull: true,
-      comment: "Теги предмета с CS.Money в формате JSON"
     },
     asset_id: {
       type: DataTypes.STRING,
