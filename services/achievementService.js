@@ -82,13 +82,18 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
       if (!userAchievement.bonus_applied && achievement.bonus_percentage > 0) {
         // Применение бонуса к шансу выпадения дорогих предметов
         const user = await db.User.findByPk(userId);
-        user.achievements_bonus_percentage = (user.achievements_bonus_percentage || 0) + achievement.bonus_percentage;
+        const currentAchievementsBonus = user.achievements_bonus_percentage || 0;
+        const newAchievementsBonus = Math.min(currentAchievementsBonus + achievement.bonus_percentage, 5.0);
 
-        // Пересчитываем общий бонус
-        user.total_drop_bonus_percentage =
-          (user.achievements_bonus_percentage || 0) +
+        user.achievements_bonus_percentage = newAchievementsBonus;
+
+        // Пересчитываем общий бонус с ограничением 15%
+        user.total_drop_bonus_percentage = Math.min(
+          newAchievementsBonus +
           (user.level_bonus_percentage || 0) +
-          (user.subscription_bonus_percentage || 0);
+          (user.subscription_bonus_percentage || 0),
+          15.0
+        );
 
         await user.save();
 

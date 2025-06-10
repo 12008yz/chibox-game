@@ -1,7 +1,7 @@
 const db = require('../../models');
 const { logger } = require('../../utils/logger');
 const { addJob } = require('../../services/queueService');
-const { calculateModifiedDropWeights, selectItemWithModifiedWeights } = require('../../utils/dropWeightCalculator');
+const { calculateModifiedDropWeights, selectItemWithModifiedWeights, selectItemWithModifiedWeightsAndDuplicateProtection } = require('../../utils/dropWeightCalculator');
 
 async function openCase(req, res) {
   try {
@@ -121,30 +121,61 @@ async function openCase(req, res) {
     }
 
     // Применяем модифицированные веса с учетом бонусов пользователя
-    const userDropBonus = user.total_drop_bonus_percentage || 0;
+    // Для покупных кейсов (is_paid = true) исключаем бонус от подписки
+    let userDropBonus = 0;
+    const userSubscriptionTier = user.subscription_tier || 0;
+
+    if (userCase.is_paid) {
+      // Покупной кейс: только достижения + уровень (без подписки)
+      userDropBonus = (user.achievements_bonus_percentage || 0) + (user.level_bonus_percentage || 0);
+      userDropBonus = Math.min(userDropBonus, 15.0); // Общий лимит
+    } else {
+      // Подписочный кейс: все бонусы
+      userDropBonus = user.total_drop_bonus_percentage || 0;
+    }
 
     let selectedItem = null;
     if (userDropBonus > 0) {
       // Используем модифицированную систему весов
       const modifiedItems = calculateModifiedDropWeights(items, userDropBonus);
-      selectedItem = selectItemWithModifiedWeights(modifiedItems);
+
+      // Применяем защиту от дубликатов для 3 уровня подписки (только для подписочных кейсов)
+      if (!userCase.is_paid && userSubscriptionTier === 3) {
+        selectedItem = await selectItemWithModifiedWeightsAndDuplicateProtection(
+          modifiedItems,
+          userId,
+          userSubscriptionTier
+        );
+      } else {
+        selectedItem = selectItemWithModifiedWeights(modifiedItems);
+      }
 
       // Логируем использование бонуса для статистики
-      logger.info(`Пользователь ${userId} открывает кейс с бонусом ${userDropBonus.toFixed(2)}%`);
+      const caseType = userCase.is_paid ? 'покупной' : 'подписочный';
+      const duplicateProtection = (!userCase.is_paid && userSubscriptionTier === 3) ? ' и защитой от дубликатов' : '';
+      logger.info(`Пользователь ${userId} открывает ${caseType} кейс с бонусом ${userDropBonus.toFixed(2)}%${duplicateProtection}`);
     } else {
-      // Стандартная система без бонусов
-      const totalWeight = items.reduce((sum, item) => sum + (item.drop_weight || 1), 0);
-      let randomWeight = Math.random() * totalWeight;
+      // Стандартная система без бонусов, но с защитой от дубликатов если есть 3 уровень подписки (только для подписочных кейсов)
+      if (!userCase.is_paid && userSubscriptionTier === 3) {
+        selectedItem = await selectItemWithModifiedWeightsAndDuplicateProtection(
+          items,
+          userId,
+          userSubscriptionTier
+        );
+      } else {
+        const totalWeight = items.reduce((sum, item) => sum + (item.drop_weight || 1), 0);
+        let randomWeight = Math.random() * totalWeight;
 
-      for (const item of items) {
-        randomWeight -= (item.drop_weight || 1);
-        if (randomWeight <= 0) {
-          selectedItem = item;
-          break;
+        for (const item of items) {
+          randomWeight -= (item.drop_weight || 1);
+          if (randomWeight <= 0) {
+            selectedItem = item;
+            break;
+          }
         }
-      }
-      if (!selectedItem) {
-        selectedItem = items[items.length - 1];
+        if (!selectedItem) {
+          selectedItem = items[items.length - 1];
+        }
       }
     }
 

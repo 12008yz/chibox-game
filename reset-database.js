@@ -1,6 +1,7 @@
 // Этот скрипт удаляет и пересоздает базу данных полностью
 const { Sequelize } = require('sequelize');
 const config = require('./config/config');
+require('dotenv').config();
 
 // Получаем конфигурацию базы данных
 const env = process.env.NODE_ENV || 'development';

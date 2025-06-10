@@ -15,13 +15,13 @@ async function getUserBonusInfoController(req, res) {
         const response = {
             ...bonusInfo,
             explanation: {
-                achievements: 'Бонус получен за выполнение достижений',
-                level: `Бонус от уровня: +0.1% за каждый уровень свыше 1-го (максимум +10%)`,
-                subscription: 'Бонус зависит от уровня подписки: Статус (+2%), Статус+ (+5%), Статус++ (+10%)',
-                total: 'Общий бонус влияет на шанс получения дорогих предметов при открытии кейсов'
+                achievements: 'Бонус получен за выполнение достижений (максимум +5%)',
+                level: `Бонус от уровня: +0.02% за каждый уровень свыше 1-го (максимум +2%)`,
+                subscription: 'Бонус зависит от уровня подписки: Статус (+3%), Статус+ (+5%), Статус++ (+8% + защита от дубликатов)',
+                total: 'Общий бонус влияет на шанс получения дорогих предметов при открытии кейсов (максимум +15%)'
             },
             nextLevelBonus: bonusInfo.level < 100 ?
-                ((bonusInfo.level * 0.1).toFixed(1)) :
+                ((bonusInfo.level * 0.02).toFixed(2)) :
                 'Максимальный бонус достигнут',
             possibleImprovements: []
         };
@@ -31,12 +31,12 @@ async function getUserBonusInfoController(req, res) {
             response.possibleImprovements.push({
                 type: 'subscription',
                 description: 'Купите подписку для получения дополнительного бонуса',
-                potentialBonus: '+2% до +10%'
+                potentialBonus: '+3% до +8% + защита от дубликатов на макс уровне'
             });
         }
 
         if (bonusInfo.level < 100) {
-            const nextLevelBonus = ((bonusInfo.level) * 0.1).toFixed(1);
+            const nextLevelBonus = ((bonusInfo.level) * 0.02).toFixed(2);
             response.possibleImprovements.push({
                 type: 'level',
                 description: `Повысьте уровень до ${bonusInfo.level + 1} для увеличения бонуса`,
