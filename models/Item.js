@@ -127,8 +127,7 @@ const Item = sequelize.define('Item', {
       { fields: ['rarity'] },
       { fields: ['price'] },
       { fields: ['is_available'] },
-      { fields: ['weapon_type'] },
-      { unique: true, fields: ['buff_id'] }
+      { fields: ['weapon_type'] }
     ]
   });
 

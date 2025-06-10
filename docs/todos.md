@@ -1,70 +1,36 @@
-# Покупка предметов в Steam Market - Идеальное решение!
+# Testing Setup Tasks
 
-## ✅ Почему Steam Market лучше внешних площадок:
+## Current Tasks
 
-### 1. **Официальный API**
+- [x] Install Jest + Supertest dependencies
+- [x] Create basic Jest configuration
+- [x] Setup test database configuration
+- [x] Create test utilities and helpers
+- [x] Write example tests for controllers (excluding withdrawal and deposit)
+- [x] Configure test coverage
+- [x] Add test scripts to package.json
+- [ ] Run initial tests and fix any issues
 
-- Стабильные endpoints
-- Нет блокировок 403
-- Официальная документация
-- Высокая надежность
+## Testable Controllers (Priority)
 
-### 2. **Простота интеграции**
+- [x] Authentication (login, register, logout)
+- [x] Profile management (getProfile, updateProfile)
+- [x] Cases (getCases, openCase, getCasesAvailable)
+- [x] Inventory (getInventory, sellItem)
+- [x] Subscription (buySubscription, getSubscription)
+- [x] Achievements and missions
+- [x] Statistics and leaderboard
+- [x] Promo codes
 
-- Steam Web API уже используется в проекте
-- Те же cookies и сессии
-- Нет дополнительных регистраций
+## Controllers to Skip Initially
 
-### 3. **Мгновенное получение**
+- [ ] withdrawItem (Steam integration not ready)
+- [ ] deposit (external payment gateway)
+- [ ] withdrawBalance (external payment gateway)
 
-- Предметы сразу попадают в инвентарь
-- Никаких trade offer ожиданий
-- Автоматическое зачисление
+## Notes
 
-### 4. **Безопасность**
-
-- Официальная площадка Valve
-- Защита от мошенничества
-- Гарантия доставки
-
-## 🔧 Как реализовать:
-
-### API endpoints для Steam Market:
-
-```javascript
-// 1. Поиск предметов
-GET https://steamcommunity.com/market/search/render/
-?query=AK-47+Redline&appid=730
-
-// 2. Получение информации о предмете
-GET https://steamcommunity.com/market/listings/730/{market_hash_name}
-
-// 3. Покупка предмета
-POST https://steamcommunity.com/market/buylisting/730
-```
-
-### Процесс покупки:
-
-1. **Поиск предмета** по market_hash_name
-2. **Выбор самого дешевого** предложения
-3. **Покупка через POST запрос**
-4. **Предмет автоматически** попадает в инвентарь бота
-
-## 💡 Гибридная стратегия (РЕКОМЕНДУЮ):
-
-### Популярные предметы → Заранее в инвентаре
-
-- AK-47 Redline, AWP Dragon Lore, ножи
-- Закупаются массово и хранятся
-
-### Редкие предметы → Покупка в Steam Market
-
-- Дорогие ножи, StatTrak предметы
-- Покупаются по требованию при выпадении
-
-### Преимущества:
-
-- ✅ Быстрая отправка популярных предметов
-- ✅ Не замораживаем много денег в редких предметах
-- ✅ Используем официальный Steam API
-- ✅ Никаких внешних зависимостей
+- Use test database: chibox-game-test
+- Mock external services (Steam, YooKassa)
+- Focus on business logic testing
+- Setup integration tests for API endpoints
