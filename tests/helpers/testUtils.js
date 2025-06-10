@@ -1,15 +1,25 @@
 const { sequelize } = require('../../models');
 const jwt = require('jsonwebtoken');
+const argon2 = require('argon2');
 
 /**
  * Создание тестового пользователя
  */
 async function createTestUser(userData = {}) {
   const { User } = require('../../models');
+  const { v4: uuidv4 } = require('uuid');
+
+  // Если пароль не передан и не хэширован, создаем дефолтный хэш
+  let password = userData.password;
+  if (!password) {
+    password = await argon2.hash('defaultTestPassword123');
+  }
+
   const defaultData = {
+    id: uuidv4(), // Явно генерируем UUID
     username: `testuser_${Date.now()}`,
     email: `test_${Date.now()}@example.com`,
-    password: '$2b$10$test.hash.here',
+    password: password,
     steam_id: `steam_${Date.now()}`,
     balance: 1000,
     level: 1,
@@ -25,11 +35,11 @@ async function createTestUser(userData = {}) {
 /**
  * Создание JWT токена для тестов
  */
-function createTestJWT(userId, role = 'user') {
+function createTestJWT(userId, email = 'test@example.com', role = 'user') {
   return jwt.sign(
-    { userId, role },
-    process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN }
+    { id: userId, email, role },
+    process.env.JWT_SECRET || 'test-secret-key-at-least-32-characters-long',
+    { expiresIn: process.env.JWT_EXPIRES_IN || '1d' }
   );
 }
 
@@ -87,7 +97,10 @@ async function initTestDatabase() {
  */
 async function createTestCase(caseData = {}) {
   const { CaseTemplate } = require('../../models');
+  const { v4: uuidv4 } = require('uuid');
+
   const defaultData = {
+    id: uuidv4(), // Явно генерируем UUID
     name: `Test Case ${Date.now()}`,
     description: 'Test case description',
     image_url: 'http://example.com/case.jpg',
@@ -110,17 +123,20 @@ async function createTestCase(caseData = {}) {
  */
 async function createTestItem(itemData = {}) {
   const { Item, ItemCategory } = require('../../models');
+  const { v4: uuidv4 } = require('uuid');
 
   // Создаем категорию если её нет
   let category = await ItemCategory.findOne({ where: { name: 'Test Category' } });
   if (!category) {
     category = await ItemCategory.create({
+      id: uuidv4(),
       name: 'Test Category',
       description: 'Test category description'
     });
   }
 
   const defaultData = {
+    id: uuidv4(), // Явно генерируем UUID
     name: `Test Item ${Date.now()}`,
     description: 'Test item description',
     image_url: 'http://example.com/item.jpg',

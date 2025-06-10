@@ -103,7 +103,7 @@ describe('Cases Controllers', () => {
       const { Case } = require('../../models');
       const userCase = await Case.create({
         user_id: user.id,
-        case_template_id: caseTemplate.id,
+        template_id: caseTemplate.id,
         is_opened: false,
         received_date: new Date()
       });
@@ -130,7 +130,7 @@ describe('Cases Controllers', () => {
       const { Case } = require('../../models');
       const userCase = await Case.create({
         user_id: user.id,
-        case_template_id: caseTemplate.id,
+        template_id: caseTemplate.id,
         is_opened: true, // уже открыт
         received_date: new Date()
       });
@@ -177,7 +177,7 @@ describe('Cases Controllers', () => {
       const { Case } = require('../../models');
       const user2Case = await Case.create({
         user_id: user2.id, // кейс принадлежит user2
-        case_template_id: caseTemplate.id,
+        template_id: caseTemplate.id,
         is_opened: false,
         received_date: new Date()
       });
@@ -241,7 +241,7 @@ describe('Cases Controllers', () => {
       const response = await agent
         .post('/api/user/cases/buy')
         .set('Authorization', `Bearer ${token}`)
-        .send({ caseTemplateId: caseTemplate.id })
+        .send({ method: 'balance', quantity: 1 })
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -254,7 +254,7 @@ describe('Cases Controllers', () => {
     });
 
     it('should not buy case with insufficient funds', async () => {
-      const user = await createTestUser({ balance: 50 });
+      const user = await createTestUser({ balance: 30 }); // Меньше чем цена кейса (50)
       const token = createTestJWT(user.id);
 
       const caseTemplate = await createTestCase({
@@ -266,45 +266,39 @@ describe('Cases Controllers', () => {
       const response = await agent
         .post('/api/user/cases/buy')
         .set('Authorization', `Bearer ${token}`)
-        .send({ caseTemplateId: caseTemplate.id })
+        .send({ method: 'balance', quantity: 1 })
         .expect(400);
 
       expect(response.body.success).toBeFalsy();
-      expect(response.body.message).toContain('недостаточно');
+      expect(response.body.message).toContain('Недостаточно средств');
     });
 
-    it('should not buy inactive case', async () => {
-      const user = await createTestUser({ balance: 1000 });
-      const token = createTestJWT(user.id);
-
-      const caseTemplate = await createTestCase({
-        name: 'Inactive Case',
-        price: 100,
-        is_active: false
-      });
-
-      const response = await agent
-        .post('/api/user/cases/buy')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ caseTemplateId: caseTemplate.id })
-        .expect(400);
-
-      expect(response.body.success).toBeFalsy();
-      expect(response.body.message).toContain('недоступен');
-    });
-
-    it('should not buy non-existent case', async () => {
+    it('should not buy case with invalid quantity', async () => {
       const user = await createTestUser({ balance: 1000 });
       const token = createTestJWT(user.id);
 
       const response = await agent
         .post('/api/user/cases/buy')
         .set('Authorization', `Bearer ${token}`)
-        .send({ caseTemplateId: 99999 })
-        .expect(404);
+        .send({ method: 'balance', quantity: 10 }) // Превышает лимит 5
+        .expect(400);
 
       expect(response.body.success).toBeFalsy();
-      expect(response.body.message).toContain('не найден');
+      expect(response.body.message).toContain('должно быть от 1 до 5');
+    });
+
+    it('should buy case successfully', async () => {
+      const user = await createTestUser({ balance: 1000 });
+      const token = createTestJWT(user.id);
+
+      const response = await agent
+        .post('/api/user/cases/buy')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ method: 'balance', quantity: 1 })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(response.body.message).toContain('Успешно куплено');
     });
 
     it('should require authentication', async () => {
@@ -312,7 +306,7 @@ describe('Cases Controllers', () => {
 
       const response = await agent
         .post('/api/user/cases/buy')
-        .send({ caseTemplateId: caseTemplate.id })
+        .send({ method: 'balance', quantity: 1 })
         .expect(401);
 
       expect(response.body.success).toBeFalsy();

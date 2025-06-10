@@ -16,7 +16,7 @@ async function getCases(req, res) {
   try {
     const cases = await db.CaseTemplate.findAll();
     logger.info('Получен список кейсов');
-    return res.json({ cases });
+    return res.json({ success: true, cases });
   } catch (error) {
     logger.error('Ошибка получения кейсов:', error);
     return res.status(500).json({ message: 'Внутренняя ошибка сервера' });

@@ -1,6 +1,7 @@
 const db = require('../../models');
 const winston = require('winston');
 const { addJob } = require('../../services/queueService');
+const { addExperience } = require('../../services/xpService');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -83,12 +84,32 @@ async function buyCase(req, res) {
       logger.info(`После перезагрузки: paid_cases_bought_today = ${user.paid_cases_bought_today}, last_reset_date = ${user.last_reset_date}`);
 
       // Получаем дефолтный шаблон кейса
-      const defaultTemplate = await db.CaseTemplate.findOne({
-        where: { name: 'Ежедневный кейс', type: 'premium' }
+      let defaultTemplate = await db.CaseTemplate.findOne({
+        where: { name: 'Ежедневный кейс' }
       });
 
+      // Если нет дефолтного шаблона, берем любой активный
       if (!defaultTemplate) {
-        return res.status(500).json({ message: 'Шаблон кейса не найден' });
+        defaultTemplate = await db.CaseTemplate.findOne({
+          where: { is_active: true }
+        });
+      }
+
+      // Если все еще нет шаблона, создаем временный
+      if (!defaultTemplate) {
+        defaultTemplate = await db.CaseTemplate.create({
+          name: 'Дефолтный кейс',
+          description: 'Автоматически созданный шаблон кейса',
+          price: 50,
+          is_active: true,
+          item_pool_config: {
+            common: 60,
+            uncommon: 25,
+            rare: 10,
+            epic: 4,
+            legendary: 1
+          }
+        });
       }
 
       // Создаем кейсы

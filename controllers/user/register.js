@@ -117,6 +117,7 @@ async function register(req, res) {
 
     return res.status(201).json({
       success: true,
+      message: 'Пользователь успешно зарегистрирован',
       token,
       user: {
         id: newUser.id,

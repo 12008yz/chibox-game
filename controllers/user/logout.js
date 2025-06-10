@@ -8,7 +8,7 @@ function logout(req, res) {
     const token = authHeader.split(' ')[1];
     revokedTokens.add(token);
   }
-  return res.json({ message: 'Успешный выход, токен отозван' });
+  return res.json({ success: true, message: 'Успешный выход, токен отозван' });
 }
 
 module.exports = {

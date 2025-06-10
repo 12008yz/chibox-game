@@ -12,7 +12,7 @@ async function openCase(req, res) {
     // Сначала проверки без транзакции
     const user = await db.User.findByPk(userId);
     if (!user) {
-      return res.status(404).json({ message: 'Пользователь не найден' });
+      return res.status(404).json({ success: false, message: 'Пользователь не найден' });
     }
 
     let userCase;
@@ -35,14 +35,14 @@ async function openCase(req, res) {
 
           const timeString = `${hours}ч ${minutes}м ${seconds}с`;
 
-          return res.status(404).json({ message: `Не найден неоткрытый кейс для пользователя. Следующий кейс будет доступен через ${timeString}`, next_case_available_time: user.next_case_available_time });
+          return res.status(404).json({ success: false, message: `Не найден неоткрытый кейс для пользователя. Следующий кейс будет доступен через ${timeString}`, next_case_available_time: user.next_case_available_time });
         }
         // Если next_case_available_time не установлен, установим его на 1 час вперед
         const newNextCaseTime = new Date(new Date().getTime() + 60 * 60 * 1000);
         user.next_case_available_time = newNextCaseTime;
         await user.save();
 
-        return res.status(404).json({ message: `Не найден неоткрытый кейс для пользователя. Следующий кейс будет доступен через 1ч 0м 0с`, next_case_available_time: newNextCaseTime });
+        return res.status(404).json({ success: false, message: `Не найден неоткрытый кейс для пользователя. Следующий кейс будет доступен через 1ч 0м 0с`, next_case_available_time: newNextCaseTime });
       }
       caseId = userCase.id;
     }
@@ -73,8 +73,17 @@ async function openCase(req, res) {
 
       const timeString = `${hours}ч ${minutes}м ${seconds}с`;
 
-      await t.rollback();
       return res.status(400).json({ message: `Достигнут общий лимит открытия кейсов на сегодня. Следующий кейс будет доступен через ${timeString}` });
+    }
+
+    // Получаем информацию о кейсе для дальнейших проверок
+    if (!userCase) {
+      userCase = await db.Case.findOne({
+        where: { id: caseId, user_id: userId, is_opened: false }
+      });
+      if (!userCase) {
+        return res.status(404).json({ success: false, message: 'Кейс не найден или уже открыт' });
+      }
     }
 
     // Убираем ограничение на время открытия кейса
@@ -88,7 +97,7 @@ async function openCase(req, res) {
 
       const timeString = `${hours}ч ${minutes}м ${seconds}с`;
 
-      return res.status(400).json({ message: `Следующий кейс будет доступен через ${timeString}`, next_case_available_time: user.next_case_available_time });
+      return res.status(400).json({ success: false, message: `Следующий кейс будет доступен через ${timeString}`, next_case_available_time: user.next_case_available_time });
     }
 
     userCase = await db.Case.findOne({
@@ -103,12 +112,12 @@ async function openCase(req, res) {
       ]
     });
     if (!userCase) {
-      return res.status(404).json({ message: 'Кейс не найден или уже открыт' });
+      return res.status(404).json({ success: false, message: 'Кейс не найден или уже открыт' });
     }
 
     const items = userCase.template.items || [];
     if (!items.length) {
-      return res.status(404).json({ message: 'В кейсе нет предметов' });
+      return res.status(404).json({ success: false, message: 'В кейсе нет предметов' });
     }
 
     // Применяем модифицированные веса с учетом бонусов пользователя

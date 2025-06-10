@@ -56,11 +56,13 @@
     "steam-tradeoffer-manager": "^2.11.7",
     "steam-user": "^5.2.1",
     "steamcommunity": "^3.48.6",
+    "uuid": "^11.1.0",
     "winston": "^3.17.0"
   },
   "devDependencies": {
     "@jest/globals": "^30.0.0",
     "concurrently": "^7.6.0",
+    "cross-env": "^7.0.3",
     "eslint": "^9.27.0",
     "eslint-plugin-security": "^3.0.1",
     "jest": "^30.0.0",
