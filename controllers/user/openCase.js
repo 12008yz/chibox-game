@@ -135,18 +135,33 @@ async function openCase(req, res) {
     }
 
     let selectedItem = null;
+
+    logger.info(`Начинаем выбор предмета. Предметов в кейсе: ${items.length}, userDropBonus: ${userDropBonus}, userSubscriptionTier: ${userSubscriptionTier}, is_paid: ${userCase.is_paid}`);
+
+    // Логируем первые несколько предметов для отладки
+    logger.info('Первые 3 предмета в кейсе:', items.slice(0, 3).map(item => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      drop_weight: item.drop_weight
+    })));
+
     if (userDropBonus > 0) {
       // Используем модифицированную систему весов
       const modifiedItems = calculateModifiedDropWeights(items, userDropBonus);
 
+      logger.info(`Модифицированных предметов: ${modifiedItems.length}`);
+
       // Применяем защиту от дубликатов для 3 уровня подписки (только для подписочных кейсов)
       if (!userCase.is_paid && userSubscriptionTier === 3) {
+        logger.info('Используем защиту от дубликатов');
         selectedItem = await selectItemWithModifiedWeightsAndDuplicateProtection(
           modifiedItems,
           userId,
           userSubscriptionTier
         );
       } else {
+        logger.info('Используем стандартный выбор с модифицированными весами');
         selectedItem = selectItemWithModifiedWeights(modifiedItems);
       }
 
@@ -164,20 +179,34 @@ async function openCase(req, res) {
         );
       } else {
         const totalWeight = items.reduce((sum, item) => sum + (item.drop_weight || 1), 0);
-        let randomWeight = Math.random() * totalWeight;
 
-        for (const item of items) {
-          randomWeight -= (item.drop_weight || 1);
-          if (randomWeight <= 0) {
-            selectedItem = item;
-            break;
+        if (totalWeight <= 0) {
+          logger.error(`Общий вес предметов равен 0 для кейса ${caseId}`);
+          selectedItem = items[0]; // Берем первый предмет
+        } else {
+          let randomWeight = Math.random() * totalWeight;
+
+          for (const item of items) {
+            randomWeight -= (item.drop_weight || 1);
+            if (randomWeight <= 0) {
+              selectedItem = item;
+              break;
+            }
           }
-        }
-        if (!selectedItem) {
-          selectedItem = items[items.length - 1];
+          if (!selectedItem) {
+            selectedItem = items[items.length - 1];
+          }
         }
       }
     }
+
+    // Проверяем, что предмет был выбран
+    if (!selectedItem) {
+      logger.error(`Не удалось выбрать предмет из кейса ${caseId}. Предметы в кейсе:`, items.map(item => ({ id: item.id, name: item.name, drop_weight: item.drop_weight, price: item.price })));
+      return res.status(500).json({ message: 'Ошибка выбора предмета из кейса' });
+    }
+
+    logger.info(`Выбран предмет: ${selectedItem.id} (${selectedItem.name || 'N/A'}) для пользователя ${userId}`);
 
     // Транзакция только для критических операций изменения данных
     const { sequelize } = require('../../models');

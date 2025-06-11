@@ -2,16 +2,15 @@ const db = require('../models');
 
 async function linkItemsToCaseTemplates() {
   try {
-    // Получаем все активные шаблоны кейсов типа 'daily'
+    // Получаем все активные шаблоны кейсов
     const caseTemplates = await db.CaseTemplate.findAll({
       where: {
-        type: 'premium',
         is_active: true
       }
     });
 
     if (caseTemplates.length === 0) {
-      console.log('Нет активных шаблонов кейсов типа daily');
+      console.log('Нет активных шаблонов кейсов');
       return;
     }
 
