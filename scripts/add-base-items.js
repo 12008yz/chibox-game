@@ -26,7 +26,7 @@ function extractMarketHashNameFromUrl(url) {
 const CASE_CONFIGS = {
   subscription: {
     name: 'Подписочные кейсы',
-    target_expected_value: 0.20,
+    target_expected_value: 20, // в рублях
     min_subscription_tier: 1,
     drop_weights: {
       consumer: 600,    // 60%
@@ -36,9 +36,9 @@ const CASE_CONFIGS = {
     }
   },
   purchase: {
-    name: 'Покупные кейсы $0.99',
-    target_expected_value: 0.79,
-    price: 0.99,
+    name: 'Покупные кейсы ₽99',
+    target_expected_value: 79, // в рублях
+    price: 99, // в рублях
     min_subscription_tier: 0,
     drop_weights: {
       consumer: 600,     // 60%
@@ -51,9 +51,9 @@ const CASE_CONFIGS = {
     }
   },
   premium: {
-    name: 'Премиум кейсы $4.99',
-    target_expected_value: 3.99,
-    price: 4.99,
+    name: 'Премиум кейсы ₽499',
+    target_expected_value: 399, // в рублях
+    price: 499, // в рублях
     min_subscription_tier: 0,
     drop_weights: {
       milspec: 400,     // 40%
@@ -80,7 +80,11 @@ const ITEMS_URLS = {
       'https://steamcommunity.com/market/listings/730/P250%20%7C%20Sand%20Dune%20%28Factory%20New%29',
       'https://steamcommunity.com/market/listings/730/MAC-10%20%7C%20Urban%20DDPAT%20%28Battle-Scarred%29',
       'https://steamcommunity.com/market/listings/730/Nova%20%7C%20Forest%20Leaves%20%28Battle-Scarred%29',
-      // Добавьте остальные 120 Consumer Grade URL...
+      'https://steamcommunity.com/market/listings/730/P90%20%7C%20Sand%20Spray%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/MP9%20%7C%20Sand%20Dashed%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/PP-Bizon%20%7C%20Forest%20Leaves%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/UMP-45%20%7C%20Urban%20DDPAT%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/SCAR-20%20%7C%20Sand%20Mesh%20%28Battle-Scarred%29'
     ],
     industrial: [
       'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Blue%20Laminate%20%28Well-Worn%29',
@@ -88,7 +92,11 @@ const ITEMS_URLS = {
       'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Bright%20Water%20%28Field-Tested%29',
       'https://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Blue%20Fissure%20%28Factory%20New%29',
       'https://steamcommunity.com/market/listings/730/USP-S%20%7C%20Stainless%20%28Factory%20New%29',
-      // Добавьте остальные 95 Industrial Grade URL...
+      'https://steamcommunity.com/market/listings/730/Five-SeveN%20%7C%20Silver%20Quartz%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/Tec-9%20%7C%20Brass%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/P2000%20%7C%20Silver%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/Dual%20Berettas%20%7C%20Contractor%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/CZ75-Auto%20%7C%20Silver%20%28Factory%20New%29'
     ],
     milspec: [
       'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Blue%20Laminate%20%28Field-Tested%29',
@@ -191,17 +199,42 @@ async function processItem(url, rarity, caseType, delay = 2000) {
     // Добавляем задержку
     await new Promise(resolve => setTimeout(resolve, delay));
 
-    // Получаем данные с Steam
-    const steamData = await getSteamItemData(marketHashName);
+    // Получаем данные с Steam с повторными попытками
+    let steamData = null;
+    let attempts = 0;
+    const maxAttempts = 3;
 
-    if (steamData.error) {
-      console.error(`❌ Ошибка получения данных: ${marketHashName} - ${steamData.error}`);
+    while (attempts < maxAttempts && !steamData) {
+      attempts++;
+      try {
+        console.log(`   Попытка ${attempts}/${maxAttempts} получения данных Steam...`);
+        steamData = await getSteamItemData(marketHashName);
+
+        if (steamData && !steamData.error) {
+          break;
+        } else if (steamData && steamData.error) {
+          console.warn(`   ⚠️ Попытка ${attempts} неудачна: ${steamData.error}`);
+        }
+      } catch (error) {
+        console.warn(`   ⚠️ Ошибка попытки ${attempts}: ${error.message}`);
+      }
+
+      // Дополнительная задержка между попытками
+      if (attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+    }
+
+    if (!steamData || steamData.error) {
+      console.error(`❌ Не удалось получить данные после ${maxAttempts} попыток: ${marketHashName}`);
       return null;
     }
 
-    // Извлекаем основную информацию
-    const price = steamData.price_usd || 0.10;
-    const autoRarity = determineRarityByPrice(price * 100); // Конвертируем в центы
+    // Извлекаем основную информацию и конвертируем в рубли
+    const priceUsd = steamData.price_usd || 0.10;
+    const exchangeRate = 95; // USD to RUB exchange rate
+    const priceRub = Math.round(priceUsd * exchangeRate * 100) / 100; // Цена в рублях
+    const autoRarity = determineRarityByPrice(priceUsd * 100); // Определяем редкость по цене в центах
     const finalRarity = rarity || autoRarity;
 
     // Определяем drop_weight на основе редкости и цены
@@ -223,7 +256,7 @@ async function processItem(url, rarity, caseType, delay = 2000) {
       name: marketHashName,
       description: `CS2 ${finalRarity} skin: ${marketHashName}`,
       image_url: steamData.item_info?.icon_url_large || steamData.item_info?.icon_url || null,
-      price: price,
+      price: priceRub, // Цена в рублях
       rarity: finalRarity,
       drop_weight: Math.round(dropWeight * 100) / 100,
       min_subscription_tier: CASE_CONFIGS[caseType]?.min_subscription_tier || 0,
@@ -240,7 +273,7 @@ async function processItem(url, rarity, caseType, delay = 2000) {
       origin: `${caseType}_case`
     });
 
-    console.log(`✅ Добавлен: ${marketHashName} - $${price} - ${finalRarity} - weight: ${Math.round(dropWeight * 100) / 100}`);
+    console.log(`✅ Добавлен: ${marketHashName} - ₽${priceRub} (${priceUsd}) - ${finalRarity} - weight: ${Math.round(dropWeight * 100) / 100}`);
     return newItem;
 
   } catch (error) {
@@ -379,16 +412,17 @@ async function populateDatabase(limitPerCategory = 5) {
         const url = urlsToProcess[i];
         console.log(`[${i + 1}/${urlsToProcess.length}] Обрабатываем: ${rarity}`);
 
-        const result = await processItem(url, rarity, caseType, 2000);
+        const result = await processItem(url, rarity, caseType, 3000);
         totalItems++;
 
         if (result) {
           successfulItems++;
         }
 
-        // Дополнительная задержка между запросами
+        // Увеличенная задержка между запросами для Steam API
         if (i < urlsToProcess.length - 1) {
-          console.log('⏳ Ждем 2 секунды...');
+          console.log('⏳ Ждем 3 секунды перед следующим запросом...');
+          await new Promise(resolve => setTimeout(resolve, 3000));
         }
       }
     }
@@ -445,18 +479,18 @@ async function validateProfitability() {
         expectedValue += contribution;
         totalWeight += weight;
 
-        console.log(`   ${rarity}: ${rarityItems.length} предметов, вес: ${weight}, средняя цена: $${avgPrice.toFixed(3)}, вклад: $${contribution.toFixed(3)}`);
+        console.log(`   ${rarity}: ${rarityItems.length} предметов, вес: ${weight}, средняя цена: ₽${avgPrice.toFixed(2)}, вклад: ₽${contribution.toFixed(2)}`);
       }
     });
 
-    console.log(`   Ожидаемая стоимость: $${expectedValue.toFixed(3)}`);
-    console.log(`   Целевая стоимость: $${config.target_expected_value}`);
+    console.log(`   Ожидаемая стоимость: ₽${expectedValue.toFixed(2)}`);
+    console.log(`   Целевая стоимость: ₽${config.target_expected_value}`);
 
     if (config.price) {
       const profit = config.price - expectedValue;
       const profitability = (profit / config.price * 100);
-      console.log(`   Цена кейса: $${config.price}`);
-      console.log(`   Прибыль: $${profit.toFixed(3)}`);
+      console.log(`   Цена кейса: ₽${config.price}`);
+      console.log(`   Прибыль: ₽${profit.toFixed(2)}`);
       console.log(`   Рентабельность: ${profitability.toFixed(1)}%`);
       console.log(`   Статус: ${profitability >= 18 && profitability <= 25 ? '✅ ОПТИМАЛЬНО' : profitability >= 15 ? '⚠️  ПРИЕМЛЕМО' : '❌ УБЫТОЧНО'}`);
     } else {

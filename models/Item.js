@@ -114,11 +114,6 @@ const Item = sequelize.define('Item', {
       defaultValue: true,
       comment: "Можно ли сейчас передать предмет в трейде (учёт блокировки Steam)"
     },
-    asset_id: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      comment: "ID ассета на CS.Money"
-    },
   }, {
     timestamps: true,
     underscored: true,
