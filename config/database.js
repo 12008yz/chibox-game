@@ -8,7 +8,7 @@ const env = process.env.NODE_ENV || 'development';
 // Используем переменные окружения из .env, если они заданы, иначе берем из config
 const dbConfig = {
   username: process.env.DB_USERNAME || config[env].username,
-  password: process.env.DB_PASSWORD || config[env].password,
+  password: String(process.env.DB_PASSWORD || config[env].password || ''),
   database: process.env.DB_DATABASE || config[env].database,
   host: process.env.DB_HOST || config[env].host,
   dialect: process.env.DB_DIALECT || config[env].dialect,
@@ -26,7 +26,7 @@ const sequelize = new Sequelize(
         {
           host: process.env.DB_READ_HOST_1 || config[env].readHost1,
           username: process.env.DB_USERNAME || config[env].username,
-          password: process.env.DB_PASSWORD || config[env].password,
+          password: String(process.env.DB_PASSWORD || config[env].password || ''),
           database: process.env.DB_DATABASE || config[env].database,
           dialect: dbConfig.dialect,
         },
