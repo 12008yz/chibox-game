@@ -141,7 +141,7 @@ async function addItemToUserInventory(userId, itemIdentifier) {
 // If run as script
 if (require.main === module) {
   const userId = '4e7c4a6b-ed5e-4517-976d-66b663271437';
-  const steamUrl = 'https://steamcommunity.com/market/listings/730/Tec-9%20%7C%20Urban%20DDPAT%20%28Battle-Scarred%29';
+  const steamUrl = 'https://steamcommunity.com/market/listings/730/MP9%20%7C%20Black%20Sand%20%28Battle-Scarred%29';
 
   console.log('🚀 Добавляем предмет в инвентарь пользователя...');
   console.log(`👤 User ID: ${userId}`);
