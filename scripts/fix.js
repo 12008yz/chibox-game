@@ -1,50 +1,47 @@
-#!/usr/bin/env node
+const { UserInventory, Item } = require('../models');
 
-/**
- * Скрипт для исправления exterior предмета в базе данных
- */
-
-const { Item } = require('../models');
-
-async function fixItemExterior() {
+(async () => {
   try {
-    console.log('🔧 Исправление exterior предмета MP9 | Slide...');
-
-    // Находим предмет MP9 | Slide (Well-Worn)
-    const item = await Item.findOne({
+    // Находим withdrawal с Well-Worn предметом
+    const inventoryItem = await UserInventory.findOne({
       where: {
-        steam_market_hash_name: 'MP9 | Slide (Well-Worn)'
+        withdrawal_id: '841c063f-5e22-43b0-8025-7e44a3e3639a'
+      },
+      include: [{
+        model: Item,
+        as: 'item'
+      }]
+    });
+
+    if (inventoryItem) {
+      console.log('Найден withdrawal item:', inventoryItem.item.steam_market_hash_name);
+
+      // Находим Battle-Scarred предмет
+      const battleScarredItem = await Item.findOne({
+        where: {
+          steam_market_hash_name: 'MP9 | Black Sand (Battle-Scarred)'
+        }
+      });
+
+      if (battleScarredItem) {
+        // Обновляем item_id в user_inventory
+        await UserInventory.update({
+          item_id: battleScarredItem.id
+        }, {
+          where: {
+            withdrawal_id: '841c063f-5e22-43b0-8025-7e44a3e3639a'
+          }
+        });
+
+        console.log('✅ Withdrawal исправлен на Battle-Scarred!');
+      } else {
+        console.log('❌ Battle-Scarred предмет не найден');
       }
-    });
-
-    if (!item) {
-      console.log('❌ Предмет MP9 | Slide (Well-Worn) не найден в базе данных');
-      return;
+    } else {
+      console.log('❌ Withdrawal не найден');
     }
-
-    console.log('📦 Найден предмет:');
-    console.log(`  - ID: ${item.id}`);
-    console.log(`  - Название: ${item.name}`);
-    console.log(`  - Market Hash Name: ${item.steam_market_hash_name}`);
-    console.log(`  - Exterior: ${item.exterior}`);
-
-    // Обновляем на Field-Tested
-    await item.update({
-      name: 'MP9 | Slide (Field-Tested)',
-      steam_market_hash_name: 'MP9 | Slide (Field-Tested)',
-      exterior: 'Field-Tested'
-    });
-
-    console.log('✅ Предмет обновлен на:');
-    console.log(`  - Название: ${item.name}`);
-    console.log(`  - Market Hash Name: ${item.steam_market_hash_name}`);
-    console.log(`  - Exterior: ${item.exterior}`);
-
   } catch (error) {
-    console.error('💥 Ошибка:', error);
+    console.error('❌ Ошибка:', error.message);
   }
-
   process.exit(0);
-}
-
-fixItemExterior();
+})();

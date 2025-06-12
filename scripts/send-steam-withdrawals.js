@@ -5,9 +5,9 @@
  * НЕ покупает предметы, только отправляет те что уже есть в инвентаре
  */
 
-const { Withdrawal, User, UserInventory, Item } = require('./models');
-const SteamBot = require('./services/steamBotService');
-const steamBotConfig = require('./config/steam_bot.js');
+const { Withdrawal, User, UserInventory, Item } = require('../models');
+const SteamBot = require('../services/steamBotService');
+const steamBotConfig = require('../config/steam_bot.js');
 const winston = require('winston');
 
 // Настройка логгера
