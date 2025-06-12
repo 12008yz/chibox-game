@@ -24,5 +24,16 @@ module.exports = {
   },
 
   // Включаем бота, так как данные есть
-  enabled: true
+  enabled: true,
+
+  // Валидация ключей
+  validateSecrets() {
+    if (!this.sharedSecret || !this.identitySecret) {
+      throw new Error('Missing sharedSecret or identitySecret');
+    }
+    if (this.sharedSecret.length < 20 || this.identitySecret.length < 20) {
+      throw new Error('Invalid secret format - too short');
+    }
+    console.log('Steam secrets validated successfully');
+  }
 };

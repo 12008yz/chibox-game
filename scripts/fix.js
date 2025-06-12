@@ -1,47 +1,91 @@
-const { UserInventory, Item } = require('../models');
+#!/usr/bin/env node
 
-(async () => {
-  try {
-    // Находим withdrawal с Well-Worn предметом
-    const inventoryItem = await UserInventory.findOne({
-      where: {
-        withdrawal_id: '841c063f-5e22-43b0-8025-7e44a3e3639a'
-      },
-      include: [{
-        model: Item,
-        as: 'item'
-      }]
-    });
+const SteamUser = require('steam-user');
+const SteamCommunity = require('steamcommunity');
+const TradeOfferManager = require('steam-tradeoffer-manager');
+const SteamTotp = require('steam-totp');
+const steamBotConfig = require('../config/steam_bot.js');
 
-    if (inventoryItem) {
-      console.log('Найден withdrawal item:', inventoryItem.item.steam_market_hash_name);
+const client = new SteamUser();
+const community = new SteamCommunity();
+const manager = new TradeOfferManager({
+  steam: client,
+  community: community,
+  language: 'en',
+});
 
-      // Находим Battle-Scarred предмет
-      const battleScarredItem = await Item.findOne({
-        where: {
-          steam_market_hash_name: 'MP9 | Black Sand (Battle-Scarred)'
-        }
-      });
+console.log('🔐 Авторизация Steam...');
 
-      if (battleScarredItem) {
-        // Обновляем item_id в user_inventory
-        await UserInventory.update({
-          item_id: battleScarredItem.id
-        }, {
-          where: {
-            withdrawal_id: '841c063f-5e22-43b0-8025-7e44a3e3639a'
+// Логин
+const twoFactorCode = SteamTotp.generateAuthCode(steamBotConfig.sharedSecret);
+client.logOn({
+  accountName: steamBotConfig.accountName,
+  password: steamBotConfig.password,
+  twoFactorCode: twoFactorCode
+});
+
+client.on('loggedOn', () => {
+  console.log('✅ Авторизован в Steam');
+});
+
+client.on('webSession', (sessionID, cookies) => {
+  console.log('🌐 Получена web сессия');
+  manager.setCookies(cookies);
+  community.setCookies(cookies);
+
+  if (steamBotConfig.steamApiKey) {
+    manager.apiKey = steamBotConfig.steamApiKey;
+  }
+
+  console.log('🔍 Поиск трейдов ожидающих подтверждения...');
+
+  // Получаем все исходящие трейды
+  manager.getOffers(1, null, (err, sent, received) => {
+    if (err) {
+      console.error('❌ Ошибка получения трейдов:', err);
+      process.exit(1);
+    }
+
+    console.log(`📊 Всего исходящих трейдов: ${sent.length}`);
+
+    // Фильтруем трейды ожидающие подтверждения
+    const pendingOffers = sent.filter(offer => offer.state === 2);
+    console.log(`⏳ Трейдов ожидающих подтверждения: ${pendingOffers.length}`);
+
+    if (pendingOffers.length === 0) {
+      console.log('✅ Нет трейдов для подтверждения');
+      process.exit(0);
+    }
+
+    let confirmed = 0;
+    let processed = 0;
+
+    pendingOffers.forEach((offer, index) => {
+      setTimeout(() => {
+        console.log(`🔄 Подтверждение трейда #${offer.id}...`);
+
+        offer.confirm((confirmErr) => {
+          processed++;
+          if (confirmErr) {
+            console.error(`❌ Ошибка подтверждения трейда #${offer.id}:`, confirmErr.message);
+          } else {
+            console.log(`✅ Трейд #${offer.id} успешно подтвержден!`);
+            confirmed++;
+          }
+
+          if (processed === pendingOffers.length) {
+            setTimeout(() => {
+              console.log(`🏁 Завершено! Подтверждено: ${confirmed}/${pendingOffers.length}`);
+              process.exit(0);
+            }, 1000);
           }
         });
+      }, index * 1500); // Задержка 1.5 сек между подтверждениями
+    });
+  });
+});
 
-        console.log('✅ Withdrawal исправлен на Battle-Scarred!');
-      } else {
-        console.log('❌ Battle-Scarred предмет не найден');
-      }
-    } else {
-      console.log('❌ Withdrawal не найден');
-    }
-  } catch (error) {
-    console.error('❌ Ошибка:', error.message);
-  }
-  process.exit(0);
-})();
+client.on('error', (err) => {
+  console.error('❌ Ошибка Steam:', err);
+  process.exit(1);
+});

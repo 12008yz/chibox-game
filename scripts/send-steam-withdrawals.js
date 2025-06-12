@@ -43,9 +43,11 @@ async function processPendingWithdrawals() {
     await steamBot.login();
     logger.info('✅ Steam бот авторизован');
 
-    // Находим все pending withdrawal
+    // Находим все pending и direct_trade_sent withdrawal
     const withdrawals = await Withdrawal.findAll({
-      where: { status: 'pending' },
+      where: {
+        status: ['pending', 'direct_trade_sent']
+      },
       attributes: ['id', 'user_id', 'status', 'steam_trade_url', 'tracking_data', 'created_at', 'updated_at'],
       include: [
         {
@@ -84,7 +86,28 @@ async function processPendingWithdrawals() {
 
     for (const withdrawal of withdrawals) {
       try {
-        logger.info(`🎯 Обработка withdrawal #${withdrawal.id}`);
+        logger.info(`🎯 Обработка withdrawal #${withdrawal.id} (статус: ${withdrawal.status})`);
+
+        // Если withdrawal уже отправлен, проверяем статус трейда
+        if (withdrawal.status === 'direct_trade_sent') {
+          if (withdrawal.tracking_data?.trade_offer_id) {
+            logger.info(`🔍 Проверка статуса уже отправленного трейда #${withdrawal.tracking_data.trade_offer_id}`);
+
+            try {
+              const confirmResult = await steamBot.confirmTradeOffer(withdrawal.tracking_data.trade_offer_id);
+              if (confirmResult.success) {
+                logger.info(`✅ Трейд #${withdrawal.tracking_data.trade_offer_id} подтвержден!`);
+                await updateWithdrawalStatus(withdrawal, 'completed', 'Трейд подтвержден и завершен');
+                successCount++;
+              } else {
+                logger.info(`⏳ Трейд #${withdrawal.tracking_data.trade_offer_id} еще ожидает подтверждения`);
+              }
+            } catch (error) {
+              logger.warn(`⚠️ Ошибка проверки трейда: ${error.message}`);
+            }
+          }
+          continue; // Переходим к следующему withdrawal
+        }
 
         // Проверяем trade URL (берем из withdrawal, а не из user)
         const tradeUrl = withdrawal.steam_trade_url || withdrawal.user.steam_trade_url;
@@ -138,11 +161,27 @@ async function processPendingWithdrawals() {
         // Отправляем trade offer
         logger.info(`📤 Отправка trade offer пользователю ${withdrawal.user.username}...`);
         logger.info(`📤 Trade URL: ${tradeUrl.substring(0, 50)}...`);
-        const tradeResult = await steamBot.sendTrade(tradeUrl, itemsToSend.map(item => item.assetid));
+        const tradeResult = await steamBot.sendTrade(tradeUrl, itemsToSend.map(item => item.assetid), botInventory);
 
         if (tradeResult.success) {
           logger.info(`✅ Trade offer отправлен! ID: ${tradeResult.tradeOfferId}`);
-          await updateWithdrawalStatus(withdrawal, 'trade_sent', `Trade offer отправлен`, {
+
+          // Ждем немного и пытаемся подтвердить трейд
+          logger.info(`🔄 Попытка подтверждения трейда #${tradeResult.tradeOfferId}...`);
+          await delay(3000); // Ждем 3 секунды
+
+          try {
+            const confirmResult = await steamBot.confirmTradeOffer(tradeResult.tradeOfferId);
+            if (confirmResult.success) {
+              logger.info(`✅ Трейд #${tradeResult.tradeOfferId} подтвержден автоматически!`);
+            } else {
+              logger.warn(`⚠️ Не удалось подтвердить трейд автоматически: ${confirmResult.message}`);
+            }
+          } catch (confirmError) {
+            logger.warn(`⚠️ Ошибка автоподтверждения: ${confirmError.message}`);
+          }
+
+          await updateWithdrawalStatus(withdrawal, 'direct_trade_sent', `Trade offer отправлен`, {
             trade_offer_id: tradeResult.tradeOfferId,
             sent_items: itemsToSend.map(item => ({
               assetid: item.assetid,
