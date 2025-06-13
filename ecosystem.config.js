@@ -44,28 +44,6 @@ module.exports = {
       merge_logs: true
     },
 
-    // Процессор выводов предметов
-    {
-      name: "chibox-withdrawal-processor",
-      script: "./scripts/withdrawalProcessor.js",
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: "256M",
-      cron_restart: "*/10 * * * *", // Каждые 10 минут
-      env: {
-        NODE_ENV: "production"
-      },
-      env_development: {
-        NODE_ENV: "development"
-      },
-      error_file: "./logs/withdrawal-processor-error.log",
-      out_file: "./logs/withdrawal-processor-out.log",
-      log_file: "./logs/withdrawal-processor.log",
-      time: true,
-      merge_logs: true
-    },
-
     // Выдача ежедневных кейсов
     {
       name: "chibox-daily-cases",
@@ -83,50 +61,6 @@ module.exports = {
       error_file: "./logs/daily-cases-error.log",
       out_file: "./logs/daily-cases-out.log",
       log_file: "./logs/daily-cases.log",
-      time: true,
-      merge_logs: true
-    },
-
-    // Обработка Steam выводов
-    {
-      name: "chibox-steam-withdrawals",
-      script: "./scripts/process-steam-withdrawals.js",
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: "256M",
-      cron_restart: "*/15 * * * *", // Каждые 15 минут
-      env: {
-        NODE_ENV: "production"
-      },
-      env_development: {
-        NODE_ENV: "development"
-      },
-      error_file: "./logs/steam-withdrawals-error.log",
-      out_file: "./logs/steam-withdrawals-out.log",
-      log_file: "./logs/steam-withdrawals.log",
-      time: true,
-      merge_logs: true
-    },
-
-    // Обработка обычных выводов
-    {
-      name: "chibox-process-withdrawals",
-      script: "./scripts/process-withdrawals.js",
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: "256M",
-      cron_restart: "*/5 * * * *", // Каждые 5 минут
-      env: {
-        NODE_ENV: "production"
-      },
-      env_development: {
-        NODE_ENV: "development"
-      },
-      error_file: "./logs/process-withdrawals-error.log",
-      out_file: "./logs/process-withdrawals-out.log",
-      log_file: "./logs/process-withdrawals.log",
       time: true,
       merge_logs: true
     }
