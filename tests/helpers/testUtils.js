@@ -54,12 +54,19 @@ async function cleanTestDatabase() {
     throw new Error('cleanTestDatabase can only be called in test environment');
   }
 
-  // Очищаем только основные таблицы, которые используются в тестах
+  // Очищаем таблицы в правильном порядке (сначала зависимые, потом основные)
   const tablesToClean = [
+    'notifications',  // добавляем notifications в начало, так как она ссылается на users
+    'xp_transactions',
+    'live_drops',
+    'case_template_items',
     'user_achievements',
     'user_inventory',
     'promo_code_usages',
     'cases',
+    'items',
+    'item_categories',
+    'case_templates',
     'promo_codes',
     'users'
   ];
@@ -147,7 +154,16 @@ async function createTestItem(itemData = {}) {
     category_id: category.id,
     price: 50,
     in_stock: true,
-    is_tradable: true
+    is_tradable: true,
+    drop_weight: 10,
+    steam_market_hash_name: `test_item_${Date.now()}`,
+    float_value: null,
+    quality: 'Normal',
+    weapon_type: 'Rifle',
+    skin_name: 'Test Skin',
+    origin: 'Test Collection',
+    exterior: 'Factory New',
+    is_available: true
   };
 
   return await Item.create({ ...defaultData, ...itemData });
@@ -185,8 +201,8 @@ async function createTestCaseWithItems(caseData = {}, itemsCount = 3) {
   const items = [];
   for (let i = 0; i < itemsCount; i++) {
     const item = await createTestItem({
-      drop_weight: 10 + i * 5, // разные веса для предметов
-      rarity: i === 0 ? 'consumer' : i === 1 ? 'industrial' : 'mil-spec'
+      drop_weight: 10 + i * 5,
+      rarity: i === 0 ? 'consumer' : i === 1 ? 'industrial' : 'milspec' // используем правильные enum значения
     });
     items.push(item);
   }
@@ -195,8 +211,7 @@ async function createTestCaseWithItems(caseData = {}, itemsCount = 3) {
   for (const item of items) {
     await CaseTemplateItem.create({
       case_template_id: caseTemplate.id,
-      item_id: item.id,
-      drop_weight: item.drop_weight || 10
+      item_id: item.id
     });
   }
 
