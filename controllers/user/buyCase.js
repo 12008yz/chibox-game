@@ -14,13 +14,12 @@ const logger = winston.createLogger({
   ],
 });
 
-const CASE_PRICE = 50; // 50 рублей за кейс
 const MAX_PAID_CASES_PER_DAY = 5; // Максимум 5 покупных кейсов в день
 
 async function buyCase(req, res) {
   try {
     const userId = req.user.id;
-    const { method, quantity = 1 } = req.body;
+    const { method, quantity = 1, caseTemplateId } = req.body;
 
     // Валидация количества
     if (!quantity || quantity < 1 || quantity > MAX_PAID_CASES_PER_DAY) {
@@ -33,6 +32,26 @@ async function buyCase(req, res) {
     if (!user) {
       return res.status(404).json({ message: 'Пользователь не найден' });
     }
+
+    // Получаем шаблон кейса
+    if (!caseTemplateId) {
+      return res.status(400).json({ message: 'Не указан тип кейса' });
+    }
+
+    const caseTemplate = await db.CaseTemplate.findByPk(caseTemplateId);
+    if (!caseTemplate) {
+      return res.status(404).json({ message: 'Шаблон кейса не найден' });
+    }
+
+    if (!caseTemplate.price || caseTemplate.price <= 0) {
+      return res.status(400).json({ message: 'Этот кейс нельзя купить (бесплатный)' });
+    }
+
+    if (!caseTemplate.is_active) {
+      return res.status(400).json({ message: 'Кейс временно недоступен' });
+    }
+
+    const CASE_PRICE = parseFloat(caseTemplate.price);
 
     // Проверяем дневной лимит покупных кейсов
     const now = new Date();
@@ -83,42 +102,15 @@ async function buyCase(req, res) {
 
       logger.info(`После перезагрузки: paid_cases_bought_today = ${user.paid_cases_bought_today}, last_reset_date = ${user.last_reset_date}`);
 
-      // Получаем дефолтный шаблон кейса
-      let defaultTemplate = await db.CaseTemplate.findOne({
-        where: { name: 'Ежедневный кейс' }
-      });
-
-      // Если нет дефолтного шаблона, берем любой активный
-      if (!defaultTemplate) {
-        defaultTemplate = await db.CaseTemplate.findOne({
-          where: { is_active: true }
-        });
-      }
-
-      // Если все еще нет шаблона, создаем временный
-      if (!defaultTemplate) {
-        defaultTemplate = await db.CaseTemplate.create({
-          name: 'Дефолтный кейс',
-          description: 'Автоматически созданный шаблон кейса',
-          price: 50,
-          is_active: true,
-          item_pool_config: {
-            common: 60,
-            uncommon: 25,
-            rare: 10,
-            epic: 4,
-            legendary: 1
-          }
-        });
-      }
+      // Используем выбранный шаблон кейса
 
       // Создаем кейсы
       const cases = [];
       for (let i = 0; i < allowedQuantity; i++) {
         const newCase = await db.Case.create({
-          name: 'Покупной кейс',
-          description: 'Кейс, купленный за деньги',
-          template_id: defaultTemplate.id,
+          name: caseTemplate.name,
+          description: caseTemplate.description || 'Кейс, купленный за деньги',
+          template_id: caseTemplate.id,
           user_id: userId,
           is_paid: true,
           purchase_price: CASE_PRICE,
@@ -156,7 +148,9 @@ async function buyCase(req, res) {
           id: c.id,
           name: c.name,
           purchase_price: c.purchase_price,
-          received_date: c.received_date
+          received_date: c.received_date,
+          template_id: c.template_id,
+          template_name: caseTemplate.name
         })),
         balance: user.balance,
         paid_cases_bought_today: user.paid_cases_bought_today,
@@ -239,8 +233,26 @@ async function getCasePurchaseInfo(req, res) {
 
     const remainingCases = MAX_PAID_CASES_PER_DAY - paidCasesToday;
 
+    // Получаем доступные покупные кейсы
+    const availableCases = await db.CaseTemplate.findAll({
+      where: {
+        is_active: true,
+        price: { [db.Sequelize.Op.gt]: 0 } // Только платные кейсы
+      },
+      order: [['sort_order', 'ASC'], ['price', 'ASC']],
+      attributes: ['id', 'name', 'description', 'price', 'type', 'color_scheme', 'image_url']
+    });
+
     return res.json({
-      case_price: CASE_PRICE,
+      available_cases: availableCases.map(caseTemplate => ({
+        id: caseTemplate.id,
+        name: caseTemplate.name,
+        description: caseTemplate.description,
+        price: parseFloat(caseTemplate.price),
+        type: caseTemplate.type,
+        color_scheme: caseTemplate.color_scheme,
+        image_url: caseTemplate.image_url
+      })),
       max_cases_per_day: MAX_PAID_CASES_PER_DAY,
       paid_cases_bought_today: paidCasesToday,
       remaining_cases: remainingCases,
@@ -257,6 +269,5 @@ async function getCasePurchaseInfo(req, res) {
 module.exports = {
   buyCase,
   getCasePurchaseInfo,
-  CASE_PRICE,
   MAX_PAID_CASES_PER_DAY
 };

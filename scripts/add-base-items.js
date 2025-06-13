@@ -47,7 +47,7 @@ const CASE_CONFIGS = {
       restricted: 40,    // 4%
       classified: 8,     // 0.8%
       covert: 1.5,       // 0.15%
-      knives_budget: 0.5 // 0.05%
+      contraband: 0.5    // 0.05% (вместо knives_budget)
     }
   },
   premium: {
@@ -60,8 +60,8 @@ const CASE_CONFIGS = {
       restricted: 350,  // 35%
       classified: 150,  // 15%
       covert: 70,       // 7%
-      knives: 25,       // 2.5%
-      gloves: 5         // 0.5%
+      contraband: 25,   // 2.5% (ножи - используем contraband)
+      exotic: 5         // 0.5% (перчатки - используем exotic)
     }
   }
 };
@@ -135,7 +135,7 @@ const ITEMS_URLS = {
       'https://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Fade%20%28Factory%20New%29',
       // Добавьте остальные 3 Covert URL...
     ],
-    knives_budget: [
+    contraband: [
       'https://steamcommunity.com/market/listings/730/%E2%98%85%20Gut%20Knife%20%7C%20Safari%20Mesh%20%28Battle-Scarred%29',
       'https://steamcommunity.com/market/listings/730/%E2%98%85%20Navaja%20Knife%20%7C%20Urban%20Masked%20%28Well-Worn%29',
       'https://steamcommunity.com/market/listings/730/%E2%98%85%20Falchion%20Knife%20%7C%20Forest%20DDPAT%20%28Field-Tested%29',
@@ -145,7 +145,7 @@ const ITEMS_URLS = {
   },
 
   premium: {
-    knives: [
+    contraband: [
       'https://steamcommunity.com/market/listings/730/%E2%98%85%20Flip%20Knife%20%7C%20Damascus%20Steel%20%28Field-Tested%29',
       'https://steamcommunity.com/market/listings/730/%E2%98%85%20Huntsman%20Knife%20%7C%20Case%20Hardened%20%28Factory%20New%29',
       'https://steamcommunity.com/market/listings/730/%E2%98%85%20Karambit%20%7C%20Doppler%20%28Factory%20New%29',
@@ -153,7 +153,7 @@ const ITEMS_URLS = {
       'https://steamcommunity.com/market/listings/730/%E2%98%85%20M9%20Bayonet%20%7C%20Fade%20%28Factory%20New%29',
       // Добавьте остальные 10 Premium Knives URL...
     ],
-    gloves: [
+    exotic: [
       'https://steamcommunity.com/market/listings/730/%E2%98%85%20Bloodhound%20Gloves%20%7C%20Charred%20%28Field-Tested%29',
       'https://steamcommunity.com/market/listings/730/%E2%98%85%20Driver%20Gloves%20%7C%20Racing%20Green%20%28Field-Tested%29',
       'https://steamcommunity.com/market/listings/730/%E2%98%85%20Hand%20Wraps%20%7C%20Slaughter%20%28Field-Tested%29',
@@ -436,6 +436,10 @@ async function populateDatabase(limitPerCategory = 5) {
 
   // Проверяем рентабельность
   await validateProfitability();
+
+  // Связываем предметы с шаблонами кейсов
+  await linkItemsToCaseTemplates();
+
 }
 
 // Функция для проверки рентабельности
@@ -500,12 +504,77 @@ async function validateProfitability() {
   }
 }
 
+// Функция для связывания предметов с шаблонами кейсов
+async function linkItemsToCaseTemplates() {
+  console.log('\n🔗 Связываем предметы с шаблонами кейсов...\n');
+
+  // Конфигурация соответствия кейсов и их origin
+  const CASE_ITEM_MAPPING = {
+    'Ежедневный кейс (Уровень 1)': 'subscription_case',
+    'Ежедневный кейс (Уровень 2)': 'subscription_case',
+    'Ежедневный кейс (Уровень 3)': 'subscription_case',
+    'Покупной кейс': 'purchase_case',
+    'Премиум кейс': 'premium_case'
+  };
+
+  try {
+    const caseTemplates = await db.CaseTemplate.findAll({
+      where: { is_active: true }
+    });
+
+    for (const template of caseTemplates) {
+      console.log(`🎯 Обрабатываем кейс: ${template.name}`);
+
+      // Определяем origin для данного кейса
+      let originPattern = CASE_ITEM_MAPPING[template.name];
+
+      if (!originPattern) {
+        if (template.name.includes('Ежедневный') || template.type === 'daily') {
+          originPattern = 'subscription_case';
+        } else if (template.name.includes('Покупной') || (template.price && template.price <= 150)) {
+          originPattern = 'purchase_case';
+        } else if (template.name.includes('Премиум') || (template.price && template.price > 150)) {
+          originPattern = 'premium_case';
+        }
+      }
+
+      if (!originPattern) {
+        console.warn(`⚠️  Не удалось определить тип для кейса: ${template.name}`);
+        continue;
+      }
+
+      const items = await db.Item.findAll({
+        where: {
+          is_available: true,
+          origin: originPattern
+        }
+      });
+
+      if (items.length === 0) {
+        console.log(`   ❌ Нет предметов с origin: ${originPattern}`);
+        continue;
+      }
+
+      // Очищаем текущие связи и добавляем новые
+      await template.setItems([]);
+      await template.addItems(items);
+
+      console.log(`   ✅ Связано ${items.length} предметов с кейсом: ${template.name}`);
+    }
+
+    console.log('\n🎉 Связывание завершено успешно!');
+  } catch (error) {
+    console.error('❌ Ошибка при связывании предметов с кейсами:', error);
+  }
+}
+
 // Экспорт функций
 module.exports = {
   populateDatabase,
   processItem,
   createCaseTemplates,
   validateProfitability,
+  linkItemsToCaseTemplates,
   CASE_CONFIGS,
   ITEMS_URLS
 };
