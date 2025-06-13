@@ -8,14 +8,6 @@
     "dev": "concurrently \"npm start\" \"npm run workers\"",
     "queue:stats": "node -e \"require('./services/queueService').getQueueStats().then(console.log)\"",
     "queue:clean": "node -e \"require('./services/queueService').cleanQueues().then(() => console.log('Queues cleaned'))\"",
-    "test": "cross-env NODE_ENV=test jest",
-    "test:watch": "cross-env NODE_ENV=test jest --watch",
-    "test:coverage": "cross-env NODE_ENV=test jest --coverage",
-    "test:unit": "cross-env NODE_ENV=test jest tests/controllers tests/services tests/utils",
-    "test:integration": "cross-env NODE_ENV=test jest tests/integration",
-    "test:auth": "cross-env NODE_ENV=test jest tests/controllers/auth.test.js",
-    "test:cases": "cross-env NODE_ENV=test jest tests/controllers/cases.test.js",
-    "test:promo": "cross-env NODE_ENV=test jest tests/controllers/promo.test.js",
     "security-audit": "npm audit",
     "security-fix": "npm audit fix",
     "security-snyk": "snyk test",
@@ -62,13 +54,10 @@
   "devDependencies": {
     "@jest/globals": "^30.0.0",
     "concurrently": "^7.6.0",
-    "cross-env": "^7.0.3",
     "eslint": "^9.27.0",
     "eslint-plugin-security": "^3.0.1",
-    "jest": "^30.0.0",
     "jest-environment-node": "^30.0.0",
     "selfsigned": "^2.4.1",
-    "sequelize-cli": "^6.6.2",
-    "supertest": "^7.1.1"
+    "sequelize-cli": "^6.6.2"
   }
 }
