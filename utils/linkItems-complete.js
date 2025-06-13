@@ -318,6 +318,64 @@ const COMPLETE_ITEMS_URLS = {
   },
 
   purchase: {
+    // ДОБАВЛЯЕМ ДЕШЕВЫЕ ПРЕДМЕТЫ ДЛЯ БАЛАНСА
+    consumer: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Safari%20Mesh%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Forest%20DDPAT%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/M4A4%20%7C%20Urban%20DDPAT%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Boreal%20Forest%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/AWP%20%7C%20Safari%20Mesh%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Forest%20DDPAT%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/USP-S%20%7C%20Forest%20Leaves%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/P250%20%7C%20Sand%20Dune%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/MAC-10%20%7C%20Urban%20DDPAT%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/Nova%20%7C%20Forest%20Leaves%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/P90%20%7C%20Sand%20Spray%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/MP9%20%7C%20Sand%20Dashed%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/PP-Bizon%20%7C%20Forest%20Leaves%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/UMP-45%20%7C%20Urban%20DDPAT%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/SCAR-20%20%7C%20Sand%20Mesh%20%28Battle-Scarred%29'
+    ],
+
+    industrial: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Blue%20Laminate%20%28Well-Worn%29',
+      'https://steamcommunity.com/market/listings/730/M4A4%20%7C%20Faded%20Zebra%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Bright%20Water%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Blue%20Fissure%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/USP-S%20%7C%20Stainless%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/Five-SeveN%20%7C%20Silver%20Quartz%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/Tec-9%20%7C%20Brass%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/P2000%20%7C%20Silver%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/Dual%20Berettas%20%7C%20Contractor%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/CZ75-Auto%20%7C%20Silver%20%28Factory%20New%29'
+    ],
+
+    milspec: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Blue%20Laminate%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Guardian%20%28Well-Worn%29',
+      'https://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Water%20Elemental%20%28Well-Worn%29',
+      'https://steamcommunity.com/market/listings/730/P250%20%7C%20Asiimov%20%28Well-Worn%29',
+      'https://steamcommunity.com/market/listings/730/FAMAS%20%7C%20Djinn%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/USP-S%20%7C%20Orion%20%28Well-Worn%29',
+      'https://steamcommunity.com/market/listings/730/AWP%20%7C%20Worm%20God%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/Desert%20Eagle%20%7C%20Conspiracy%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/MAC-10%20%7C%20Neon%20Rider%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/P90%20%7C%20Asiimov%20%28Well-Worn%29'
+    ],
+
+    restricted: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Phantom%20Disruptor%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Hyper%20Beast%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Fade%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/USP-S%20%7C%20Kill%20Confirmed%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/FAMAS%20%7C%20Roll%20Cage%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/AWP%20%7C%20Electric%20Hive%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/Desert%20Eagle%20%7C%20Kumicho%20Dragon%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/Five-SeveN%20%7C%20Hyper%20Beast%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/MAC-10%20%7C%20Disco%20Tech%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/P90%20%7C%20Death%20by%20Kitty%20%28Battle-Scarred%29'
+    ],
+
     // Классифицированные предметы
     classified: [
       'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Redline%20%28Battle-Scarred%29',
@@ -358,6 +416,72 @@ const COMPLETE_ITEMS_URLS = {
   },
 
   premium: {
+    // ДОБАВЛЯЕМ ВСЕ РЕДКОСТИ ДЛЯ ПРАВИЛЬНОГО БАЛАНСА
+    consumer: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Safari%20Mesh%20%28Well-Worn%29',
+      'https://steamcommunity.com/market/listings/730/M4A4%20%7C%20Forest%20DDPAT%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/AWP%20%7C%20Forest%20DDPAT%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/Galil%20AR%20%7C%20Urban%20Rubble%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/FAMAS%20%7C%20Colony%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/AUG%20%7C%20Colony%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/SG%20553%20%7C%20Waves%20Perforated%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/G3SG1%20%7C%20Safari%20Mesh%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/SCAR-20%20%7C%20Storm%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/SSG%2008%20%7C%20Sand%20Dune%20%28Factory%20New%29'
+    ],
+
+    industrial: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Blue%20Laminate%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/M4A4%20%7C%20Desert%20Storm%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20VariCamo%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/AWP%20%7C%20Pit%20Viper%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/Galil%20AR%20%7C%20Blue%20Titanium%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/FAMAS%20%7C%20Teardown%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/AUG%20%7C%20Wings%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/SG%20553%20%7C%20Ultraviolet%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/SSG%2008%20%7C%20Blue%20Spruce%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Steel%20Disruption%20%28Factory%20New%29'
+    ],
+
+    milspec: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Elite%20Build%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/M4A4%20%7C%20Royal%20Paladin%20%28Well-Worn%29',
+      'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Basilisk%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/AWP%20%7C%20Pink%20DDPAT%20%28Well-Worn%29',
+      'https://steamcommunity.com/market/listings/730/Galil%20AR%20%7C%20Eco%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/FAMAS%20%7C%20Sergeant%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/AUG%20%7C%20Condemned%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/SG%20553%20%7C%20Atlas%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/SSG%2008%20%7C%20Slashed%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Grinder%20%28Factory%20New%29'
+    ],
+
+    restricted: [
+      'https://steamcommunity.com/market/listings/730/M4A4%20%7C%20Desert-Strike%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/P250%20%7C%20See%20Ya%20Later%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/SSG%2008%20%7C%20Dragonfire%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/MP7%20%7C%20Fade%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/UMP-45%20%7C%20Blaze%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/Galil%20AR%20%7C%20Chatterbox%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/Tec-9%20%7C%20Fuel%20Injector%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/CZ75-Auto%20%7C%20Red%20Astor%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/Nova%20%7C%20Hyper%20Beast%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/XM1014%20%7C%20Teclu%20Burner%20%28Battle-Scarred%29'
+    ],
+
+    classified: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Redline%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/M4A4%20%7C%20Asiimov%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Golden%20Coil%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/AWP%20%7C%20Redline%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Twilight%20Galaxy%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/USP-S%20%7C%20Neo-Noir%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/P250%20%7C%20Asiimov%20%28Factory%20New%29',
+      'https://steamcommunity.com/market/listings/730/Desert%20Eagle%20%7C%20Blaze%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/MAC-10%20%7C%20Fade%20%28Minimal%20Wear%29',
+      'https://steamcommunity.com/market/listings/730/P90%20%7C%20Asiimov%20%28Minimal%20Wear%29'
+    ],
+
     covert: [
       'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Fire%20Serpent%20%28Battle-Scarred%29',
       'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Bloodsport%20%28Factory%20New%29',
