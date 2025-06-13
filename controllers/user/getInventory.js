@@ -20,9 +20,26 @@ async function getInventory(req, res) {
     const offset = (page - 1) * limit;
 
     // Получаем предметы из UserInventory с пагинацией
+    // Показываем только предметы в статусе 'inventory' без активных заявок на вывод
     const { count, rows: items } = await db.UserInventory.findAndCountAll({
-      where: { user_id: userId },
-      include: [{ model: db.Item, as: 'item' }],
+      where: {
+        user_id: userId,
+        status: 'inventory',
+        [db.Sequelize.Op.or]: [
+          { withdrawal_id: null }, // Предметы без заявок на вывод
+          { // Или предметы с неудачными заявками
+            '$withdrawal.status$': { [db.Sequelize.Op.in]: ['failed', 'cancelled'] }
+          }
+        ]
+      },
+      include: [
+        { model: db.Item, as: 'item' },
+        {
+          model: db.Withdrawal,
+          as: 'withdrawal',
+          required: false // LEFT JOIN для проверки статуса withdrawal
+        }
+      ],
       limit,
       offset
     });

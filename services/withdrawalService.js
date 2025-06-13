@@ -338,6 +338,19 @@ class WithdrawalService {
       if (deliveryStatus.is_delivered) {
         logger.info(`Предмет доставлен по заказу ${orderId}`);
 
+        // Переводим предметы в статус 'withdrawn' только после успешной доставки
+        const inventoryItems = await UserInventory.findAll({
+          where: { withdrawal_id: withdrawal.id }
+        });
+
+        for (const item of inventoryItems) {
+          await item.update({
+            status: 'withdrawn',
+            transaction_date: new Date()
+          });
+          logger.info(`Предмет ID ${item.id} переведен в статус 'withdrawn' после доставки CS.Money`);
+        }
+
         // Обновляем заявку
         await withdrawal.update({
           status: 'completed',
@@ -415,6 +428,19 @@ class WithdrawalService {
       if (tradeResult.success) {
         logger.info(`Трейд успешно отправлен. Trade ID: ${tradeResult.tradeOfferId}`);
 
+        // Переводим предметы в статус 'withdrawn' только после успешной отправки
+        const inventoryItems = await UserInventory.findAll({
+          where: { withdrawal_id: withdrawal.id }
+        });
+
+        for (const item of inventoryItems) {
+          await item.update({
+            status: 'withdrawn',
+            transaction_date: new Date()
+          });
+          logger.info(`Предмет ID ${item.id} переведен в статус 'withdrawn'`);
+        }
+
         // Обновляем заявку
         await withdrawal.update({
           status: 'completed',
@@ -473,17 +499,32 @@ class WithdrawalService {
   async failWithdrawal(withdrawal, reason) {
     logger.warn(`Заявка #${withdrawal.id} отмечена как неудачная. Причина: ${reason}`);
 
+    // Возвращаем предметы обратно в инвентарь пользователя
+    const inventoryItems = await UserInventory.findAll({
+      where: { withdrawal_id: withdrawal.id }
+    });
+
+    for (const item of inventoryItems) {
+      await item.update({
+        status: 'inventory',
+        withdrawal_id: null,
+        transaction_date: null
+      });
+      logger.info(`Предмет ID ${item.id} возвращен в инвентарь пользователя`);
+    }
+
     await withdrawal.update({
       status: 'failed',
       processing_end_date: new Date(),
       tracking_data: {
         ...withdrawal.tracking_data,
         failure_reason: reason,
-        failure_time: new Date().toISOString()
+        failure_time: new Date().toISOString(),
+        items_returned_to_inventory: inventoryItems.length
       }
     });
 
-    // Здесь можно добавить логику возврата средств пользователю, если это необходимо
+    logger.info(`Заявка #${withdrawal.id} отмечена как неудачная. ${inventoryItems.length} предметов возвращено в инвентарь.`);
   }
 
   // Планирование проверки доставки
@@ -1157,6 +1198,19 @@ class WithdrawalService {
         // Если уже завершено
         if (tradeStatus.is_completed) {
           logger.info(`Прямой trade offer завершен для заказа ${orderId}`);
+
+          // Переводим предметы в статус 'withdrawn' только после завершения прямого trade offer
+          const inventoryItems = await UserInventory.findAll({
+            where: { withdrawal_id: withdrawal.id }
+          });
+
+          for (const item of inventoryItems) {
+            await item.update({
+              status: 'withdrawn',
+              transaction_date: new Date()
+            });
+            logger.info(`Предмет ID ${item.id} переведен в статус 'withdrawn' после завершения прямого trade offer`);
+          }
 
           await withdrawal.update({
             status: 'completed',

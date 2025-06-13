@@ -76,11 +76,10 @@ async function withdrawItem(req, res) {
       }
     });
 
-    // Связываем предмет с заявкой на вывод
+    // Связываем предмет с заявкой на вывод, но оставляем в инвентаре
     await inventoryItem.update({
-      status: 'withdrawn',
-      withdrawal_id: withdrawal.id,
-      transaction_date: new Date()
+      withdrawal_id: withdrawal.id
+      // Статус остается 'inventory' до успешной отправки trade offer
     });
 
     // Создаем уведомление для пользователя

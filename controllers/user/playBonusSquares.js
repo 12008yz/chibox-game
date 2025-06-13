@@ -18,9 +18,6 @@ async function playBonusSquares(req, res) {
     const userId = req.user.id;
     const user = await db.User.findByPk(userId);
     const now = new Date();
-    // Для тестирования сбрасываем next_bonus_available_time, чтобы бонус был доступен
-    user.next_bonus_available_time = new Date(now.getTime() - 1000);
-    await user.save();
     const ready = !user.next_bonus_available_time || user.next_bonus_available_time <= now;
     if (!ready) return res.status(400).json({ message: 'Бонус пока недоступен', next_time: user.next_bonus_available_time });
 
@@ -40,7 +37,6 @@ async function playBonusSquares(req, res) {
     let rewardMessage = '';
 
     if (reward === 'item') {
-      rewardMessage = 'Вам выпал предмет!';
       // Дополнительный опыт за выигрыш предмета
       await addExperience(userId, 10, 'play_bonus_squares_win', null, 'Выигрыш предмета в бонусной игре');
 
@@ -64,27 +60,33 @@ async function playBonusSquares(req, res) {
           expires_at: null
         });
         logger.info(`Создан бонусный кейс для пользователя ${userId} с id ${newCase.id}`);
-
-        // Добавляем созданный кейс в инвентарь пользователя
-        await db.UserInventory.create({
-          user_id: userId,
-          case_id: newCase.id,
-          source: 'subscription',
-          status: 'inventory',
-          acquisition_date: now
-        });
+        rewardMessage = `Вам выпал бонусный кейс: ${bonusCaseTemplate.name}!`;
       } else {
-        // Нет подписки - добавляем предмет в инвентарь
-        // Для предмета нужно определить item_id, но в текущем коде предмет не указан, нужно уточнить
-        // Пока добавим заглушку с item_id = null, нужно доработать при наличии данных о предмете
-        await db.UserInventory.create({
-          user_id: userId,
-          item_id: null,
-          source: 'bonus',
-          status: 'inventory',
-          acquisition_date: now
+        // Нет подписки - добавляем случайный предмет в инвентарь
+        // Получаем случайный предмет из базы данных (можно настроить категорию или редкость)
+        const randomItem = await db.Item.findOne({
+          where: {
+            // Можно добавить условия, например, только определенная редкость для бонусов
+            rarity: { [db.Sequelize.Op.in]: ['common', 'uncommon'] }
+          },
+          order: db.Sequelize.literal('RANDOM()'),
+          limit: 1
         });
-        logger.info(`Добавлен предмет в инвентарь пользователя ${userId} из бонусной игры`);
+
+        if (randomItem) {
+          await db.UserInventory.create({
+            user_id: userId,
+            item_id: randomItem.id,
+            source: 'bonus',
+            status: 'inventory',
+            acquisition_date: now
+          });
+          logger.info(`Добавлен предмет ${randomItem.name} в инвентарь пользователя ${userId} из бонусной игры`);
+          rewardMessage = `Вам выпал предмет: ${randomItem.name}!`;
+        } else {
+          logger.warn(`Не найдено подходящих предметов для бонусной награды пользователя ${userId}`);
+          rewardMessage = 'Вам выпал предмет, но произошла ошибка при его добавлении.';
+        }
       }
     } else if (reward === 'sub_days') {
       const bonusDays = 3; // например, 3 дня подписки
@@ -115,10 +117,16 @@ async function playBonusSquares(req, res) {
       rewardMessage = 'Вы ничего не выиграли.';
     }
 
-    user.next_bonus_available_time = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+    // Определяем время ожидания в зависимости от наличия подписки
+    const hasActiveSubscription = user.subscription_expiry_date && user.subscription_expiry_date > now;
+    const cooldownHours = hasActiveSubscription ? 24 : 48; // 24 часа для подписчиков, 48 часов для обычных пользователей
+
+    user.next_bonus_available_time = new Date(now.getTime() + cooldownHours * 60 * 60 * 1000);
     user.lifetime_bonuses_claimed = (user.lifetime_bonuses_claimed || 0) + 1;
     user.last_bonus_date = now;
     await user.save();
+
+    logger.info(`Пользователь ${userId} сыграл в бонусную игру. Следующий бонус доступен через ${cooldownHours} часов${hasActiveSubscription ? ' (подписчик)' : ' (без подписки)'}`);
 
     await db.BonusMiniGameHistory.create({
       user_id: userId,
