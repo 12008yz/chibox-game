@@ -72,6 +72,11 @@ const Item = sequelize.define('Item', {
       unique: true,
       comment: "Хеш-имя предмета на торговой площадке Steam (для вывода)"
     },
+    steam_market_url: {
+      type: DataTypes.STRING(1024),
+      allowNull: true,
+      comment: "Ссылка на Steam Market для проверки цены и категории предмета"
+    },
     is_available: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,

@@ -17,14 +17,14 @@ const {
 
 // РЕАЛЬНЫЕ ЦЕНЫ CS2 предметов (на основе анализа Steam Market декабрь 2024)
 const REALISTIC_ITEM_PRICES = {
-  consumer: 4,       // ₽2-8 (P250 Sand Dune, Glock Forest DDPAT и т.д.)
-  industrial: 15,    // ₽8-25 (AK Blue Laminate BS, M4A4 Faded Zebra и т.д.)
-  milspec: 80,       // ₽40-150 (Glock Water Elemental, P250 Asiimov и т.д.)
-  restricted: 400,   // ₽200-800 (AK Phantom Disruptor, M4 Hyper Beast и т.д.)
-  classified: 1200,  // ₽800-2000 (AK Redline, M4 Asiimov и т.д.)
-  covert: 8000,      // ₽4000-15000 (AK Fire Serpent, AWP Dragon Lore BS и т.д.)
-  contraband: 25000, // ₽15000-40000 (дешевые ножи - Gut Safari Mesh BS и т.д.)
-  exotic: 80000      // ₽50000+ (дорогие перчатки)
+  consumer: 6,       // ₽3-12 (P250 Sand Dune, Glock Forest DDPAT и т.д.)
+  industrial: 18,    // ₽12-35 (AK Blue Laminate BS, M4A4 Faded Zebra и т.д.)
+  milspec: 85,       // ₽45-180 (Glock Water Elemental, P250 Asiimov и т.д.)
+  restricted: 450,   // ₽250-900 (AK Phantom Disruptor, M4 Hyper Beast и т.д.)
+  classified: 1350,  // ₽900-2500 (AK Redline, M4 Asiimov и т.д.)
+  covert: 9500,      // ₽5000-18000 (AK Fire Serpent, AWP Dragon Lore BS и т.д.)
+  contraband: 28000, // ₽18000-45000 (дешевые ножи - Gut Safari Mesh BS и т.д.)
+  exotic: 95000      // ₽60000+ (дорогие перчатки)
 };
 
 // Конфигурация кейсов с правильными весами для рентабельности 20%
@@ -163,18 +163,18 @@ const ITEMS_URLS = {
   }
 };
 
-// Функция для определения редкости по цене (используем реалистичные цены)
+// Функция для определения редкости по цене (актуальные цены 2024)
 function determineRarityByPrice(priceUsd) {
   const priceRub = priceUsd * 95; // Конвертируем в рубли
 
-  if (priceRub >= 50000) return 'exotic';      // ₽50000+
-  if (priceRub >= 15000) return 'contraband';  // ₽15000+
-  if (priceRub >= 4000) return 'covert';       // ₽4000+
-  if (priceRub >= 800) return 'classified';    // ₽800+
-  if (priceRub >= 200) return 'restricted';    // ₽200+
-  if (priceRub >= 40) return 'milspec';        // ₽40+
-  if (priceRub >= 8) return 'industrial';      // ₽8+
-  return 'consumer';                           // < ₽8
+  if (priceRub >= 526) return 'exotic';        // ₽526+ (дорогие перчатки/ножи)
+  if (priceRub >= 158) return 'contraband';    // ₽158+ (дешевые ножи)
+  if (priceRub >= 42) return 'covert';         // ₽42+ (красные скины)
+  if (priceRub >= 8.4) return 'classified';    // ₽8.4+ (розовые скины)
+  if (priceRub >= 2.1) return 'restricted';    // ₽2.1+ (фиолетовые скины)
+  if (priceRub >= 0.42) return 'milspec';      // ₽0.42+ (синие скины)
+  if (priceRub >= 0.084) return 'industrial';  // ₽0.084+ (светло-синие)
+  return 'consumer';                           // < ₽0.084 (белые)
 }
 
 // Функция для извлечения market_hash_name из URL
@@ -192,7 +192,7 @@ function extractMarketHashNameFromUrl(url) {
 }
 
 // Функция для обработки одного предмета с реалистичными ценами
-async function processItem(url, rarity, caseType, delay = 2000) {
+async function processItem(url, rarity, caseType, delay = 2000, useSteamAPI = false) {
   try {
     console.log(`🔄 Обрабатываем: ${url}`);
 
@@ -215,15 +215,50 @@ async function processItem(url, rarity, caseType, delay = 2000) {
     // Добавляем задержку
     await new Promise(resolve => setTimeout(resolve, delay));
 
-    // Используем реалистичные цены вместо Steam API для быстрого тестирования
-    const priceRub = REALISTIC_ITEM_PRICES[rarity] || 4;
-    const priceUsd = priceRub / 95;
+    // Используем Steam API для получения актуальных цен
+    let priceRub = REALISTIC_ITEM_PRICES[rarity] || 6; // Базовая цена по категории в рублях
+    let priceUsd = priceRub / 95; // Конвертируем в доллары
+    let actualRarity = rarity; // Сохраняем категорию из linkItems-complete.js
+    let steamPrice = null;
 
-    // Определяем drop_weight на основе конфигурации кейса
+    // Создаем ссылку на Steam Market для проверки цены и категории
+    const steamMarketUrl = `https://steamcommunity.com/market/listings/730/${encodeURIComponent(marketHashName)}`;
+
+    // Генерируем изображение предмета
+    let imageUrl = `https://steamcdn-a.akamaihd.net/apps/730/icons/econ/default_generated/${marketHashName.toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/_+/g, '_')}.png`;
+
+    // Получаем реальную цену с Steam Market
+    if (useSteamAPI) {
+      try {
+        console.log(`💰 Получаем актуальную цену для: ${marketHashName}`);
+        const steamData = await getSteamItemData(marketHashName);
+
+        if (steamData && steamData.price_usd && steamData.price_usd > 0) {
+          steamPrice = steamData.price_usd;
+          priceUsd = steamPrice;
+          priceRub = Math.round(steamPrice * 95 * 100) / 100; // Округляем до копеек
+
+          // Обновляем изображение, если доступно
+          if (steamData.item_info && steamData.item_info.icon_url) {
+            imageUrl = steamData.item_info.icon_url;
+          }
+
+          console.log(`✅ Получена Steam цена: ${steamPrice} (₽${priceRub}) для ${marketHashName}`);
+        } else {
+          console.log(`📝 Steam API не вернул цену для ${marketHashName}, используем базовую: ₽${priceRub}`);
+        }
+      } catch (steamError) {
+        console.log(`📝 Ошибка Steam API для ${marketHashName}: ${steamError.message}, используем базовую цену`);
+      }
+    } else {
+      console.log(`📝 Steam API отключен, используем базовую цену: ₽${priceRub} для ${rarity}`);
+    }
+
+    // Определяем drop_weight на основе конфигурации кейса и актуальной категории
     let dropWeight = 1;
     const config = CASE_CONFIGS[caseType];
-    if (config && config.drop_weights[rarity]) {
-      const baseWeight = config.drop_weights[rarity];
+    if (config && config.drop_weights[actualRarity]) {
+      const baseWeight = config.drop_weights[actualRarity];
       dropWeight = baseWeight + (Math.random() - 0.5) * baseWeight * 0.1; // ±5% вариация
     }
 
@@ -235,15 +270,16 @@ async function processItem(url, rarity, caseType, delay = 2000) {
     // Создаем запись в базе данных
     const newItem = await db.Item.create({
       name: marketHashName,
-      description: `CS2 ${rarity} skin: ${marketHashName}`,
+      description: `CS2 ${actualRarity} skin: ${marketHashName}. Проверить цену и категорию: ${steamMarketUrl}`,
       image_url: `https://steamcdn-a.akamaihd.net/apps/730/icons/econ/default_generated/${marketHashName.toLowerCase().replace(/\s+/g, '_')}.png`,
       price: priceRub,
-      rarity: rarity,
+      rarity: actualRarity,
       drop_weight: Math.round(dropWeight * 100) / 100,
       min_subscription_tier: CASE_CONFIGS[caseType]?.min_subscription_tier || 0,
       weapon_type: weaponType,
       skin_name: skinName,
       steam_market_hash_name: marketHashName,
+      steam_market_url: steamMarketUrl, // Ссылка для проверки цены и категории
       is_available: true,
       exterior: exterior,
       quality: extractQuality(marketHashName),
@@ -254,7 +290,8 @@ async function processItem(url, rarity, caseType, delay = 2000) {
       origin: `${caseType}_case`
     });
 
-    console.log(`✅ Добавлен: ${marketHashName} - ₽${priceRub} - ${rarity} - weight: ${Math.round(dropWeight * 100) / 100}`);
+    console.log(`✅ Добавлен: ${marketHashName} - ₽${priceRub} - ${actualRarity} - weight: ${Math.round(dropWeight * 100) / 100}`);
+    console.log(`🔗 Проверить цену: ${steamMarketUrl}`);
     return newItem;
 
   } catch (error) {
@@ -393,7 +430,7 @@ async function populateDatabase(limitPerCategory = 10) {
         const url = urlsToProcess[i];
         console.log(`[${i + 1}/${urlsToProcess.length}] Обрабатываем: ${rarity}`);
 
-        const result = await processItem(url, rarity, caseType, 1000);
+        const result = await processItem(url, rarity, caseType, 2000, true); // Используем Steam API для получения реальных цен
         totalItems++;
 
         if (result) {
@@ -540,5 +577,5 @@ module.exports = {
 
 // Запуск если вызван напрямую
 if (require.main === module) {
-  populateDatabase(5).catch(console.error); // Ограничиваем до 5 предметов на категорию для тестирования
+  populateDatabase(1000).catch(console.error); // Ограничиваем до 5 предметов на категорию для тестирования
 }
