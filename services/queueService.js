@@ -141,9 +141,11 @@ const addJob = {
   // Обработка вывода предмета
   async processWithdrawal(withdrawalData, options = {}) {
     return await queues.withdrawals.add('process-withdrawal', withdrawalData, {
-      attempts: 2,
-      backoff: 'fixed',
-      delay: 5000,
+      attempts: 3,
+      backoff: 'exponential',
+      delay: 1000,
+      removeOnComplete: 10,
+      removeOnFail: 20,
       ...options
     });
   },

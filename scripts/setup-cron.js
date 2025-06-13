@@ -6,7 +6,7 @@
  */
 
 const cron = require('node-cron');
-const processWithdrawals = require('./process-withdrawals');
+const processSteamWithdrawals = require('./send-steam-withdrawals');
 const winston = require('winston');
 const path = require('path');
 const fs = require('fs');
@@ -34,11 +34,47 @@ const logger = winston.createLogger({
 
 logger.info('Настройка cron-задач запущена...');
 
+// ✅ ИСПРАВЛЕНО: Обработка выводов каждые 5 минут (более частая проверка)
+// Это нужно для подстраховки, основная обработка идет через очереди
+cron.schedule('*/5 * * * *', async () => {
+  logger.info('Запуск проверки заявок на вывод (cron backup)...');
+  try {
+    await processSteamWithdrawals();
+    logger.info('Проверка заявок завершена успешно');
+  } catch (error) {
+    logger.error('Ошибка при проверке заявок:', error);
+  }
+});
+
+// ✅ ДОБАВЛЕНО: Быстрая проверка для критически важных withdrawal
+cron.schedule('*/2 * * * *', async () => {
+  logger.info('Быстрая проверка critical withdrawal...');
+  try {
+    // Проверяем только высокоприоритетные или старые заявки
+    const { Withdrawal } = require('../models');
+    const urgentWithdrawals = await Withdrawal.count({
+      where: {
+        status: ['pending', 'direct_trade_sent'],
+        created_at: {
+          [require('sequelize').Op.lt]: new Date(Date.now() - 10 * 60 * 1000) // старше 10 минут
+        }
+      }
+    });
+
+    if (urgentWithdrawals > 0) {
+      logger.info(`Найдено ${urgentWithdrawals} срочных withdrawal, запускаем обработку...`);
+      await processSteamWithdrawals();
+    }
+  } catch (error) {
+    logger.error('Ошибка при быстрой проверке:', error);
+  }
+});
+
 // Запуск обработки выводов каждые 15 минут (увеличен интервал для оптимизации)
 cron.schedule('*/15 * * * *', async () => {
   logger.info('Запуск обработки заявок на вывод...');
   try {
-    await processWithdrawals();
+    await processSteamWithdrawals();
     logger.info('Обработка заявок завершена успешно');
   } catch (error) {
     logger.error('Ошибка при обработке заявок:', error);

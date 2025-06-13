@@ -2,6 +2,7 @@ const db = require('../../models');
 const winston = require('winston');
 const { updateUserAchievementProgress } = require('../../services/achievementService');
 const { addExperience } = require('../../services/xpService');
+const { addJob } = require('../../services/queueService');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -81,6 +82,21 @@ async function withdrawItem(req, res) {
       withdrawal_id: withdrawal.id
       // Статус остается 'inventory' до успешной отправки trade offer
     });
+
+    // ✅ ДОБАВЛЯЕМ: Сразу добавляем в очередь для обработки
+    try {
+      await addJob.processWithdrawal({
+        withdrawalId: withdrawal.id
+      }, {
+        priority: 10, // Высокий приоритет для моментальной обработки
+        delay: 2000   // Небольшая задержка 2 секунды
+      });
+
+      logger.info(`Withdrawal #${withdrawal.id} добавлен в очередь для обработки`);
+    } catch (queueError) {
+      logger.warn(`Не удалось добавить withdrawal в очередь: ${queueError.message}`);
+      // Не прерываем процесс, так как будет обработан через cron
+    }
 
     // Создаем уведомление для пользователя
     await db.Notification.create({

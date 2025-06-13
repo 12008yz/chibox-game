@@ -44,6 +44,27 @@ module.exports = {
       merge_logs: true
     },
 
+    // ✅ ДОБАВЛЕНО: Cron задачи (включая обработку withdrawal)
+    {
+      name: "chibox-cron",
+      script: "./scripts/setup-cron.js",
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "256M",
+      env: {
+        NODE_ENV: "production"
+      },
+      env_development: {
+        NODE_ENV: "development"
+      },
+      error_file: "./logs/cron-error.log",
+      out_file: "./logs/cron-out.log",
+      log_file: "./logs/cron.log",
+      time: true,
+      merge_logs: true
+    },
+
     // Выдача ежедневных кейсов
     {
       name: "chibox-daily-cases",
