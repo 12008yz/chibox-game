@@ -27,7 +27,7 @@ async function createTestApp() {
   const userRoutes = require('../../routes/userRoutes');
   const paymentRoutes = require('../../routes/paymentRoutes');
 
-  app.use('/api/user', userRoutes);
+  app.use('/api/v1', userRoutes);
   app.use('/api/payment', paymentRoutes);
 
   // Обработка ошибок

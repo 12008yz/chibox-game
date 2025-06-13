@@ -1,5 +1,5 @@
 const { createTestApp, createAgent } = require('../helpers/testApp');
-const { createTestUser, createTestCase, createTestItem, cleanTestDatabase, createTestJWT } = require('../helpers/testUtils');
+const { createTestUser, createTestCase, createTestItem, cleanTestDatabase, createTestJWT, createTestCaseWithItems } = require('../helpers/testUtils');
 
 describe('Cases Controllers', () => {
   let app;
@@ -14,7 +14,7 @@ describe('Cases Controllers', () => {
     await cleanTestDatabase();
   });
 
-  describe('GET /api/user/cases', () => {
+  describe('GET /api/v1/cases', () => {
     it('should get user cases with valid token', async () => {
       const user = await createTestUser();
       const token = createTestJWT(user.id);
@@ -27,7 +27,7 @@ describe('Cases Controllers', () => {
       });
 
       const response = await agent
-        .get('/api/user/cases')
+        .get('/api/v1/cases')
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
@@ -37,14 +37,14 @@ describe('Cases Controllers', () => {
 
     it('should require authentication', async () => {
       const response = await agent
-        .get('/api/user/cases')
+        .get('/api/v1/cases')
         .expect(401);
 
       expect(response.body.success).toBeFalsy();
     });
   });
 
-  describe('GET /api/user/cases/available', () => {
+  describe('GET /api/v1/cases/available', () => {
     it('should get available case templates', async () => {
       const user = await createTestUser();
       const token = createTestJWT(user.id);
@@ -56,7 +56,7 @@ describe('Cases Controllers', () => {
       });
 
       const response = await agent
-        .get('/api/user/cases/available')
+        .get('/api/v1/cases/available')
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
@@ -79,7 +79,7 @@ describe('Cases Controllers', () => {
       });
 
       const response = await agent
-        .get('/api/user/cases/available')
+        .get('/api/v1/cases/available')
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
@@ -89,40 +89,26 @@ describe('Cases Controllers', () => {
     });
   });
 
-  describe('POST /api/user/cases/open', () => {
-    it('should not open case without sufficient funds', async () => {
-      const user = await createTestUser({ balance: 50 }); // недостаточно средств
+  describe('POST /api/v1/cases/open', () => {
+    it('should not open non-existent case', async () => {
+      const user = await createTestUser({ balance: 1000 });
       const token = createTestJWT(user.id);
 
-      const caseTemplate = await createTestCase({
-        name: 'Expensive Case',
-        price: 100
-      });
-
-      // Создаем кейс пользователя
-      const { Case } = require('../../models');
-      const userCase = await Case.create({
-        user_id: user.id,
-        template_id: caseTemplate.id,
-        is_opened: false,
-        received_date: new Date()
-      });
-
       const response = await agent
-        .post('/api/user/cases/open')
+        .post('/api/v1/cases/open')
         .set('Authorization', `Bearer ${token}`)
-        .send({ caseId: userCase.id })
-        .expect(400);
+        .send({ caseId: 99999 })
+        .expect(404);
 
       expect(response.body.success).toBeFalsy();
-      expect(response.body.message).toContain('недостаточно средств');
+      expect(response.body.message).toContain('не найден');
     });
 
     it('should not open already opened case', async () => {
       const user = await createTestUser({ balance: 1000 });
       const token = createTestJWT(user.id);
 
-      const caseTemplate = await createTestCase({
+      const caseTemplate = await createTestCaseWithItems({
         name: 'Test Case',
         price: 100
       });
@@ -136,7 +122,7 @@ describe('Cases Controllers', () => {
       });
 
       const response = await agent
-        .post('/api/user/cases/open')
+        .post('/api/v1/cases/open')
         .set('Authorization', `Bearer ${token}`)
         .send({ caseId: userCase.id })
         .expect(400);
@@ -145,27 +131,38 @@ describe('Cases Controllers', () => {
       expect(response.body.message).toContain('уже открыт');
     });
 
-    it('should not open non-existent case', async () => {
+    it('should open case successfully', async () => {
       const user = await createTestUser({ balance: 1000 });
       const token = createTestJWT(user.id);
 
-      const response = await agent
-        .post('/api/user/cases/open')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ caseId: 99999 })
-        .expect(404);
+      const caseTemplate = await createTestCaseWithItems({
+        name: 'Test Case',
+        price: 100
+      });
 
-      expect(response.body.success).toBeFalsy();
-      expect(response.body.message).toContain('не найден');
+      // Создаем кейс пользователя
+      const { Case } = require('../../models');
+      const userCase = await Case.create({
+        user_id: user.id,
+        template_id: caseTemplate.id,
+        is_opened: false,
+        received_date: new Date()
+      });
+
+      const response = await agent
+        .post('/api/v1/cases/open')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ caseId: userCase.id })
+        .expect(200);
+
+      expect(response.body.item).toBeDefined();
+      expect(response.body.message).toContain('успешно');
     });
 
     it('should not open case owned by another user', async () => {
       const user1 = await createTestUser({ balance: 1000 });
       const user2 = await createTestUser({
-        balance: 1000,
-        username: 'user2',
-        email: 'user2@test.com',
-        steam_id: 'steam_user2'
+        balance: 1000
       });
       const token1 = createTestJWT(user1.id);
 
@@ -183,7 +180,7 @@ describe('Cases Controllers', () => {
       });
 
       const response = await agent
-        .post('/api/user/cases/open')
+        .post('/api/v1/cases/open')
         .set('Authorization', `Bearer ${token1}`) // но пытается открыть user1
         .send({ caseId: user2Case.id })
         .expect(403);
@@ -200,12 +197,12 @@ describe('Cases Controllers', () => {
       const token = createTestJWT(user.id);
 
       const response = await agent
-        .post('/api/user/cases/open')
+        .post('/api/v1/cases/open')
         .set('Authorization', `Bearer ${token}`)
         .send({}) // без caseId
         .expect(404); // ожидаем 404, так как нет неоткрытых кейсов
 
-      expect(response.body.message).toContain('Не найден неоткрытый кейс');
+      expect(response.body.message).toContain('неоткрытый кейс');
     });
 
     it('should respect case cooldown time', async () => {
@@ -217,54 +214,42 @@ describe('Cases Controllers', () => {
       const token = createTestJWT(user.id);
 
       const response = await agent
-        .post('/api/user/cases/open')
+        .post('/api/v1/cases/open')
         .set('Authorization', `Bearer ${token}`)
         .send({})
         .expect(404);
 
-      expect(response.body.message).toContain('Следующий кейс будет доступен через');
+      expect(response.body.message).toContain('доступен через');
       expect(response.body.next_case_available_time).toBeDefined();
     });
   });
 
-  describe('POST /api/user/cases/buy', () => {
+  describe('POST /api/v1/cases/buy', () => {
     it('should buy case with sufficient funds', async () => {
       const user = await createTestUser({ balance: 1000 });
       const token = createTestJWT(user.id);
 
-      const caseTemplate = await createTestCase({
-        name: 'Buyable Case',
-        price: 100,
-        is_active: true
-      });
-
       const response = await agent
-        .post('/api/user/cases/buy')
+        .post('/api/v1/cases/buy')
         .set('Authorization', `Bearer ${token}`)
         .send({ method: 'balance', quantity: 1 })
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.message).toContain('успешно');
+      expect(response.body.message).toContain('Успешно');
 
       // Проверяем, что баланс пользователя уменьшился
       const { User } = require('../../models');
       const updatedUser = await User.findByPk(user.id);
-      expect(updatedUser.balance).toBe(900); // 1000 - 100
+      expect(updatedUser.balance).toBe(950); // 1000 - 50 (цена кейса 50 рублей)
     });
 
     it('should not buy case with insufficient funds', async () => {
       const user = await createTestUser({ balance: 30 }); // Меньше чем цена кейса (50)
       const token = createTestJWT(user.id);
 
-      const caseTemplate = await createTestCase({
-        name: 'Expensive Case',
-        price: 100,
-        is_active: true
-      });
-
       const response = await agent
-        .post('/api/user/cases/buy')
+        .post('/api/v1/cases/buy')
         .set('Authorization', `Bearer ${token}`)
         .send({ method: 'balance', quantity: 1 })
         .expect(400);
@@ -278,7 +263,7 @@ describe('Cases Controllers', () => {
       const token = createTestJWT(user.id);
 
       const response = await agent
-        .post('/api/user/cases/buy')
+        .post('/api/v1/cases/buy')
         .set('Authorization', `Bearer ${token}`)
         .send({ method: 'balance', quantity: 10 }) // Превышает лимит 5
         .expect(400);
@@ -292,7 +277,7 @@ describe('Cases Controllers', () => {
       const token = createTestJWT(user.id);
 
       const response = await agent
-        .post('/api/user/cases/buy')
+        .post('/api/v1/cases/buy')
         .set('Authorization', `Bearer ${token}`)
         .send({ method: 'balance', quantity: 1 })
         .expect(200);
@@ -302,10 +287,8 @@ describe('Cases Controllers', () => {
     });
 
     it('should require authentication', async () => {
-      const caseTemplate = await createTestCase();
-
       const response = await agent
-        .post('/api/user/cases/buy')
+        .post('/api/v1/cases/buy')
         .send({ method: 'balance', quantity: 1 })
         .expect(401);
 

@@ -15,12 +15,15 @@ async function createTestUser(userData = {}) {
     password = await argon2.hash('defaultTestPassword123');
   }
 
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(7);
+
   const defaultData = {
     id: uuidv4(), // Явно генерируем UUID
-    username: `testuser_${Date.now()}`,
-    email: `test_${Date.now()}@example.com`,
+    username: `testuser_${timestamp}_${random}`,
+    email: `test_${timestamp}_${random}@example.com`,
     password: password,
-    steam_id: `steam_${Date.now()}`,
+    steam_id: `steam_${timestamp}_${random}`,
     balance: 1000,
     level: 1,
     xp: 0,
@@ -170,6 +173,37 @@ async function createTestPromoCode(promoData = {}) {
 }
 
 /**
+ * Создание кейса с предметами для тестов
+ */
+async function createTestCaseWithItems(caseData = {}, itemsCount = 3) {
+  const { CaseTemplateItem } = require('../../models');
+
+  // Создаем кейс
+  const caseTemplate = await createTestCase(caseData);
+
+  // Создаем предметы
+  const items = [];
+  for (let i = 0; i < itemsCount; i++) {
+    const item = await createTestItem({
+      drop_weight: 10 + i * 5, // разные веса для предметов
+      rarity: i === 0 ? 'consumer' : i === 1 ? 'industrial' : 'mil-spec'
+    });
+    items.push(item);
+  }
+
+  // Связываем предметы с кейсом
+  for (const item of items) {
+    await CaseTemplateItem.create({
+      case_template_id: caseTemplate.id,
+      item_id: item.id,
+      drop_weight: item.drop_weight || 10
+    });
+  }
+
+  return caseTemplate;
+}
+
+/**
  * Ожидание некоторого времени (для асинхронных операций)
  */
 function sleep(ms) {
@@ -184,5 +218,6 @@ module.exports = {
   createTestCase,
   createTestItem,
   createTestPromoCode,
+  createTestCaseWithItems,
   sleep
 };
