@@ -64,18 +64,18 @@ function calculateModifiedDropWeight(item, userDropBonusPercentage = 0) {
     // Уменьшенные базовые множители для поддержания рентабельности
     // При максимальном бонусе 15% изменения весов будут более консервативными
     const baseBonusMultipliers = {
-        'legendary': 1.08,      // +8% к весу легендарных при 1% бонуса 
-        'mythical': 1.06,       // +6% к весу мифических при 1% бонуса 
-        'epic': 1.05,           // +5% к весу эпических при 1% бонуса 
+        'legendary': 1.08,      // +8% к весу легендарных при 1% бонуса
+        'mythical': 1.06,       // +6% к весу мифических при 1% бонуса
+        'epic': 1.05,           // +5% к весу эпических при 1% бонуса
         'very_rare': 1.04,      // +4% к весу очень редких при 1% бонуса
         'rare': 1.03,           // +3% к весу редких при 1% бонуса
         'uncommon_plus': 1.02,  // +2% к весу необычных+ при 1% бонуса
         'uncommon': 1.01,       // +1% к весу необычных при 1% бонуса
-        'common_plus': 1.005,   // +0.5% к весу обычных+ при 1% бонуса 
+        'common_plus': 1.005,   // +0.5% к весу обычных+ при 1% бонуса
         'common': 1.0,          // Без изменений для обычных
-        'frequent': 0.99,       // -1% к весу частых при 1% бонуса 
-        'very_frequent': 0.97,  // -3% к весу очень частых при 1% бонуса 
-        'cheap': 0.95           // -5% к весу дешевых при 1% бонуса 
+        'frequent': 0.99,       // -1% к весу частых при 1% бонуса
+        'very_frequent': 0.97,  // -3% к весу очень частых при 1% бонуса
+        'cheap': 0.95           // -5% к весу дешевых при 1% бонуса
     };
 
     const baseMultiplier = baseBonusMultipliers[category] || 1.0;
@@ -189,7 +189,10 @@ function calculateModifiedDropWeight(item, userDropBonusPercentage = 0) {
 
     // Группируем по категориям
     modifiedItems.forEach(item => {
-        const category = getPriceCategory(item.price);
+        // Безопасно парсим цену
+        const itemPrice = parseFloat(item.price) || 0;
+        const category = getPriceCategory(itemPrice);
+
         if (!stats.categories[category]) {
             stats.categories[category] = {
                 count: 0,
@@ -202,10 +205,10 @@ function calculateModifiedDropWeight(item, userDropBonusPercentage = 0) {
 
         const cat = stats.categories[category];
         cat.count++;
-        cat.originalWeight += (item.drop_weight || 1);
+        cat.originalWeight += (parseFloat(item.drop_weight) || 1);
         cat.modifiedWeight += item.modified_drop_weight;
-        cat.totalPrice += (item.price || 0);
-        cat.avgPrice = cat.totalPrice / cat.count;
+        cat.totalPrice += itemPrice;
+        cat.avgPrice = cat.count > 0 ? cat.totalPrice / cat.count : 0;
     });
 
     // Рассчитываем проценты для каждой категории

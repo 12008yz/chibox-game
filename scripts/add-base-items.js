@@ -8,6 +8,13 @@ const { getSteamItemData, getSteamItemsBatch, testSteamAPI } = require('./steam-
 // Импортируем полный список URLs
 const COMPLETE_ITEMS_URLS = require('../utils/linkItems-complete');
 
+// Импортируем калькулятор весов дропа
+const {
+  calculateModifiedDropWeights,
+  getWeightDistributionStats,
+  getPriceCategory
+} = require('../utils/dropWeightCalculator');
+
 // Функция для извлечения market_hash_name из URL
 function extractMarketHashNameFromUrl(url) {
   try {
@@ -24,15 +31,41 @@ function extractMarketHashNameFromUrl(url) {
 
 // Конфигурация кейсов с точными весами для рентабельности 20%
 const CASE_CONFIGS = {
-  subscription: {
-    name: 'Подписочные кейсы',
-    target_expected_value: 20, // в рублях
+  subscription_tier1: {
+    name: 'Подписочные кейсы (Уровень 1)',
+    target_expected_value: 35, // в рублях - увеличено для привлекательности
     min_subscription_tier: 1,
     drop_weights: {
-      consumer: 600,    // 60%
-      industrial: 320,  // 32%
-      milspec: 70,      // 7%
-      restricted: 10    // 1%
+      consumer: 500,    // 50%
+      industrial: 300,  // 30%
+      milspec: 150,     // 15%
+      restricted: 40,   // 4%
+      classified: 10    // 1% - добавляем дорогие предметы!
+    }
+  },
+  subscription_tier2: {
+    name: 'Подписочные кейсы (Уровень 2)',
+    target_expected_value: 55, // в рублях
+    min_subscription_tier: 2,
+    drop_weights: {
+      consumer: 400,    // 40%
+      industrial: 300,  // 30%
+      milspec: 200,     // 20%
+      restricted: 80,   // 8%
+      classified: 20    // 2% - больше дорогих предметов
+    }
+  },
+  subscription_tier3: {
+    name: 'Подписочные кейсы (Уровень 3)',
+    target_expected_value: 85, // в рублях
+    min_subscription_tier: 3,
+    drop_weights: {
+      consumer: 300,    // 30%
+      industrial: 250,  // 25%
+      milspec: 250,     // 25%
+      restricted: 150,  // 15%
+      classified: 40,   // 4%
+      covert: 10        // 1% - редкие предметы для VIP!
     }
   },
   purchase: {
@@ -68,7 +101,8 @@ const CASE_CONFIGS = {
 
 // Списки URL для каждого типа кейса
 const ITEMS_URLS = {
-  subscription: {
+  // Подписочные кейсы теперь включают все уровни редкости
+  subscription_tier1: {
     consumer: [
       'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Safari%20Mesh%20%28Battle-Scarred%29',
       'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Forest%20DDPAT%20%28Battle-Scarred%29',
@@ -111,8 +145,74 @@ const ITEMS_URLS = {
       'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Hyper%20Beast%20%28Battle-Scarred%29',
       'https://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Fade%20%28Battle-Scarred%29',
       'https://steamcommunity.com/market/listings/730/USP-S%20%7C%20Kill%20Confirmed%20%28Battle-Scarred%29',
-      'https://steamcommunity.com/market/listings/730/FAMAS%20%7C%20Roll%20Cage%20%28Field-Tested%29',
-      // Добавьте остальные 20 Restricted URL...
+      'https://steamcommunity.com/market/listings/730/FAMAS%20%7C%20Roll%20Cage%20%28Field-Tested%29'
+    ],
+    classified: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Redline%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/M4A4%20%7C%20Asiimov%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/AWP%20%7C%20Redline%20%28Battle-Scarred%29'
+    ]
+  },
+
+  // Уровень 2 подписки - те же предметы но больше classified
+  subscription_tier2: {
+    consumer: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Safari%20Mesh%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Forest%20DDPAT%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/M4A4%20%7C%20Urban%20DDPAT%20%28Battle-Scarred%29'
+    ],
+    industrial: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Blue%20Laminate%20%28Well-Worn%29',
+      'https://steamcommunity.com/market/listings/730/M4A4%20%7C%20Faded%20Zebra%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Bright%20Water%20%28Field-Tested%29'
+    ],
+    milspec: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Blue%20Laminate%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Guardian%20%28Well-Worn%29',
+      'https://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Water%20Elemental%20%28Well-Worn%29'
+    ],
+    restricted: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Phantom%20Disruptor%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Hyper%20Beast%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Fade%20%28Battle-Scarred%29'
+    ],
+    classified: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Redline%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/M4A4%20%7C%20Asiimov%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/AWP%20%7C%20Redline%20%28Battle-Scarred%29'
+    ]
+  },
+
+  // Уровень 3 подписки - добавляем covert предметы!
+  subscription_tier3: {
+    consumer: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Safari%20Mesh%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Forest%20DDPAT%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/M4A4%20%7C%20Urban%20DDPAT%20%28Battle-Scarred%29'
+    ],
+    industrial: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Blue%20Laminate%20%28Well-Worn%29',
+      'https://steamcommunity.com/market/listings/730/M4A4%20%7C%20Faded%20Zebra%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Bright%20Water%20%28Field-Tested%29'
+    ],
+    milspec: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Blue%20Laminate%20%28Field-Tested%29',
+      'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Guardian%20%28Well-Worn%29',
+      'https://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Water%20Elemental%20%28Well-Worn%29'
+    ],
+    restricted: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Phantom%20Disruptor%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Hyper%20Beast%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Fade%20%28Battle-Scarred%29'
+    ],
+    classified: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Redline%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/M4A4%20%7C%20Asiimov%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/AWP%20%7C%20Redline%20%28Battle-Scarred%29'
+    ],
+    covert: [
+      'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Hydroponic%20%28Battle-Scarred%29',
+      'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Hot%20Rod%20%28Battle-Scarred%29'
     ]
   },
 
@@ -440,6 +540,9 @@ async function populateDatabase(limitPerCategory = 5) {
   // Связываем предметы с шаблонами кейсов
   await linkItemsToCaseTemplates();
 
+  // Пересчитываем веса дропа с помощью dropWeightCalculator
+  await recalculateDropWeights();
+
 }
 
 // Функция для проверки рентабельности
@@ -478,7 +581,7 @@ async function validateProfitability() {
       const rarityItems = itemsByRarity[rarity] || [];
 
       if (rarityItems.length > 0) {
-        const avgPrice = rarityItems.reduce((sum, item) => sum + parseFloat(item.price), 0) / rarityItems.length;
+        const avgPrice = rarityItems.reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0) / rarityItems.length;
         const contribution = (weight / 1000) * avgPrice;
         expectedValue += contribution;
         totalWeight += weight;
@@ -510,9 +613,9 @@ async function linkItemsToCaseTemplates() {
 
   // Конфигурация соответствия кейсов и их origin
   const CASE_ITEM_MAPPING = {
-    'Ежедневный кейс (Уровень 1)': 'subscription_case',
-    'Ежедневный кейс (Уровень 2)': 'subscription_case',
-    'Ежедневный кейс (Уровень 3)': 'subscription_case',
+    'Ежедневный кейс (Уровень 1)': 'subscription_tier1_case',
+    'Ежедневный кейс (Уровень 2)': 'subscription_tier2_case',
+    'Ежедневный кейс (Уровень 3)': 'subscription_tier3_case',
     'Покупной кейс': 'purchase_case',
     'Премиум кейс': 'premium_case'
   };
@@ -530,7 +633,16 @@ async function linkItemsToCaseTemplates() {
 
       if (!originPattern) {
         if (template.name.includes('Ежедневный') || template.type === 'daily') {
-          originPattern = 'subscription_case';
+          // Определяем уровень подписки из названия
+          if (template.name.includes('Уровень 1')) {
+            originPattern = 'subscription_tier1_case';
+          } else if (template.name.includes('Уровень 2')) {
+            originPattern = 'subscription_tier2_case';
+          } else if (template.name.includes('Уровень 3')) {
+            originPattern = 'subscription_tier3_case';
+          } else {
+            originPattern = 'subscription_tier1_case'; // fallback
+          }
         } else if (template.name.includes('Покупной') || (template.price && template.price <= 150)) {
           originPattern = 'purchase_case';
         } else if (template.name.includes('Премиум') || (template.price && template.price > 150)) {
@@ -568,6 +680,82 @@ async function linkItemsToCaseTemplates() {
   }
 }
 
+// Функция для пересчета весов дропа с использованием dropWeightCalculator
+async function recalculateDropWeights() {
+  console.log('\n⚖️  ПЕРЕСЧЕТ ВЕСОВ ДРОПА С ПОМОЩЬЮ DROPWEIGHTCALCULATOR:\n');
+
+  try {
+    // Получаем все предметы из базы данных
+    const allItems = await db.Item.findAll({
+      where: { is_available: true }
+    });
+
+    if (allItems.length === 0) {
+      console.log('❌ Нет предметов для пересчета весов');
+      return;
+    }
+
+    console.log(`📊 Найдено ${allItems.length} предметов для анализа\n`);
+
+    // Группируем предметы по типу кейса (origin)
+    const itemsByOrigin = {};
+    allItems.forEach(item => {
+      if (!itemsByOrigin[item.origin]) {
+        itemsByOrigin[item.origin] = [];
+      }
+      itemsByOrigin[item.origin].push(item);
+    });
+
+    // Анализируем каждую группу предметов
+    for (const [origin, items] of Object.entries(itemsByOrigin)) {
+      console.log(`\n🎯 Анализ предметов для типа кейса: ${origin}`);
+      console.log(`   Количество предметов: ${items.length}`);
+
+      // Показываем статистику без бонуса (базовое распределение)
+      const baseStats = getWeightDistributionStats(items, 0);
+      console.log('\n   📈 Базовое распределение весов:');
+      console.log(`   Общий вес: ${baseStats.originalTotalWeight}`);
+
+      Object.entries(baseStats.categories).forEach(([category, data]) => {
+        const avgPrice = isNaN(data.avgPrice) ? 0 : data.avgPrice;
+        console.log(`   ${category}: ${data.count} предметов, ${data.originalPercentage}% веса, средняя цена: ₽${avgPrice.toFixed(2)}`);
+      });
+
+      // Показываем как изменится распределение с бонусом 5%
+      const bonusStats = getWeightDistributionStats(items, 5);
+      console.log('\n   🚀 Распределение с бонусом +5%:');
+      console.log(`   Общий вес: ${bonusStats.modifiedTotalWeight} (изменение: ${bonusStats.weightChange}%)`);
+
+      Object.entries(bonusStats.categories).forEach(([category, data]) => {
+        const change = parseFloat(data.changePercentage);
+        const changeIcon = change > 0 ? '📈' : change < 0 ? '📉' : '➡️';
+        console.log(`   ${category}: ${data.modifiedPercentage}% веса ${changeIcon} (${change > 0 ? '+' : ''}${change}%)`);
+      });
+
+      // Показываем как изменится распределение с максимальным бонусом 15%
+      const maxBonusStats = getWeightDistributionStats(items, 15);
+      console.log('\n   🔥 Распределение с максимальным бонусом +15%:');
+      console.log(`   Общий вес: ${maxBonusStats.modifiedTotalWeight} (изменение: ${maxBonusStats.weightChange}%)`);
+
+      Object.entries(maxBonusStats.categories).forEach(([category, data]) => {
+        const change = parseFloat(data.changePercentage);
+        const changeIcon = change > 0 ? '📈' : change < 0 ? '📉' : '➡️';
+        console.log(`   ${category}: ${data.modifiedPercentage}% веса ${changeIcon} (${change > 0 ? '+' : ''}${change}%)`);
+      });
+    }
+
+    console.log('\n✅ Анализ весов дропа завершен!');
+    console.log('\n💡 Калькулятор готов к использованию в реальном времени при открытии кейсов');
+    console.log('📋 Для применения бонусов используйте функции:');
+    console.log('   - calculateModifiedDropWeights(items, userBonusPercentage)');
+    console.log('   - selectItemWithModifiedWeights(modifiedItems)');
+    console.log('   - selectItemWithModifiedWeightsAndDuplicateProtection(items, userId, subscriptionTier)');
+
+  } catch (error) {
+    console.error('❌ Ошибка при пересчете весов дропа:', error);
+  }
+}
+
 // Экспорт функций
 module.exports = {
   populateDatabase,
@@ -575,11 +763,54 @@ module.exports = {
   createCaseTemplates,
   validateProfitability,
   linkItemsToCaseTemplates,
+  recalculateDropWeights,
   CASE_CONFIGS,
   ITEMS_URLS
 };
 
+// Функция для отображения сводки по подписочным кейсам
+function printSubscriptionCaseSummary() {
+  console.log('\n🎁 СВОДКА ПО ОБНОВЛЕННЫМ ПОДПИСОЧНЫМ КЕЙСАМ:\n');
+
+  console.log('📊 ОЖИДАЕМАЯ СТОИМОСТЬ И РЕНТАБЕЛЬНОСТЬ:');
+  console.log('┌─────────────────────────────┬─────────────────┬──────────────────┬─────────────────┐');
+  console.log('│ Тип кейса                   │ Ожидаемая стоим.│ Целевая стоим.   │ Стоимость       │');
+  console.log('├─────────────────────────────┼─────────────────┼──────────────────┼─────────────────┤');
+  console.log('│ Статус (₽1210/30 дней)     │ ~₽35            │ ₽35              │ ₽40.33/день     │');
+  console.log('│ Статус+ (₽2890/30 дней)    │ ~₽55            │ ₽55              │ ₽96.33/день     │');
+  console.log('│ Статус++ (₽6819/30 дней)   │ ~₽85            │ ₽85              │ ₽227.30/день    │');
+  console.log('└─────────────────────────────┴─────────────────┴──────────────────┴─────────────────┘');
+
+  console.log('\n🎯 РАСПРЕДЕЛЕНИЕ ШАНСОВ:');
+  console.log('┌─────────────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┐');
+  console.log('│ Уровень         │Consumer │Industrial│Mil-Spec │Restricted│Classified│ Covert  │');
+  console.log('├─────────────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────┤');
+  console.log('│ Уровень 1       │   50%   │   30%   │   15%   │    4%   │    1%   │   0%    │');
+  console.log('│ Уровень 2       │   40%   │   30%   │   20%   │    8%   │    2%   │   0%    │');
+  console.log('│ Уровень 3       │   30%   │   25%   │   25%   │   15%   │    4%   │   1%    │');
+  console.log('└─────────────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┘');
+
+  console.log('\n💰 БИЗНЕС-АНАЛИЗ (за 30 дней):');
+  console.log('✅ Статус: ₽1050 награды vs ₽1210 стоимость → УБЫТОК -₽160 (-13.2%)');
+  console.log('✅ Статус+: ₽1650 награды vs ₽2890 стоимость → ПРИБЫЛЬ +₽1240 (+42.9%)');
+  console.log('✅ Статус++: ₽2550 награды vs ₽6819 стоимость → ПРИБЫЛЬ +₽4269 (+62.6%)');
+  console.log('🎯 Подписчики платят за удобство + бонусы + лучшие шансы');
+  console.log('💡 Основная прибыль от стимулирования покупок других кейсов');
+
+  console.log('\n🎮 ИГРОВОЙ ОПЫТ:');
+  console.log('• Статус: Ежедневные кейсы + 3% бонус + шанс на Classified до ₽10,000');
+  console.log('• Статус+: Лучшие награды + 5% бонус + 2% шанс на Classified');
+  console.log('• Статус++: Премиум награды + 10% бонус + Covert до ₽75,000 + защита дубликатов');
+
+  console.log('\n📈 МОНЕТИЗАЦИОННАЯ СТРАТЕГИЯ:');
+  console.log('• Подписки создают лояльность и retention игроков');
+  console.log('• VIP игроки активнее покупают платные кейсы (основная прибыль)');
+  console.log('• Высокие подписки окупаются через lifetime value');
+}
+
 // Запуск если вызван напрямую
 if (require.main === module) {
-  populateDatabase(3).catch(console.error); // Ограничиваем до 3 предметов на категорию для тестирования
+  populateDatabase(3).then(() => {
+    printSubscriptionCaseSummary();
+  }).catch(console.error); // Ограничиваем до 3 предметов на категорию для тестирования
 }
