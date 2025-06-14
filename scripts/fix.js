@@ -1,254 +1,185 @@
 const db = require('../models');
 
-// Конфигурация для разных типов кейсов
-const caseConfigs = {
-  // Бесплатные кейсы (ежедневные) - только дешевые предметы
-  free: {
-    maxItemPrice: 500, // максимальная цена предмета ₽500
-    rarityWeights: {
-      consumer: 50,     // 50% - самые дешевые
-      industrial: 30,   // 30% - дешевые
-      milspec: 15,      // 15% - средние
-      restricted: 4,    // 4% - дорогие
-      classified: 1,    // 1% - очень дорогие
-      covert: 0,        // 0% - запрещены
-      contraband: 0,    // 0% - запрещены
-      exotic: 0         // 0% - запрещены
-    }
-  },
+// Целевая доходность казино для премиум кейса
+const TARGET_HOUSE_EDGE = 0.20; // 20%
+const PREMIUM_CASE_PRICE = 499;
+const TARGET_AVG_VALUE = PREMIUM_CASE_PRICE * (1 - TARGET_HOUSE_EDGE); // ₽399.2
 
-  // Покупной кейс (₽99) - умеренный баланс
-  purchase: {
-    maxItemPrice: 2000, // максимальная цена предмета ₽2000
-    rarityWeights: {
-      consumer: 40,     // 40%
-      industrial: 25,   // 25%
-      milspec: 20,      // 20%
-      restricted: 10,   // 10%
-      classified: 4,    // 4%
-      covert: 1,        // 1%
-      contraband: 0,    // 0%
-      exotic: 0         // 0%
-    }
-  },
-
-  // Премиум кейс (₽499) - сбалансированный
-  premium: {
-    maxItemPrice: 50000, // максимальная цена предмета ₽50000
-    rarityWeights: {
-      consumer: 20,     // 20%
-      industrial: 20,   // 20%
-      milspec: 25,      // 25%
-      restricted: 20,   // 20%
-      classified: 12,   // 12%
-      covert: 2.5,      // 2.5%
-      contraband: 0.4,  // 0.4%
-      exotic: 0.1       // 0.1%
-    }
-  }
-};
-
-// Маппинг типов кейсов
-const caseTypeMapping = {
-  'subscription_case': 'free',     // Бесплатные кейсы
-  'purchase_case': 'purchase',     // Покупной кейс
-  'premium_case': 'premium'        // Премиум кейс
-};
-
-async function rebalanceCases() {
-  console.log('🎰 Начинаем перебалансировку кейсов CS2');
-  console.log('💡 Цель: разбавить кейсы дешевыми предметами для снижения выплат\n');
-
+async function optimizePremiumCase() {
   try {
-    // Получаем все активные кейсы
-    const caseTemplates = await db.CaseTemplate.findAll({
-      where: { is_active: true },
-      include: [{ model: db.Item, as: 'items' }]
-    });
+    console.log('🎯 АГРЕССИВНАЯ ОПТИМИЗАЦИЯ ПРЕМИУМ КЕЙСА\n');
 
-    console.log(`📦 Найдено активных кейсов: ${caseTemplates.length}\n`);
-
-    // Получаем все доступные предметы
+    // Получаем все предметы, отсортированные по цене
     const allItems = await db.Item.findAll({
-      where: { is_available: true }
+      where: { is_available: true },
+      order: [['price', 'ASC']]
     });
 
-    console.log(`🎁 Всего доступных предметов: ${allItems.length}\n`);
+    console.log(`📦 Всего доступных предметов: ${allItems.length}\n`);
 
-    // Группируем предметы по редкости и цене
-    const itemsByRarity = {};
-    allItems.forEach(item => {
-      const rarity = item.rarity;
-      const price = parseFloat(item.price || 0);
+    // Группируем предметы по ценовым диапазонам
+    const priceRanges = {
+      'ultra_cheap': allItems.filter(item => parseFloat(item.price) <= 10), // ≤ ₽10
+      'cheap': allItems.filter(item => parseFloat(item.price) > 10 && parseFloat(item.price) <= 50), // ₽10-50
+      'low': allItems.filter(item => parseFloat(item.price) > 50 && parseFloat(item.price) <= 200), // ₽50-200
+      'medium': allItems.filter(item => parseFloat(item.price) > 200 && parseFloat(item.price) <= 500), // ₽200-500
+      'high': allItems.filter(item => parseFloat(item.price) > 500 && parseFloat(item.price) <= 2000), // ₽500-2000
+      'expensive': allItems.filter(item => parseFloat(item.price) > 2000) // > ₽2000
+    };
 
-      if (!itemsByRarity[rarity]) {
-        itemsByRarity[rarity] = [];
-      }
-      itemsByRarity[rarity].push({ ...item.get({ plain: true }), price });
+    console.log('💰 Распределение предметов по ценовым диапазонам:');
+    Object.entries(priceRanges).forEach(([range, items]) => {
+      const avgPrice = items.length > 0 ?
+        items.reduce((sum, item) => sum + parseFloat(item.price), 0) / items.length : 0;
+      console.log(`   ${range}: ${items.length} предметов (средняя цена: ₽${avgPrice.toFixed(2)})`);
     });
 
-    // Сортируем предметы в каждой редкости по цене (от дешевых к дорогим)
-    Object.keys(itemsByRarity).forEach(rarity => {
-      itemsByRarity[rarity].sort((a, b) => a.price - b.price);
+    // Получаем премиум кейс
+    const caseTemplate = await db.CaseTemplate.findOne({
+      where: { name: 'Премиум кейс' },
+      include: [{
+        model: db.Item,
+        as: 'items',
+        through: { attributes: [] }
+      }]
     });
 
-    console.log('📊 Предметы по редкости:');
-    Object.entries(itemsByRarity).forEach(([rarity, items]) => {
-      const avgPrice = items.reduce((sum, item) => sum + item.price, 0) / items.length;
-      console.log(`   ${rarity}: ${items.length} шт, средняя цена ₽${avgPrice.toFixed(2)}`);
-    });
-    console.log();
-
-    // Перебалансируем каждый кейс
-    for (const caseTemplate of caseTemplates) {
-      await rebalanceCase(caseTemplate, itemsByRarity);
+    if (!caseTemplate) {
+      console.log('❌ Премиум кейс не найден');
+      return;
     }
 
-    console.log('✅ Перебалансировка завершена!');
-    console.log('💡 Запустите скрипт тестирования для проверки результатов: node scripts/fix.js');
+    const currentItems = caseTemplate.items || [];
+    console.log(`\n📋 Текущее количество предметов: ${currentItems.length}`);
+
+    if (currentItems.length === 0) {
+      console.log('⚠️ В кейсе нет предметов, пропускаем оптимизацию');
+      return;
+    }
+
+    // Рассчитываем текущую среднюю стоимость
+    const currentAvgValue = currentItems.reduce((sum, item) => sum + parseFloat(item.price), 0) / currentItems.length;
+    const currentHouseEdge = (1 - currentAvgValue / PREMIUM_CASE_PRICE) * 100;
+
+    console.log(`📊 Текущая средняя стоимость: ₽${currentAvgValue.toFixed(2)}`);
+    console.log(`📊 Текущая доходность казино: ${currentHouseEdge.toFixed(2)}%`);
+    console.log(`🎯 Целевая средняя стоимость: ₽${TARGET_AVG_VALUE.toFixed(2)}`);
+
+    // Создаем новый оптимизированный список предметов
+    const optimizedItems = createOptimizedItemList(priceRanges, currentItems);
+
+    if (optimizedItems.length === 0) {
+      console.log('❌ Не удалось создать оптимизированный список предметов');
+      return;
+    }
+
+    // Рассчитываем новые метрики
+    const newAvgValue = optimizedItems.reduce((sum, item) => sum + parseFloat(item.price), 0) / optimizedItems.length;
+    const newHouseEdge = (1 - newAvgValue / PREMIUM_CASE_PRICE) * 100;
+
+    console.log(`\n✨ РЕЗУЛЬТАТЫ ОПТИМИЗАЦИИ:`);
+    console.log(`📊 Новое количество предметов: ${optimizedItems.length}`);
+    console.log(`📊 Новая средняя стоимость: ₽${newAvgValue.toFixed(2)}`);
+    console.log(`📊 Новая доходность казино: ${newHouseEdge.toFixed(2)}%`);
+
+    // Показываем распределение по ценовым диапазонам
+    const distribution = {};
+    optimizedItems.forEach(item => {
+      const price = parseFloat(item.price);
+      const range = getPriceRange(price);
+      distribution[range] = (distribution[range] || 0) + 1;
+    });
+
+    console.log(`\n📋 Распределение предметов по ценовым диапазонам:`);
+    Object.entries(distribution).forEach(([range, count]) => {
+      const percentage = (count / optimizedItems.length * 100).toFixed(1);
+      console.log(`   ${range}: ${count} предметов (${percentage}%)`);
+    });
+
+    // Обновляем кейс в базе данных
+    await caseTemplate.setItems(optimizedItems);
+    console.log(`\n✅ Премиум кейс успешно оптимизирован!`);
 
   } catch (error) {
-    console.error('❌ Ошибка при перебалансировке:', error);
+    console.error('❌ Ошибка при оптимизации премиум кейса:', error);
     throw error;
   }
 }
 
-async function rebalanceCase(caseTemplate, itemsByRarity) {
-  const origin = caseTemplate.items?.[0]?.origin || 'subscription_case';
-  const caseType = caseTypeMapping[origin] || 'purchase';
-  const config = caseConfigs[caseType];
+function createOptimizedItemList(priceRanges, currentItems) {
+  const optimizedItems = [];
 
-  console.log(`\n🎲 Перебалансировка кейса: ${caseTemplate.name}`);
-  console.log(`   📝 Тип: ${caseType} (${origin})`);
-  console.log(`   💰 Цена: ${caseTemplate.price ? `₽${caseTemplate.price}` : 'Бесплатный'}`);
-  console.log(`   📊 Текущих предметов: ${caseTemplate.items.length}`);
+  // Стратегия: создаем сбалансированный микс предметов
+  // 40% - дешевые предметы (≤₽50)
+  // 30% - средние предметы (₽50-500)
+  // 20% - дорогие предметы (₽500-2000)
+  // 10% - премиум предметы (>₽2000)
 
-  // Удаляем все текущие связи
-  await db.CaseTemplateItem.destroy({
-    where: { case_template_id: caseTemplate.id }
-  });
+  const totalTargetItems = 80; // Увеличиваем общее количество для разбавления
 
-  const newItems = [];
-  let totalWeight = 0;
+  // Дешевые предметы (40%)
+  const cheapCount = Math.floor(totalTargetItems * 0.4);
+  const ultraCheapItems = getRandomItems(priceRanges.ultra_cheap, Math.floor(cheapCount * 0.7));
+  const cheapItems = getRandomItems(priceRanges.cheap, Math.floor(cheapCount * 0.3));
+  optimizedItems.push(...ultraCheapItems, ...cheapItems);
 
-  // Добавляем предметы согласно конфигурации
-  Object.entries(config.rarityWeights).forEach(([rarity, weightPercent]) => {
-    if (weightPercent === 0 || !itemsByRarity[rarity]) return;
+  // Средние предметы (30%)
+  const mediumCount = Math.floor(totalTargetItems * 0.3);
+  const lowItems = getRandomItems(priceRanges.low, Math.floor(mediumCount * 0.6));
+  const mediumItems = getRandomItems(priceRanges.medium, Math.floor(mediumCount * 0.4));
+  optimizedItems.push(...lowItems, ...mediumItems);
 
-    const availableItems = itemsByRarity[rarity].filter(item =>
-      item.price <= config.maxItemPrice
-    );
+  // Дорогие предметы (20%)
+  const highCount = Math.floor(totalTargetItems * 0.2);
+  const highItems = getRandomItems(priceRanges.high, highCount);
+  optimizedItems.push(...highItems);
 
-    if (availableItems.length === 0) return;
+  // Премиум предметы (10%) - только самые дешевые из дорогих
+  const premiumCount = Math.floor(totalTargetItems * 0.1);
+  const expensiveItems = priceRanges.expensive.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+  const premiumItems = getRandomItems(expensiveItems.slice(0, 20), premiumCount); // Берем только 20 самых дешевых из дорогих
+  optimizedItems.push(...premiumItems);
 
-    // Количество предметов этой редкости (пропорционально весу)
-    const itemCount = Math.max(1, Math.round((weightPercent / 100) * 50)); // 50 - базовое количество предметов в кейсе
-
-    for (let i = 0; i < itemCount; i++) {
-      // Берем случайный предмет из доступных (с приоритетом к дешевым)
-      const index = Math.floor(Math.pow(Math.random(), 2) * availableItems.length); // Квадратичное распределение для приоритета дешевых
-      const item = availableItems[index];
-
-      // Рассчитываем вес предмета (дешевые = больший вес)
-      const maxPrice = Math.max(...availableItems.map(i => i.price));
-      const priceRatio = maxPrice > 0 ? (maxPrice - item.price) / maxPrice : 1;
-      const weight = 0.1 + (priceRatio * 2); // От 0.1 до 2.1
-
-      newItems.push({
-        item,
-        weight: parseFloat(weight.toFixed(3))
-      });
-      totalWeight += weight;
-    }
-  });
-
-  console.log(`   ➕ Новых предметов: ${newItems.length}`);
-  console.log(`   ⚖️  Общий вес: ${totalWeight.toFixed(3)}`);
-
-  // Создаем новые связи
-  const caseTemplateItems = newItems.map(({ item, weight }) => ({
-    case_template_id: caseTemplate.id,
-    item_id: item.id,
-    created_at: new Date(),
-    updated_at: new Date()
-  }));
-
-  // Обновляем веса предметов
-  const itemUpdates = newItems.map(({ item, weight }) =>
-    db.Item.update(
-      { drop_weight: weight },
-      { where: { id: item.id } }
-    )
+  // Убираем дубликаты
+  const uniqueItems = optimizedItems.filter((item, index, self) =>
+    index === self.findIndex(t => t.id === item.id)
   );
 
-  await Promise.all([
-    db.CaseTemplateItem.bulkCreate(caseTemplateItems),
-    ...itemUpdates
-  ]);
-
-  // Статистика по редкости
-  const rarityStats = {};
-  newItems.forEach(({ item }) => {
-    const rarity = item.rarity;
-    if (!rarityStats[rarity]) {
-      rarityStats[rarity] = { count: 0, totalPrice: 0, avgWeight: 0 };
-    }
-    rarityStats[rarity].count++;
-    rarityStats[rarity].totalPrice += item.price;
-  });
-
-  console.log('   📈 Распределение по редкости:');
-  Object.entries(rarityStats).forEach(([rarity, stats]) => {
-    const avgPrice = (stats.totalPrice / stats.count).toFixed(2);
-    const percentage = ((stats.count / newItems.length) * 100).toFixed(1);
-    console.log(`      ${rarity}: ${stats.count} шт (${percentage}%) - Ср. ₽${avgPrice}`);
-  });
-
-  // Рассчитываем ожидаемую среднюю выплату
-  const expectedPayout = newItems.reduce((sum, { item, weight }) => {
-    return sum + (item.price * (weight / totalWeight));
-  }, 0);
-
-  console.log(`   💎 Ожидаемая средняя выплата: ₽${expectedPayout.toFixed(2)}`);
-
-  if (caseTemplate.price) {
-    const profitMargin = ((caseTemplate.price - expectedPayout) / caseTemplate.price * 100);
-    console.log(`   📊 Ожидаемая маржа: ${profitMargin.toFixed(1)}%`);
-  }
+  return uniqueItems;
 }
 
-// Экспорт функций
-module.exports = {
-  rebalanceCases,
-  rebalanceCase,
-  caseConfigs
-};
+function getRandomItems(items, count) {
+  if (items.length === 0 || count <= 0) return [];
+
+  const shuffled = [...items].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, Math.min(count, items.length));
+}
+
+function getPriceRange(price) {
+  if (price <= 10) return 'ultra_cheap (≤₽10)';
+  if (price <= 50) return 'cheap (₽10-50)';
+  if (price <= 200) return 'low (₽50-200)';
+  if (price <= 500) return 'medium (₽200-500)';
+  if (price <= 2000) return 'high (₽500-2000)';
+  return 'expensive (>₽2000)';
+}
 
 // Запуск если вызван напрямую
 if (require.main === module) {
-  const args = process.argv.slice(2);
-
-  if (args[0] === '--confirm' || args[0] === '-y') {
-    rebalanceCases()
-      .then(() => {
-        console.log('\n🎉 Готово! Теперь запустите: node scripts/fix.js');
-        process.exit(0);
-      })
-      .catch(error => {
-        console.error('❌ Ошибка:', error);
-        process.exit(1);
-      });
-  } else {
-    console.log('🎰 Скрипт перебалансировки кейсов CS2');
-    console.log('⚠️  ВНИМАНИЕ: Этот скрипт полностью пересоздаст содержимое всех кейсов!');
-    console.log('');
-    console.log('Что будет сделано:');
-    console.log('• Удалены все текущие предметы из кейсов');
-    console.log('• Добавлены новые предметы согласно сбалансированной конфигурации');
-    console.log('• Настроены веса для снижения выплат');
-    console.log('• Дешевые предметы получат больший вес выпадения');
-    console.log('');
-    console.log('Для подтверждения запустите:');
-    console.log('node scripts/rebalance-cases.js --confirm');
-  }
+  optimizePremiumCase()
+    .then(() => {
+      console.log('\n✅ Скрипт выполнен успешно!');
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('\n❌ Ошибка выполнения скрипта:', error);
+      process.exit(1);
+    })
+    .finally(() => {
+      db.sequelize.close();
+    });
 }
+
+module.exports = {
+  optimizePremiumCase
+};

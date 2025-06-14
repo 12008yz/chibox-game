@@ -50,7 +50,12 @@ async function linkItemsToCaseTemplates() {
 
       // Получаем предметы для данного типа кейса
       let whereClause = { is_available: true };
-      if (originPattern) {
+
+      // Для ежедневных кейсов (всех уровней подписки) используем ВСЕ предметы
+      if (originPattern === 'subscription_case') {
+        console.log(`   🎯 Ежедневный кейс - используем ВСЕ доступные предметы`);
+        // whereClause остается только с is_available: true
+      } else if (originPattern) {
         whereClause.origin = originPattern;
       }
 

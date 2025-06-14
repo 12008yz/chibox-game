@@ -180,7 +180,7 @@ async function withdrawItem(req, res) {
     // Обновляем прогресс достижений
     await updateUserAchievementProgress(userId, 'steam_inventory', 1);
 
-    logger.info(`Пользователь ${userId} запросил вывод предмета ${itemId} (${inventoryItem.item.name})`);
+    logger.info(`Пользователь ${userId} запросил вывод предмета ${inventoryItem.item.id} (${inventoryItem.item.name})`);
 
     return res.json({
       success: true,
