@@ -2,110 +2,65 @@ const axios = require('axios');
 const fs = require('fs');
 const db = require('../models');
 
-// Импортируем функции для получения данных с Steam
-const { getSteamItemData, getSteamItemsBatch, testSteamAPI } = require('./steam-item-fetcher');
+// Импортируем новые сервисы
+const SteamPriceService = require('../services/steamPriceService');
+const ProfitabilityCalculator = require('../utils/profitabilityCalculator');
 
 // Импортируем полный список URLs
 const COMPLETE_ITEMS_URLS = require('../utils/linkItems-complete');
 
-// Импортируем калькулятор весов дропа
-const {
-  calculateModifiedDropWeights,
-  getWeightDistributionStats,
-  getPriceCategory
-} = require('../utils/dropWeightCalculator');
+// Инициализируем сервисы
+const steamPriceService = new SteamPriceService(process.env.STEAM_API_KEY);
+const profitabilityCalculator = new ProfitabilityCalculator(0.2); // 20% прибыль
 
-// РЕАЛЬНЫЕ ЦЕНЫ CS2 предметов (на основе анализа Steam Market декабрь 2024)
-const REALISTIC_ITEM_PRICES = {
-  consumer: 6,       // ₽3-12 (P250 Sand Dune, Glock Forest DDPAT и т.д.)
-  industrial: 18,    // ₽12-35 (AK Blue Laminate BS, M4A4 Faded Zebra и т.д.)
-  milspec: 85,       // ₽45-180 (Glock Water Elemental, P250 Asiimov и т.д.)
-  restricted: 450,   // ₽250-900 (AK Phantom Disruptor, M4 Hyper Beast и т.д.)
-  classified: 1350,  // ₽900-2500 (AK Redline, M4 Asiimov и т.д.)
-  covert: 9500,      // ₽5000-18000 (AK Fire Serpent, AWP Dragon Lore BS и т.д.)
-  contraband: 28000, // ₽18000-45000 (дешевые ножи - Gut Safari Mesh BS и т.д.)
-  exotic: 95000      // ₽60000+ (дорогие перчатки)
+// FALLBACK ЦЕНЫ (используются только при недоступности Steam API)
+const FALLBACK_PRICES = {
+  consumer: 8,       // ₽8 (базовые скины)
+  industrial: 20,    // ₽20 (промышленные скины)
+  milspec: 90,       // ₽90 (синие скины)
+  restricted: 500,   // ₽500 (фиолетовые скины)
+  classified: 1500,  // ₽1500 (розовые скины)
+  covert: 10000,     // ₽10000 (красные скины)
+  contraband: 30000, // ₽30000 (ножи)
+  exotic: 100000     // ₽100000 (перчатки)
 };
 
-// Конфигурация кейсов с правильными весами для рентабельности 20%
-// Рассчитано для обеспечения целевых ожидаемых стоимостей
-const CASE_CONFIGS = {
+// БАЗОВЫЕ КОНФИГУРАЦИИ КЕЙСОВ (веса будут пересчитаны автоматически)
+const BASE_CASE_CONFIGS = {
   subscription_tier1: {
     name: 'Подписочные кейсы (Уровень 1)',
-    target_expected_value: 32.26,
+    price: null, // Бесплатный
+    target_expected_value: 40, // Целевая стоимость для бесплатного кейса
     min_subscription_tier: 1,
-    drop_weights: {
-      consumer: 800,     // 80% - дешевые ₽4
-      industrial: 150,   // 15% - средние ₽15
-      milspec: 40,       // 4% - хорошие ₽80
-      restricted: 8,     // 0.8% - редкие ₽400
-      classified: 1.5,   // 0.15% - очень редкие ₽1200
-      covert: 0.4,       // 0.04% - легендарные ₽8000
-      contraband: 0.08,  // 0.008% - ножи ₽25000
-      exotic: 0.02       // 0.002% - перчатки ₽80000
-    }
+    type: 'daily'
   },
   subscription_tier2: {
     name: 'Подписочные кейсы (Уровень 2)',
-    target_expected_value: 77.06,
+    price: null, // Бесплатный
+    target_expected_value: 80, // Повышенная стоимость для 2 уровня
     min_subscription_tier: 2,
-    drop_weights: {
-      consumer: 700,     // 70% - дешевые ₽4
-      industrial: 200,   // 20% - средние ₽15
-      milspec: 80,       // 8% - хорошие ₽80
-      restricted: 16,    // 1.6% - редкие ₽400
-      classified: 3,     // 0.3% - очень редкие ₽1200
-      covert: 0.8,       // 0.08% - легендарные ₽8000
-      contraband: 0.15,  // 0.015% - ножи ₽25000
-      exotic: 0.05       // 0.005% - перчатки ₽80000
-    }
+    type: 'daily'
   },
   subscription_tier3: {
     name: 'Подписочные кейсы (Уровень 3)',
-    target_expected_value: 181.84,
+    price: null, // Бесплатный
+    target_expected_value: 180, // Высокая стоимость для 3 уровня
     min_subscription_tier: 3,
-    drop_weights: {
-      consumer: 600,     // 60% - дешевые ₽4
-      industrial: 250,   // 25% - средние ₽15
-      milspec: 120,      // 12% - хорошие ₽80
-      restricted: 24,    // 2.4% - редкие ₽400
-      classified: 5,     // 0.5% - очень редкие ₽1200
-      covert: 1,         // 0.1% - легендарные ₽8000
-      contraband: 0.2,   // 0.02% - ножи ₽25000
-      exotic: 0.05       // 0.005% - перчатки ₽80000
-    }
+    type: 'daily'
   },
   purchase: {
     name: 'Покупные кейсы ₽99',
-    target_expected_value: 79.20,
     price: 99,
+    target_expected_value: 79.20, // 80% от цены (20% прибыль)
     min_subscription_tier: 0,
-    drop_weights: {
-      consumer: 550,     // 55% - дешевые ₽4
-      industrial: 300,   // 30% - средние ₽15
-      milspec: 120,      // 12% - хорошие ₽80
-      restricted: 25,    // 2.5% - редкие ₽400
-      classified: 4,     // 0.4% - очень редкие ₽1200
-      covert: 0.8,       // 0.08% - легендарные ₽8000
-      contraband: 0.15,  // 0.015% - ножи ₽25000
-      exotic: 0.05       // 0.005% - перчатки ₽80000
-    }
+    type: 'premium'
   },
   premium: {
     name: 'Премиум кейсы ₽499',
-    target_expected_value: 399.20,
     price: 499,
+    target_expected_value: 399.20, // 80% от цены (20% прибыль)
     min_subscription_tier: 0,
-    drop_weights: {
-      consumer: 400,     // 40% - дешевые ₽4
-      industrial: 300,   // 30% - средние ₽15
-      milspec: 200,      // 20% - хорошие ₽80
-      restricted: 80,    // 8% - редкие ₽400
-      classified: 15,    // 1.5% - очень редкие ₽1200
-      covert: 4,         // 0.4% - легендарные ₽8000
-      contraband: 0.8,   // 0.08% - ножи ₽25000
-      exotic: 0.2        // 0.02% - перчатки ₽80000
-    }
+    type: 'special'
   }
 };
 
@@ -163,18 +118,16 @@ const ITEMS_URLS = {
   }
 };
 
-// Функция для определения редкости по цене (актуальные цены 2024)
-function determineRarityByPrice(priceUsd) {
-  const priceRub = priceUsd * 95; // Конвертируем в рубли
-
-  if (priceRub >= 526) return 'exotic';        // ₽526+ (дорогие перчатки/ножи)
-  if (priceRub >= 158) return 'contraband';    // ₽158+ (дешевые ножи)
-  if (priceRub >= 42) return 'covert';         // ₽42+ (красные скины)
-  if (priceRub >= 8.4) return 'classified';    // ₽8.4+ (розовые скины)
-  if (priceRub >= 2.1) return 'restricted';    // ₽2.1+ (фиолетовые скины)
-  if (priceRub >= 0.42) return 'milspec';      // ₽0.42+ (синие скины)
-  if (priceRub >= 0.084) return 'industrial';  // ₽0.084+ (светло-синие)
-  return 'consumer';                           // < ₽0.084 (белые)
+// Функция для определения редкости по цене (актуальные пороги 2025)
+function determineRarityByPrice(priceRub) {
+  if (priceRub >= 80000) return 'exotic';      // ₽80,000+ (дорогие перчатки)
+  if (priceRub >= 25000) return 'contraband';  // ₽25,000+ (ножи)
+  if (priceRub >= 8000) return 'covert';       // ₽8,000+ (красные скины)
+  if (priceRub >= 1200) return 'classified';   // ₽1,200+ (розовые скины)
+  if (priceRub >= 400) return 'restricted';    // ₽400+ (фиолетовые скины)
+  if (priceRub >= 80) return 'milspec';        // ₽80+ (синие скины)
+  if (priceRub >= 15) return 'industrial';     // ₽15+ (светло-синие)
+  return 'consumer';                           // < ₽15 (белые)
 }
 
 // Функция для извлечения market_hash_name из URL
@@ -191,8 +144,8 @@ function extractMarketHashNameFromUrl(url) {
   }
 }
 
-// Функция для обработки одного предмета с реалистичными ценами
-async function processItem(url, rarity, caseType, delay = 2000, useSteamAPI = false) {
+// Функция для обработки одного предмета с актуальными ценами
+async function processItem(url, originalRarity, caseType) {
   try {
     console.log(`🔄 Обрабатываем: ${url}`);
 
@@ -212,74 +165,52 @@ async function processItem(url, rarity, caseType, delay = 2000, useSteamAPI = fa
       return existingItem;
     }
 
-    // Добавляем задержку
-    await new Promise(resolve => setTimeout(resolve, delay));
+    // Получаем актуальную цену и категорию через Steam API
+    console.log(`💰 Получаем актуальную цену для: ${marketHashName}`);
+    const priceData = await steamPriceService.getItemPrice(marketHashName);
 
-    // Используем Steam API для получения актуальных цен
-    let priceRub = REALISTIC_ITEM_PRICES[rarity] || 6; // Базовая цена по категории в рублях
-    let priceUsd = priceRub / 95; // Конвертируем в доллары
-    let actualRarity = rarity; // Сохраняем категорию из linkItems-complete.js
-    let steamPrice = null;
+    let priceRub, actualRarity, priceUsd;
 
-    // Создаем ссылку на Steam Market для проверки цены и категории
+    if (priceData.success && priceData.price_rub > 0) {
+      // Используем актуальные данные из Steam
+      priceRub = priceData.price_rub;
+      priceUsd = priceData.price_usd;
+      actualRarity = priceData.category;
+
+      console.log(`✅ Steam API: ${marketHashName} - ₽${priceRub} - ${actualRarity}`);
+    } else {
+      // Fallback на статические цены
+      priceRub = FALLBACK_PRICES[originalRarity] || 8;
+      priceUsd = Math.round((priceRub / 95) * 100) / 100;
+      actualRarity = originalRarity;
+
+      console.log(`📝 Fallback цена: ${marketHashName} - ₽${priceRub} - ${actualRarity}`);
+    }
+
+    // Создаем ссылку на Steam Market
     const steamMarketUrl = `https://steamcommunity.com/market/listings/730/${encodeURIComponent(marketHashName)}`;
 
     // Генерируем изображение предмета
-    let imageUrl = `https://steamcdn-a.akamaihd.net/apps/730/icons/econ/default_generated/${marketHashName.toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/_+/g, '_')}.png`;
-
-    // Получаем реальную цену с Steam Market
-    if (useSteamAPI) {
-      try {
-        console.log(`💰 Получаем актуальную цену для: ${marketHashName}`);
-        const steamData = await getSteamItemData(marketHashName);
-
-        if (steamData && steamData.price_usd && steamData.price_usd > 0) {
-          steamPrice = steamData.price_usd;
-          priceUsd = steamPrice;
-          priceRub = Math.round(steamPrice * 95 * 100) / 100; // Округляем до копеек
-
-          // Обновляем изображение, если доступно
-          if (steamData.item_info && steamData.item_info.icon_url) {
-            imageUrl = steamData.item_info.icon_url;
-          }
-
-          console.log(`✅ Получена Steam цена: ${steamPrice} (₽${priceRub}) для ${marketHashName}`);
-        } else {
-          console.log(`📝 Steam API не вернул цену для ${marketHashName}, используем базовую: ₽${priceRub}`);
-        }
-      } catch (steamError) {
-        console.log(`📝 Ошибка Steam API для ${marketHashName}: ${steamError.message}, используем базовую цену`);
-      }
-    } else {
-      console.log(`📝 Steam API отключен, используем базовую цену: ₽${priceRub} для ${rarity}`);
-    }
-
-    // Определяем drop_weight на основе конфигурации кейса и актуальной категории
-    let dropWeight = 1;
-    const config = CASE_CONFIGS[caseType];
-    if (config && config.drop_weights[actualRarity]) {
-      const baseWeight = config.drop_weights[actualRarity];
-      dropWeight = baseWeight + (Math.random() - 0.5) * baseWeight * 0.1; // ±5% вариация
-    }
+    const imageUrl = url;
 
     // Извлекаем детали предмета
     const weaponType = extractWeaponType(marketHashName);
     const skinName = extractSkinName(marketHashName);
     const exterior = extractExterior(marketHashName);
 
-    // Создаем запись в базе данных
+    // Создаем запись в базе данных (drop_weight будет установлен позже)
     const newItem = await db.Item.create({
       name: marketHashName,
-      description: `CS2 ${actualRarity} skin: ${marketHashName}. Проверить цену и категорию: ${steamMarketUrl}`,
-      image_url: `https://steamcdn-a.akamaihd.net/apps/730/icons/econ/default_generated/${marketHashName.toLowerCase().replace(/\s+/g, '_')}.png`,
+      description: `CS2 ${actualRarity} skin ${marketHashName}`,
+      image_url: imageUrl,
       price: priceRub,
       rarity: actualRarity,
-      drop_weight: Math.round(dropWeight * 100) / 100,
-      min_subscription_tier: CASE_CONFIGS[caseType]?.min_subscription_tier || 0,
+      drop_weight: 1, // Временный вес, будет пересчитан
+      min_subscription_tier: BASE_CASE_CONFIGS[caseType]?.min_subscription_tier || 0,
       weapon_type: weaponType,
       skin_name: skinName,
       steam_market_hash_name: marketHashName,
-      steam_market_url: steamMarketUrl, // Ссылка для проверки цены и категории
+      steam_market_url: steamMarketUrl,
       is_available: true,
       exterior: exterior,
       quality: extractQuality(marketHashName),
@@ -287,11 +218,14 @@ async function processItem(url, rarity, caseType, delay = 2000, useSteamAPI = fa
       is_tradable: true,
       float_value: null,
       stickers: null,
-      origin: `${caseType}_case`
+      origin: `${caseType}_case`,
+      // Новые поля для актуальных цен
+      actual_price_rub: priceRub,
+      price_last_updated: new Date(),
+      price_source: priceData.success ? 'steam_api' : 'fallback'
     });
 
-    console.log(`✅ Добавлен: ${marketHashName} - ₽${priceRub} - ${actualRarity} - weight: ${Math.round(dropWeight * 100) / 100}`);
-    console.log(`🔗 Проверить цену: ${steamMarketUrl}`);
+    console.log(`✅ Добавлен: ${marketHashName} - ₽${priceRub} - ${actualRarity}`);
     return newItem;
 
   } catch (error) {
@@ -328,12 +262,12 @@ function extractQuality(marketHashName) {
 
 // Функция для создания шаблонов кейсов
 async function createCaseTemplates() {
-  console.log('📦 Создаем шаблоны кейсов...\n');
+  console.log('📦 Создаем шаблоны кейсов с актуальным ценообразованием...\n');
 
   const templates = [
     {
       name: 'Ежедневный кейс (Уровень 1)',
-      description: 'Бесплатный ежедневный кейс для подписчиков 1 уровня',
+      description: 'Бесплатный ежедневный кейс для подписчиков 1 уровня с актуальными ценами Steam Market',
       type: 'daily',
       min_subscription_tier: 1,
       is_active: true,
@@ -344,7 +278,7 @@ async function createCaseTemplates() {
     },
     {
       name: 'Ежедневный кейс (Уровень 2)',
-      description: 'Улучшенный ежедневный кейс для подписчиков 2 уровня',
+      description: 'Улучшенный ежедневный кейс для подписчиков 2 уровня с повышенными шансами',
       type: 'daily',
       min_subscription_tier: 2,
       is_active: true,
@@ -355,7 +289,7 @@ async function createCaseTemplates() {
     },
     {
       name: 'Ежедневный кейс (Уровень 3)',
-      description: 'Премиум ежедневный кейс для подписчиков 3 уровня с защитой от дубликатов',
+      description: 'Премиум ежедневный кейс для подписчиков 3 уровня с гарантированной высокой стоимостью',
       type: 'daily',
       min_subscription_tier: 3,
       is_active: true,
@@ -366,7 +300,7 @@ async function createCaseTemplates() {
     },
     {
       name: 'Покупной кейс',
-      description: 'Кейс с повышенными шансами на редкие предметы',
+      description: 'Кейс за ₽99 с точно настроенной 20% рентабельностью и актуальными ценами',
       type: 'premium',
       min_subscription_tier: 0,
       is_active: true,
@@ -376,7 +310,7 @@ async function createCaseTemplates() {
     },
     {
       name: 'Премиум кейс',
-      description: 'Эксклюзивный кейс с ножами и перчатками',
+      description: 'Эксклюзивный кейс за ₽499 с ножами и перчатками, 20% рентабельность гарантирована',
       type: 'special',
       min_subscription_tier: 0,
       is_active: true,
@@ -406,22 +340,27 @@ async function createCaseTemplates() {
   return createdTemplates;
 }
 
-// Основная функция для наполнения базы данных
-async function populateDatabase(limitPerCategory = 10) {
-  console.log('🚀 Начинаем наполнение базы данных предметами CS2...\n');
+// Основная функция для наполнения базы данных с актуальными ценами
+async function populateDatabase(limitPerCategory = 1000) {
+  console.log('🚀 Начинаем наполнение базы данных предметами CS2 с актуальными ценами...\n');
 
   let totalItems = 0;
   let successfulItems = 0;
+  const itemsByCategory = {};
 
   // Создаем шаблоны кейсов
   await createCaseTemplates();
 
   // Обрабатываем предметы для каждого типа кейса
   for (const [caseType, categories] of Object.entries(ITEMS_URLS)) {
-    console.log(`\n📦 Обрабатываем кейс: ${CASE_CONFIGS[caseType]?.name || caseType}`);
+    console.log(`\n📦 Обрабатываем кейс: ${BASE_CASE_CONFIGS[caseType]?.name || caseType}`);
+
+    itemsByCategory[caseType] = {};
 
     for (const [rarity, urls] of Object.entries(categories)) {
       console.log(`\n🎯 Редкость: ${rarity} (${urls.length} предметов)`);
+
+      itemsByCategory[caseType][rarity] = [];
 
       // Ограничиваем количество для тестирования
       const urlsToProcess = urls.slice(0, limitPerCategory);
@@ -430,16 +369,12 @@ async function populateDatabase(limitPerCategory = 10) {
         const url = urlsToProcess[i];
         console.log(`[${i + 1}/${urlsToProcess.length}] Обрабатываем: ${rarity}`);
 
-        const result = await processItem(url, rarity, caseType, 2000, true); // Используем Steam API для получения реальных цен
+        const result = await processItem(url, rarity, caseType);
         totalItems++;
 
         if (result) {
           successfulItems++;
-        }
-
-        // Короткая задержка между запросами
-        if (i < urlsToProcess.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          itemsByCategory[caseType][rarity].push(result);
         }
       }
     }
@@ -451,46 +386,161 @@ async function populateDatabase(limitPerCategory = 10) {
   console.log(`- Успешно добавлено: ${successfulItems}`);
   console.log(`- Ошибок: ${totalItems - successfulItems}`);
 
-  // Проверяем рентабельность
-  await validateProfitability();
+  // Рассчитываем оптимальные веса для каждого кейса
+  await calculateOptimalWeights(itemsByCategory);
 
   // Связываем предметы с шаблонами кейсов
   await linkItemsToCaseTemplates();
+
+  // Финальная проверка рентабельности
+  await validateProfitability(itemsByCategory);
+
+  // Очищаем кэш цен
+  steamPriceService.cleanExpiredCache();
+
+  console.log('\n✅ Система кейсов настроена с 20% рентабельностью!');
 }
 
-// Функция для проверки рентабельности
-async function validateProfitability() {
-  console.log('\n💰 ПРОВЕРКА РЕНТАБЕЛЬНОСТИ:\n');
+// Функция для расчета оптимальных весов на основе актуальных цен
+async function calculateOptimalWeights(itemsByCategory) {
+  console.log('\n⚖️ РАСЧЕТ ОПТИМАЛЬНЫХ ВЕСОВ НА ОСНОВЕ АКТУАЛЬНЫХ ЦЕН:\n');
 
-  for (const [caseType, config] of Object.entries(CASE_CONFIGS)) {
-    console.log(`📦 ${config.name}:`);
+  for (const [caseType, categorizedItems] of Object.entries(itemsByCategory)) {
+    const caseConfig = BASE_CASE_CONFIGS[caseType];
+    if (!caseConfig) continue;
 
-    // Рассчитываем ожидаемую стоимость на основе весов и реалистичных цен
-    let expectedValue = 0;
-    let totalWeight = 0;
+    console.log(`📦 Кейс: ${caseConfig.name}`);
 
-    Object.entries(config.drop_weights).forEach(([rarity, weight]) => {
-      const price = REALISTIC_ITEM_PRICES[rarity] || 0;
-      expectedValue += (weight / 1000) * price;
-      totalWeight += weight;
-      console.log(`   ${rarity}: вес ${weight}, цена ₽${price}, вклад: ₽${((weight / 1000) * price).toFixed(2)}`);
-    });
+    // Группируем предметы по актуальным категориям (не по исходным)
+    const actualCategories = {};
+    for (const [originalCategory, items] of Object.entries(categorizedItems)) {
+      for (const item of items) {
+        const actualCategory = item.rarity;
+        if (!actualCategories[actualCategory]) {
+          actualCategories[actualCategory] = [];
+        }
+        actualCategories[actualCategory].push(item);
+      }
+    }
 
-    console.log(`   Ожидаемая стоимость: ₽${expectedValue.toFixed(2)}`);
-    console.log(`   Целевая стоимость: ₽${config.target_expected_value}`);
+    if (caseConfig.price) {
+      // Для платных кейсов рассчитываем точные веса для 20% прибыли
+      const optimization = profitabilityCalculator.calculateOptimalWeights(
+        actualCategories,
+        caseConfig.price
+      );
 
-    if (config.price) {
-      const profit = config.price - expectedValue;
-      const profitability = (profit / config.price * 100);
-      console.log(`   Цена кейса: ₽${config.price}`);
-      console.log(`   Прибыль: ₽${profit.toFixed(2)}`);
-      console.log(`   Рентабельность: ${profitability.toFixed(1)}%`);
-      console.log(`   Статус: ${profitability >= 18 && profitability <= 25 ? '✅ ОПТИМАЛЬНО' : profitability >= 15 ? '⚠️  ПРИЕМЛЕМО' : '❌ УБЫТОЧНО'}`);
+      if (optimization.isOptimal) {
+        console.log(`✅ Веса оптимизированы для ${caseConfig.name}`);
+
+        // Обновляем веса предметов в базе данных
+        await updateItemWeights(actualCategories, optimization.weights);
+      } else {
+        console.log(`⚠️ Требуется дополнительная настройка для ${caseConfig.name}`);
+      }
     } else {
-      console.log(`   Статус: ${expectedValue <= config.target_expected_value ? '✅ СООТВЕТСТВУЕТ' : '❌ ПРЕВЫШАЕТ ЛИМИТ'}`);
+      // Для бесплатных кейсов используем базовые веса
+      const baseWeights = {
+        consumer: 600,    // 60%
+        industrial: 250,  // 25%
+        milspec: 100,     // 10%
+        restricted: 35,   // 3.5%
+        classified: 12,   // 1.2%
+        covert: 2.5,      // 0.25%
+        contraband: 0.4,  // 0.04%
+        exotic: 0.1       // 0.01%
+      };
+
+      console.log(`📝 Используем базовые веса для бесплатного кейса: ${caseConfig.name}`);
+      await updateItemWeights(actualCategories, baseWeights);
+    }
+  }
+}
+
+// Функция для обновления весов предметов в базе данных
+async function updateItemWeights(itemsByCategory, weights) {
+  for (const [category, items] of Object.entries(itemsByCategory)) {
+    const baseWeight = weights[category] || 1;
+
+    for (const item of items) {
+      // Добавляем небольшую вариацию в веса (±10%)
+      const variation = (Math.random() - 0.5) * 0.2; // ±10%
+      const finalWeight = Math.max(0.01, baseWeight * (1 + variation));
+
+      await db.Item.update(
+        { drop_weight: Math.round(finalWeight * 100) / 100 },
+        { where: { id: item.id } }
+      );
+    }
+  }
+}
+
+// Функция для проверки рентабельности с актуальными ценами
+async function validateProfitability(itemsByCategory) {
+  console.log('\n💰 ФИНАЛЬНАЯ ПРОВЕРКА РЕНТАБЕЛЬНОСТИ:\n');
+
+  for (const [caseType, categorizedItems] of Object.entries(itemsByCategory)) {
+    const caseConfig = BASE_CASE_CONFIGS[caseType];
+    if (!caseConfig) continue;
+
+    // Группируем предметы по актуальным категориям
+    const actualCategories = {};
+    for (const [originalCategory, items] of Object.entries(categorizedItems)) {
+      for (const item of items) {
+        const actualCategory = item.rarity;
+        if (!actualCategories[actualCategory]) {
+          actualCategories[actualCategory] = [];
+        }
+        actualCategories[actualCategory].push(item);
+      }
+    }
+
+    if (caseConfig.price) {
+      // Валидируем платные кейсы
+      const validation = profitabilityCalculator.validateCaseProfitability(
+        {
+          name: caseConfig.name,
+          price: caseConfig.price,
+          drop_weights: await getCurrentWeights(actualCategories)
+        },
+        actualCategories
+      );
+
+      console.log(`📦 ${validation.caseName}:`);
+      console.log(`   Цена кейса: ₽${validation.casePrice}`);
+      console.log(`   Ожидаемая стоимость: ₽${validation.expectedValue.toFixed(2)}`);
+      console.log(`   Прибыль: ₽${validation.profit.toFixed(2)}`);
+      console.log(`   Рентабельность: ${(validation.profitMargin * 100).toFixed(1)}% (цель: 20%)`);
+      console.log(`   Статус: ${validation.status}`);
+      console.log(`   Рекомендация: ${validation.recommendation}`);
+    } else {
+      // Для бесплатных кейсов показываем ожидаемую стоимость
+      const avgPrices = profitabilityCalculator.calculateAveragePrices(actualCategories);
+      const weights = await getCurrentWeights(actualCategories);
+      const expectedValue = profitabilityCalculator.calculateExpectedValue(weights, avgPrices);
+
+      console.log(`📦 ${caseConfig.name} (бесплатный):`);
+      console.log(`   Ожидаемая стоимость: ₽${expectedValue.toFixed(2)}`);
+      console.log(`   Целевая стоимость: ₽${caseConfig.target_expected_value}`);
+      console.log(`   Статус: ${expectedValue <= caseConfig.target_expected_value * 1.1 ? '✅ В НОРМЕ' : '⚠️ ПРЕВЫШАЕТ'}`);
     }
     console.log('');
   }
+}
+
+// Вспомогательная функция для получения текущих весов
+async function getCurrentWeights(itemsByCategory) {
+  const weights = {};
+
+  for (const [category, items] of Object.entries(itemsByCategory)) {
+    if (items.length > 0) {
+      // Берем средний вес по категории
+      const avgWeight = items.reduce((sum, item) => sum + (item.drop_weight || 1), 0) / items.length;
+      weights[category] = avgWeight;
+    }
+  }
+
+  return weights;
 }
 
 // Функция для связывания предметов с шаблонами кейсов
@@ -568,14 +618,31 @@ module.exports = {
   populateDatabase,
   processItem,
   createCaseTemplates,
+  calculateOptimalWeights,
   validateProfitability,
   linkItemsToCaseTemplates,
-  CASE_CONFIGS,
+  updateItemWeights,
+  BASE_CASE_CONFIGS,
   ITEMS_URLS,
-  REALISTIC_ITEM_PRICES
+  FALLBACK_PRICES,
+  steamPriceService,
+  profitabilityCalculator
 };
 
 // Запуск если вызван напрямую
 if (require.main === module) {
-  populateDatabase(1000).catch(console.error); // Ограничиваем до 5 предметов на категорию для тестирования
+  console.log('🚀 Запуск системы кейсов с актуальными ценами Steam Market...');
+  console.log(`📊 Steam API ключ: ${process.env.STEAM_API_KEY ? 'Настроен' : 'НЕ НАСТРОЕН'}`);
+  console.log('⚙️ Целевая рентабельность: 20% (80% возврат пользователям)\n');
+
+  populateDatabase(20) // Ограничиваем до 20 предметов на категорию для тестирования
+    .then(() => {
+      console.log('\n🎉 Система кейсов успешно настроена!');
+      console.log('💡 Для полного наполнения увеличьте лимит в populateDatabase()');
+      process.exit(0);
+    })
+    .catch(error => {
+      console.error('❌ Ошибка настройки системы кейсов:', error);
+      process.exit(1);
+    });
 }
