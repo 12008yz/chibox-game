@@ -165,6 +165,7 @@ async function openCase(req, res) {
         selectedItem = selectItemWithModifiedWeights(modifiedItems);
       }
 
+      
       // Логируем использование бонуса для статистики
       const caseType = userCase.is_paid ? 'покупной' : 'подписочный';
       const duplicateProtection = (!userCase.is_paid && userSubscriptionTier === 3) ? ' и защитой от дубликатов' : '';
