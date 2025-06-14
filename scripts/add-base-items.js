@@ -275,7 +275,7 @@ async function createCaseTemplates() {
   const templates = [
     {
       name: 'Ежедневный кейс (Уровень 1)',
-      description: 'Бесплатный ежедневный кейс для подписчиков 1 уровня с актуальными ценами Steam Market',
+      description: 'Бесплатный ежедневный кейс для подписчиков 1 уровня',
       type: 'daily',
       min_subscription_tier: 1,
       is_active: true,
@@ -308,7 +308,7 @@ async function createCaseTemplates() {
     },
     {
       name: 'Покупной кейс',
-      description: 'Кейс за ₽99 с точно настроенной 20% рентабельностью и актуальными ценами',
+      description: 'Кейс за ₽99',
       type: 'premium',
       min_subscription_tier: 0,
       is_active: true,
@@ -318,7 +318,7 @@ async function createCaseTemplates() {
     },
     {
       name: 'Премиум кейс',
-      description: 'Эксклюзивный кейс за ₽499 с ножами и перчатками, 20% рентабельность гарантирована',
+      description: 'Эксклюзивный кейс за ₽499 с ножами и перчатками',
       type: 'special',
       min_subscription_tier: 0,
       is_active: true,
