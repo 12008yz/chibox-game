@@ -22,11 +22,26 @@ async function withdrawItem(req, res) {
 
   try {
     const userId = req.user.id;
-    const { itemId, steamTradeUrl } = req.body;
+    const { itemId, inventoryItemId, steamTradeUrl } = req.body;
+
+    // Поддерживаем оба формата: новый (inventoryItemId) и старый (itemId) для обратной совместимости
+    let searchCriteria;
+    if (inventoryItemId) {
+      // Новый формат: передается конкретный ID записи из user_inventory
+      searchCriteria = { id: inventoryItemId, user_id: userId, status: 'inventory' };
+    } else if (itemId) {
+      // Старый формат: передается item_id, берем первый доступный экземпляр
+      searchCriteria = { user_id: userId, item_id: itemId, status: 'inventory' };
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Необходимо указать itemId или inventoryItemId'
+      });
+    }
 
     // Проверяем, есть ли предмет в инвентаре пользователя
     inventoryItem = await db.UserInventory.findOne({
-      where: { user_id: userId, item_id: itemId, status: 'inventory' },
+      where: searchCriteria,
       include: [{
         model: db.Item,
         as: 'item'
@@ -37,9 +52,9 @@ async function withdrawItem(req, res) {
       return res.status(404).json({ success: false, message: 'Предмет не найден в инвентаре' });
     }
 
-    // Проверяем, нет ли уже активной заявки на вывод этого предмета
+    // Проверяем, нет ли уже активной заявки на вывод ЭТОГО КОНКРЕТНОГО экземпляра предмета
     const activeStatuses = ['pending', 'queued', 'processing', 'waiting_confirmation', 'direct_trade_pending', 'direct_trade_sent'];
-    logger.info(`Проверяем активные заявки со статусами: ${activeStatuses.join(', ')}`);
+    logger.info(`Проверяем активные заявки для конкретного экземпляра предмета ID: ${inventoryItem.id}`);
 
     const existingWithdrawal = await db.Withdrawal.findOne({
       where: {
@@ -51,17 +66,18 @@ async function withdrawItem(req, res) {
       include: [{
         model: db.UserInventory,
         as: 'items',
-        where: { item_id: itemId }
+        where: { id: inventoryItem.id } // Проверяем конкретный экземпляр, а не item_id
       }]
     });
 
     if (existingWithdrawal) {
       return res.status(400).json({
         success: false,
-        message: 'На этот предмет уже создана заявка на вывод',
+        message: 'На этот экземпляр предмета уже создана заявка на вывод',
         data: {
           withdrawal_id: existingWithdrawal.id,
-          status: existingWithdrawal.status
+          status: existingWithdrawal.status,
+          inventory_item_id: inventoryItem.id
         }
       });
     }
