@@ -4,14 +4,13 @@ const db = require('../models');
 
 // Импортируем новые сервисы
 const SteamPriceService = require('../services/steamPriceService');
-const ProfitabilityCalculator = require('../utils/profitabilityCalculator');
+const FixDropWeights = require('./fix-drop-weights');
 
 // Импортируем полный список URLs
 const COMPLETE_ITEMS_URLS = require('../utils/linkItems-complete');
 
 // Инициализируем сервисы
 const steamPriceService = new SteamPriceService(process.env.STEAM_API_KEY);
-const profitabilityCalculator = new ProfitabilityCalculator(0.2); // 20% прибыль
 
 // FALLBACK ЦЕНЫ (используются только при недоступности Steam API)
 const FALLBACK_PRICES = {
@@ -386,162 +385,32 @@ async function populateDatabase(limitPerCategory = 1000) {
   console.log(`- Успешно добавлено: ${successfulItems}`);
   console.log(`- Ошибок: ${totalItems - successfulItems}`);
 
-  // Рассчитываем оптимальные веса для каждого кейса
-  await calculateOptimalWeights(itemsByCategory);
+  // Рассчитываем оптимальные веса на основе цен предметов
+  await FixDropWeights.calculateWeightsByPrice();
 
   // Связываем предметы с шаблонами кейсов
   await linkItemsToCaseTemplates();
 
-  // Финальная проверка рентабельности
-  await validateProfitability(itemsByCategory);
+  // Финальная проверка весов (логирование)
+  console.log('✅ Веса предметов настроены согласно fix-drop-weights.js');
 
   // Очищаем кэш цен
   steamPriceService.cleanExpiredCache();
 
-  console.log('\n✅ Система кейсов настроена с 20% рентабельностью!');
+  console.log('\n✅ Система кейсов настроена с весами из fix-drop-weights.js!');
 }
 
-// Функция для расчета оптимальных весов на основе актуальных цен
-async function calculateOptimalWeights(itemsByCategory) {
-  console.log('\n⚖️ РАСЧЕТ ОПТИМАЛЬНЫХ ВЕСОВ НА ОСНОВЕ АКТУАЛЬНЫХ ЦЕН:\n');
+// Функция для расчета оптимальных весов заменена на fix-drop-weights.js
+// Эта функция теперь не используется, веса настраиваются через FixDropWeights.calculateWeightsByPrice()
 
-  for (const [caseType, categorizedItems] of Object.entries(itemsByCategory)) {
-    const caseConfig = BASE_CASE_CONFIGS[caseType];
-    if (!caseConfig) continue;
+// Функция для обновления весов предметов в базе данных теперь не используется
+// Веса обновляются через FixDropWeights.calculateWeightsByPrice()
 
-    console.log(`📦 Кейс: ${caseConfig.name}`);
+// Функция для проверки рентабельности с актуальными ценами теперь не используется
+// Веса настраиваются через fix-drop-weights.js, который обеспечивает правильное распределение
 
-    // Группируем предметы по актуальным категориям (не по исходным)
-    const actualCategories = {};
-    for (const [originalCategory, items] of Object.entries(categorizedItems)) {
-      for (const item of items) {
-        const actualCategory = item.rarity;
-        if (!actualCategories[actualCategory]) {
-          actualCategories[actualCategory] = [];
-        }
-        actualCategories[actualCategory].push(item);
-      }
-    }
-
-    if (caseConfig.price) {
-      // Для платных кейсов рассчитываем точные веса для 20% прибыли
-      const optimization = profitabilityCalculator.calculateOptimalWeights(
-        actualCategories,
-        caseConfig.price
-      );
-
-      if (optimization.isOptimal) {
-        console.log(`✅ Веса оптимизированы для ${caseConfig.name}`);
-
-        // Обновляем веса предметов в базе данных
-        await updateItemWeights(actualCategories, optimization.weights);
-      } else {
-        console.log(`⚠️ Требуется дополнительная настройка для ${caseConfig.name}`);
-      }
-    } else {
-      // Для бесплатных кейсов используем базовые веса
-      const baseWeights = {
-        consumer: 600,    // 60%
-        industrial: 250,  // 25%
-        milspec: 100,     // 10%
-        restricted: 35,   // 3.5%
-        classified: 12,   // 1.2%
-        covert: 2.5,      // 0.25%
-        contraband: 0.4,  // 0.04%
-        exotic: 0.1       // 0.01%
-      };
-
-      console.log(`📝 Используем базовые веса для бесплатного кейса: ${caseConfig.name}`);
-      await updateItemWeights(actualCategories, baseWeights);
-    }
-  }
-}
-
-// Функция для обновления весов предметов в базе данных
-async function updateItemWeights(itemsByCategory, weights) {
-  for (const [category, items] of Object.entries(itemsByCategory)) {
-    const baseWeight = weights[category] || 1;
-
-    for (const item of items) {
-      // Добавляем небольшую вариацию в веса (±10%)
-      const variation = (Math.random() - 0.5) * 0.2; // ±10%
-      const finalWeight = Math.max(0.01, baseWeight * (1 + variation));
-
-      await db.Item.update(
-        { drop_weight: Math.round(finalWeight * 100) / 100 },
-        { where: { id: item.id } }
-      );
-    }
-  }
-}
-
-// Функция для проверки рентабельности с актуальными ценами
-async function validateProfitability(itemsByCategory) {
-  console.log('\n💰 ФИНАЛЬНАЯ ПРОВЕРКА РЕНТАБЕЛЬНОСТИ:\n');
-
-  for (const [caseType, categorizedItems] of Object.entries(itemsByCategory)) {
-    const caseConfig = BASE_CASE_CONFIGS[caseType];
-    if (!caseConfig) continue;
-
-    // Группируем предметы по актуальным категориям
-    const actualCategories = {};
-    for (const [originalCategory, items] of Object.entries(categorizedItems)) {
-      for (const item of items) {
-        const actualCategory = item.rarity;
-        if (!actualCategories[actualCategory]) {
-          actualCategories[actualCategory] = [];
-        }
-        actualCategories[actualCategory].push(item);
-      }
-    }
-
-    if (caseConfig.price) {
-      // Валидируем платные кейсы
-      const validation = profitabilityCalculator.validateCaseProfitability(
-        {
-          name: caseConfig.name,
-          price: caseConfig.price,
-          drop_weights: await getCurrentWeights(actualCategories)
-        },
-        actualCategories
-      );
-
-      console.log(`📦 ${validation.caseName}:`);
-      console.log(`   Цена кейса: ₽${validation.casePrice}`);
-      console.log(`   Ожидаемая стоимость: ₽${validation.expectedValue.toFixed(2)}`);
-      console.log(`   Прибыль: ₽${validation.profit.toFixed(2)}`);
-      console.log(`   Рентабельность: ${(validation.profitMargin * 100).toFixed(1)}% (цель: 20%)`);
-      console.log(`   Статус: ${validation.status}`);
-      console.log(`   Рекомендация: ${validation.recommendation}`);
-    } else {
-      // Для бесплатных кейсов показываем ожидаемую стоимость
-      const avgPrices = profitabilityCalculator.calculateAveragePrices(actualCategories);
-      const weights = await getCurrentWeights(actualCategories);
-      const expectedValue = profitabilityCalculator.calculateExpectedValue(weights, avgPrices);
-
-      console.log(`📦 ${caseConfig.name} (бесплатный):`);
-      console.log(`   Ожидаемая стоимость: ₽${expectedValue.toFixed(2)}`);
-      console.log(`   Целевая стоимость: ₽${caseConfig.target_expected_value}`);
-      console.log(`   Статус: ${expectedValue <= caseConfig.target_expected_value * 1.1 ? '✅ В НОРМЕ' : '⚠️ ПРЕВЫШАЕТ'}`);
-    }
-    console.log('');
-  }
-}
-
-// Вспомогательная функция для получения текущих весов
-async function getCurrentWeights(itemsByCategory) {
-  const weights = {};
-
-  for (const [category, items] of Object.entries(itemsByCategory)) {
-    if (items.length > 0) {
-      // Берем средний вес по категории
-      const avgWeight = items.reduce((sum, item) => sum + (item.drop_weight || 1), 0) / items.length;
-      weights[category] = avgWeight;
-    }
-  }
-
-  return weights;
-}
+// Вспомогательная функция для получения текущих весов теперь не используется
+// Веса управляются через fix-drop-weights.js
 
 // Функция для связывания предметов с шаблонами кейсов
 async function linkItemsToCaseTemplates() {
@@ -618,15 +487,11 @@ module.exports = {
   populateDatabase,
   processItem,
   createCaseTemplates,
-  calculateOptimalWeights,
-  validateProfitability,
   linkItemsToCaseTemplates,
-  updateItemWeights,
   BASE_CASE_CONFIGS,
   ITEMS_URLS,
   FALLBACK_PRICES,
-  steamPriceService,
-  profitabilityCalculator
+  steamPriceService
 };
 
 // Запуск если вызван напрямую

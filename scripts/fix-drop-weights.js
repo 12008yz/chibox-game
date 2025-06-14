@@ -180,4 +180,66 @@ async function fixWeightsFromEqual() {
   }
 }
 
-fixWeightsFromEqual();
+// Функция для исправления весов, которую можно экспортировать
+async function calculateWeightsByPrice() {
+  try {
+    console.log('🔧 Исправляем веса на основе цен...');
+
+    // Получаем все предметы
+    const items = await db.Item.findAll({
+      order: [['price', 'DESC']]
+    });
+
+    console.log(`📦 Найдено ${items.length} предметов`);
+
+    // Функция расчета веса с учетом рентабельности 20% для сайта
+    function calculateCorrectWeight(price) {
+      price = parseFloat(price) || 0;
+
+      // Более консервативные веса для обеспечения рентабельности
+      if (price >= 50000) return 0.005;     // 0.5% - легендарные
+      if (price >= 30000) return 0.008;     // 0.8% - мифические
+      if (price >= 20000) return 0.015;     // 1.5% - эпические
+      if (price >= 15000) return 0.025;     // 2.5% - очень редкие
+      if (price >= 10000) return 0.04;      // 4% - редкие
+      if (price >= 8000) return 0.06;       // 6% - необычные+
+      if (price >= 5000) return 0.1;        // 10% - необычные
+      if (price >= 3000) return 0.2;        // 20% - обычные+
+      if (price >= 1000) return 0.35;       // 35% - обычные
+      if (price >= 500) return 0.5;         // 50% - частые
+      if (price >= 100) return 0.7;         // 70% - очень частые
+      return 1.0;                           // 100% - базовые/дешевые
+    }
+
+    let updatedCount = 0;
+
+    // Обновляем веса для всех предметов
+    for (const item of items) {
+      const price = parseFloat(item.price) || 0;
+      const correctWeight = calculateCorrectWeight(price);
+
+      await item.update({ drop_weight: correctWeight });
+      updatedCount++;
+    }
+
+    console.log(`✅ Обновлено предметов: ${updatedCount}`);
+    console.log('🎉 СИСТЕМА ДРОПА ИСПРАВЛЕНА!');
+    console.log('💰 Теперь дорогие предметы выпадают НАМНОГО реже дешевых');
+
+    return { success: true, updatedCount };
+  } catch (error) {
+    console.error('❌ Ошибка:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Основная функция для использования в других модулях
+module.exports = {
+  fixWeightsFromEqual,
+  calculateWeightsByPrice
+};
+
+// Запуск если вызван напрямую
+if (require.main === module) {
+  fixWeightsFromEqual();
+}
