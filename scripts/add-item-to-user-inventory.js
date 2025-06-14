@@ -165,7 +165,7 @@ async function addItemToUserInventory(userId, itemIdentifier, skipSteamAPI = fal
 // If run as script
 if (require.main === module) {
   const userId = '28bc541b-8a88-4208-9d0f-a00ac5664bb2';
-  const steamUrl = 'https://steamcommunity.com/market/listings/730/Souvenir%20PP-Bizon%20%7C%20Anolis%20%28Field-Tested%29';
+  const steamUrl = 'https://steamcommunity.com/market/listings/730/AWP%20%7C%20Safari%20Mesh%20%28Battle-Scarred%29';
 
   // Добавляем возможность пропустить Steam API через аргумент командной строки
   const skipSteamAPI = process.argv.includes('--skip-steam-api');

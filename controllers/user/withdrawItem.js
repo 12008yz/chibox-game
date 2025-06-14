@@ -1,5 +1,6 @@
 const db = require('../../models');
 const winston = require('winston');
+const { Op } = require('sequelize');
 const { updateUserAchievementProgress } = require('../../services/achievementService');
 const { addExperience } = require('../../services/xpService');
 const { addJob } = require('../../services/queueService');
@@ -16,12 +17,15 @@ const logger = winston.createLogger({
 });
 
 async function withdrawItem(req, res) {
+  let inventoryItem = null;
+  let withdrawal = null;
+
   try {
     const userId = req.user.id;
     const { itemId, steamTradeUrl } = req.body;
 
     // Проверяем, есть ли предмет в инвентаре пользователя
-    const inventoryItem = await db.UserInventory.findOne({
+    inventoryItem = await db.UserInventory.findOne({
       where: { user_id: userId, item_id: itemId, status: 'inventory' },
       include: [{
         model: db.Item,
@@ -31,6 +35,35 @@ async function withdrawItem(req, res) {
 
     if (!inventoryItem) {
       return res.status(404).json({ success: false, message: 'Предмет не найден в инвентаре' });
+    }
+
+    // Проверяем, нет ли уже активной заявки на вывод этого предмета
+    const activeStatuses = ['pending', 'queued', 'processing', 'waiting_confirmation', 'direct_trade_pending', 'direct_trade_sent'];
+    logger.info(`Проверяем активные заявки со статусами: ${activeStatuses.join(', ')}`);
+
+    const existingWithdrawal = await db.Withdrawal.findOne({
+      where: {
+        user_id: userId,
+        status: {
+          [Op.in]: activeStatuses
+        }
+      },
+      include: [{
+        model: db.UserInventory,
+        as: 'items',
+        where: { item_id: itemId }
+      }]
+    });
+
+    if (existingWithdrawal) {
+      return res.status(400).json({
+        success: false,
+        message: 'На этот предмет уже создана заявка на вывод',
+        data: {
+          withdrawal_id: existingWithdrawal.id,
+          status: existingWithdrawal.status
+        }
+      });
     }
 
     // Проверяем Steam Trade URL
@@ -57,7 +90,7 @@ async function withdrawItem(req, res) {
     }
 
     // Создаем заявку на вывод
-    const withdrawal = await db.Withdrawal.create({
+    withdrawal = await db.Withdrawal.create({
       user_id: userId,
       status: 'pending',
       steam_trade_url: tradeUrl,
@@ -77,10 +110,11 @@ async function withdrawItem(req, res) {
       }
     });
 
-    // Связываем предмет с заявкой на вывод, но оставляем в инвентаре
+    // Связываем предмет с заявкой на вывод и обновляем статус
     await inventoryItem.update({
-      withdrawal_id: withdrawal.id
-      // Статус остается 'inventory' до успешной отправки trade offer
+      withdrawal_id: withdrawal.id,
+      status: 'withdrawn', // Меняем статус сразу при создании заявки
+      transaction_date: new Date()
     });
 
     // ✅ ДОБАВЛЯЕМ: Сразу добавляем в очередь для обработки
@@ -95,7 +129,18 @@ async function withdrawItem(req, res) {
       logger.info(`Withdrawal #${withdrawal.id} добавлен в очередь для обработки`);
     } catch (queueError) {
       logger.warn(`Не удалось добавить withdrawal в очередь: ${queueError.message}`);
-      // Не прерываем процесс, так как будет обработан через cron
+
+      // Если не удалось добавить в очередь, откатываем статус предмета
+      await inventoryItem.update({
+        withdrawal_id: null,
+        status: 'inventory',
+        transaction_date: null
+      });
+
+      return res.status(500).json({
+        success: false,
+        message: 'Не удалось обработать заявку на вывод. Попробуйте позже.'
+      });
     }
 
     // Создаем уведомление для пользователя
@@ -132,6 +177,23 @@ async function withdrawItem(req, res) {
     });
   } catch (error) {
     logger.error('Ошибка вывода предмета:', error);
+
+    // Если произошла ошибка, пытаемся откатить статус предмета
+    try {
+      if (inventoryItem && withdrawal) {
+        await inventoryItem.update({
+          withdrawal_id: null,
+          status: 'inventory',
+          transaction_date: null
+        });
+
+        // Также удаляем созданную заявку на вывод
+        await withdrawal.destroy();
+      }
+    } catch (rollbackError) {
+      logger.error('Ошибка отката статуса предмета:', rollbackError);
+    }
+
     return res.status(500).json({ success: false, message: 'Внутренняя ошибка сервера', error: error.message });
   }
 }
