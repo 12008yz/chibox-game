@@ -197,6 +197,15 @@ async function processItem(url, originalRarity, caseType) {
     const skinName = extractSkinName(marketHashName);
     const exterior = extractExterior(marketHashName);
 
+    // Определяем origin в зависимости от типа кейса
+    // Все подписочные кейсы используют общий origin для предметов
+    let itemOrigin;
+    if (caseType.startsWith('subscription_tier')) {
+      itemOrigin = 'subscription_case';
+    } else {
+      itemOrigin = `${caseType}_case`;
+    }
+
     // Создаем запись в базе данных (drop_weight будет установлен позже)
     const newItem = await db.Item.create({
       name: marketHashName,
@@ -217,7 +226,7 @@ async function processItem(url, originalRarity, caseType) {
       is_tradable: true,
       float_value: null,
       stickers: null,
-      origin: `${caseType}_case`,
+      origin: itemOrigin,
       // Новые поля для актуальных цен
       actual_price_rub: priceRub,
       price_last_updated: new Date(),
@@ -417,9 +426,9 @@ async function linkItemsToCaseTemplates() {
   console.log('\n🔗 Связываем предметы с шаблонами кейсов...\n');
 
   const CASE_ITEM_MAPPING = {
-    'Ежедневный кейс (Уровень 1)': 'subscription_tier1_case',
-    'Ежедневный кейс (Уровень 2)': 'subscription_tier2_case',
-    'Ежедневный кейс (Уровень 3)': 'subscription_tier3_case',
+    'Ежедневный кейс (Уровень 1)': 'subscription_case',
+    'Ежедневный кейс (Уровень 2)': 'subscription_case',
+    'Ежедневный кейс (Уровень 3)': 'subscription_case',
     'Покупной кейс': 'purchase_case',
     'Премиум кейс': 'premium_case'
   };
@@ -436,15 +445,8 @@ async function linkItemsToCaseTemplates() {
 
       if (!originPattern) {
         if (template.name.includes('Ежедневный') || template.type === 'daily') {
-          if (template.name.includes('Уровень 1')) {
-            originPattern = 'subscription_tier1_case';
-          } else if (template.name.includes('Уровень 2')) {
-            originPattern = 'subscription_tier2_case';
-          } else if (template.name.includes('Уровень 3')) {
-            originPattern = 'subscription_tier3_case';
-          } else {
-            originPattern = 'subscription_tier1_case';
-          }
+          // Все ежедневные кейсы (подписочные) используют общий origin
+          originPattern = 'subscription_case';
         } else if (template.name.includes('Покупной') || (template.price && template.price <= 150)) {
           originPattern = 'purchase_case';
         } else if (template.name.includes('Премиум') || (template.price && template.price > 150)) {
@@ -500,7 +502,7 @@ if (require.main === module) {
   console.log(`📊 Steam API ключ: ${process.env.STEAM_API_KEY ? 'Настроен' : 'НЕ НАСТРОЕН'}`);
   console.log('⚙️ Целевая рентабельность: 20% (80% возврат пользователям)\n');
 
-  populateDatabase(20) // Ограничиваем до 20 предметов на категорию для тестирования
+  populateDatabase(50) // Ограничиваем до 20 предметов на категорию для тестирования
     .then(() => {
       console.log('\n🎉 Система кейсов успешно настроена!');
       console.log('💡 Для полного наполнения увеличьте лимит в populateDatabase()');
