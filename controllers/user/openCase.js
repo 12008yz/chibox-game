@@ -155,14 +155,34 @@ async function openCase(req, res) {
       // Применяем защиту от дубликатов для 3 уровня подписки (только для подписочных кейсов)
       if (!userCase.is_paid && userSubscriptionTier === 3) {
         logger.info('Используем защиту от дубликатов');
-        selectedItem = await selectItemWithModifiedWeightsAndDuplicateProtection(
+        // Получаем последние 5 предметов пользователя для защиты от дубликатов
+        const recentInventory = await db.UserInventory.findAll({
+          where: { user_id: userId },
+          order: [['createdAt', 'DESC']],
+          limit: 5,
+          attributes: ['item_id']
+        });
+        const recentItemIds = recentInventory.map(inv => inv.item_id);
+
+        selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
           modifiedItems,
-          userId,
-          userSubscriptionTier
+          recentItemIds,
+          5
         );
       } else {
         logger.info('Используем стандартный выбор с модифицированными весами');
+        logger.info(`Передаем в selectItemWithModifiedWeights ${modifiedItems.length} предметов`);
+        logger.info(`Первые 3 модифицированных предмета:`, modifiedItems.slice(0, 3).map(item => ({
+          id: item.id,
+          name: item.name,
+          originalWeight: item.originalWeight || item.drop_weight,
+          modifiedWeight: item.modifiedWeight,
+          price: item.price
+        })));
+
         selectedItem = selectItemWithModifiedWeights(modifiedItems);
+
+        logger.info(`Результат selectItemWithModifiedWeights: ${selectedItem ? selectedItem.id : 'undefined'}`);
       }
 
       // Логируем использование бонуса для статистики
@@ -172,10 +192,19 @@ async function openCase(req, res) {
     } else {
       // Стандартная система без бонусов, но с защитой от дубликатов если есть 3 уровень подписки (только для подписочных кейсов)
       if (!userCase.is_paid && userSubscriptionTier === 3) {
-        selectedItem = await selectItemWithModifiedWeightsAndDuplicateProtection(
+        // Получаем последние 5 предметов пользователя для защиты от дубликатов
+        const recentInventory = await db.UserInventory.findAll({
+          where: { user_id: userId },
+          order: [['createdAt', 'DESC']],
+          limit: 5,
+          attributes: ['item_id']
+        });
+        const recentItemIds = recentInventory.map(inv => inv.item_id);
+
+        selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
           items,
-          userId,
-          userSubscriptionTier
+          recentItemIds,
+          5
         );
       } else {
         const totalWeight = items.reduce((sum, item) => sum + (item.drop_weight || 1), 0);
@@ -221,7 +250,8 @@ async function openCase(req, res) {
       await db.UserInventory.create({
         user_id: userId,
         item_id: selectedItem.id,
-        quantity: 1,
+        source: 'case',
+        status: 'inventory',
         case_id: userCase.id
       }, { transaction: t });
 
