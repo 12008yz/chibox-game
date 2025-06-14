@@ -14,7 +14,7 @@ const logger = winston.createLogger({
   ],
 });
 
-const MAX_PAID_CASES_PER_DAY = 5; // Максимум 5 покупных кейсов в день
+const MAX_PAID_CASES_PER_DAY = 50000; // Максимум 5 покупных кейсов в день
 
 async function buyCase(req, res) {
   try {

@@ -38,11 +38,21 @@ async function getPublicProfile(req, res) {
       return res.status(404).json({ message: 'Пользователь не найден' });
     }
 
-    // Определяем лучшее выбитое оружие (например, по максимальной цене)
+    // Подсчитываем общее количество открытых кейсов в реальном времени
+    const totalCasesOpened = await db.Case.count({
+      where: {
+        user_id: id,
+        is_opened: true
+      }
+    });
+
+    // Определяем лучшее выбитое оружие (по максимальной цене, правильно сравнивая числа)
     let bestWeapon = null;
     if (user.inventory && user.inventory.length > 0) {
       bestWeapon = user.inventory.reduce((prev, current) => {
-        return (prev.item.price > current.item.price) ? prev : current;
+        const prevPrice = parseFloat(prev.item.price) || 0;
+        const currentPrice = parseFloat(current.item.price) || 0;
+        return (prevPrice > currentPrice) ? prev : current;
       }).item;
     }
 
@@ -53,7 +63,7 @@ async function getPublicProfile(req, res) {
         createdAt: user.createdAt,
         level: user.level,
         subscriptionTier: user.subscription_tier,
-        totalCasesOpened: user.total_cases_opened,
+        totalCasesOpened: totalCasesOpened, // Используем реальный подсчет
         inventory: user.inventory,
         bestWeapon: bestWeapon
       }

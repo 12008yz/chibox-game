@@ -62,19 +62,19 @@ async function openCase(req, res) {
     // Общий лимит остается для подписочных кейсов
     const totalCasesLimit = (user.max_daily_cases || 0) + 50; // Подписочные + высокий лимит для покупных
 
-    if (user.cases_opened_today >= totalCasesLimit) {
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const msRemaining = tomorrow.getTime() - now.getTime();
+    // if (user.cases_opened_today >= totalCasesLimit) {
+    //   const tomorrow = new Date(today);
+    //   tomorrow.setDate(tomorrow.getDate() + 1);
+    //   const msRemaining = tomorrow.getTime() - now.getTime();
 
-      const hours = Math.floor(msRemaining / (1000 * 60 * 60));
-      const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
+    //   const hours = Math.floor(msRemaining / (1000 * 60 * 60));
+    //   const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
+    //   const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
 
-      const timeString = `${hours}ч ${minutes}м ${seconds}с`;
+    //   const timeString = `${hours}ч ${minutes}м ${seconds}с`;
 
-      return res.status(400).json({ message: `Достигнут общий лимит открытия кейсов на сегодня. Следующий кейс будет доступен через ${timeString}` });
-    }
+    //   return res.status(400).json({ message: `Достигнут общий лимит открытия кейсов на сегодня. Следующий кейс будет доступен через ${timeString}` });
+    // }
 
     // Получаем информацию о кейсе для дальнейших проверок
     if (!userCase) {
@@ -242,10 +242,17 @@ async function openCase(req, res) {
     const t = await sequelize.transaction();
 
     try {
+      // Логируем состояние до обновления
+      logger.info(`Кейс ${caseId} до обновления: is_opened=${userCase.is_opened}, opened_date=${userCase.opened_date}, result_item_id=${userCase.result_item_id}`);
+
       userCase.is_opened = true;
       userCase.opened_date = new Date();
       userCase.result_item_id = selectedItem.id;
       await userCase.save({ transaction: t });
+
+      // Перечитываем кейс из базы данных для подтверждения изменений
+      await userCase.reload({ transaction: t });
+      logger.info(`Кейс ${caseId} после обновления: is_opened=${userCase.is_opened}, opened_date=${userCase.opened_date}, result_item_id=${userCase.result_item_id}`);
 
       await db.UserInventory.create({
         user_id: userId,
@@ -271,6 +278,7 @@ async function openCase(req, res) {
       }, { transaction: t });
 
       user.cases_opened_today += 1;
+      user.total_cases_opened = (user.total_cases_opened || 0) + 1
       await user.save({ transaction: t });
 
       await t.commit();
