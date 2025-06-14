@@ -16,7 +16,7 @@ function extractMarketHashNameFromUrl(url) {
 }
 
 // Функция для создания предмета из Steam URL
-async function createItemFromSteamUrl(steamUrl) {
+async function createItemFromSteamUrl(steamUrl, skipSteamAPI = false) {
   try {
     const marketHashName = extractMarketHashNameFromUrl(steamUrl);
     if (!marketHashName) {
@@ -33,13 +33,37 @@ async function createItemFromSteamUrl(steamUrl) {
       return item;
     }
 
-    console.log(`🔄 Получаем данные предмета: ${marketHashName}`);
+    let steamData = {
+      price_usd: 0.10,
+      item_info: { icon_url: null, icon_url_large: null }
+    };
 
-    // Получаем данные с Steam
-    const steamData = await getSteamItemData(marketHashName);
+    if (!skipSteamAPI) {
+      console.log(`🔄 Получаем данные предмета: ${marketHashName}`);
 
-    if (steamData.error) {
-      throw new Error(`Ошибка получения данных Steam: ${steamData.error}`);
+      try {
+        steamData = await getSteamItemData(marketHashName);
+
+        if (steamData.error) {
+          console.warn(`⚠️ Ошибка получения данных Steam: ${steamData.error}`);
+          console.log(`🔄 Создаем предмет с базовыми данными...`);
+          // Используем дефолтные данные
+          steamData = {
+            price_usd: 0.10,
+            item_info: { icon_url: null, icon_url_large: null }
+          };
+        }
+      } catch (error) {
+        console.warn(`⚠️ Критическая ошибка Steam API: ${error.message}`);
+        console.log(`🔄 Создаем предмет с базовыми данными...`);
+        // Используем дефолтные данные
+        steamData = {
+          price_usd: 0.10,
+          item_info: { icon_url: null, icon_url_large: null }
+        };
+      }
+    } else {
+      console.log(`⚡ Пропускаем обращение к Steam API, используем базовые данные`);
     }
 
     // Конвертируем цену в рубли
@@ -92,14 +116,14 @@ async function createItemFromSteamUrl(steamUrl) {
   }
 }
 
-async function addItemToUserInventory(userId, itemIdentifier) {
+async function addItemToUserInventory(userId, itemIdentifier, skipSteamAPI = false) {
   try {
     let item;
 
     // Проверяем, что передано - URL или ID
     if (typeof itemIdentifier === 'string' && itemIdentifier.includes('steamcommunity.com')) {
       // Если передан Steam URL, создаем предмет
-      item = await createItemFromSteamUrl(itemIdentifier);
+      item = await createItemFromSteamUrl(itemIdentifier, skipSteamAPI);
     } else {
       // Если передан ID, ищем существующий предмет
       item = await db.Item.findOne({ where: { csmoney_id: itemIdentifier } });
@@ -141,13 +165,19 @@ async function addItemToUserInventory(userId, itemIdentifier) {
 // If run as script
 if (require.main === module) {
   const userId = '28bc541b-8a88-4208-9d0f-a00ac5664bb2';
-  const steamUrl = 'https://steamcommunity.com/market/listings/730/MP9%20%7C%20Black%20Sand%20%28Battle-Scarred%29';
+  const steamUrl = 'https://steamcommunity.com/market/listings/730/Souvenir%20PP-Bizon%20%7C%20Anolis%20%28Field-Tested%29';
+
+  // Добавляем возможность пропустить Steam API через аргумент командной строки
+  const skipSteamAPI = process.argv.includes('--skip-steam-api');
 
   console.log('🚀 Добавляем предмет в инвентарь пользователя...');
   console.log(`👤 User ID: ${userId}`);
   console.log(`🔗 Steam URL: ${steamUrl}`);
+  if (skipSteamAPI) {
+    console.log('⚡ Режим: пропуск Steam API');
+  }
 
-  addItemToUserInventory(userId, steamUrl)
+  addItemToUserInventory(userId, steamUrl, skipSteamAPI)
     .then(() => {
       console.log('✅ Операция завершена!');
       process.exit(0);

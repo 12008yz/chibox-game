@@ -3,9 +3,10 @@ const axios = require('axios');
 // Конфигурация для запросов к Steam
 const STEAM_CONFIG = {
   baseURL: 'https://steamcommunity.com/market/priceoverview/',
-  timeout: 10000,
-  retries: 3,
-  retryDelay: 2000
+  timeout: 15000,
+  retries: 2,
+  retryDelay: 5000,
+  baseDelay: 2000  // Базовая задержка между запросами
 };
 
 // Задержка между запросами для избежания rate limiting
@@ -14,6 +15,11 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 // Функция для получения данных о предмете с Steam Market
 async function getSteamItemData(marketHashName, retryCount = 0) {
   try {
+    // Добавляем базовую задержку перед запросом
+    if (retryCount === 0) {
+      await delay(STEAM_CONFIG.baseDelay);
+    }
+
     console.log(`🔍 Получаем данные Steam для: ${marketHashName}`);
 
     // Параметры запроса к Steam Market API
@@ -86,8 +92,20 @@ async function getSteamItemData(marketHashName, retryCount = 0) {
   } catch (error) {
     console.error(`❌ Ошибка получения данных для ${marketHashName}:`, error.message);
 
-    // Повторяем запрос при ошибке
-    if (retryCount < STEAM_CONFIG.retries) {
+    // Специальная обработка для 429 Too Many Requests
+    if (error.response && error.response.status === 429) {
+      const retryAfter = error.response.headers['retry-after'];
+      const delayMs = retryAfter ? parseInt(retryAfter) * 1000 : Math.random() * 10000 + 10000;
+      console.log(`⚠️ Получен 429 Too Many Requests. Задержка перед повтором: ${delayMs} мс`);
+
+      if (retryCount < STEAM_CONFIG.retries) {
+        await delay(delayMs);
+        return getSteamItemData(marketHashName, retryCount + 1);
+      }
+    }
+
+    // Повторяем запрос при других ошибках
+    if (retryCount < STEAM_CONFIG.retries && (!error.response || error.response.status !== 429)) {
       console.log(`🔄 Повторяем запрос для ${marketHashName} (попытка ${retryCount + 1}/${STEAM_CONFIG.retries})`);
       await delay(STEAM_CONFIG.retryDelay * (retryCount + 1));
       return getSteamItemData(marketHashName, retryCount + 1);

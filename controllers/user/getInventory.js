@@ -24,13 +24,7 @@ async function getInventory(req, res) {
     const { count, rows: items } = await db.UserInventory.findAndCountAll({
       where: {
         user_id: userId,
-        status: 'inventory',
-        [db.Sequelize.Op.or]: [
-          { withdrawal_id: null }, // Предметы без заявок на вывод
-          { // Или предметы с неудачными заявками
-            '$withdrawal.status$': { [db.Sequelize.Op.in]: ['failed', 'cancelled'] }
-          }
-        ]
+        status: 'inventory'
       },
       include: [
         { model: db.Item, as: 'item' },
@@ -44,19 +38,34 @@ async function getInventory(req, res) {
       offset
     });
 
+    // Фильтруем предметы: показываем только те, что без withdrawal или с неудачными withdrawal
+    const filteredItems = items.filter(item => {
+      return !item.withdrawal_id ||
+             (item.withdrawal && ['failed', 'cancelled'].includes(item.withdrawal.status));
+    });
+
     // Получаем кейсы пользователя без пагинации (можно добавить, если нужно)
     const cases = await db.Case.findAll({
       where: { user_id: userId, is_opened: false }
     });
 
     logger.info(`Получен инвентарь для пользователя ${userId}, страница ${page}`);
+    logger.info(`Всего предметов в inventory: ${items.length}`);
+    logger.info(`После фильтрации: ${filteredItems.length}`);
+
+    // Отладочная информация о предметах с withdrawal
+    items.forEach(item => {
+      if (item.withdrawal_id) {
+        logger.info(`Предмет ${item.item.name} имеет withdrawal_id: ${item.withdrawal_id}, статус withdrawal: ${item.withdrawal?.status || 'unknown'}`);
+      }
+    });
 
     return res.json({
-      items,
+      items: items, // ВРЕМЕННО: возвращаем все предметы для диагностики
       cases,
-      totalItems: count,
+      totalItems: items.length,
       currentPage: page,
-      totalPages: Math.ceil(count / limit)
+      totalPages: Math.ceil(items.length / limit)
     });
   } catch (error) {
     logger.error('Ошибка получения инвентаря:', error);

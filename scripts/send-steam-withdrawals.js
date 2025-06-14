@@ -78,8 +78,18 @@ async function processPendingWithdrawals() {
 
     // Получаем инвентарь бота
     logger.info('📦 Загружаем инвентарь Steam бота...');
-    const botInventory = await steamBot.getInventory(730, 2, true);
-    logger.info(`📦 В инвентаре бота ${botInventory.length} предметов`);
+    let botInventory = null;
+    try {
+      botInventory = await steamBot.getInventory(730, 2, true);
+      logger.info(`📦 В инвентаре бота ${botInventory.length} предметов`);
+    } catch (inventoryError) {
+      if (inventoryError.message.includes('duplicate')) {
+        logger.warn('⚠️ Ошибка дубликата при загрузке инвентаря. Будем искать предметы по мере необходимости...');
+        botInventory = null; // Будем искать предметы индивидуально
+      } else {
+        throw inventoryError;
+      }
+    }
 
     let successCount = 0;
     let errorCount = 0;
@@ -126,14 +136,27 @@ async function processPendingWithdrawals() {
           const item = userItem.item;
           const marketHashName = item.steam_market_hash_name || item.name;
 
+          let botItem = null;
+
           // Ищем предмет в инвентаре бота
-          const botItem = botInventory.find(botInvItem => {
-            return botInvItem.market_hash_name === marketHashName;
-          });
+          if (botInventory) {
+            // Если инвентарь загружен, ищем в нем
+            botItem = botInventory.find(botInvItem => {
+              return botInvItem.market_hash_name === marketHashName;
+            });
+          } else {
+            // Если инвентарь не загружен, ищем индивидуально
+            try {
+              logger.info(`🔍 Поиск предмета в инвентаре: ${marketHashName}`);
+              botItem = await steamBot.findItemInInventory(marketHashName, item.exterior);
+            } catch (findError) {
+              logger.warn(`⚠️ Ошибка поиска предмета ${marketHashName}: ${findError.message}`);
+            }
+          }
 
           if (botItem) {
             itemsToSend.push(botItem);
-            logger.info(`✅ Найден предмет: ${marketHashName} (${botItem.assetid})`);
+            logger.info(`✅ Найден предмет: ${marketHashName} (${botItem.assetid || botItem.id})`);
           } else {
             missingItems.push(marketHashName);
             logger.warn(`⚠️ Предмет не найден в инвентаре: ${marketHashName}`);
@@ -161,7 +184,7 @@ async function processPendingWithdrawals() {
         // Отправляем trade offer
         logger.info(`📤 Отправка trade offer пользователю ${withdrawal.user.username}...`);
         logger.info(`📤 Trade URL: ${tradeUrl.substring(0, 50)}...`);
-        const tradeResult = await steamBot.sendTrade(tradeUrl, itemsToSend.map(item => item.assetid), botInventory);
+        const tradeResult = await steamBot.sendTrade(tradeUrl, itemsToSend.map(item => item.assetid || item.id), botInventory);
 
         if (tradeResult.success) {
           logger.info(`✅ Trade offer отправлен! ID: ${tradeResult.tradeOfferId}`);
