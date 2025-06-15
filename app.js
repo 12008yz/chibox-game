@@ -57,6 +57,31 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Сессии для Passport
+const session = require('express-session');
+const SequelizeStore = require('connect-session-sequelize')(session.Store);
+
+const sessionStore = new SequelizeStore({
+  db: sequelize,
+});
+
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-session-secret',
+  store: sessionStore,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 дней
+  }
+}));
+
+// Инициализация Passport
+const passport = require('./config/passport');
+app.use(passport.initialize());
+app.use(passport.session());
+
 // CSRF защита убрана, так как пакет csurf deprecated
 // Для API используем JWT токены, что более безопасно
 
@@ -65,6 +90,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 const userRoutes = require('./routes/userRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const authRoutes = require('./routes/authRoutes');
 const { requestLogger, logLoginAttempt, logPayment } = require('./utils/logger');
 
 // Монтируем лимит к отдельным маршрутам:
@@ -83,6 +109,7 @@ app.use(logPayment);
 // Регистрация маршрутов
 app.use('/api/v1', userRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/auth', authRoutes);
 
 // Проверка подключений к базе данных и Redis
 (async () => {

@@ -296,6 +296,35 @@ module.exports = (sequelize) => {
       type: DataTypes.DATE,
       allowNull: true,
       comment: "Дата последнего входа пользователя"
+    },
+
+    // Steam OAuth интеграция
+    steam_id: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: true,
+      comment: "Steam ID пользователя для OAuth авторизации"
+    },
+    steam_profile: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: "Данные профиля Steam (аватар, никнейм и т.д.)"
+    },
+    steam_avatar_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "URL аватара Steam"
+    },
+    steam_profile_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "URL профиля Steam"
+    },
+    auth_provider: {
+      type: DataTypes.ENUM('local', 'steam'),
+      defaultValue: 'local',
+      allowNull: false,
+      comment: "Провайдер авторизации (local для обычной регистрации, steam для Steam OAuth)"
     }
   }, {
     timestamps: true, // Создаст createdAt и updatedAt
