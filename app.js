@@ -50,7 +50,7 @@ app.use('/api/v1/buyCase', createRateLimit(60 * 1000, 10, 'Слишком мно
 
 // Настройка движка представлений
 app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'jade');
+app.set('view engine', 'pug');
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -109,7 +109,7 @@ app.use(logPayment);
 // Регистрация маршрутов
 app.use('/api/v1', userRoutes);
 app.use('/api/payment', paymentRoutes);
-app.use('/auth', authRoutes);
+app.use('/api/v1/auth', authRoutes);
 
 // Проверка подключений к базе данных и Redis
 (async () => {

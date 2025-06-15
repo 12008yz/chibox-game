@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Steam Авторизация - Тест</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            background: rgba(0,0,0,0.3);
+            padding: 30px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        .steam-btn {
+            display: inline-block;
+            background: linear-gradient(90deg, #171a21, #2a475e);
+            color: #b2bcc0;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 5px;
+            border: 1px solid #4c6b22;
+            font-size: 16px;
+            transition: all 0.3s;
+            margin: 10px 5px;
+        }
+        .steam-btn:hover {
+            background: linear-gradient(90deg, #4c6b22, #6db33f);
+            transform: translateY(-2px);
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success { background: rgba(76, 175, 80, 0.2); border-left: 4px solid #4caf50; }
+        .error { background: rgba(244, 67, 54, 0.2); border-left: 4px solid #f44336; }
+        .info { background: rgba(33, 150, 243, 0.2); border-left: 4px solid #2196f3; }
+        .user-info {
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .avatar {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            margin-right: 15px;
+            vertical-align: middle;
+        }
+        button {
+            background: #2196f3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #1976d2;
+        }
+        .endpoints {
+            background: rgba(0,0,0,0.2);
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .endpoint {
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 Steam Авторизация - Тест</h1>
+
+        <div id="status" class="status"></div>
+
+        <div class="section">
+            <h2>1. Авторизация через Steam</h2>
+            <a href="/api/v1/auth/steam" class="steam-btn">
+                🚀 Войти через Steam
+            </a>
+            <p><small>Нажмите для перенаправления на Steam OpenID</small></p>
+        </div>
+
+        <div class="section">
+            <h2>2. Проверка статуса</h2>
+            <button onclick="checkStatus()">📊 Проверить авторизацию</button>
+            <button onclick="logout()">🚪 Выйти</button>
+        </div>
+
+        <div id="userInfo" class="user-info" style="display: none;"></div>
+
+        <div class="endpoints">
+            <h2>3. API Endpoints для Postman</h2>
+            <div class="endpoint">
+                <strong>GET</strong> /api/v1/auth/steam<br>
+                <small>Начало Steam авторизации</small>
+            </div>
+            <div class="endpoint">
+                <strong>GET</strong> /api/v1/auth/steam/return<br>
+                <small>Callback URL для Steam</small>
+            </div>
+            <div class="endpoint">
+                <strong>GET</strong> /api/v1/auth/status<br>
+                <small>Проверка статуса (требует Bearer Token)</small>
+            </div>
+            <div class="endpoint">
+                <strong>POST</strong> /api/v1/auth/logout<br>
+                <small>Выход из системы</small>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>4. Текущий токен</h2>
+            <button onclick="showToken()">👁️ Показать JWT токен</button>
+            <button onclick="clearToken()">🗑️ Очистить токен</button>
+            <div id="tokenInfo" style="margin-top: 10px; word-break: break-all; font-family: monospace; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 5px; display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Обработка URL параметров после авторизации
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        const error = urlParams.get('error');
+
+        if (token) {
+            localStorage.setItem('jwt_token', token);
+            showStatus('✅ Авторизация успешна! Токен сохранен.', 'success');
+            window.history.replaceState({}, document.title, window.location.pathname);
+            checkStatus();
+        } else if (error) {
+            showStatus('❌ Ошибка авторизации: ' + error, 'error');
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = message;
+            statusDiv.className = 'status ' + type;
+            statusDiv.style.display = 'block';
+
+            // Автоматически скрыть через 5 секунд
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function checkStatus() {
+            const token = localStorage.getItem('jwt_token');
+            if (!token) {
+                showStatus('⚠️ Токен не найден. Пожалуйста, авторизуйтесь через Steam.', 'error');
+                return;
+            }
+
+            fetch('/api/v1/auth/status', {
+                method: 'GET',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.authenticated) {
+                    showStatus('✅ Пользователь авторизован!', 'success');
+                    displayUserInfo(data.user);
+                } else {
+                    showStatus('❌ Пользователь не авторизован', 'error');
+                }
+            })
+            .catch(error => {
+                showStatus('❌ Ошибка при проверке: ' + error.message, 'error');
+                console.error('Auth check error:', error);
+            });
+        }
+
+        function displayUserInfo(user) {
+            const userInfoDiv = document.getElementById('userInfo');
+            userInfoDiv.innerHTML = `
+                <h3>👤 Информация о пользователе</h3>
+                ${user.steam_avatar_url ? `<img src="${user.steam_avatar_url}" alt="Avatar" class="avatar">` : ''}
+                <div>
+                    <p><strong>🆔 ID:</strong> ${user.id}</p>
+                    <p><strong>👤 Имя:</strong> ${user.username}</p>
+                    <p><strong>🔗 Провайдер:</strong> ${user.auth_provider}</p>
+                    ${user.steam_profile_url ? `<p><strong>🎮 Steam:</strong> <a href="${user.steam_profile_url}" target="_blank" style="color: #4fc3f7;">Открыть профиль</a></p>` : ''}
+                </div>
+            `;
+            userInfoDiv.style.display = 'block';
+        }
+
+        function logout() {
+            fetch('/api/v1/auth/logout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                localStorage.removeItem('jwt_token');
+                showStatus('✅ Выход выполнен успешно', 'success');
+                document.getElementById('userInfo').style.display = 'none';
+            })
+            .catch(error => {
+                showStatus('❌ Ошибка при выходе: ' + error.message, 'error');
+            });
+        }
+
+        function showToken() {
+            const token = localStorage.getItem('jwt_token');
+            const tokenDiv = document.getElementById('tokenInfo');
+            if (token) {
+                tokenDiv.innerHTML = `<strong>JWT Token:</strong><br>${token}`;
+                tokenDiv.style.display = 'block';
+            } else {
+                tokenDiv.innerHTML = '<em>Токен не найден</em>';
+                tokenDiv.style.display = 'block';
+            }
+        }
+
+        function clearToken() {
+            localStorage.removeItem('jwt_token');
+            document.getElementById('tokenInfo').style.display = 'none';
+            document.getElementById('userInfo').style.display = 'none';
+            showStatus('🗑️ Токен удален', 'info');
+        }
+
+        // Автоматическая проверка при загрузке
+        window.onload = function() {
+            const token = localStorage.getItem('jwt_token');
+            if (token) {
+                showStatus('📱 Найден сохраненный токен', 'info');
+                checkStatus();
+            }
+        };
+    </script>
+</body>
+</html>

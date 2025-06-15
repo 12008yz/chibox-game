@@ -119,33 +119,7 @@ module.exports = (sequelize) => {
       defaultValue: 0,
       comment: "Общее количество XP, заработанное пользователем за все время"
     },
-    // Steam интеграция
-    steam_id: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      unique: true,
-      comment: "Steam ID пользователя для аутентификации"
-    },
-    steam_username: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      comment: "Имя пользователя в Steam"
-    },
-    steam_avatar: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      comment: "URL аватара пользователя в Steam"
-    },
-    steam_profile_url: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      comment: "URL профиля пользователя в Steam"
-    },
-    steam_trade_url: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      comment: "URL для обмена Steam (нужен для вывода предметов)"
-    },
+    // Steam интеграция (удалено дублирование, используется блок ниже)
 
     // Подписка (30 дней)
     subscription_tier: {
@@ -319,6 +293,11 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: true,
       comment: "URL профиля Steam"
+    },
+    steam_trade_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: "URL для обмена Steam (нужен для вывода предметов)"
     },
     auth_provider: {
       type: DataTypes.ENUM('local', 'steam'),
