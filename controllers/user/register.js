@@ -41,8 +41,16 @@ const registerValidation = [
 ];
 
 async function register(req, res) {
+  // Логируем входящий запрос для отладки
+  logger.info('Register request received:', {
+    headers: req.headers,
+    body: req.body,
+    contentType: req.get('Content-Type')
+  });
+
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    logger.error('Validation errors:', errors.array());
     return res.status(400).json({
       message: 'Ошибка валидации',
       errors: errors.array(),
@@ -157,8 +165,17 @@ async function register(req, res) {
       inventory
     });
   } catch (error) {
-    logger.error('Ошибка при регистрации:', error);
-    return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+    logger.error('Ошибка при регистрации:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      sql: error.sql || null,
+      original: error.original || null
+    });
+    return res.status(500).json({
+      message: 'Внутренняя ошибка сервера',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 }
 

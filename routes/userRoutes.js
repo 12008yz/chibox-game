@@ -40,6 +40,28 @@ const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
+// Диагностический эндпоинт для проверки соединения
+router.get('/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Backend API работает',
+    timestamp: new Date().toISOString(),
+    headers: req.headers,
+    method: req.method,
+    url: req.url
+  });
+});
+
+router.post('/test-post', (req, res) => {
+  res.json({
+    success: true,
+    message: 'POST запрос работает',
+    body: req.body,
+    headers: req.headers,
+    contentType: req.get('Content-Type')
+  });
+});
+
 router.put('/admin/users/:id', authMiddleware, require('../controllers/user/userController').adminUpdateUser);
 
 
