@@ -77,10 +77,6 @@ module.exports = {
         type: DataTypes.STRING,
         allowNull: true
       },
-      buff_id: {
-        type: DataTypes.STRING,
-        allowNull: true
-      },
       origin: {
         type: DataTypes.STRING,
         allowNull: true
@@ -101,7 +97,6 @@ module.exports = {
     await queryInterface.addIndex('items', ['is_available']);
     await queryInterface.addIndex('items', ['category_id']);
     await queryInterface.addIndex('items', ['weapon_type']);
-    await queryInterface.addIndex('items', ['buff_id']);
   },
 
   down: async (queryInterface) => {
