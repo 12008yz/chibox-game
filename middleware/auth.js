@@ -3,12 +3,10 @@ const jwt = require('jsonwebtoken');
 // Список отозванных токенов (RAM black list)
 const revokedTokens = new Set();
 // Для продакшена — использовать Redis или другую БД
-// Экспортируем функцию (чтобы добавить токены извне, напр. при logout)
-module.exports.revokedTokens = revokedTokens;
 
 // TODO: Implement rate limiting middleware for critical endpoints like login, register, payment webhook, etc.
 
-module.exports = (req, res, next) => {
+const authMiddleware = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ message: 'Требуется токен авторизации' });
@@ -27,3 +25,7 @@ module.exports = (req, res, next) => {
     return res.status(401).json({ message: 'Невалидный или просроченный токен' });
   }
 };
+
+// Экспортируем middleware как функцию по умолчанию и revokedTokens как свойство
+module.exports = authMiddleware;
+module.exports.revokedTokens = revokedTokens;
