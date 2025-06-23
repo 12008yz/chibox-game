@@ -95,7 +95,7 @@ async function login(req, res) {
 
     const token = generateToken(user);
 
-    return res.json({
+    const response = {
       success: true,
       token,
       user: {
@@ -134,7 +134,15 @@ async function login(req, res) {
       },
       achievements,
       inventory
-    });
+    };
+
+    // Добавляем предупреждение если email не подтвержден
+    if (!user.is_email_verified) {
+      response.emailVerificationRequired = true;
+      response.message = 'Для доступа ко всем функциям необходимо подтвердить email адрес';
+    }
+
+    return res.json(response);
 
   } catch (error) {
     logger.error('Ошибка при входе:', error);

@@ -40,7 +40,7 @@ const createRateLimit = (windowMs, max, message) => rateLimit({
 app.use(createRateLimit(15 * 60 * 1000, 1000, 'Общий лимит превышен'));
 
 // Строгие лимиты для аутентификации
-const authLimiter = createRateLimit(10 * 60 * 1000, 5, 'Слишком много попыток, попробуйте через 10 минут.');
+const authLimiter = createRateLimit(10 * 60 * 1000, 50, 'Слишком много попыток, попробуйте через 10 минут.');
 app.use('/api/v1/login', authLimiter);
 app.use('/api/v1/register', createRateLimit(10 * 60 * 1000, 7, 'Слишком много регистраций'));
 

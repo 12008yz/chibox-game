@@ -50,6 +50,11 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: "Срок действия токена подтверждения email"
     },
+    verification_code: {
+      type: DataTypes.STRING(6),
+      allowNull: true,
+      comment: "Код подтверждения email (6 цифр)"
+    },
     password_reset_token: {
       type: DataTypes.STRING,
       allowNull: true,
