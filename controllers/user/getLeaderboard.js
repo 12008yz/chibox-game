@@ -102,6 +102,8 @@ async function getLeaderboardByLevel(limit, leaderboardData) {
       'username',
       'level',
       'total_xp_earned',
+      'subscription_tier',
+      'subscription_days_left',
       'created_at'
     ],
     where: {
@@ -121,6 +123,8 @@ async function getLeaderboardByLevel(limit, leaderboardData) {
     username: user.username,
     level: user.level,
     total_xp_earned: user.total_xp_earned,
+    subscription_tier: user.subscription_tier,
+    subscription_days_left: user.subscription_days_left,
     score: user.level, // Для сортировки
     created_at: user.created_at
   })));
@@ -133,6 +137,8 @@ async function getLeaderboardByCasesOpened(limit, leaderboardData) {
       'id',
       'username',
       'level',
+      'subscription_tier',
+      'subscription_days_left',
       [
         db.Sequelize.literal(`(
           SELECT COUNT(*)
@@ -159,6 +165,8 @@ async function getLeaderboardByCasesOpened(limit, leaderboardData) {
     user_id: user.id,
     username: user.username,
     level: user.level,
+    subscription_tier: user.subscription_tier,
+    subscription_days_left: user.subscription_days_left,
     cases_opened: parseInt(user.dataValues.cases_opened) || 0,
     score: parseInt(user.dataValues.cases_opened) || 0, // Для сортировки
   })));
@@ -171,6 +179,8 @@ async function getLeaderboardByMostExpensiveItem(limit, leaderboardData) {
       'id',
       'username',
       'level',
+      'subscription_tier',
+      'subscription_days_left',
       [
         db.Sequelize.literal(`(
           SELECT MAX(items.price)
@@ -221,6 +231,8 @@ async function getLeaderboardByMostExpensiveItem(limit, leaderboardData) {
     user_id: user.id,
     username: user.username,
     level: user.level,
+    subscription_tier: user.subscription_tier,
+    subscription_days_left: user.subscription_days_left,
     max_item_value: parseFloat(user.dataValues.max_item_value) || 0,
     most_expensive_item_name: user.dataValues.most_expensive_item_name || null,
     score: parseFloat(user.dataValues.max_item_value) || 0, // Для сортировки
@@ -229,7 +241,7 @@ async function getLeaderboardByMostExpensiveItem(limit, leaderboardData) {
   // Если недостаточно пользователей с предметами, добавляем пользователей с нулевой стоимостью
   if (leaderboardData.length < limit) {
     const usersWithoutItems = await db.User.findAll({
-      attributes: ['id', 'username', 'level'],
+      attributes: ['id', 'username', 'level', 'subscription_tier', 'subscription_days_left'],
       where: {
         is_active: true,
         is_banned: false,
@@ -245,6 +257,8 @@ async function getLeaderboardByMostExpensiveItem(limit, leaderboardData) {
       user_id: user.id,
       username: user.username,
       level: user.level,
+      subscription_tier: user.subscription_tier,
+      subscription_days_left: user.subscription_days_left,
       max_item_value: 0,
       most_expensive_item_name: null,
       score: 0,
