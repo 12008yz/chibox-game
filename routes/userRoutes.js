@@ -85,8 +85,8 @@ router.post('/logout', authMiddleware, logout); //+
 router.get('/inventory', authMiddleware, requireEmailVerification, getInventory); //+
 router.post('/open-case', authMiddleware, requireEmailVerification, openCase); //+
 router.post('/sell-item', authMiddleware, requireEmailVerification, sellItem);
-router.post('/withdraw-item', authMiddleware, requireEmailVerification, withdrawItem);
-router.get('/withdraw-item/:withdrawalId', authMiddleware, requireEmailVerification, getWithdrawalStatus);
+router.post('/withdraw-item', authMiddleware, /* requireEmailVerification, */ withdrawItem);
+router.get('/withdraw-item/:withdrawalId', authMiddleware, /* requireEmailVerification, */ getWithdrawalStatus);
 router.get('/cases', authMiddleware, requireEmailVerification, getCases); //+
 router.get('/balance', authMiddleware, getBalance); //+
 router.post('/promo', authMiddleware, requireEmailVerification, applyPromo);

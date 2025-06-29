@@ -1,9 +1,9 @@
 module.exports = {
-  accountName: process.env.STEAM_ACCOUNT_NAME || 'adavan3',
-  password: process.env.STEAM_PASSWORD || '9524Vlad1243Stalker',
-  sharedSecret: process.env.STEAM_SHARED_SECRET || 'RfqZkqnNJDGZxXLLmCEuiaMOBiA=',
-  identitySecret: process.env.STEAM_IDENTITY_SECRET || 'P2tHB9XcWaIMcrpzQ1Ogn/0Vulg=',
-  steamApiKey: process.env.STEAM_API_KEY || '8C8EECB761BBE51563EF7741CE5110EF',
+  accountName: process.env.STEAM_ACCOUNT_NAME,
+  password: process.env.STEAM_PASSWORD,
+  sharedSecret: process.env.STEAM_SHARED_SECRET,
+  identitySecret: process.env.STEAM_IDENTITY_SECRET,
+  steamApiKey: process.env.STEAM_API_KEY,
   steamId: '76561198115128811',
 
   // Session данные - будут заполнены автоматически после логина
