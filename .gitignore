@@ -27,3 +27,9 @@ Thumbs.db
 
 # PM2
 .pm2/
+
+# Конфигурационные файлы с секретами
+config/
+!config/.gitkeep
+!config/config.example.js
+!config/database.example.js
