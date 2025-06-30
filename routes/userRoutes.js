@@ -114,7 +114,7 @@ router.post('/cases/buy', authMiddleware, requireEmailVerification, buyCase); //
 router.get('/cases/purchase-info', authMiddleware, getCasePurchaseInfo); //+
 
 // Steam bot routes
-router.post('/steambot/login', authMiddleware, requireEmailVerification, loginBot); //+
+router.post('/steambot/login', authMiddleware, loginBot); //+
 router.post('/steambot/send-trade', authMiddleware, requireEmailVerification, sendTrade);
 router.get('/steambot/inventory', authMiddleware, requireEmailVerification, getSteamInventory); //+
 

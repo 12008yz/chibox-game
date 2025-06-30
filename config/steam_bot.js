@@ -4,7 +4,7 @@ module.exports = {
   sharedSecret: process.env.STEAM_SHARED_SECRET,
   identitySecret: process.env.STEAM_IDENTITY_SECRET,
   steamApiKey: process.env.STEAM_API_KEY,
-  steamId: '76561198115128811',
+  steamId: '76561199863311117',
 
   // Session данные - будут заполнены автоматически после логина
   sessionId: process.env.STEAM_SESSION_ID || null,
