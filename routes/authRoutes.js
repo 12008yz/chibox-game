@@ -30,7 +30,10 @@ router.get('/steam/return',
         {
           id: req.user.id,
           username: req.user.username,
-          auth_provider: req.user.auth_provider
+          email: req.user.email,
+          auth_provider: req.user.auth_provider,
+          role: req.user.role,
+          steam_id: req.user.steam_id
         },
         process.env.JWT_SECRET || 'your-secret-key',
         { expiresIn: '7d' }
@@ -39,7 +42,8 @@ router.get('/steam/return',
       logger.info(`Steam авторизация успешна для пользователя ${req.user.username}`);
 
       // Перенаправляем на фронтенд с токеном
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      console.log(`Redirecting to: ${frontendUrl}/auth/success?token=${token}&provider=steam`);
       res.redirect(`${frontendUrl}/auth/success?token=${token}&provider=steam`);
 
     } catch (error) {

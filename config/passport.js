@@ -52,9 +52,17 @@ if (STEAM_API_KEY) {
 
       if (user) {
         // Пользователь существует, обновляем его данные
+        const avatarUrl = profile.photos?.[2]?.value || profile.photos?.[1]?.value || profile.photos?.[0]?.value;
+        console.log('Updating existing user Steam data:', {
+          steamId,
+          avatarUrl,
+          profileUrl: profile._json?.profileurl,
+          displayName: profile.displayName
+        });
+
         await user.update({
           steam_profile: profile._json,
-          steam_avatar_url: profile.photos?.[2]?.value || profile.photos?.[1]?.value || profile.photos?.[0]?.value,
+          steam_avatar_url: avatarUrl,
           steam_profile_url: profile._json?.profileurl,
           last_login_date: new Date()
         });
@@ -65,6 +73,15 @@ if (STEAM_API_KEY) {
         // Создаем нового пользователя
         const username = profile._json?.personaname || `steam_user_${steamId.slice(-8)}`;
         const email = `${steamId}@steam.local`; // Временный email
+        const avatarUrl = profile.photos?.[2]?.value || profile.photos?.[1]?.value || profile.photos?.[0]?.value;
+
+        console.log('Creating new Steam user:', {
+          username,
+          steamId,
+          avatarUrl,
+          profileUrl: profile._json?.profileurl,
+          photos: profile.photos
+        });
 
         user = await db.User.create({
           username: username,
@@ -72,7 +89,7 @@ if (STEAM_API_KEY) {
           password: 'steam_oauth', // Пароль не используется для Steam пользователей
           steam_id: steamId,
           steam_profile: profile._json,
-          steam_avatar_url: profile.photos?.[2]?.value || profile.photos?.[1]?.value || profile.photos?.[0]?.value,
+          steam_avatar_url: avatarUrl,
           steam_profile_url: profile._json?.profileurl,
           auth_provider: 'steam',
           is_email_verified: true, // Steam аккаунты считаем верифицированными
