@@ -3,9 +3,15 @@ const { logger } = require('../../middleware/logger');
 const cache = require('../../middleware/cache');
 
 async function getProfile(req, res) {
-  // Защита от IDOR: пользователь запрашивает только свой профиль
-  if (!req.user || String(req.user.id) !== String(req.query.id || req.params.id)) {
+  // Защита от IDOR: только если указан конкретный ID в параметрах
+  const targetUserId = req.query.id || req.params.id;
+  if (targetUserId && (!req.user || String(req.user.id) !== String(targetUserId))) {
     return res.status(403).json({ message: 'Доступ к чужому профилю запрещён' });
+  }
+
+  // Если ID не указан, возвращаем профиль текущего пользователя
+  if (!req.user) {
+    return res.status(401).json({ message: 'Пользователь не авторизован' });
   }
 
   try {
