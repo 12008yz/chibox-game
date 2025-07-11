@@ -61,7 +61,7 @@ router.get('/status', auth, (req, res) => {
       id: req.user.id,
       username: req.user.username,
       auth_provider: req.user.auth_provider,
-      steam_avatar_url: req.user.steam_avatar_url,
+      avatar_url: req.user.steam_avatar,
       steam_profile_url: req.user.steam_profile_url
     }
   });
@@ -125,7 +125,7 @@ router.get('/link-steam/return',
       await db.User.update({
         steam_id: steamId,
         steam_profile: req.user.steam_profile,
-        steam_avatar_url: req.user.steam_avatar_url,
+        avatar_url: req.user.steam_avatar,
         steam_profile_url: req.user.steam_profile_url
       }, {
         where: { id: linkUserId }

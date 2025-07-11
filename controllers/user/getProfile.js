@@ -67,10 +67,13 @@ async function getProfile(req, res) {
     return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
   }
 }
+// // Оборачиваем getProfile в middleware кэширования
+// const cachedGetProfile = [cache(300), getProfile];
 
-// Оборачиваем getProfile в middleware кэширования
-const cachedGetProfile = [cache(300), getProfile];
-
+// module.exports = {
+//   getProfile: cachedGetProfile
+// };
+// Убираем кэширование для getProfile, чтобы Steam данные обновлялись сразу
 module.exports = {
-  getProfile: cachedGetProfile
+  getProfile: getProfile
 };

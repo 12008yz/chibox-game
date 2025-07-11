@@ -52,28 +52,40 @@ if (STEAM_API_KEY) {
 
       if (user) {
         // Пользователь существует, обновляем его данные
-        const avatarUrl = profile.photos?.[2]?.value || profile.photos?.[1]?.value || profile.photos?.[0]?.value;
-        console.log('Updating existing user Steam data:', {
+        const avatarUrl = profile._json?.avatarfull || profile._json?.avatarmedium || profile._json?.avatar;
+        const newUsername = profile._json?.personaname || user.username;
+
+        console.log('🔄 Updating existing user Steam data:', {
+          userId: user.id,
+          currentUsername: user.username,
+          newUsername: newUsername,
           steamId,
           avatarUrl,
           profileUrl: profile._json?.profileurl,
-          displayName: profile.displayName
+          displayName: profile.displayName,
+          fullProfile: profile._json
         });
 
-        await user.update({
+        const updateData = {
+          username: newUsername,
           steam_profile: profile._json,
           steam_avatar_url: avatarUrl,
           steam_profile_url: profile._json?.profileurl,
           last_login_date: new Date()
-        });
+        };
 
-        logger.info(`Пользователь ${user.username} вошел через Steam`);
+        console.log('📝 Update data:', updateData);
+
+        await user.update(updateData);
+
+        console.log('✅ Steam data updated successfully');
+        logger.info(`Пользователь ${user.username} вошел через Steam, данные обновлены`);
         return done(null, user);
       } else {
         // Создаем нового пользователя
         const username = profile._json?.personaname || `steam_user_${steamId.slice(-8)}`;
         const email = `${steamId}@steam.local`; // Временный email
-        const avatarUrl = profile.photos?.[2]?.value || profile.photos?.[1]?.value || profile.photos?.[0]?.value;
+        const avatarUrl = profile._json?.avatarfull || profile._json?.avatarmedium || profile._json?.avatar;
 
         console.log('Creating new Steam user:', {
           username,

@@ -289,7 +289,7 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: "Данные профиля Steam (аватар, никнейм и т.д.)"
     },
-    steam_avatar_url: {
+    steam_avatar: {
       type: DataTypes.STRING,
       allowNull: true,
       comment: "URL аватара Steam"
