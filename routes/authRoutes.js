@@ -61,7 +61,7 @@ router.get('/status', auth, (req, res) => {
       id: req.user.id,
       username: req.user.username,
       auth_provider: req.user.auth_provider,
-      avatar_url: req.user.steam_avatar,
+      steam_avatar: req.user.steam_avatar,
       steam_profile_url: req.user.steam_profile_url
     }
   });
