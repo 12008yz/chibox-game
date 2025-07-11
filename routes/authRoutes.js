@@ -125,7 +125,7 @@ router.get('/link-steam/return',
       await db.User.update({
         steam_id: steamId,
         steam_profile: req.user.steam_profile,
-        avatar_url: req.user.steam_avatar,
+        steam_avatar: req.user.steam_avatar,
         steam_profile_url: req.user.steam_profile_url
       }, {
         where: { id: linkUserId }
