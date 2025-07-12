@@ -15,11 +15,25 @@ const logger = winston.createLogger({
 
 async function playBonusSquares(req, res) {
   try {
+    logger.info('🎲 Начинаем игру в бонусные квадраты');
+
     const userId = req.user.id;
+    logger.info(`🔍 ID пользователя: ${userId}`);
+
     const user = await db.User.findByPk(userId);
+    if (!user) {
+      logger.error(`❌ Пользователь с ID ${userId} не найден`);
+      return res.status(404).json({ message: 'Пользователь не найден' });
+    }
+
     const now = new Date();
     const ready = !user.next_bonus_available_time || user.next_bonus_available_time <= now;
-    if (!ready) return res.status(400).json({ message: 'Бонус пока недоступен', next_time: user.next_bonus_available_time });
+    logger.info(`⏰ Проверка доступности бонуса: ${ready}, следующий бонус: ${user.next_bonus_available_time}`);
+
+    if (!ready) {
+      logger.info('❌ Бонус недоступен');
+      return res.status(400).json({ message: 'Бонус пока недоступен', next_time: user.next_bonus_available_time });
+    }
 
     // Добавляем опыт за игру бонусных клеток
     await addExperience(userId, 5, 'play_bonus_squares', null, 'Игра бонусных клеток');
@@ -29,14 +43,19 @@ async function playBonusSquares(req, res) {
     prizes.sort(() => Math.random() - 0.5);
 
     const chosenCell = req.body.chosenCell;
+    logger.info(`🎯 Выбранная клетка: ${chosenCell}, тело запроса:`, req.body);
+
     if (typeof chosenCell !== 'number' || chosenCell < 0 || chosenCell >= totalSquares) {
+      logger.error(`❌ Неверный индекс клетки: ${chosenCell}, тип: ${typeof chosenCell}`);
       return res.status(400).json({ message: 'Неверный индекс выбранной клетки' });
     }
 
     let reward = prizes[chosenCell];
     let rewardMessage = '';
+    logger.info(`🎁 Награда в выбранной клетке: ${reward}`);
 
     if (reward === 'item') {
+      logger.info('🎁 Обрабатываем награду: предмет');
       // Дополнительный опыт за выигрыш предмета
       await addExperience(userId, 10, 'play_bonus_squares_win', null, 'Выигрыш предмета в бонусной игре');
 
@@ -63,32 +82,42 @@ async function playBonusSquares(req, res) {
         rewardMessage = `Вам выпал бонусный кейс: ${bonusCaseTemplate.name}!`;
       } else {
         // Нет подписки - добавляем случайный предмет в инвентарь
-        // Получаем случайный предмет из базы данных (можно настроить категорию или редкость)
-        const randomItem = await db.Item.findOne({
+        // Получаем случайный предмет из базы данных
+        let randomItem = await db.Item.findOne({
           where: {
-            // Можно добавить условия, например, только определенная редкость для бонусов
+            // Пробуем найти предметы с определенной редкостью
             rarity: { [db.Sequelize.Op.in]: ['common', 'uncommon'] }
           },
           order: db.Sequelize.literal('RANDOM()'),
           limit: 1
         });
 
+        // Если не найдено с нужной редкостью, берем любой предмет
+        if (!randomItem) {
+          logger.warn(`Не найдено предметов с редкостью common/uncommon, пробуем любые предметы`);
+          randomItem = await db.Item.findOne({
+            order: db.Sequelize.literal('RANDOM()'),
+            limit: 1
+          });
+        }
+
         if (randomItem) {
           await db.UserInventory.create({
             user_id: userId,
             item_id: randomItem.id,
             source: 'bonus',
-            status: 'inventory',
+            status: 'available', // Исправлено с 'inventory' на 'available'
             acquisition_date: now
           });
           logger.info(`Добавлен предмет ${randomItem.name} в инвентарь пользователя ${userId} из бонусной игры`);
           rewardMessage = `Вам выпал предмет: ${randomItem.name}!`;
         } else {
-          logger.warn(`Не найдено подходящих предметов для бонусной награды пользователя ${userId}`);
-          rewardMessage = 'Вам выпал предмет, но произошла ошибка при его добавлении.';
+          logger.error(`Не найдено предметов в базе данных для бонусной награды пользователя ${userId}`);
+          rewardMessage = 'К сожалению, не удалось найти подходящий предмет для награды.';
         }
       }
     } else if (reward === 'sub_days') {
+      logger.info('⭐ Обрабатываем награду: дни подписки');
       const bonusDays = 3; // например, 3 дня подписки
       if (!user.subscription_expiry_date || user.subscription_expiry_date < now) {
         // Нет активной подписки, добавляем бонусные дни в pending_subscription_days
@@ -114,6 +143,7 @@ async function playBonusSquares(req, res) {
       user.subscription_days_left = msLeftAfterSave > 0 ? Math.ceil(msLeftAfterSave / 86400000) : 0;
       await user.save();
     } else {
+      logger.info('😔 Обрабатываем награду: пустая клетка');
       rewardMessage = 'Вы ничего не выиграли.';
     }
 
@@ -126,7 +156,7 @@ async function playBonusSquares(req, res) {
     user.last_bonus_date = now;
     await user.save();
 
-    logger.info(`Пользователь ${userId} сыграл в бонусную игру. Следующий бонус доступен через ${cooldownHours} часов${hasActiveSubscription ? ' (подписчик)' : ' (без подписки)'}`);
+    logger.info(`✅ Пользователь ${userId} сыграл в бонусную игру. Следующий бонус доступен через ${cooldownHours} часов${hasActiveSubscription ? ' (подписчик)' : ' (без подписки)'}`);
 
     await db.BonusMiniGameHistory.create({
       user_id: userId,
@@ -138,10 +168,25 @@ async function playBonusSquares(req, res) {
       prize_value: reward === 'sub_days' ? '3' : null,
     });
 
-    return res.json({ message: rewardMessage, next_time: user.next_bonus_available_time });
+    logger.info(`🎉 Игра завершена успешно. Сообщение награды: "${rewardMessage}"`);
+    return res.json({
+      message: rewardMessage,
+      next_time: user.next_bonus_available_time,
+      chosen_cell: chosenCell,
+      all_prizes: prizes, // Возвращаем все призы для показа
+      won_prize: reward
+    });
   } catch (error) {
-    logger.error('Ошибка бонус-миниигры:', error);
-    return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+    logger.error('❌ Ошибка бонус-миниигры:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
+      requestBody: req.body
+    });
+    return res.status(500).json({
+      message: 'Внутренняя ошибка сервера',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 }
 

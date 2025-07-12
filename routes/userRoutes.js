@@ -113,7 +113,7 @@ router.delete('/notifications/:notificationId', authMiddleware, deleteNotificati
 router.post('/subscription/buy', authMiddleware, requireEmailVerification, buySubscription); //+
 router.get('/subscription', authMiddleware, getSubscription); //+
 router.post('/items/exchange-for-subscription', authMiddleware, requireEmailVerification, exchangeItemForSubscription); //+
-router.post('/bonus/play-squares', authMiddleware, requireEmailVerification, playBonusSquares); //+
+router.post('/bonus/play-squares', authMiddleware, playBonusSquares); //+
 router.get('/bonus/status', authMiddleware, getBonusStatus); //+
 router.post('/bonus/reset-cooldown', authMiddleware, resetBonusCooldown); //+ Сброс кулдауна бонуса
 router.get('/cases/available', authMiddleware, requireEmailVerification, getCasesAvailable); //+
