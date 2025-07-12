@@ -56,7 +56,7 @@ async function createSteamLoginNotification(userId, username) {
   return await createNotification(
     userId,
     'Вход через Steam',
-    'Вы вошли с помощью Steam! Добро пожаловать!',
+    'Вы вошли с помощью Steam! \nДобро пожаловать!',
     'success',
     'general',
     {
