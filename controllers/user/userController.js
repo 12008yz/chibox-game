@@ -16,7 +16,7 @@ const { getAchievements } = require('./getAchievements');
 const { getMissions } = require('./getMissions');
 const { getStatistics } = require('./getStatistics');
 const { getLeaderboard } = require('./getLeaderboard');
-const { getNotifications } = require('./getNotifications');
+const { getNotifications, getUnreadCount, markAsRead, markAllAsRead, deleteNotification } = require('./getNotifications');
 const { getPublicProfile } = require('./getPublicProfile');
 const { buySubscription } = require('./buySubscription');
 const { getSubscription } = require('./getSubscription');
@@ -50,6 +50,10 @@ module.exports = {
   getStatistics,
   getLeaderboard,
   getNotifications,
+  getUnreadCount,
+  markAsRead,
+  markAllAsRead,
+  deleteNotification,
   getPublicProfile,
   buySubscription,
   getSubscription,

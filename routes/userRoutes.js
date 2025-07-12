@@ -21,6 +21,10 @@ const {
   getStatistics,
   getLeaderboard,
   getNotifications,
+  getUnreadCount,
+  markAsRead,
+  markAllAsRead,
+  deleteNotification,
   getPublicProfile,
   buySubscription,
   getSubscription,
@@ -98,7 +102,11 @@ router.get('/missions', authMiddleware, getMissions);
 router.get('/statistics', authMiddleware, getStatistics); //+
 router.get('/bonus-info', authMiddleware, getUserBonusInfoController); // Получить информацию о бонусах
 router.get('/leaderboard', authMiddleware, getLeaderboard); //+
-router.get('/notifications', authMiddleware, getNotifications); //+ (Пустое)
+router.get('/notifications', authMiddleware, getNotifications); //+
+router.get('/notifications/unread-count', authMiddleware, getUnreadCount); //+
+router.put('/notifications/:notificationId/read', authMiddleware, markAsRead); //+
+router.put('/notifications/mark-all-read', authMiddleware, markAllAsRead); //+
+router.delete('/notifications/:notificationId', authMiddleware, deleteNotification); //+
 
 // New routes from userController.js
 router.post('/subscription/buy', authMiddleware, requireEmailVerification, buySubscription); //+

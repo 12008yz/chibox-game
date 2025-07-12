@@ -4,6 +4,7 @@ const db = require('../../models');
 const jwt = require('jsonwebtoken');
 const winston = require('winston');
 const emailService = require('../../services/emailService');
+const { createRegistrationNotification } = require('../../utils/notificationHelper');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -101,6 +102,13 @@ async function register(req, res) {
       verification_code: verificationCode,
       email_verification_expires: verificationExpires
     });
+
+    // Создаем уведомление о успешной регистрации
+    try {
+      await createRegistrationNotification(newUser.id, newUser.username);
+    } catch (notificationError) {
+      logger.warn('Не удалось создать уведомление о регистрации:', notificationError.message);
+    }
 
     // Если передан промокод, проверяем и сохраняем
     if (promoCode && typeof promoCode === 'string') {

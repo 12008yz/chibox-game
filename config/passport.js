@@ -2,6 +2,7 @@ const passport = require('passport');
 const SteamStrategy = require('passport-steam').Strategy;
 const db = require('../models');
 const { logger } = require('../utils/logger');
+const { createSteamLoginNotification } = require('../utils/notificationHelper');
 
 // Настройки Steam OAuth
 const STEAM_API_KEY = process.env.STEAM_API_KEY;
@@ -80,6 +81,14 @@ if (STEAM_API_KEY) {
 
         console.log('✅ Steam data updated successfully');
         logger.info(`Пользователь ${user.username} вошел через Steam, данные обновлены`);
+
+        // Создаем уведомление о входе через Steam
+        try {
+          await createSteamLoginNotification(user.id, user.username);
+        } catch (notificationError) {
+          logger.warn('Не удалось создать уведомление о входе через Steam:', notificationError.message);
+        }
+
         return done(null, user);
       } else {
         // Создаем нового пользователя
@@ -110,6 +119,14 @@ if (STEAM_API_KEY) {
         });
 
         logger.info(`Создан новый пользователь через Steam: ${username} (${steamId})`);
+
+        // Создаем уведомление о входе через Steam для нового пользователя
+        try {
+          await createSteamLoginNotification(user.id, user.username);
+        } catch (notificationError) {
+          logger.warn('Не удалось создать уведомление о входе через Steam для нового пользователя:', notificationError.message);
+        }
+
         return done(null, user);
       }
     } catch (error) {
