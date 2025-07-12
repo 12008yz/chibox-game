@@ -31,6 +31,7 @@ const {
   exchangeItemForSubscription,
   playBonusSquares,
   getBonusStatus,
+  resetBonusCooldown,
   getCasesAvailable,
   getAchievementsProgress,
   adminUpdateUser,
@@ -114,6 +115,7 @@ router.get('/subscription', authMiddleware, getSubscription); //+
 router.post('/items/exchange-for-subscription', authMiddleware, requireEmailVerification, exchangeItemForSubscription); //+
 router.post('/bonus/play-squares', authMiddleware, requireEmailVerification, playBonusSquares); //+
 router.get('/bonus/status', authMiddleware, getBonusStatus); //+
+router.post('/bonus/reset-cooldown', authMiddleware, resetBonusCooldown); //+ Сброс кулдауна бонуса
 router.get('/cases/available', authMiddleware, requireEmailVerification, getCasesAvailable); //+
 router.get('/achievements/progress', authMiddleware, getAchievementsProgress); //+
 

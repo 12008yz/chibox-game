@@ -23,6 +23,7 @@ const { getSubscription } = require('./getSubscription');
 const { exchangeItemForSubscription } = require('./exchangeItemForSubscription');
 const { playBonusSquares } = require('./playBonusSquares');
 const { getBonusStatus } = require('./getBonusStatus');
+const { resetBonusCooldown } = require('./resetBonusCooldown');
 const { getCasesAvailable } = require('./getCasesAvailable');
 const { getAchievementsProgress } = require('./getAchievementsProgress');
 const { adminUpdateUser } = require('./adminUpdateUser');
@@ -60,6 +61,7 @@ module.exports = {
   exchangeItemForSubscription,
   playBonusSquares,
   getBonusStatus,
+  resetBonusCooldown,
   getCasesAvailable,
   getAchievementsProgress,
   adminUpdateUser,

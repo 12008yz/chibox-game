@@ -31,6 +31,9 @@ async function getBonusStatus(req, res) {
       timeUntilNext = Math.ceil((user.next_bonus_available_time.getTime() - now.getTime()) / 1000); // секунды
     }
 
+    // Добавляем отладочную информацию
+    logger.info(`Статус бонуса для пользователя ${userId}: доступен=${isAvailable}, следующий_бонус=${user.next_bonus_available_time}, сейчас=${now}`);
+
     return res.json({
       is_available: isAvailable,
       next_bonus_available_time: user.next_bonus_available_time,
@@ -39,7 +42,13 @@ async function getBonusStatus(req, res) {
       last_bonus_date: user.last_bonus_date,
       has_active_subscription: hasActiveSubscription,
       cooldown_hours: cooldownHours,
-      subscription_expiry: user.subscription_expiry_date
+      subscription_expiry: user.subscription_expiry_date,
+      // Отладочная информация
+      debug_info: {
+        current_time: now.toISOString(),
+        next_bonus_time: user.next_bonus_available_time ? user.next_bonus_available_time.toISOString() : null,
+        is_time_check_passed: !user.next_bonus_available_time || user.next_bonus_available_time <= now
+      }
     });
   } catch (error) {
     logger.error('Ошибка проверки статуса бонуса:', error);
