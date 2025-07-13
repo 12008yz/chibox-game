@@ -87,17 +87,17 @@ router.get('/profile', authMiddleware, getProfile);
 router.put('/profile', authMiddleware, updateProfile); //+
 router.post('/logout', authMiddleware, logout); //+
 
-router.get('/inventory', authMiddleware, requireEmailVerification, getInventory); //+
-router.post('/open-case', authMiddleware, requireEmailVerification, openCase); //+
-router.post('/sell-item', authMiddleware, requireEmailVerification, sellItem);
+router.get('/inventory', authMiddleware, getInventory); //+
+router.post('/open-case', authMiddleware, openCase); //+
+router.post('/sell-item', authMiddleware, sellItem);
 router.post('/withdraw-item', authMiddleware, /* requireEmailVerification, */ withdrawItem);
-router.get('/withdraw-item/:withdrawalId', authMiddleware, /* requireEmailVerification, */ getWithdrawalStatus);
-router.get('/cases', authMiddleware, requireEmailVerification, getCases); //+
+router.get('/withdraw-item/:withdrawalId', authMiddleware, /* , */ getWithdrawalStatus);
+router.get('/cases', authMiddleware, getCases); //+
 router.get('/balance', authMiddleware, getBalance); //+
-router.post('/promo', authMiddleware, requireEmailVerification, applyPromo);
+router.post('/promo', authMiddleware, applyPromo);
 router.get('/transactions', authMiddleware, getTransactions);
-router.post('/deposit', authMiddleware, requireEmailVerification, deposit);
-router.post('/withdraw-balance', authMiddleware, requireEmailVerification, withdrawBalance);
+router.post('/deposit', authMiddleware, deposit);
+router.post('/withdraw-balance', authMiddleware, withdrawBalance);
 router.get('/achievements', authMiddleware, getAchievements); //+
 router.get('/missions', authMiddleware, getMissions);
 router.get('/statistics', authMiddleware, getStatistics); //+
@@ -110,22 +110,22 @@ router.put('/notifications/mark-all-read', authMiddleware, markAllAsRead); //+
 router.delete('/notifications/:notificationId', authMiddleware, deleteNotification); //+
 
 // New routes from userController.js
-router.post('/subscription/buy', authMiddleware, requireEmailVerification, buySubscription); //+
+router.post('/subscription/buy', authMiddleware, buySubscription); //+
 router.get('/subscription', authMiddleware, getSubscription); //+
-router.post('/items/exchange-for-subscription', authMiddleware, requireEmailVerification, exchangeItemForSubscription); //+
+router.post('/items/exchange-for-subscription', authMiddleware, exchangeItemForSubscription); //+
 router.post('/bonus/play-squares', authMiddleware, playBonusSquares); //+
 router.get('/bonus/status', authMiddleware, getBonusStatus); //+
 router.post('/bonus/reset-cooldown', authMiddleware, resetBonusCooldown); //+ Сброс кулдауна бонуса
-router.get('/cases/available', authMiddleware, requireEmailVerification, getCasesAvailable); //+
+router.get('/cases/available', authMiddleware, getCasesAvailable); //+
 router.get('/achievements/progress', authMiddleware, getAchievementsProgress); //+
 
 // Case purchase routes
-router.post('/cases/buy', authMiddleware, requireEmailVerification, buyCase); //+
+router.post('/cases/buy', authMiddleware, buyCase); //+
 router.get('/cases/purchase-info', authMiddleware, getCasePurchaseInfo); //+
 
 // Steam bot routes
 router.post('/steambot/login', authMiddleware, loginBot); //+
-router.post('/steambot/send-trade', authMiddleware, requireEmailVerification, sendTrade);
-router.get('/steambot/inventory', authMiddleware, requireEmailVerification, getSteamInventory); //+
+router.post('/steambot/send-trade', authMiddleware, sendTrade);
+router.get('/steambot/inventory', authMiddleware, getSteamInventory); //+
 
 module.exports = router;
