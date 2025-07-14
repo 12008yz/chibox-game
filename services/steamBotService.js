@@ -126,12 +126,12 @@ class SteamBot {
       logger.info('Ожидание готовности confirmation checker...');
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    
+
     if (!this.confirmationCheckerReady) {
       logger.warn('Confirmation checker не готов после ожидания');
       return false;
     }
-    
+
     logger.info('Confirmation checker готов к работе');
     return true;
   }
@@ -195,19 +195,19 @@ class SteamBot {
   async confirmTradeOffer(offerId, maxRetries = 3) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       logger.info(`Попытка подтверждения трейда #${offerId} (попытка ${attempt}/${maxRetries})...`);
-      
+
       const result = await this._tryConfirmTrade(offerId);
-      
+
       if (result.success) {
         return result;
       }
-      
+
       if (attempt < maxRetries) {
         logger.warn(`Попытка ${attempt} неудачна, ждем 3 секунды перед повтором...`);
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
     }
-    
+
     // Последняя попытка через ручное подтверждение
     logger.info(`Все автоматические попытки исчерпаны, пробуем ручное подтверждение трейда #${offerId}...`);
     return await this._manualConfirmTrade(offerId);
@@ -290,7 +290,7 @@ class SteamBot {
           });
         }
 
-        const confirmation = confirmations.find(conf => 
+        const confirmation = confirmations.find(conf =>
           conf.type === 2 && conf.creator === offerId.toString()
         );
 
@@ -351,7 +351,7 @@ class SteamBot {
         logger.info('Steam webSession received, setting cookies to manager & community...');
         this.manager.setCookies(cookies);
         this.community.setCookies(cookies);
-        
+
         // Запускаем confirmation checker
         this.community.startConfirmationChecker(10000, this.identitySecret);
         logger.info('Автоматическое подтверждение настроено через startConfirmationChecker');
@@ -376,14 +376,14 @@ class SteamBot {
         }
 
         logger.info('Cookies set, confirmation checker started, bot now fully operational.');
-        
+
         // ВАЖНО: Ждем инициализации confirmation checker
         logger.info('Ожидание инициализации confirmation checker...');
         await new Promise(resolve => setTimeout(resolve, 8000)); // 8 секунд задержки
-        
+
         // Дополнительная проверка готовности
         await this.waitForConfirmationChecker(5000);
-        
+
         logger.info('✅ Steam bot полностью готов к работе с подтверждениями');
         resolve();
       });
@@ -508,7 +508,7 @@ class SteamBot {
 
         // Пытаемся подтвердить трейд
         const confirmResult = await this.confirmTradeOffer(offer.id);
-        
+
         resolve({
           success: true,
           tradeOfferId: offer.id,
@@ -766,6 +766,182 @@ class SteamBot {
   // Проверка валидности session
   isSessionValid() {
     return this.loggedIn && this.sessionId && this.steamLoginSecure;
+  }
+
+  // === ДИАГНОСТИЧЕСКИЕ МЕТОДЫ ===
+
+  // Получение информации о профиле
+  async getProfileInfo() {
+    try {
+      return new Promise((resolve, reject) => {
+        if (!this.loggedIn) {
+          return reject(new Error('Бот не авторизован'));
+        }
+
+        const steamId = this.client.steamID;
+        resolve({
+          steamId: steamId.getSteamID64(),
+          accountId: steamId.accountid,
+          loggedIn: this.loggedIn,
+          steamLevel: this.client.accountInfo?.level || 'unknown',
+          country: this.client.accountInfo?.country || 'unknown',
+          wallet: this.client.wallet || 'unknown'
+        });
+      });
+    } catch (error) {
+      logger.error('Ошибка получения информации о профиле:', error);
+      return { error: error.message };
+    }
+  }
+
+  // Проверка ограничений торговли
+  async getTradeRestrictions() {
+    try {
+      return new Promise((resolve) => {
+        if (!this.loggedIn) {
+          return resolve({ error: 'Бот не авторизован' });
+        }
+
+        // Проверяем ограничения через Steam Community
+        this.community.getUserInventoryContexts(this.client.steamID, (err, contexts) => {
+          if (err) {
+            return resolve({
+              error: err.message,
+              canTrade: false,
+              tradeHold: 'unknown'
+            });
+          }
+
+          resolve({
+            canTrade: true,
+            contexts: contexts,
+            tradeHold: false,
+            steamGuardEnabled: !!this.sharedSecret
+          });
+        });
+      });
+    } catch (error) {
+      logger.error('Ошибка проверки ограничений торговли:', error);
+      return { error: error.message };
+    }
+  }
+
+  // Проверка состояния confirmation checker
+  async getConfirmationCheckerStatus() {
+    try {
+      return {
+        ready: this.confirmationCheckerReady,
+        enabled: !!this.identitySecret,
+        interval: 10000,
+        lastCheck: new Date().toISOString()
+      };
+    } catch (error) {
+      logger.error('Ошибка проверки confirmation checker:', error);
+      return { error: error.message };
+    }
+  }
+
+  // Тест создания trade offer (без отправки)
+  async testTradeOfferCreation(partnerSteamId) {
+    try {
+      if (!this.loggedIn) {
+        return { error: 'Бот не авторизован' };
+      }
+
+      // Создаем пустой трейд для теста
+      const offer = this.manager.createOffer(partnerSteamId);
+
+      return {
+        success: true,
+        offerCreated: true,
+        partnerId: partnerSteamId,
+        managerReady: !!this.manager,
+        apiKeySet: !!this.manager.apiKey
+      };
+    } catch (error) {
+      logger.error('Ошибка создания тестового трейда:', error);
+      return { error: error.message };
+    }
+  }
+
+  // Тест Steam API
+  async testSteamApi() {
+    try {
+      if (!this.steamApiKey) {
+        return { error: 'Steam API ключ не настроен' };
+      }
+
+      return new Promise((resolve) => {
+        // Тестируем API через получение информации о пользователе
+        const request = require('request');
+        const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${this.steamApiKey}&steamids=${this.client.steamID.getSteamID64()}`;
+
+        request(url, (error, response, body) => {
+          if (error) {
+            return resolve({ error: error.message });
+          }
+
+          try {
+            const data = JSON.parse(body);
+            resolve({
+              apiWorking: true,
+              response: data.response?.players?.[0] || 'No player data'
+            });
+          } catch (parseError) {
+            resolve({ error: 'Ошибка парсинга ответа API' });
+          }
+        });
+      });
+    } catch (error) {
+      logger.error('Ошибка тестирования Steam API:', error);
+      return { error: error.message };
+    }
+  }
+
+  // Проверка профиля пользователя
+  async checkProfile(steamId) {
+    try {
+      return new Promise((resolve) => {
+        if (!this.loggedIn) {
+          return resolve({ error: 'Бот не авторизован', canTrade: false });
+        }
+
+        // Проверяем профиль через Steam Community
+        this.community.getUserInventory(steamId, 730, 2, false, (err, inventory, currencies) => {
+          if (err) {
+            if (err.message.includes('private')) {
+              return resolve({
+                error: 'Приватный профиль',
+                canTrade: false,
+                reason: 'Профиль закрыт или инвентарь приватный'
+              });
+            }
+            if (err.message.includes('limited')) {
+              return resolve({
+                error: 'Ограниченный аккаунт',
+                canTrade: false,
+                reason: 'Аккаунт имеет ограничения'
+              });
+            }
+            return resolve({
+              error: err.message,
+              canTrade: false,
+              reason: `Ошибка доступа: ${err.message}`
+            });
+          }
+
+          // Если инвентарь получен, значит профиль доступен
+          resolve({
+            canTrade: true,
+            inventoryItems: inventory ? inventory.length : 0,
+            profileAccessible: true
+          });
+        });
+      });
+    } catch (error) {
+      logger.error('Ошибка проверки профиля:', error);
+      return { error: error.message, canTrade: false };
+    }
   }
 }
 

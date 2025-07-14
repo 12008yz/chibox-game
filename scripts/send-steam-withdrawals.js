@@ -43,6 +43,23 @@ async function processPendingWithdrawals() {
     await steamBot.login();
     logger.info('✅ Steam бот авторизован');
 
+    // Проверяем состояние самого бота
+    logger.info('🔍 Проверка состояния аккаунта бота...');
+    const botProfile = await steamBot.getProfileInfo();
+    logger.info(`📊 Бот профиль: ${JSON.stringify(botProfile, null, 2)}`);
+
+    const botRestrictions = await steamBot.getTradeRestrictions();
+    logger.info(`📊 Ограничения бота: ${JSON.stringify(botRestrictions, null, 2)}`);
+
+    if (botRestrictions.error || !botRestrictions.canTrade) {
+      logger.error('❌ У аккаунта бота есть ограничения на торговлю!');
+      logger.error('💡 Возможные решения:');
+      logger.error('   - Проверьте что Steam Guard активен более 7 дней');
+      logger.error('   - Убедитесь что аккаунт не имеет trade hold');
+      logger.error('   - Проверьте что аккаунт не ограничен Steam');
+      return;
+    }
+
     // Находим все pending и direct_trade_sent withdrawal
     const withdrawals = await Withdrawal.findAll({
       where: {
@@ -128,6 +145,15 @@ async function processPendingWithdrawals() {
           continue;
         }
 
+        // Валидируем Trade URL
+        const tradeUrlPattern = /^https:\/\/steamcommunity\.com\/tradeoffer\/new\/\?partner=\d+&token=[a-zA-Z0-9_-]+$/;
+        if (!tradeUrlPattern.test(tradeUrl)) {
+          logger.error(`❌ Некорректный Trade URL для withdrawal #${withdrawal.id}: ${tradeUrl}`);
+          await updateWithdrawalStatus(withdrawal, 'failed', 'Некорректный формат Trade URL');
+          errorCount++;
+          continue;
+        }
+
         // Ищем предметы в инвентаре бота
         const itemsToSend = [];
         const missingItems = [];
@@ -181,9 +207,28 @@ async function processPendingWithdrawals() {
         // Обновляем статус на processing
         await updateWithdrawalStatus(withdrawal, 'processing', 'Отправка trade offer');
 
-        // Отправляем trade offer
+        // Дополнительная диагностика перед отправкой
         logger.info(`📤 Отправка trade offer пользователю ${withdrawal.user.username}...`);
-        logger.info(`📤 Trade URL: ${tradeUrl.substring(0, 50)}...`);
+        logger.info(`📤 Trade URL: ${tradeUrl}`);
+
+        // Извлекаем partner ID для дополнительных проверок
+        const partnerMatch = tradeUrl.match(/partner=(\d+)/);
+        const tokenMatch = tradeUrl.match(/token=([a-zA-Z0-9_-]+)/);
+
+        if (!partnerMatch || !tokenMatch) {
+          logger.error(`❌ Не удалось извлечь partner ID или token из URL`);
+          await updateWithdrawalStatus(withdrawal, 'failed', 'Некорректный Trade URL - отсутствует partner или token');
+          errorCount++;
+          continue;
+        }
+
+        const partnerId = partnerMatch[1];
+        const token = tokenMatch[1];
+        logger.info(`🔍 Partner ID: ${partnerId}, Token: ${token.substring(0, 8)}...`);
+
+        // ВРЕМЕННО ОТКЛЮЧЕНА проверка профиля - отправляем трейд напрямую
+        logger.info(`⏭️ Пропускаем проверку профиля (может давать ложный 403), отправляем трейд напрямую`);
+
         const tradeResult = await steamBot.sendTrade(tradeUrl, itemsToSend.map(item => item.assetid || item.id), botInventory);
 
         if (tradeResult.success) {
@@ -214,12 +259,24 @@ async function processPendingWithdrawals() {
           successCount++;
         } else {
           logger.error(`❌ Ошибка отправки trade offer: ${tradeResult.message}`);
-          await updateWithdrawalStatus(withdrawal, 'failed', `Ошибка отправки: ${tradeResult.message}`);
+
+          // Улучшенные сообщения об ошибках для пользователя
+          let userMessage = `Ошибка отправки: ${tradeResult.message}`;
+
+          if (tradeResult.message.includes('15')) {
+            userMessage = 'Не удалось отправить trade offer. Возможные причины: устаревший Trade URL, закрытый профиль или ограничения Steam. Создайте новый Trade URL в Steam и попробуйте снова.';
+          } else if (tradeResult.message.includes('There was an error sending')) {
+            userMessage = 'Ошибка Steam API. Попробуйте создать новый Trade URL: Steam → Профиль → Изменить профиль → Настройки торговли → Создать новую URL';
+          } else if (tradeResult.message.includes('partner')) {
+            userMessage = 'Проблема с Trade URL. Убедитесь что Trade URL корректный и создан недавно.';
+          }
+
+          await updateWithdrawalStatus(withdrawal, 'failed', userMessage);
           errorCount++;
         }
 
-        // Задержка между withdrawal
-        await delay(5000);
+        // Задержка между withdrawal (увеличена для избежания rate limiting)
+        await delay(10000);
 
       } catch (error) {
         logger.error(`💥 Ошибка обработки withdrawal #${withdrawal.id}:`, error);
