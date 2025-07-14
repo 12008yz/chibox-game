@@ -559,6 +559,6 @@ if (require.main === module) {
     })
     .catch(error => {
       console.error('❌ Ошибка настройки системы кейсов:', error);
-      process.exit(1);
-    });
+      process.exit(1) ;
+    }); 
 }
