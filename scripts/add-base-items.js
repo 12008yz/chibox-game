@@ -5,6 +5,7 @@ const db = require('../models');
 // Импортируем новые сервисы
 const SteamPriceService = require('../services/steamPriceService');
 const FixDropWeights = require('./fix-drop-weights');
+const { parseImageFromSteamPage } = require('./parse-item-images');
 
 // Импортируем полный список URLs
 const COMPLETE_ITEMS_URLS = require('../utils/linkItems-complete');
@@ -189,8 +190,9 @@ async function processItem(url, originalRarity, caseType) {
     // Создаем ссылку на Steam Market
     const steamMarketUrl = `https://steamcommunity.com/market/listings/730/${encodeURIComponent(marketHashName)}`;
 
-    // Генерируем изображение предмета
-    const imageUrl = url;
+    // Парсим изображение предмета со страницы Steam Market
+    console.log(`🖼️  Парсим изображение для: ${marketHashName}`);
+    const imageUrl = await parseImageFromSteamPage(url) || url;
 
     // Извлекаем детали предмета
     const weaponType = extractWeaponType(marketHashName);
