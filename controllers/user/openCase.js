@@ -35,14 +35,14 @@ async function openCase(req, res) {
 
           const timeString = `${hours}ч ${minutes}м ${seconds}с`;
 
-          return res.status(404).json({ success: false, message: `Не найден неоткрытый кейс для пользователя. Следующий кейс будет доступен через ${timeString}`, next_case_available_time: user.next_case_available_time });
+          return res.status(404).json({ success: false, message: `Не найден неоткрытый кейс для пользователя.` });
         }
         // Если next_case_available_time не установлен, установим его на 1 час вперед
         const newNextCaseTime = new Date(new Date().getTime() + 60 * 60 * 1000);
         user.next_case_available_time = newNextCaseTime;
         await user.save();
 
-        return res.status(404).json({ success: false, message: `Не найден неоткрытый кейс для пользователя. Следующий кейс будет доступен через 1ч 0м 0с`, next_case_available_time: newNextCaseTime });
+        return res.status(404).json({ success: false, message: `Не найден неоткрытый кейс для пользователя.` });
       }
       caseId = userCase.id;
     }
@@ -97,7 +97,7 @@ async function openCase(req, res) {
 
       const timeString = `${hours}ч ${minutes}м ${seconds}с`;
 
-      return res.status(400).json({ success: false, message: `Следующий кейс будет доступен через ${timeString}`, next_case_available_time: user.next_case_available_time });
+      return res.status(400).json({ success: false, message: `Кейс временно недоступен` });
     }
 
     userCase = await db.Case.findOne({
