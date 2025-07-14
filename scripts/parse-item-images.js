@@ -63,10 +63,6 @@ async function getImageFromSteamAPI(marketHashName) {
     });
 
     if (response.data && response.data.success) {
-      // API не возвращает изображение напрямую, но мы можем построить URL
-      // Основываясь на стандартной структуре Steam
-      const baseImageUrl = 'https://community.fastly.steamstatic.com/economy/image/';
-
       // Пытаемся найти изображение через другой API endpoint
       const inventoryApiUrl = `https://steamcommunity.com/market/listings/730/${encodeURIComponent(marketHashName)}/render/?query=&start=0&count=1&currency=1&format=json`;
 
@@ -309,7 +305,8 @@ module.exports = {
   parseAllItemImages,
   parseSpecificItem,
   parseImageFromSteamPage,
-  updateItemImage
+  updateItemImage,
+  isValidSteamImageUrl
 };
 
 // Если скрипт запущен напрямую

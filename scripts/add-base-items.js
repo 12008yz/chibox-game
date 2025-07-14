@@ -5,7 +5,7 @@ const db = require('../models');
 // Импортируем новые сервисы
 const SteamPriceService = require('../services/steamPriceService');
 const FixDropWeights = require('./fix-drop-weights');
-const { parseImageFromSteamPage } = require('./parse-item-images');
+const { parseImageFromSteamPage, isValidSteamImageUrl } = require('./parse-item-images');
 
 // Импортируем полный список URLs
 const COMPLETE_ITEMS_URLS = require('../utils/linkItems-complete');
@@ -171,15 +171,15 @@ function isValidImageUrl(url) {
   return steamImageRegex.test(url) || url.includes('steamstatic.com/economy/image/');
 }
 
-// Функция для генерации стандартного URL изображения Steam
+// Функция для генерации стандартного URL изображения Steam или null
 function generateSteamImageUrl(marketHashName) {
-  // Создаем базовый placeholder URL для Steam изображений
-  // В реальности Steam использует hash-коды для изображений, но мы создадим стандартный шаблон
-  const encodedName = encodeURIComponent(marketHashName);
+  // Вместо создания некорректного URL, возвращаем null
+  // Это позволит фронтенду отображать placeholder или дефолтное изображение
+  console.log(`⚠️  Не удалось получить изображение для: ${marketHashName}, будет использован placeholder`);
+  return null;
 
-  // Используем стандартный формат Steam для изображений предметов
-  // Этот URL может не работать, но он корректно отформатирован
-  return `https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot621FAR17PLfYQJD_9W7m5O0mvLwOq7c2GkJscMi3-qZpI_2jlXj-0Y4NTv6JIaQJ1RvNVnV_VK7xujxxcjr75WdC5y7/360fx360f`;
+  // Альтернативно, можно вернуть URL стандартного placeholder'а:
+  // return 'https://community.fastly.steamstatic.com/economy/image/placeholder.png';
 }
 
 // Функция для обработки одного предмета с актуальными ценами
