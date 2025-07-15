@@ -1043,6 +1043,43 @@ class SteamBot {
       });
     });
   }
+
+  async getTradeOfferStatus(offerId) {
+    return new Promise((resolve, reject) => {
+      this.manager.getOffer(offerId, (err, offer) => {
+        if (err) {
+          logger.error(`Ошибка получения статуса трейда #${offerId}: ${err.message}`);
+          return reject(err);
+        }
+
+        logger.info(`Статус трейда #${offerId}: ${offer.state} (${this.getTradeStateText(offer.state)})`);
+
+        resolve({
+          state: offer.state,
+          stateText: this.getTradeStateText(offer.state),
+          offer: offer
+        });
+      });
+    });
+  }
+
+  getTradeStateText(state) {
+    const states = {
+      1: 'Invalid',
+      2: 'Active',
+      3: 'Accepted',
+      4: 'Countered',
+      5: 'Expired',
+      6: 'Canceled',
+      7: 'Declined',
+      8: 'InvalidItems',
+      9: 'ConfirmationRequired',
+      10: 'CanceledBySecondFactor',
+      11: 'InEscrow'
+    };
+
+    return states[state] || `Unknown(${state})`;
+  }
 }
 
 module.exports = SteamBot;

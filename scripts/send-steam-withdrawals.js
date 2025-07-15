@@ -125,16 +125,25 @@ async function processPendingWithdrawals() {
             logger.info(`🔍 Проверка статуса уже отправленного трейда #${withdrawal.tracking_data.trade_offer_id}`);
 
             try {
-              const confirmResult = await steamBot.confirmTradeOffer(withdrawal.tracking_data.trade_offer_id);
-              if (confirmResult.success) {
-                logger.info(`✅ Трейд #${withdrawal.tracking_data.trade_offer_id} подтвержден!`);
-                await updateWithdrawalStatus(withdrawal, 'completed', 'Трейд подтвержден и завершен');
+              const tradeStatus = await steamBot.getTradeOfferStatus(withdrawal.tracking_data.trade_offer_id);
+
+              if (tradeStatus.state === 3) { // TradeOfferState.Accepted
+                logger.info(`✅ Трейд #${withdrawal.tracking_data.trade_offer_id} принят пользователем!`);
+                await updateWithdrawalStatus(withdrawal, 'completed', 'Трейд принят пользователем');
                 successCount++;
+              } else if (tradeStatus.state === 7) { // TradeOfferState.Declined
+                logger.warn(`❌ Трейд #${withdrawal.tracking_data.trade_offer_id} отклонен пользователем`);
+                await updateWithdrawalStatus(withdrawal, 'failed', 'Трейд отклонен пользователем');
+                errorCount++;
+              } else if (tradeStatus.state === 8) { // TradeOfferState.Expired
+                logger.warn(`⏰ Трейд #${withdrawal.tracking_data.trade_offer_id} истек`);
+                await updateWithdrawalStatus(withdrawal, 'failed', 'Трейд истек');
+                errorCount++;
               } else {
-                logger.info(`⏳ Трейд #${withdrawal.tracking_data.trade_offer_id} еще ожидает подтверждения`);
+                logger.info(`⏳ Трейд #${withdrawal.tracking_data.trade_offer_id} еще ожидает ответа пользователя (статус: ${tradeStatus.state})`);
               }
             } catch (error) {
-              logger.warn(`⚠️ Ошибка проверки трейда: ${error.message}`);
+              logger.warn(`⚠️ Ошибка проверки статуса трейда: ${error.message}`);
             }
           }
           continue; // Переходим к следующему withdrawal
@@ -259,21 +268,7 @@ async function processPendingWithdrawals() {
 
         if (tradeResult.success) {
           logger.info(`✅ Trade offer отправлен! ID: ${tradeResult.tradeOfferId}`);
-
-          // Ждем немного и пытаемся подтвердить трейд
-          logger.info(`🔄 Попытка подтверждения трейда #${tradeResult.tradeOfferId}...`);
-          await delay(3000); // Ждем 3 секунды
-
-          try {
-            const confirmResult = await steamBot.confirmTradeOffer(tradeResult.tradeOfferId);
-            if (confirmResult.success) {
-              logger.info(`✅ Трейд #${tradeResult.tradeOfferId} подтвержден автоматически!`);
-            } else {
-              logger.warn(`⚠️ Не удалось подтвердить трейд автоматически: ${confirmResult.message}`);
-            }
-          } catch (confirmError) {
-            logger.warn(`⚠️ Ошибка автоподтверждения: ${confirmError.message}`);
-          }
+          logger.info(`📋 Трейд ожидает подтверждения получателем (пользователем)`);
 
           await updateWithdrawalStatus(withdrawal, 'direct_trade_sent', `Trade offer отправлен`, {
             trade_offer_id: tradeResult.tradeOfferId,
