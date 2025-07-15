@@ -22,7 +22,7 @@ async function getProfile(req, res) {
         'id', 'email', 'username', 'createdAt', 'updatedAt', 'role', 'is_email_verified',
         'level', 'xp', 'xp_to_next_level', 'level_bonus_percentage', 'total_xp_earned',
         'subscription_tier', 'subscription_purchase_date', 'subscription_expiry_date', 'subscription_days_left',
-        'cases_available', 'cases_opened_today', 'next_case_available_time', 'max_daily_cases',
+        'cases_available', 'cases_opened_today', 'total_cases_opened', 'next_case_available_time', 'max_daily_cases',
         'next_bonus_available_time', 'last_bonus_date', 'lifetime_bonuses_claimed', 'successful_bonus_claims',
         'drop_rate_modifier', 'achievements_bonus_percentage', 'subscription_bonus_percentage', 'total_drop_bonus_percentage',
         'balance',

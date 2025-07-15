@@ -162,6 +162,11 @@ module.exports = (sequelize) => {
       defaultValue: 0,
       comment: "Количество кейсов, открытых сегодня"
     },
+    total_cases_opened: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      comment: "Общее количество открытых кейсов за всю историю"
+    },
     next_case_available_time: {
       type: DataTypes.DATE,
       allowNull: true,
