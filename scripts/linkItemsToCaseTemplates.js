@@ -2,10 +2,12 @@ const db = require('../models');
 
 // Конфигурация соответствия кейсов и их origin
 const CASE_ITEM_MAPPING = {
-  'Ежедневный кейс (Уровень 1)': 'subscription_case',
-  'Ежедневный кейс (Уровень 2)': 'subscription_case',
-  'Ежедневный кейс (Уровень 3)': 'subscription_case',
-  'Покупной кейс': 'purchase_case',
+  'Ежедневный кейс - Бесплатный': 'subscription_case',
+  'Ежедневный кейс - Статус': 'subscription_case',
+  'Ежедневный кейс - Статус+': 'subscription_case',
+  'Ежедневный кейс - Статус++': 'subscription_case',
+  'Бонусный кейс': 'special_case',
+  'Стандартный кейс': 'purchase_case',
   'Премиум кейс': 'premium_case'
 };
 
@@ -38,9 +40,11 @@ async function linkItemsToCaseTemplates() {
         // Если точного соответствия нет, пытаемся определить по типу
         if (template.name.includes('Ежедневный') || template.type === 'daily') {
           originPattern = 'subscription_case';
-        } else if (template.name.includes('Покупной') || template.price && template.price <= 150) {
+        } else if (template.name.includes('Бонусный') || template.type === 'special') {
+          originPattern = 'special_case';
+        } else if (template.name.includes('Стандартный') || (template.price && template.price <= 150)) {
           originPattern = 'purchase_case';
-        } else if (template.name.includes('Премиум') || template.price && template.price > 150) {
+        } else if (template.name.includes('Премиум') || (template.price && template.price > 150)) {
           originPattern = 'premium_case';
         } else {
           console.warn(`⚠️  Не удалось определить тип для кейса: ${template.name}, используем все предметы`);
@@ -51,8 +55,12 @@ async function linkItemsToCaseTemplates() {
       // Получаем предметы для данного типа кейса
       let whereClause = { is_available: true };
 
-      // Для ежедневных кейсов (всех уровней подписки) используем ВСЕ предметы
-      if (originPattern === 'subscription_case' || template.name === 'Покупной кейс' || template.name === 'Премиум кейс') {
+      // Для всех кейсов используем ВСЕ предметы (независимо от origin)
+      if (originPattern === 'subscription_case' ||
+          originPattern === 'special_case' ||
+          originPattern === 'purchase_case' ||
+          originPattern === 'premium_case' ||
+          template.name.includes('кейс')) {
         console.log(`   🎯 ${template.name} - используем ВСЕ доступные предметы`);
         // whereClause остается только с is_available: true
       } else if (originPattern) {

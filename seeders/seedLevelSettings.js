@@ -1,5 +1,7 @@
 'use strict';
 
+const { v4: uuidv4 } = require('uuid');
+
 module.exports = {
   up: async (queryInterface, Sequelize) => {
     const levels = [];
@@ -38,7 +40,7 @@ module.exports = {
       const isMilestone = level % 10 === 0; // Каждый 10-й уровень - важный
 
       levels.push({
-        id: `level-${level.toString().padStart(3, '0')}-${'x'.repeat(8)}-${'y'.repeat(4)}-${'z'.repeat(4)}-${'w'.repeat(12)}`.replace(/[xyz]/g, () => Math.floor(Math.random() * 16).toString(16)),
+        id: uuidv4(),
         level: level,
         xp_required: totalXpRequired,
         xp_to_next_level: xpToNextLevel,
