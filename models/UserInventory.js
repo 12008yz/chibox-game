@@ -56,6 +56,26 @@ module.exports = (sequelize) => {
       },
       comment: "ID кейса, из которого был получен предмет (если source = 'case')"
     },
+    item_type: {
+      type: DataTypes.ENUM('item', 'case'),
+      allowNull: false,
+      defaultValue: 'item',
+      comment: "Тип предмета: обычный предмет или кейс"
+    },
+    case_template_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'case_templates',
+        key: 'id'
+      },
+      comment: "ID шаблона кейса, если это кейс в инвентаре"
+    },
+    expires_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Дата истечения срока действия кейса/предмета"
+    },
     transaction_id: {
       type: DataTypes.UUID,
       allowNull: true,
@@ -96,6 +116,15 @@ module.exports = (sequelize) => {
       },
       {
         fields: ['transaction_id']
+      },
+      {
+        fields: ['item_type']
+      },
+      {
+        fields: ['case_template_id']
+      },
+      {
+        fields: ['user_id', 'item_type']
       }
     ]
   });
@@ -125,6 +154,11 @@ module.exports = (sequelize) => {
     UserInventory.belongsTo(models.Withdrawal, {
       foreignKey: 'withdrawal_id',
       as: 'withdrawal'
+    });
+
+    UserInventory.belongsTo(models.CaseTemplate, {
+      foreignKey: 'case_template_id',
+      as: 'case_template'
     });
   };
 

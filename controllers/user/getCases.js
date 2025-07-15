@@ -35,14 +35,23 @@ async function getCases(req, res) {
         attributes: ['id', 'subscription_tier', 'paid_cases_bought_today', 'last_reset_date']
       });
 
-      userCases = await db.Case.findAll({
-        where: { user_id: userId, is_opened: false },
+      // Получаем кейсы из инвентаря
+      userCases = await db.UserInventory.findAll({
+        where: {
+          user_id: userId,
+          item_type: 'case',
+          status: 'inventory',
+          [db.Sequelize.Op.or]: [
+            { expires_at: null },
+            { expires_at: { [db.Sequelize.Op.gt]: new Date() } }
+          ]
+        },
         include: [{
           model: db.CaseTemplate,
-          as: 'template',
-          attributes: ['id', 'name', 'type', 'color_scheme', 'image_url']
+          as: 'case_template',
+          attributes: ['id', 'name', 'type', 'color_scheme', 'image_url', 'description', 'price']
         }],
-        order: [['received_date', 'DESC']]
+        order: [['acquisition_date', 'DESC']]
       });
     }
 
@@ -57,10 +66,13 @@ async function getCases(req, res) {
       paid_cases: paidCases,
       user_cases: userCases.map(c => ({
         id: c.id,
-        name: c.name,
-        received_date: c.received_date,
-        template: c.template,
-        is_paid: c.is_paid
+        inventory_case_id: c.id,
+        name: c.case_template?.name || 'Неизвестный кейс',
+        acquisition_date: c.acquisition_date,
+        expires_at: c.expires_at,
+        case_template: c.case_template,
+        source: c.source,
+        is_paid: c.source === 'purchase'
       })),
       user_subscription_tier: user?.subscription_tier || 0
     });

@@ -104,20 +104,20 @@ async function buyCase(req, res) {
 
       // Используем выбранный шаблон кейса
 
-      // Создаем кейсы
-      const cases = [];
+      // Создаем кейсы в инвентаре
+      const inventoryCases = [];
       for (let i = 0; i < allowedQuantity; i++) {
-        const newCase = await db.Case.create({
-          name: caseTemplate.name,
-          description: caseTemplate.description || 'Кейс, купленный за деньги',
-          template_id: caseTemplate.id,
+        const inventoryCase = await db.UserInventory.create({
           user_id: userId,
-          is_paid: true,
-          purchase_price: CASE_PRICE,
+          item_id: null, // Для кейсов item_id не используется
+          item_type: 'case',
+          case_template_id: caseTemplate.id,
           source: 'purchase',
-          received_date: new Date()
+          status: 'inventory',
+          acquisition_date: new Date(),
+          expires_at: caseTemplate.availability_end || null // Устанавливаем срок действия если есть
         });
-        cases.push(newCase);
+        inventoryCases.push(inventoryCase);
       }
 
       // Добавляем опыт за покупку
@@ -135,7 +135,7 @@ async function buyCase(req, res) {
         data: {
           quantity: allowedQuantity,
           price: totalPrice,
-          case_ids: cases.map(c => c.id)
+          inventory_case_ids: inventoryCases.map(c => c.id)
         }
       });
 
@@ -143,14 +143,16 @@ async function buyCase(req, res) {
 
       return res.json({
         success: true,
-        message: `Успешно куплено ${allowedQuantity} кейс(ов)`,
-        cases: cases.map(c => ({
+        message: `Успешно куплено ${allowedQuantity} кейс(ов) в инвентарь`,
+        inventory_cases: inventoryCases.map(c => ({
           id: c.id,
-          name: c.name,
-          purchase_price: c.purchase_price,
-          received_date: c.received_date,
-          template_id: c.template_id,
-          template_name: caseTemplate.name
+          case_template_id: c.case_template_id,
+          template_name: caseTemplate.name,
+          template_image: caseTemplate.image_url,
+          purchase_price: CASE_PRICE,
+          acquisition_date: c.acquisition_date,
+          expires_at: c.expires_at,
+          item_type: c.item_type
         })),
         balance: user.balance,
         paid_cases_bought_today: user.paid_cases_bought_today,
