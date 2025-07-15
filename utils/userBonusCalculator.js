@@ -6,11 +6,9 @@ const db = require('../models');
  * @returns {number} Бонус в процентах
  */
 function calculateLevelBonus(level) {
-    if (level <= 1) return 0;
-
-    // Бонус от уровня: 0.02% за каждый уровень свыше 1-го
+    // Бонус от уровня: 0.02% за каждый уровень
     // Максимальный бонус от уровня: 2% на 100 уровне
-    const levelBonus = (level - 1) * 0.02;
+    const levelBonus = level * 0.02;
     return Math.min(levelBonus, 2.0); // Максимум 2%
 }
 
