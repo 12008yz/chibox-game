@@ -49,19 +49,15 @@ class SteamBot {
     instance = this;
   }
 
-  // Настройка обработчиков событий для трейдов
   setupTradeOfferEvents() {
-    // Событие при получении нового трейда
     this.manager.on('newOffer', (offer) => {
       logger.info(`Получено новое торговое предложение #${offer.id} от ${offer.partner.getSteamID64()}`);
     });
 
-    // Событие при изменении статуса трейда
     this.manager.on('sentOfferChanged', (offer, oldState) => {
       logger.info(`Изменение статуса трейда #${offer.id}: ${oldState} -> ${offer.state}`);
     });
 
-    // Событие успешного обмена
     this.manager.on('sentOfferAccepted', async (offer) => {
       logger.info(`Трейд #${offer.id} принят!`);
 
@@ -79,15 +75,12 @@ class SteamBot {
       }
     });
 
-    // Событие отклонения трейда
     this.manager.on('sentOfferDeclined', (offer) => {
       logger.warn(`Трейд #${offer.id} отклонен пользователем!`);
     });
   }
 
-  // Настройка автоматического подтверждения
   setupAutoConfirmation() {
-    // Событие появления новых подтверждений
     this.community.on('confKeyNeeded', (tag, callback) => {
       logger.info('Требуется ключ подтверждения');
       const time = Math.floor(Date.now() / 1000);
@@ -95,48 +88,61 @@ class SteamBot {
       callback(null, confirmationKey);
     });
 
-    // Автоматическое подтверждение исходящих трейдов
     this.community.on('newConfirmation', (confirmation) => {
       logger.info(`Новое подтверждение: ${confirmation.type} для ${confirmation.creator}`);
 
-      // Подтверждаем исходящие трейды автоматически
-      if (confirmation.type === 2) { // 2 = trade confirmation
+      if (confirmation.type === 2) {
         logger.info(`Автоматическое подтверждение трейда #${confirmation.creator}`);
-        this.community.acceptConfirmationForObject(this.identitySecret, confirmation.creator, (err) => {
+
+        confirmation.respond(true, (err) => {
           if (err) {
-            logger.error(`Ошибка автоподтверждения трейда #${confirmation.creator}:`, err);
+            logger.error(`Ошибка подтверждения трейда #${confirmation.creator}:`, err);
           } else {
-            logger.info(`✅ Трейд #${confirmation.creator} автоматически подтвержден`);
+            logger.info(`✅ Трейд #${confirmation.creator} подтвержден автоматически`);
           }
         });
       }
     });
 
-    // Событие готовности confirmation checker
     this.community.on('confirmationCheckerStarted', () => {
-      logger.info('✅ Confirmation checker запущен и готов к работе');
+      logger.info('Confirmation Checker запущен');
       this.confirmationCheckerReady = true;
+    });
+
+    // Дополнительный обработчик для старых версий
+    this.community.on('confKeyNeeded', (tag, callback) => {
+      logger.info(`Генерация ключа подтверждения для tag: ${tag}`);
+      const time = Math.floor(Date.now() / 1000);
+      const key = SteamTotp.getConfirmationKey(this.identitySecret, time, tag);
+      callback(null, key);
     });
   }
 
-  // Ожидание готовности confirmation checker
-  async waitForConfirmationChecker(timeout = 10000) {
-    const startTime = Date.now();
-    while (!this.confirmationCheckerReady && (Date.now() - startTime) < timeout) {
-      logger.info('Ожидание готовности confirmation checker...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
+  async waitForConfirmationChecker(timeout = 15000) {
+    return new Promise((resolve) => {
+      const startTime = Date.now();
 
-    if (!this.confirmationCheckerReady) {
-      logger.warn('Confirmation checker не готов после ожидания');
-      return false;
-    }
+      const checkReady = () => {
+        if (this.confirmationCheckerReady) {
+          logger.info('Confirmation checker готов к работе');
+          resolve(true);
+          return;
+        }
 
-    logger.info('Confirmation checker готов к работе');
-    return true;
+        if (Date.now() - startTime > timeout) {
+          logger.warn('Confirmation checker не готов после ожидания');
+          resolve(false);
+          return;
+        }
+
+        logger.info('Ожидание готовности confirmation checker...');
+        setTimeout(checkReady, 1000);
+      };
+
+      checkReady();
+    });
   }
 
-  // Метод для подтверждения всех ожидающих подтверждений
   async confirmAllPendingConfirmations() {
     logger.info('Проверка и подтверждение всех ожидающих подтверждений...');
 
@@ -160,7 +166,6 @@ class SteamBot {
         let totalToConfirm = 0;
 
         confirmations.forEach(confirmation => {
-          // Подтверждаем только исходящие трейды (type 2)
           if (confirmation.type === 2) {
             totalToConfirm++;
             logger.info(`Подтверждение трейда #${confirmation.creator}...`);
@@ -176,7 +181,6 @@ class SteamBot {
                 confirmedCount++;
               }
 
-              // Проверяем, все ли подтверждения обработаны
               if (confirmedCount + (confirmations.filter(c => c.type === 2).length - totalToConfirm) >= totalToConfirm) {
                 resolve(confirmedCount > 0);
               }
@@ -191,223 +195,156 @@ class SteamBot {
     });
   }
 
-  // Улучшенный метод для подтверждения конкретного трейда с retry
-  async confirmTradeOffer(offerId, maxRetries = 3) {
+  async confirmTradeOffer(offerId, maxRetries = 5) {
+    logger.info(`Подтверждение трейда #${offerId}...`);
+
+    // Метод 1: Автоматическое подтверждение через Confirmation Checker
+    if (this.confirmationCheckerReady) {
+      logger.info('Используем автоматическое подтверждение...');
+      const autoResult = await this._tryAutoConfirm(offerId);
+      if (autoResult.success) {
+        return autoResult;
+      }
+    }
+
+    // Метод 2: Ручное подтверждение через Steam Community API
+    logger.info('Пробуем ручное подтверждение...');
+    const manualResult = await this._tryManualConfirm(offerId, maxRetries);
+    if (manualResult.success) {
+      return manualResult;
+    }
+
+    // Метод 3: Подтверждение через мобильные подтверждения
+    logger.info('Пробуем подтверждение через мобильный API...');
+    const mobileResult = await this._tryMobileConfirm(offerId);
+    if (mobileResult.success) {
+      return mobileResult;
+    }
+
+    return {
+      success: false,
+      message: 'Не удалось подтвердить трейд всеми доступными методами'
+    };
+  }
+
+  async _tryAutoConfirm(offerId) {
+    try {
+      // Ждем появления подтверждения
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      return new Promise((resolve) => {
+        let confirmed = false;
+        const timeout = setTimeout(() => {
+          if (!confirmed) {
+            confirmed = true;
+            resolve({ success: false, message: 'Timeout автоподтверждения' });
+          }
+        }, 10000);
+
+        const checkConfirmations = () => {
+          this.community.getConfirmations((err, confirmations) => {
+            if (err || !confirmations) {
+              if (!confirmed) {
+                confirmed = true;
+                clearTimeout(timeout);
+                resolve({ success: false, message: 'Ошибка получения подтверждений' });
+              }
+              return;
+            }
+
+            const tradeConfirmation = confirmations.find(conf =>
+              conf.type === 2 && conf.creator.toString() === offerId.toString()
+            );
+
+            if (tradeConfirmation) {
+              tradeConfirmation.respond(true, (respondErr) => {
+                if (!confirmed) {
+                  confirmed = true;
+                  clearTimeout(timeout);
+                  if (respondErr) {
+                    resolve({ success: false, message: respondErr.message });
+                  } else {
+                    resolve({ success: true, message: 'Трейд подтвержден автоматически' });
+                  }
+                }
+              });
+            } else {
+              setTimeout(checkConfirmations, 1000);
+            }
+          });
+        };
+
+        checkConfirmations();
+      });
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  async _tryManualConfirm(offerId, maxRetries) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      logger.info(`Попытка подтверждения трейда #${offerId} (попытка ${attempt}/${maxRetries})...`);
+      try {
+        logger.info(`Попытка ручного подтверждения #${attempt}/${maxRetries}`);
 
-      const result = await this._tryConfirmTrade(offerId);
+        const result = await new Promise((resolve) => {
+          this.community.acceptConfirmationForObject(this.identitySecret, offerId, (err) => {
+            if (err) {
+              resolve({ success: false, message: err.message });
+            } else {
+              resolve({ success: true, message: 'Трейд подтвержден вручную' });
+            }
+          });
+        });
 
-      if (result.success) {
-        return result;
-      }
+        if (result.success) {
+          return result;
+        }
 
-      if (attempt < maxRetries) {
-        logger.warn(`Попытка ${attempt} неудачна, ждем 3 секунды перед повтором...`);
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+        }
+      } catch (error) {
+        logger.warn(`Ошибка попытки ${attempt}: ${error.message}`);
       }
     }
 
-    // Последняя попытка через ручное подтверждение
-    logger.info(`Все автоматические попытки исчерпаны, пробуем ручное подтверждение трейда #${offerId}...`);
-    return await this._manualConfirmTrade(offerId);
+    return { success: false, message: 'Все попытки ручного подтверждения исчерпаны' };
   }
 
-  // Приватный метод для одной попытки подтверждения
-  async _tryConfirmTrade(offerId) {
-    return new Promise((resolve) => {
-      this.manager.getOffer(offerId, (err, offer) => {
-        if (err) {
-          logger.error(`Ошибка получения трейда #${offerId}:`, err);
-          return resolve({
-            success: false,
-            message: err.message
-          });
-        }
-
-        if (offer.state !== 2) {
-          if (offer.state === 9) {
-            logger.info(`✅ Трейд #${offerId} уже завершен (принят получателем)`);
-            return resolve({
-              success: true,
-              message: 'Трейд уже завершен'
-            });
-          } else if (offer.state === 3) {
-            logger.info(`✅ Трейд #${offerId} уже принят`);
-            return resolve({
-              success: true,
-              message: 'Трейд уже принят'
-            });
-          } else {
-            logger.info(`Трейд #${offerId} в состоянии ${offer.state} (не требует подтверждения)`);
-            return resolve({
-              success: true,
-              message: `Трейд в состоянии ${offer.state}`
-            });
-          }
-        }
-
-        // Проверяем что метод confirm существует
-        if (typeof offer.confirm !== 'function') {
-          logger.warn(`Метод confirm недоступен для трейда #${offerId}`);
-          return resolve({
-            success: false,
-            message: 'Метод confirm недоступен'
-          });
-        }
-
-        offer.confirm((confirmErr) => {
-          if (confirmErr) {
-            logger.error(`Ошибка подтверждения трейда #${offerId}:`, confirmErr);
-            return resolve({
-              success: false,
-              message: confirmErr.message
-            });
-          }
-
-          logger.info(`✅ Трейд #${offerId} успешно подтвержден`);
-          resolve({
-            success: true,
-            message: 'Трейд подтвержден'
-          });
-        });
-      });
-    });
-  }
-
-  // Ручное подтверждение через API
-  async _manualConfirmTrade(offerId) {
-    return new Promise((resolve) => {
+  async _tryMobileConfirm(offerId) {
+    try {
       const time = Math.floor(Date.now() / 1000);
-      const allowKey = SteamTotp.getConfirmationKey(this.identitySecret, time, 'allow');
+      const confirmationKey = SteamTotp.getConfirmationKey(this.identitySecret, time, 'conf');
 
-      this.community.getConfirmations(time, allowKey, (err, confirmations) => {
-        if (err) {
-          logger.error(`Ошибка получения подтверждений для трейда #${offerId}:`, err);
-          return resolve({
-            success: false,
-            message: 'Ошибка получения подтверждений'
-          });
-        }
-
-        const confirmation = confirmations.find(conf =>
-          conf.type === 2 && conf.creator === offerId.toString()
-        );
-
-        if (!confirmation) {
-          logger.warn(`Подтверждение для трейда #${offerId} не найдено`);
-          return resolve({
-            success: false,
-            message: 'Подтверждение не найдено'
-          });
-        }
-
-        const acceptTime = Math.floor(Date.now() / 1000);
-        const acceptKey = SteamTotp.getConfirmationKey(this.identitySecret, acceptTime, 'accept');
-
-        this.community.respondToConfirmation(confirmation.id, confirmation.key, acceptTime, acceptKey, true, (confirmErr) => {
-          if (confirmErr) {
-            logger.error(`Ошибка ручного подтверждения трейда #${offerId}:`, confirmErr);
-            return resolve({
-              success: false,
-              message: confirmErr.message
-            });
+      return new Promise((resolve) => {
+        this.community.getConfirmations(time, confirmationKey, (err, confirmations) => {
+          if (err || !confirmations) {
+            return resolve({ success: false, message: 'Ошибка получения мобильных подтверждений' });
           }
 
-          logger.info(`✅ Трейд #${offerId} подтвержден вручную`);
-          resolve({
-            success: true,
-            message: 'Трейд подтвержден вручную'
+          const tradeConfirmation = confirmations.find(conf =>
+            conf.type === 2 && conf.creator.toString() === offerId.toString()
+          );
+
+          if (!tradeConfirmation) {
+            return resolve({ success: false, message: 'Подтверждение не найдено' });
+          }
+
+          const acceptKey = SteamTotp.getConfirmationKey(this.identitySecret, time, 'allow');
+          tradeConfirmation.respond(time, acceptKey, true, (respondErr) => {
+            if (respondErr) {
+              resolve({ success: false, message: respondErr.message });
+            } else {
+              resolve({ success: true, message: 'Трейд подтвержден через мобильный API' });
+            }
           });
         });
       });
-    });
-  }
-
-  async login() {
-    if (hasLoggedIn) {
-      logger.info('Already logged in, skipping login.');
-      return;
+    } catch (error) {
+      return { success: false, message: error.message };
     }
-    return new Promise(async (resolve, reject) => {
-      // Генерируем код 2FA для первого логина
-      const twoFactorCode = SteamTotp.generateAuthCode(this.sharedSecret);
-      const logOnOptions = {
-        accountName: this.accountName,
-        password: this.password,
-        twoFactorCode: twoFactorCode
-      };
-      logger.info('Attempting Steam login...');
-      this.client.logOn(logOnOptions);
-
-      this.client.once('loggedOn', () => {
-        this.loggedIn = true;
-        hasLoggedIn = true;
-        logger.info('Logged into Steam as ' + this.client.steamID.getSteam3RenderedID());
-        // Ждать webSession!
-      });
-
-      this.client.once('webSession', async (sessionID, cookies) => {
-        logger.info('Steam webSession received, setting cookies to manager & community...');
-        this.manager.setCookies(cookies);
-        this.community.setCookies(cookies);
-
-        // Запускаем confirmation checker
-        this.community.startConfirmationChecker(10000, this.identitySecret);
-        logger.info('Автоматическое подтверждение настроено через startConfirmationChecker');
-
-        // Устанавливаем API ключ если он есть
-        if (this.steamApiKey) {
-          this.manager.apiKey = this.steamApiKey;
-          logger.info('Steam API key set for Trade Manager');
-        } else {
-          logger.warn('Steam API key not provided - trade functionality may be limited');
-        }
-
-        // Сохраняем session данные для Steam Market
-        this.sessionId = sessionID;
-        this.cookies = cookies;
-
-        // Извлекаем steamLoginSecure из cookies
-        const steamLoginSecureCookie = cookies.find(cookie => cookie.startsWith('steamLoginSecure='));
-        if (steamLoginSecureCookie) {
-          this.steamLoginSecure = steamLoginSecureCookie.replace('steamLoginSecure=', '').split(';')[0];
-          logger.info('Steam session data extracted successfully');
-        }
-
-        logger.info('Cookies set, confirmation checker started, bot now fully operational.');
-
-        // ВАЖНО: Ждем инициализации confirmation checker
-        logger.info('Ожидание инициализации confirmation checker...');
-        await new Promise(resolve => setTimeout(resolve, 8000)); // 8 секунд задержки
-
-        // Дополнительная проверка готовности
-        await this.waitForConfirmationChecker(5000);
-
-        logger.info('✅ Steam bot полностью готов к работе с подтверждениями');
-        resolve();
-      });
-
-      this.client.once('error', (err) => {
-        logger.error('Steam login error:', err);
-        reject(err);
-      });
-
-      // Steam Guard обработка - всегда отправлять актуальный мобильный код из sharedSecret
-      this.client.on('steamGuard', (domain, callback) => {
-        if (!domain) {
-          const code = SteamTotp.generateAuthCode(this.sharedSecret);
-          logger.info('Generated Steam Guard (2FA Mobile) code:');
-          callback(code);
-        } else {
-          logger.error('Steam Guard requires code from email:', domain);
-          callback(null); // Если вдруг нужен код с почты — ручное вмешательство
-        }
-      });
-    });
   }
 
-  // Получение информации о предмете
   async getItemDetails(appId, assetId, contextId = 2) {
     return new Promise((resolve, reject) => {
       this.community.getAssetDetails(appId, assetId, contextId, true, (err, details) => {
@@ -421,7 +358,6 @@ class SteamBot {
     });
   }
 
-  // Получение полного инвентаря бота для определенной игры
   async getInventory(appId = 730, contextId = 2, tradableOnly = true) {
     return new Promise((resolve, reject) => {
       logger.info(`Загрузка инвентаря для игры ${appId}...`);
@@ -436,14 +372,11 @@ class SteamBot {
     });
   }
 
-  // Поиск предмета в инвентаре по market_hash_name и состоянию
   async findItemInInventory(marketHashName, exterior = null, appId = 730, contextId = 2) {
     try {
       const inventory = await this.getInventory(appId, contextId, true);
 
-      // Если указано состояние (exterior), ищем с учетом его
       if (exterior) {
-        // Подготавливаем имя для поиска
         let fullName = marketHashName;
         if (!fullName.includes(exterior)) {
           fullName = `${marketHashName} (${exterior})`;
@@ -457,7 +390,6 @@ class SteamBot {
           return item;
         }
       } else {
-        // Ищем без учета состояния (просто по названию)
         logger.info(`Поиск предмета ${marketHashName} в инвентаре...`);
         const item = inventory.find(item => item.market_hash_name.includes(marketHashName));
 
@@ -479,10 +411,93 @@ class SteamBot {
     throw new Error('Buying items programmatically is not supported directly by SteamUser library.');
   }
 
-  // Отправка торгового предложения с автоподтверждением
+  async checkPartnerProfile(partnerSteamId) {
+    return new Promise((resolve) => {
+      logger.info(`Проверка профиля получателя: ${partnerSteamId}`);
+
+      this.community.getSteamUser(partnerSteamId, (err, user) => {
+        if (err) {
+          logger.warn(`Не удалось получить информацию о профиле: ${err.message}`);
+          return resolve({
+            accessible: false,
+            error: err.message,
+            canTrade: false
+          });
+        }
+
+        const profileInfo = {
+          accessible: true,
+          steamId: partnerSteamId,
+          profileName: user.name || 'Unknown',
+          profileState: user.privacyState || 'Unknown',
+          canTrade: user.privacyState === 3,
+          tradeEnabled: !user.tradeBanState || user.tradeBanState === 'None',
+          vacBanned: user.vacBanned || false,
+          communityBanned: user.communityBanned || false
+        };
+
+        logger.info(`Информация о профиле: ${JSON.stringify(profileInfo)}`);
+        resolve(profileInfo);
+      });
+    });
+  }
+
+  async validateTradeUrl(tradeUrl) {
+    const urlPattern = /^https:\/\/steamcommunity\.com\/tradeoffer\/new\/\?partner=(\d+)&token=([a-zA-Z0-9_-]+)$/;
+    const match = tradeUrl.match(urlPattern);
+
+    if (!match) {
+      return {
+        valid: false,
+        error: 'Неверный формат Trade URL'
+      };
+    }
+
+    const partnerId = match[1];
+    const token = match[2];
+
+    if (partnerId.length < 8 || partnerId.length > 12) {
+      return {
+        valid: false,
+        error: 'Некорректный partner ID'
+      };
+    }
+
+    if (token.length < 8) {
+      return {
+        valid: false,
+        error: 'Слишком короткий токен'
+      };
+    }
+
+    return {
+      valid: true,
+      partnerId,
+      token,
+      partnerSteamId: (BigInt(partnerId) + BigInt('76561197960265728')).toString()
+    };
+  }
+
   async sendTradeOffer(partnerSteamId, itemsToGive, itemsToReceive = []) {
     return new Promise(async (resolve, reject) => {
+      if (!this.loggedIn) {
+        return resolve({
+          success: false,
+          message: 'Бот не авторизован'
+        });
+      }
+
+      if (!this.manager) {
+        return resolve({
+          success: false,
+          message: 'Trade Manager не инициализирован'
+        });
+      }
+
+      logger.info(`Создание торгового предложения для ${partnerSteamId}. Отправка ${itemsToGive.length} предметов, получение ${itemsToReceive.length} предметов.`);
+
       const offer = this.manager.createOffer(partnerSteamId);
+
       if (itemsToGive.length > 0) {
         offer.addMyItems(itemsToGive);
       }
@@ -490,23 +505,33 @@ class SteamBot {
         offer.addTheirItems(itemsToReceive);
       }
 
-      logger.info(`Создание торгового предложения для ${partnerSteamId}. Отправка ${itemsToGive.length} предметов, получение ${itemsToReceive.length} предметов.`);
+      offer.setMessage('Вывод предмета с сайта ChiBox');
 
       offer.send(async (err, status) => {
         if (err) {
           logger.error('Failed to send trade offer:', err);
+
+          let errorMessage = err.message;
+          if (err.eresult === 15) {
+            errorMessage = 'Trade URL устарел или недействителен. Создайте новый Trade URL в Steam';
+          } else if (err.eresult === 20) {
+            errorMessage = 'Профиль получателя недоступен или ограничен';
+          } else if (err.eresult === 25) {
+            errorMessage = 'У получателя есть ограничения на торговлю';
+          }
+
           return resolve({
             success: false,
-            message: err.message,
+            message: errorMessage,
+            eresult: err.eresult,
             error: err
           });
         }
+
         logger.info(`Trade offer sent. Status: ${status}, Offer ID: ${offer.id}`);
 
-        // Ждем немного перед попыткой подтверждения
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        // Пытаемся подтвердить трейд
         const confirmResult = await this.confirmTradeOffer(offer.id);
 
         resolve({
@@ -520,63 +545,86 @@ class SteamBot {
     });
   }
 
-  // Метод для отправки трейда с Trade URL (удобная обертка)
-  async sendTrade(tradeUrl, assetIds, inventory = null) {
-    try {
-      // Извлекаем partner ID из Trade URL
-      const partnerMatch = tradeUrl.match(/partner=(\d+)/);
-      if (!partnerMatch) {
-        return {
-          success: false,
-          message: 'Неверный формат Trade URL - не найден partner ID'
-        };
-      }
+  // Метод для отправки трейда с Trade URL (удобная обертка) с retry-логикой
+  async sendTrade(tradeUrl, assetIds, inventory = null, maxRetries = 3) {
+    let lastError = null;
 
-      // Преобразуем partner ID в SteamID64
-      const partnerId = partnerMatch[1];
-      const partnerSteamId = (BigInt(partnerId) + BigInt('76561197960265728')).toString();
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        logger.info(`Попытка отправки трейда #${attempt}/${maxRetries}`);
 
-      logger.info(`Извлечен partner ID: ${partnerId}, SteamID64: ${partnerSteamId}`);
-
-      // Получаем предметы из инвентаря по assetIds
-      const botInventory = inventory || await this.getInventory();
-      const itemsToGive = [];
-
-      for (const assetId of assetIds) {
-        const item = botInventory.find(i => i.assetid === assetId.toString());
-        if (item) {
-          itemsToGive.push(item);
-          logger.info(`Добавлен предмет для трейда: ${item.market_hash_name} (${item.assetid})`);
-        } else {
-          logger.error(`Предмет с assetid ${assetId} не найден в инвентаре`);
+        const partnerMatch = tradeUrl.match(/partner=(\d+)/);
+        if (!partnerMatch) {
           return {
             success: false,
-            message: `Предмет с assetid ${assetId} не найден в инвентаре`
+            message: 'Неверный формат Trade URL - не найден partner ID'
           };
         }
+
+        const partnerId = partnerMatch[1];
+        const partnerSteamId = (BigInt(partnerId) + BigInt('76561197960265728')).toString();
+
+        logger.info(`Извлечен partner ID: ${partnerId}, SteamID64: ${partnerSteamId}`);
+
+        const botInventory = inventory || await this.getInventory();
+        const itemsToGive = [];
+
+        for (const assetId of assetIds) {
+          const item = botInventory.find(i => i.assetid === assetId.toString());
+          if (item) {
+            itemsToGive.push(item);
+            logger.info(`Добавлен предмет для трейда: ${item.market_hash_name} (${item.assetid})`);
+          } else {
+            logger.error(`Предмет с assetid ${assetId} не найден в инвентаре`);
+            return {
+              success: false,
+              message: `Предмет с assetid ${assetId} не найден в инвентаре`
+            };
+          }
+        }
+
+        if (itemsToGive.length === 0) {
+          return {
+            success: false,
+            message: 'Не найдено предметов для отправки'
+          };
+        }
+
+        const result = await this.sendTradeOffer(partnerSteamId, itemsToGive, []);
+
+        if (result.success) {
+          return result;
+        }
+
+        lastError = result;
+
+        if (result.eresult === 15 || result.eresult === 20 || result.eresult === 84) {
+          logger.warn(`Ошибка ${result.eresult} - возможна временная проблема. Повтор через ${attempt * 2} секунд...`);
+
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+            continue;
+          }
+        } else {
+          break;
+        }
+
+      } catch (error) {
+        lastError = { success: false, message: error.message, error };
+        logger.error(`Ошибка при отправке трейда (попытка ${attempt}):`, error);
+
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, attempt * 2000));
+        }
       }
-
-      if (itemsToGive.length === 0) {
-        return {
-          success: false,
-          message: 'Не найдено предметов для отправки'
-        };
-      }
-
-      // Отправляем трейд
-      return await this.sendTradeOffer(partnerSteamId, itemsToGive, []);
-
-    } catch (error) {
-      logger.error('Ошибка при отправке трейда:', error);
-      return {
-        success: false,
-        message: error.message,
-        error
-      };
     }
+
+    return lastError || {
+      success: false,
+      message: 'Неизвестная ошибка при отправке трейда'
+    };
   }
 
-  // Принятие торгового предложения
   async acceptTradeOffer(offerId) {
     return new Promise((resolve, reject) => {
       logger.info(`Принятие торгового предложения #${offerId}...`);
@@ -607,7 +655,6 @@ class SteamBot {
     });
   }
 
-  // Получение статуса трейда
   async getTradeOfferStatus(offerId) {
     return new Promise((resolve, reject) => {
       logger.info(`Проверка статуса трейда #${offerId}...`);
@@ -627,7 +674,6 @@ class SteamBot {
     });
   }
 
-  // Отмена торгового предложения
   async cancelTradeOffer(offerId) {
     return new Promise((resolve, reject) => {
       logger.info(`Отмена торгового предложения #${offerId}...`);
@@ -650,7 +696,6 @@ class SteamBot {
     });
   }
 
-  // Проверка статуса трейда
   async checkTradeOffer(offerId) {
     return new Promise((resolve, reject) => {
       logger.info(`Проверка статуса трейда #${offerId}...`);
@@ -672,7 +717,6 @@ class SteamBot {
     });
   }
 
-  // Метод для получения входящих trade offers
   async getIncomingTradeOffers() {
     try {
       if (!this.loggedIn) {
@@ -684,7 +728,7 @@ class SteamBot {
       }
 
       return new Promise((resolve, reject) => {
-        this.manager.getOffers(1, (err, sent, received) => { // 1 = EOfferFilter.ActiveOnly
+        this.manager.getOffers(1, (err, sent, received) => {
           if (err) {
             logger.error('Ошибка при получении trade offers:', err);
             return resolve({
@@ -710,7 +754,6 @@ class SteamBot {
     }
   }
 
-  // Метод для корректного закрытия сервиса
   async shutdown() {
     logger.info('Завершение работы Steam бота...');
     if (this.client && this.client.loggedOn) {
@@ -719,7 +762,6 @@ class SteamBot {
       logger.info('Выход из Steam выполнен');
     }
 
-    // Остановка подтверждений
     if (this.community) {
       try {
         this.community.stopConfirmationChecker();
@@ -732,7 +774,6 @@ class SteamBot {
     return true;
   }
 
-  // Инициализации бота - для повторного использования
   async initialize() {
     if (this.loggedIn) {
       logger.info('Бот уже инициализирован и авторизован');
@@ -749,7 +790,6 @@ class SteamBot {
     }
   }
 
-  // Получение session данных для Steam Market
   getSessionData() {
     if (!this.loggedIn || !this.sessionId || !this.steamLoginSecure) {
       throw new Error('Steam session данные недоступны. Требуется авторизация.');
@@ -763,14 +803,10 @@ class SteamBot {
     };
   }
 
-  // Проверка валидности session
   isSessionValid() {
     return this.loggedIn && this.sessionId && this.steamLoginSecure;
   }
 
-  // === ДИАГНОСТИЧЕСКИЕ МЕТОДЫ ===
-
-  // Получение информации о профиле
   async getProfileInfo() {
     try {
       return new Promise((resolve, reject) => {
@@ -794,7 +830,6 @@ class SteamBot {
     }
   }
 
-  // Проверка ограничений торговли
   async getTradeRestrictions() {
     try {
       return new Promise((resolve) => {
@@ -802,7 +837,6 @@ class SteamBot {
           return resolve({ error: 'Бот не авторизован' });
         }
 
-        // Проверяем ограничения через Steam Community
         this.community.getUserInventoryContexts(this.client.steamID, (err, contexts) => {
           if (err) {
             return resolve({
@@ -826,7 +860,6 @@ class SteamBot {
     }
   }
 
-  // Проверка состояния confirmation checker
   async getConfirmationCheckerStatus() {
     try {
       return {
@@ -841,14 +874,12 @@ class SteamBot {
     }
   }
 
-  // Тест создания trade offer (без отправки)
   async testTradeOfferCreation(partnerSteamId) {
     try {
       if (!this.loggedIn) {
         return { error: 'Бот не авторизован' };
       }
 
-      // Создаем пустой трейд для теста
       const offer = this.manager.createOffer(partnerSteamId);
 
       return {
@@ -864,7 +895,6 @@ class SteamBot {
     }
   }
 
-  // Тест Steam API
   async testSteamApi() {
     try {
       if (!this.steamApiKey) {
@@ -872,7 +902,6 @@ class SteamBot {
       }
 
       return new Promise((resolve) => {
-        // Тестируем API через получение информации о пользователе
         const request = require('request');
         const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${this.steamApiKey}&steamids=${this.client.steamID.getSteamID64()}`;
 
@@ -898,7 +927,6 @@ class SteamBot {
     }
   }
 
-  // Проверка профиля пользователя
   async checkProfile(steamId) {
     try {
       return new Promise((resolve) => {
@@ -906,7 +934,6 @@ class SteamBot {
           return resolve({ error: 'Бот не авторизован', canTrade: false });
         }
 
-        // Проверяем профиль через Steam Community
         this.community.getUserInventory(steamId, 730, 2, false, (err, inventory, currencies) => {
           if (err) {
             if (err.message.includes('private')) {
@@ -930,7 +957,6 @@ class SteamBot {
             });
           }
 
-          // Если инвентарь получен, значит профиль доступен
           resolve({
             canTrade: true,
             inventoryItems: inventory ? inventory.length : 0,
@@ -942,6 +968,80 @@ class SteamBot {
       logger.error('Ошибка проверки профиля:', error);
       return { error: error.message, canTrade: false };
     }
+  }
+
+  async login() {
+    if (hasLoggedIn) {
+      logger.info('Already logged in, skipping login.');
+      return;
+    }
+    return new Promise(async (resolve, reject) => {
+      const twoFactorCode = SteamTotp.generateAuthCode(this.sharedSecret);
+      const logOnOptions = {
+        accountName: this.accountName,
+        password: this.password,
+        twoFactorCode: twoFactorCode
+      };
+      logger.info('Attempting Steam login...');
+      this.client.logOn(logOnOptions);
+
+      this.client.once('loggedOn', () => {
+        this.loggedIn = true;
+        hasLoggedIn = true;
+        logger.info('Logged into Steam as ' + this.client.steamID.getSteam3RenderedID());
+      });
+
+      this.client.once('webSession', async (sessionID, cookies) => {
+        logger.info('Steam webSession received, setting cookies to manager & community...');
+        this.manager.setCookies(cookies);
+        this.community.setCookies(cookies);
+
+        this.community.startConfirmationChecker(10000, this.identitySecret);
+        logger.info('Автоматическое подтверждение настроено через startConfirmationChecker');
+
+        if (this.steamApiKey) {
+          this.manager.apiKey = this.steamApiKey;
+          logger.info('Steam API key set for Trade Manager');
+        } else {
+          logger.warn('Steam API key not provided - trade functionality may be limited');
+        }
+
+        this.sessionId = sessionID;
+        this.cookies = cookies;
+
+        const steamLoginSecureCookie = cookies.find(cookie => cookie.startsWith('steamLoginSecure='));
+        if (steamLoginSecureCookie) {
+          this.steamLoginSecure = steamLoginSecureCookie.replace('steamLoginSecure=', '').split(';')[0];
+          logger.info('Steam session data extracted successfully');
+        }
+
+        logger.info('Cookies set, confirmation checker started, bot now fully operational.');
+
+        logger.info('Ожидание инициализации confirmation checker...');
+        await new Promise(resolve => setTimeout(resolve, 10000));
+
+        await this.waitForConfirmationChecker(15000);
+
+        logger.info('✅ Steam bot полностью готов к работе с подтверждениями');
+        resolve();
+      });
+
+      this.client.once('error', (err) => {
+        logger.error('Steam login error:', err);
+        reject(err);
+      });
+
+      this.client.on('steamGuard', (domain, callback) => {
+        if (!domain) {
+          const code = SteamTotp.generateAuthCode(this.sharedSecret);
+          logger.info('Generated Steam Guard (2FA Mobile) code:');
+          callback(code);
+        } else {
+          logger.error('Steam Guard requires code from email:', domain);
+          callback(null);
+        }
+      });
+    });
   }
 }
 
