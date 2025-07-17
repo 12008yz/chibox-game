@@ -19,12 +19,12 @@ module.exports = (sequelize) => {
     },
     item_id: {
       type: DataTypes.UUID,
-      allowNull: false,
+      allowNull: true,  // Теперь может быть null для кейсов
       references: {
         model: 'items',
         key: 'id'
       },
-      comment: "ID предмета в инвентаре"
+      comment: "ID предмета в инвентаре (null для кейсов)"
     },
     acquisition_date: {
       type: DataTypes.DATE,
@@ -98,6 +98,23 @@ module.exports = (sequelize) => {
     timestamps: true,
     underscored: true,
     tableName: 'user_inventory',
+    validate: {
+      // Валидация: для item должен быть item_id, для case должен быть case_template_id
+      itemTypeConsistency() {
+        if (this.item_type === 'item' && !this.item_id) {
+          throw new Error('Для обычных предметов (item_type="item") обязательно поле item_id');
+        }
+        if (this.item_type === 'case' && !this.case_template_id) {
+          throw new Error('Для кейсов (item_type="case") обязательно поле case_template_id');
+        }
+        if (this.item_type === 'case' && this.item_id) {
+          throw new Error('Для кейсов (item_type="case") поле item_id должно быть null');
+        }
+        if (this.item_type === 'item' && this.case_template_id) {
+          throw new Error('Для обычных предметов (item_type="item") поле case_template_id должно быть null');
+        }
+      }
+    },
     indexes: [
       {
         fields: ['user_id']
@@ -138,7 +155,8 @@ module.exports = (sequelize) => {
 
     UserInventory.belongsTo(models.Item, {
       foreignKey: 'item_id',
-      as: 'item'
+      as: 'item',
+      allowNull: true  // Связь может отсутствовать для кейсов
     });
 
     UserInventory.belongsTo(models.Case, {

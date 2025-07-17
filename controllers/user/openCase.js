@@ -492,8 +492,8 @@ async function openCaseFromInventory(req, res) {
         result_item_id: selectedItem.id,
         subscription_tier: userSubscriptionTier,
         drop_bonus_applied: userDropBonus,
-        is_paid: false,
-        source: 'inventory',
+        is_paid: true,
+        source: 'purchase',
         received_date: inventoryCase.acquisition_date
       }, { transaction: t });
 
