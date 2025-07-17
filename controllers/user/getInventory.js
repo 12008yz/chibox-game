@@ -22,8 +22,8 @@ async function getInventory(req, res) {
     // Получаем все предметы и кейсы из UserInventory с пагинацией
     const { count, rows: inventoryItems } = await db.UserInventory.findAndCountAll({
       where: {
-        user_id: userId,
-        status: 'inventory'
+        user_id: userId
+        // Убираем фильтр по статусу - возвращаем ВСЕ записи
       },
       include: [
         {
@@ -51,21 +51,9 @@ async function getInventory(req, res) {
     const items = inventoryItems.filter(item => item.item_type === 'item');
     const cases = inventoryItems.filter(item => item.item_type === 'case');
 
-    // Фильтруем предметы: показываем только те, что без withdrawal или с неудачными withdrawal
-    const filteredItems = items.filter(item => {
-      return !item.withdrawal_id ||
-             (item.withdrawal && ['failed', 'cancelled'].includes(item.withdrawal.status));
-    });
-
-    // Фильтруем просроченные кейсы
-    const validCases = cases.filter(caseItem => {
-      return !caseItem.expires_at || caseItem.expires_at > new Date();
-    });
-
     logger.info(`Получен инвентарь для пользователя ${userId}, страница ${page}`);
-    logger.info(`Всего предметов в inventory: ${items.length}`);
-    logger.info(`После фильтрации: ${filteredItems.length}`);
-    logger.info(`Кейсов в инвентаре: ${validCases.length}`);
+    logger.info(`Всего предметов: ${items.length}`);
+    logger.info(`Всего кейсов: ${cases.length}`);
 
     // Отладочная информация о предметах с withdrawal
     items.forEach(item => {
@@ -74,8 +62,8 @@ async function getInventory(req, res) {
       }
     });
 
-    // Формируем ответ для предметов
-    const formattedItems = filteredItems.map(item => ({
+    // Формируем ответ для ВСЕХ предметов (без фильтрации)
+    const formattedItems = items.map(item => ({
       id: item.id,
       item_type: item.item_type,
       item: item.item,
@@ -83,25 +71,47 @@ async function getInventory(req, res) {
       source: item.source,
       status: item.status,
       case_id: item.case_id,
-      withdrawal: item.withdrawal
+      withdrawal: item.withdrawal,
+      case_template_id: item.case_template_id,
+      item_id: item.item_id,
+      transaction_date: item.transaction_date,
+      expires_at: item.expires_at
     }));
 
-    // Формируем ответ для кейсов
-    const formattedCases = validCases.map(caseItem => ({
+    // Формируем ответ для ВСЕХ кейсов (без фильтрации по expiry)
+    const formattedCases = cases.map(caseItem => ({
       id: caseItem.id,
       item_type: caseItem.item_type,
       case_template: caseItem.case_template,
       acquisition_date: caseItem.acquisition_date,
       expires_at: caseItem.expires_at,
       source: caseItem.source,
-      status: caseItem.status
+      status: caseItem.status,
+      case_template_id: caseItem.case_template_id,
+      item_id: caseItem.item_id,
+      transaction_date: caseItem.transaction_date
     }));
+
+    // Подсчитываем только активные предметы для совместимости
+    const activeItems = items.filter(item =>
+      item.status === 'inventory' && (
+        !item.withdrawal_id ||
+        (item.withdrawal && ['failed', 'cancelled'].includes(item.withdrawal.status))
+      )
+    );
+    const activeCases = cases.filter(caseItem =>
+      caseItem.status === 'inventory' && (
+        !caseItem.expires_at || caseItem.expires_at > new Date()
+      )
+    );
 
     return res.json({
       items: formattedItems,
       cases: formattedCases,
-      totalItems: filteredItems.length,
-      totalCases: validCases.length,
+      totalItems: activeItems.length, // Активные предметы для совместимости
+      totalCases: activeCases.length, // Активные кейсы для совместимости
+      allItems: formattedItems.length, // Общее количество всех предметов
+      allCases: formattedCases.length, // Общее количество всех кейсов
       currentPage: page,
       totalPages: Math.ceil(inventoryItems.length / limit)
     });
