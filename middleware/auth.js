@@ -7,11 +7,22 @@ const revokedTokens = new Set();
 // TODO: Implement rate limiting middleware for critical endpoints like login, register, payment webhook, etc.
 
 const authMiddleware = (req, res, next) => {
+  let token = null;
+
+  // Получаем токен из заголовка Authorization
   const authHeader = req.headers['authorization'];
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  }
+
+  // Если токен не найден в заголовке, проверяем query параметры (для Steam ссылок)
+  if (!token && req.query.token) {
+    token = req.query.token;
+  }
+
+  if (!token) {
     return res.status(401).json({ message: 'Требуется токен авторизации' });
   }
-  const token = authHeader.split(' ')[1];
 
   if (revokedTokens.has(token)) {
     return res.status(401).json({ message: 'Токен отозван (revoked)' });

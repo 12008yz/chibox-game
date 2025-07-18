@@ -101,16 +101,24 @@ router.get('/link-steam', auth, (req, res, next) => {
 // Callback для привязки Steam аккаунта
 router.get('/link-steam/return',
   passport.authenticate('steam', {
-    failureRedirect: '/profile?error=steam_link_failed'
+    failureRedirect: 'http://localhost:5173/profile?error=steam_link_failed'
   }),
   async (req, res) => {
     try {
       const linkUserId = req.session.linkUserId;
       if (!linkUserId) {
-        return res.redirect('/profile?error=session_expired');
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        return res.redirect(`${frontendUrl}/profile?error=session_expired`);
       }
 
-      const steamId = req.user.steam_id;
+      // Проверяем, что это процесс привязки и данные Steam есть в сессии
+      if (!req.user.isLinkingProcess || !req.session.steamLinkData) {
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        return res.redirect(`${frontendUrl}/profile?error=not_linking_process`);
+      }
+
+      const steamData = req.session.steamLinkData;
+      const steamId = steamData.steam_id;
 
       // Проверяем, не привязан ли уже этот Steam аккаунт к другому пользователю
       const existingUser = await db.User.findOne({
@@ -118,32 +126,31 @@ router.get('/link-steam/return',
       });
 
       if (existingUser && existingUser.id !== linkUserId) {
-        return res.redirect('/profile?error=steam_already_linked');
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        return res.redirect(`${frontendUrl}/profile?error=steam_already_linked`);
       }
 
       // Привязываем Steam аккаунт к существующему пользователю
       await db.User.update({
         steam_id: steamId,
-        steam_profile: req.user.steam_profile,
-        steam_avatar: req.user.steam_avatar,
-        steam_profile_url: req.user.steam_profile_url
+        steam_profile: steamData.steam_profile,
+        steam_avatar: steamData.steam_avatar,
+        steam_profile_url: steamData.steam_profile_url
       }, {
         where: { id: linkUserId }
       });
 
-      // Удаляем временного Steam пользователя
-      await db.User.destroy({
-        where: { id: req.user.id }
-      });
-
+      // Очищаем временные данные из сессии
       delete req.session.linkUserId;
+      delete req.session.steamLinkData;
 
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
       res.redirect(`${frontendUrl}/profile?success=steam_linked`);
 
     } catch (error) {
       logger.error('Ошибка при привязке Steam аккаунта:', error);
-      res.redirect('/profile?error=link_failed');
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      res.redirect(`${frontendUrl}/profile?error=link_failed`);
     }
   }
 );

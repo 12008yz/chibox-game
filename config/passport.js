@@ -15,11 +15,23 @@ if (!STEAM_API_KEY) {
 
 // Сериализация пользователя для сессий
 passport.serializeUser((user, done) => {
-  done(null, user.id);
+  // Для процесса привязки Steam возвращаем специальный ключ
+  if (user.isLinkingProcess) {
+    done(null, 'linking_process');
+  } else {
+    done(null, user.id);
+  }
 });
 
 passport.deserializeUser(async (id, done) => {
   try {
+    // Проверяем, если это процесс привязки Steam
+    if (id === 'linking_process') {
+      // Возвращаем временный объект для процесса привязки
+      return done(null, { isLinkingProcess: true });
+    }
+
+    // Обычная десериализация пользователя
     const user = await db.User.findByPk(id, {
       attributes: { exclude: ['password'] }
     });
@@ -34,17 +46,31 @@ if (STEAM_API_KEY) {
   passport.use(new SteamStrategy({
     returnURL: STEAM_RETURN_URL,
     realm: STEAM_REALM,
-    apiKey: STEAM_API_KEY
+    apiKey: STEAM_API_KEY,
+    passReqToCallback: true
   },
-  async (identifier, profile, done) => {
+  async (req, identifier, profile, done) => {
     try {
       const steamId = identifier.split('/').pop();
 
       logger.info('Steam OAuth callback:', {
         steamId,
         displayName: profile.displayName,
-        username: profile._json?.personaname
+        username: profile._json?.personaname,
+        isLinking: !!req.session?.linkUserId
       });
+
+      // Если это процесс привязки, сохраняем данные Steam в сессии
+      if (req.session && req.session.linkUserId) {
+        req.session.steamLinkData = {
+          steam_id: steamId,
+          steam_profile: profile._json,
+          steam_avatar: profile._json?.avatarfull || profile._json?.avatarmedium || profile._json?.avatar,
+          steam_profile_url: profile._json?.profileurl
+        };
+        // Возвращаем специальный объект для обозначения процесса привязки
+        return done(null, { isLinkingProcess: true });
+      }
 
       // Ищем пользователя по Steam ID
       let user = await db.User.findOne({
