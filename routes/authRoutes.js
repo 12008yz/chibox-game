@@ -140,12 +140,31 @@ router.get('/link-steam/return',
         where: { id: linkUserId }
       });
 
+      // Получаем обновленные данные пользователя
+      const updatedUser = await db.User.findByPk(linkUserId, {
+        attributes: { exclude: ['password'] }
+      });
+
+      // Генерируем новый JWT токен с обновленными данными Steam
+      const newToken = jwt.sign(
+        {
+          id: updatedUser.id,
+          username: updatedUser.username,
+          email: updatedUser.email,
+          auth_provider: updatedUser.auth_provider,
+          role: updatedUser.role,
+          steam_id: updatedUser.steam_id
+        },
+        process.env.JWT_SECRET || 'your-secret-key',
+        { expiresIn: '7d' }
+      );
+
       // Очищаем временные данные из сессии
       delete req.session.linkUserId;
       delete req.session.steamLinkData;
 
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-      res.redirect(`${frontendUrl}/profile?success=steam_linked`);
+      res.redirect(`${frontendUrl}/profile?success=steam_linked&token=${encodeURIComponent(newToken)}`);
 
     } catch (error) {
       logger.error('Ошибка при привязке Steam аккаунта:', error);
