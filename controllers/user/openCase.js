@@ -324,7 +324,11 @@ async function openCase(req, res) {
 
       logger.info(`Пользователь ${userId} открыл кейс ${caseId} и получил предмет ${selectedItem.id}`);
 
-      return res.json({ item: selectedItem, message: 'Кейс успешно открыт' });
+      return res.json({
+        success: true,
+        data: { item: selectedItem },
+        message: 'Кейс успешно открыт'
+      });
     } catch (transactionError) {
       await t.rollback();
       throw transactionError;
@@ -558,9 +562,12 @@ async function openCaseFromInventory(req, res) {
       logger.info(`Пользователь ${userId} открыл кейс ${inventoryItemId} из инвентаря и получил предмет ${selectedItem.id}`);
 
       return res.json({
-        item: selectedItem,
-        message: 'Кейс успешно открыт из инвентаря',
-        caseId: newCase.id
+        success: true,
+        data: {
+          item: selectedItem,
+          caseId: newCase.id
+        },
+        message: 'Кейс успешно открыт из инвентаря'
       });
     } catch (transactionError) {
       await t.rollback();
