@@ -65,15 +65,19 @@ const sessionStore = new SequelizeStore({
   db: sequelize,
 });
 
+// Синхронизируем таблицу сессий
+sessionStore.sync();
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your-session-secret',
   store: sessionStore,
   resave: false,
-  saveUninitialized: false,
+  saveUninitialized: true, // Изменено на true для Steam OAuth
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: false, // Установлено в false для работы с HTTP в разработке
     httpOnly: true,
-    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 дней
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 дней
+    sameSite: 'lax' // Добавлено для лучшей совместимости с OAuth
   }
 }));
 

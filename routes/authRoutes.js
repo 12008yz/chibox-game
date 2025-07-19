@@ -104,9 +104,21 @@ router.get('/link-steam', auth, (req, res, next) => {
 
   // Сохраняем ID пользователя в сессии для последующей привязки
   req.session.linkUserId = req.user.id;
-  logger.info('Сохранен linkUserId в сессии:', req.user.id);
 
-  passport.authenticate('steam-link')(req, res, next);
+  // Принудительно сохраняем сессию перед перенаправлением на Steam
+  req.session.save((err) => {
+    if (err) {
+      logger.error('Ошибка сохранения сессии перед Steam OAuth:', err);
+      return res.status(500).json({ message: 'Ошибка сохранения сессии' });
+    }
+
+    logger.info('Сохранен linkUserId в сессии:', {
+      linkUserId: req.user.id,
+      sessionId: req.sessionID
+    });
+
+    passport.authenticate('steam-link')(req, res, next);
+  });
 });
 
 // Callback для привязки Steam аккаунта
@@ -119,24 +131,40 @@ router.get('/link-steam/return',
       logger.info('Callback link-steam/return вызван:', {
         sessionExists: !!req.session,
         linkUserId: req.session?.linkUserId,
-        steamLinkData: !!req.session?.steamLinkData
+        steamLinkData: !!req.session?.steamLinkData,
+        user: req.user
       });
 
-      const linkUserId = req.session.linkUserId;
+      // Попытаемся получить linkUserId из сессии или из req.user
+      let linkUserId = req.session?.linkUserId;
+      if (!linkUserId && req.user?.linkUserId) {
+        linkUserId = req.user.linkUserId;
+      }
+
       if (!linkUserId) {
-        logger.error('linkUserId не найден в сессии');
+        logger.error('linkUserId не найден в сессии и в req.user', {
+          sessionData: req.session,
+          userData: req.user
+        });
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         return res.redirect(`${frontendUrl}/profile?error=session_expired`);
       }
 
-      // Проверяем, что данные Steam есть в сессии
-      if (!req.session.steamLinkData) {
-        logger.error('steamLinkData не найден в сессии');
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-        return res.redirect(`${frontendUrl}/profile?error=not_linking_process`);
+      // Попытаемся получить steamData из сессии или из req.user
+      let steamData = req.session?.steamLinkData;
+      if (!steamData && req.user?.steamData) {
+        steamData = req.user.steamData;
       }
 
-      const steamData = req.session.steamLinkData;
+      if (!steamData) {
+        logger.error('steamLinkData не найден в сессии и в req.user', {
+          sessionData: req.session,
+          userData: req.user
+        });
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        return res.redirect(`${frontendUrl}/profile?error=steam_data_missing`);
+      }
+
       const steamId = steamData.steam_id;
 
       logger.info('Данные для привязки Steam:', {
