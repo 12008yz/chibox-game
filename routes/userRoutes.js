@@ -91,7 +91,7 @@ router.get('/inventory', authMiddleware, getInventory); //+
 router.post('/open-case', authMiddleware, openCase); //+
 router.post('/sell-item', authMiddleware, sellItem);
 router.post('/withdraw-item', authMiddleware, /* requireEmailVerification, */ withdrawItem);
-router.get('/withdraw-item/:withdrawalId', authMiddleware, /* , */ getWithdrawalStatus);
+router.get('/withdraw-item/:withdrawalId', authMiddleware, getWithdrawalStatus);
 router.get('/cases', authMiddleware, getCases); //+
 router.get('/balance', authMiddleware, getBalance); //+
 router.post('/promo', authMiddleware, applyPromo);

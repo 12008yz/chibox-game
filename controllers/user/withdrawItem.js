@@ -98,7 +98,8 @@ async function withdrawItem(req, res) {
     }
 
     // Проверяем, что предмет можно вывести
-    if (!inventoryItem.item.steam_market_hash_name) {
+    const marketHashName = inventoryItem.item.steam_market_hash_name || inventoryItem.item.name;
+    if (!marketHashName) {
       return res.status(400).json({
         success: false,
         message: 'Этот предмет нельзя вывести в Steam.'
@@ -119,7 +120,7 @@ async function withdrawItem(req, res) {
         item_details: {
           id: inventoryItem.item.id,
           name: inventoryItem.item.name,
-          market_hash_name: inventoryItem.item.steam_market_hash_name,
+          market_hash_name: marketHashName,
           exterior: inventoryItem.item.exterior,
           price: inventoryItem.item.price
         }
@@ -251,7 +252,7 @@ async function getWithdrawalStatus(req, res) {
         items: withdrawal.items.map(item => ({
           id: item.item.id,
           name: item.item.name,
-          market_hash_name: item.item.steam_market_hash_name,
+          market_hash_name: item.item.steam_market_hash_name || item.item.name,
           exterior: item.item.exterior,
           price: item.item.price
         }))

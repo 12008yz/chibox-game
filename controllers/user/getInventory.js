@@ -29,7 +29,13 @@ async function getInventory(req, res) {
         {
           model: db.Item,
           as: 'item',
-          required: false // Для кейсов item может быть null
+          required: false, // Для кейсов item может быть null
+          attributes: [
+            'id', 'name', 'description', 'image_url', 'price', 'rarity',
+            'weapon_type', 'skin_name', 'steam_market_hash_name', 'steam_market_url',
+            'is_available', 'float_value', 'exterior', 'quality', 'stickers',
+            'origin', 'in_stock', 'is_tradable', 'created_at', 'updated_at'
+          ]
         },
         {
           model: db.CaseTemplate,
