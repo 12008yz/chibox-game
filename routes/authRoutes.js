@@ -95,12 +95,12 @@ router.get('/link-steam', auth, (req, res, next) => {
   // Сохраняем ID пользователя в сессии для последующей привязки
   req.session.linkUserId = req.user.id;
 
-  passport.authenticate('steam')(req, res, next);
+  passport.authenticate('steam-link')(req, res, next);
 });
 
 // Callback для привязки Steam аккаунта
 router.get('/link-steam/return',
-  passport.authenticate('steam', {
+  passport.authenticate('steam-link', {
     failureRedirect: 'http://localhost:5173/profile?error=steam_link_failed'
   }),
   async (req, res) => {
@@ -111,8 +111,8 @@ router.get('/link-steam/return',
         return res.redirect(`${frontendUrl}/profile?error=session_expired`);
       }
 
-      // Проверяем, что это процесс привязки и данные Steam есть в сессии
-      if (!req.user.isLinkingProcess || !req.session.steamLinkData) {
+      // Проверяем, что данные Steam есть в сессии
+      if (!req.session.steamLinkData) {
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         return res.redirect(`${frontendUrl}/profile?error=not_linking_process`);
       }

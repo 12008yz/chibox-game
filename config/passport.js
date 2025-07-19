@@ -6,7 +6,7 @@ const { createSteamLoginNotification } = require('../utils/notificationHelper');
 
 // Настройки Steam OAuth
 const STEAM_API_KEY = process.env.STEAM_API_KEY;
-const STEAM_RETURN_URL = process.env.STEAM_RETURN_URL || 'http://localhost:3000/auth/steam/return';
+const STEAM_RETURN_URL = process.env.STEAM_RETURN_URL || 'http://localhost:3000/api/v1/auth/steam/return';
 const STEAM_REALM = process.env.STEAM_REALM || 'http://localhost:3000/';
 
 if (!STEAM_API_KEY) {
@@ -41,9 +41,9 @@ passport.deserializeUser(async (id, done) => {
   }
 });
 
-// Steam OAuth стратегия
+// Steam OAuth стратегия для обычной авторизации
 if (STEAM_API_KEY) {
-  passport.use(new SteamStrategy({
+  passport.use('steam', new SteamStrategy({
     returnURL: STEAM_RETURN_URL,
     realm: STEAM_REALM,
     apiKey: STEAM_API_KEY,
@@ -157,6 +157,45 @@ if (STEAM_API_KEY) {
       }
     } catch (error) {
       logger.error('Ошибка Steam OAuth:', error);
+      return done(error, null);
+    }
+  }));
+
+  // Steam OAuth стратегия для привязки аккаунтов
+  passport.use('steam-link', new SteamStrategy({
+    returnURL: process.env.STEAM_LINK_RETURN_URL || 'http://localhost:3000/api/v1/auth/link-steam/return',
+    realm: STEAM_REALM,
+    apiKey: STEAM_API_KEY,
+    passReqToCallback: true
+  },
+  async (req, identifier, profile, done) => {
+    try {
+      const steamId = identifier.split('/').pop();
+
+      logger.info('Steam Link OAuth callback:', {
+        steamId,
+        displayName: profile.displayName,
+        username: profile._json?.personaname,
+        linkUserId: req.session?.linkUserId
+      });
+
+      // Для привязки аккаунтов сохраняем данные Steam в сессии
+      if (req.session && req.session.linkUserId) {
+        req.session.steamLinkData = {
+          steam_id: steamId,
+          steam_profile: profile._json,
+          steam_avatar: profile._json?.avatarfull || profile._json?.avatarmedium || profile._json?.avatar,
+          steam_profile_url: profile._json?.profileurl
+        };
+        // Возвращаем специальный объект для обозначения процесса привязки
+        return done(null, { isLinkingProcess: true });
+      } else {
+        // Если нет linkUserId в сессии, это ошибка
+        logger.error('Steam Link: linkUserId не найден в сессии');
+        return done(new Error('Сессия привязки Steam истекла'), null);
+      }
+    } catch (error) {
+      logger.error('Ошибка Steam Link OAuth:', error);
       return done(error, null);
     }
   }));
