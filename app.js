@@ -170,6 +170,16 @@ app.use('/api/v1/auth', authRoutes);
 
 // Обработка 404 ошибки
 app.use(function(req, res, next) {
+  console.log('404 ошибка для маршрута:', {
+    method: req.method,
+    url: req.originalUrl,
+    path: req.path,
+    query: req.query,
+    headers: {
+      authorization: req.headers.authorization,
+      'user-agent': req.headers['user-agent']
+    }
+  });
   next(createError(404));
 });
 

@@ -15,9 +15,9 @@ if (!STEAM_API_KEY) {
 
 // Сериализация пользователя для сессий
 passport.serializeUser((user, done) => {
-  // Для процесса привязки Steam возвращаем специальный ключ
+  // Для процесса привязки Steam возвращаем специальный ключ с linkUserId
   if (user.isLinkingProcess) {
-    done(null, 'linking_process');
+    done(null, { type: 'linking_process', linkUserId: user.linkUserId });
   } else {
     done(null, user.id);
   }
@@ -26,9 +26,9 @@ passport.serializeUser((user, done) => {
 passport.deserializeUser(async (id, done) => {
   try {
     // Проверяем, если это процесс привязки Steam
-    if (id === 'linking_process') {
-      // Возвращаем временный объект для процесса привязки
-      return done(null, { isLinkingProcess: true });
+    if (typeof id === 'object' && id.type === 'linking_process') {
+      // Возвращаем временный объект для процесса привязки с сохранением linkUserId
+      return done(null, { isLinkingProcess: true, linkUserId: id.linkUserId });
     }
 
     // Обычная десериализация пользователя
@@ -68,8 +68,8 @@ if (STEAM_API_KEY) {
           steam_avatar: profile._json?.avatarfull || profile._json?.avatarmedium || profile._json?.avatar,
           steam_profile_url: profile._json?.profileurl
         };
-        // Возвращаем специальный объект для обозначения процесса привязки
-        return done(null, { isLinkingProcess: true });
+        // Возвращаем специальный объект для обозначения процесса привязки с linkUserId
+        return done(null, { isLinkingProcess: true, linkUserId: req.session.linkUserId });
       }
 
       // Ищем пользователя по Steam ID
@@ -181,12 +181,21 @@ if (STEAM_API_KEY) {
 
       // Для привязки аккаунтов сохраняем данные Steam в сессии
       if (req.session && req.session.linkUserId) {
-        req.session.steamLinkData = {
+        const steamLinkData = {
           steam_id: steamId,
           steam_profile: profile._json,
           steam_avatar: profile._json?.avatarfull || profile._json?.avatarmedium || profile._json?.avatar,
           steam_profile_url: profile._json?.profileurl
         };
+        req.session.steamLinkData = steamLinkData;
+
+        logger.info('Steam Link данные сохранены в сессии:', {
+          steamId,
+          linkUserId: req.session.linkUserId,
+          steamProfile: profile._json?.personaname,
+          steamAvatar: steamLinkData.steam_avatar
+        });
+
         // Возвращаем специальный объект для обозначения процесса привязки
         return done(null, { isLinkingProcess: true });
       } else {

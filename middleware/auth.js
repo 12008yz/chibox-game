@@ -20,7 +20,18 @@ const authMiddleware = (req, res, next) => {
     token = req.query.token;
   }
 
+  // Логирование для Steam маршрутов
+  if (req.path.includes('steam') || req.path.includes('link-steam')) {
+    console.log('Auth middleware для Steam маршрута:', {
+      path: req.path,
+      hasAuthHeader: !!authHeader,
+      hasQueryToken: !!req.query.token,
+      hasToken: !!token
+    });
+  }
+
   if (!token) {
+    console.log('Токен не найден для маршрута:', req.path);
     return res.status(401).json({ message: 'Требуется токен авторизации' });
   }
 
@@ -31,8 +42,18 @@ const authMiddleware = (req, res, next) => {
   try {
     const user = jwt.verify(token, process.env.JWT_SECRET);
     req.user = user;
+
+    if (req.path.includes('steam') || req.path.includes('link-steam')) {
+      console.log('Пользователь аутентифицирован для Steam:', {
+        userId: user.id,
+        username: user.username,
+        authProvider: user.auth_provider
+      });
+    }
+
     next();
   } catch (err) {
+    console.log('Ошибка валидации токена для маршрута:', req.path, err.message);
     return res.status(401).json({ message: 'Невалидный или просроченный токен' });
   }
 };

@@ -80,13 +80,23 @@ router.post('/logout', (req, res) => {
 
 // Привязка Steam аккаунта к существующему пользователю
 router.get('/link-steam', auth, (req, res, next) => {
+  logger.info('Попытка привязки Steam аккаунта:', {
+    userId: req.user?.id,
+    username: req.user?.username,
+    hasApiKey: !!process.env.STEAM_API_KEY,
+    authProvider: req.user?.auth_provider,
+    query: req.query
+  });
+
   if (!process.env.STEAM_API_KEY) {
+    logger.error('Steam API Key не настроен');
     return res.status(500).json({
       message: 'Steam авторизация не настроена'
     });
   }
 
   if (req.user.auth_provider === 'steam') {
+    logger.warn('Пользователь уже привязан к Steam:', req.user.id);
     return res.status(400).json({
       message: 'Аккаунт уже привязан к Steam'
     });
@@ -94,6 +104,7 @@ router.get('/link-steam', auth, (req, res, next) => {
 
   // Сохраняем ID пользователя в сессии для последующей привязки
   req.session.linkUserId = req.user.id;
+  logger.info('Сохранен linkUserId в сессии:', req.user.id);
 
   passport.authenticate('steam-link')(req, res, next);
 });
@@ -105,14 +116,22 @@ router.get('/link-steam/return',
   }),
   async (req, res) => {
     try {
+      logger.info('Callback link-steam/return вызван:', {
+        sessionExists: !!req.session,
+        linkUserId: req.session?.linkUserId,
+        steamLinkData: !!req.session?.steamLinkData
+      });
+
       const linkUserId = req.session.linkUserId;
       if (!linkUserId) {
+        logger.error('linkUserId не найден в сессии');
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         return res.redirect(`${frontendUrl}/profile?error=session_expired`);
       }
 
       // Проверяем, что данные Steam есть в сессии
       if (!req.session.steamLinkData) {
+        logger.error('steamLinkData не найден в сессии');
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         return res.redirect(`${frontendUrl}/profile?error=not_linking_process`);
       }
@@ -120,17 +139,35 @@ router.get('/link-steam/return',
       const steamData = req.session.steamLinkData;
       const steamId = steamData.steam_id;
 
+      logger.info('Данные для привязки Steam:', {
+        linkUserId,
+        steamId,
+        steamProfile: steamData.steam_profile?.personaname
+      });
+
       // Проверяем, не привязан ли уже этот Steam аккаунт к другому пользователю
+      logger.info('Проверяем существующего пользователя с Steam ID:', steamId);
       const existingUser = await db.User.findOne({
         where: { steam_id: steamId }
       });
 
       if (existingUser && existingUser.id !== linkUserId) {
+        logger.warn('Steam аккаунт уже привязан к другому пользователю:', {
+          steamId,
+          existingUserId: existingUser.id,
+          linkUserId
+        });
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
         return res.redirect(`${frontendUrl}/profile?error=steam_already_linked`);
       }
 
       // Привязываем Steam аккаунт к существующему пользователю
+      logger.info('Обновляем пользователя Steam данными:', {
+        userId: linkUserId,
+        steamId,
+        steamProfile: steamData.steam_profile?.personaname
+      });
+
       await db.User.update({
         steam_id: steamId,
         steam_profile: steamData.steam_profile,
@@ -140,9 +177,17 @@ router.get('/link-steam/return',
         where: { id: linkUserId }
       });
 
+      logger.info('Steam данные успешно обновлены в БД');
+
       // Получаем обновленные данные пользователя
       const updatedUser = await db.User.findByPk(linkUserId, {
         attributes: { exclude: ['password'] }
+      });
+
+      logger.info('Получены обновленные данные пользователя:', {
+        userId: updatedUser.id,
+        username: updatedUser.username,
+        steamId: updatedUser.steam_id
       });
 
       // Генерируем новый JWT токен с обновленными данными Steam
@@ -159,15 +204,27 @@ router.get('/link-steam/return',
         { expiresIn: '7d' }
       );
 
+      logger.info('Сгенерирован новый JWT токен');
+
       // Очищаем временные данные из сессии
       delete req.session.linkUserId;
       delete req.session.steamLinkData;
 
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-      res.redirect(`${frontendUrl}/profile?success=steam_linked&token=${encodeURIComponent(newToken)}`);
+      const redirectUrl = `${frontendUrl}/profile?success=steam_linked&token=${encodeURIComponent(newToken)}`;
+
+      logger.info('Перенаправляем на фронтенд:', redirectUrl);
+      res.redirect(redirectUrl);
 
     } catch (error) {
-      logger.error('Ошибка при привязке Steam аккаунта:', error);
+      logger.error('Ошибка при привязке Steam аккаунта:', {
+        error: error.message,
+        stack: error.stack,
+        sessionData: {
+          linkUserId: req.session?.linkUserId,
+          hasSteamLinkData: !!req.session?.steamLinkData
+        }
+      });
       const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
       res.redirect(`${frontendUrl}/profile?error=link_failed`);
     }
