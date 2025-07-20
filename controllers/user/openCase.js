@@ -301,20 +301,60 @@ async function openCase(req, res) {
 
       await t.commit();
 
-    // Добавляем задачи в очереди (асинхронно для лучшей производительности)
+    // Обновляем достижения НАПРЯМУЮ (не через очереди)
+    try {
+      const { updateUserAchievementProgress } = require('../../services/achievementService');
+      const { addExperience } = require('../../services/xpService');
+
+      // 1. Обновляем достижение "cases_opened"
+      await updateUserAchievementProgress(userId, 'cases_opened', 1);
+      logger.info(`Обновлено достижение cases_opened для пользователя ${userId}`);
+
+      // 2. Начисляем опыт за открытие кейса
+      try {
+        await addExperience(userId, 10, 'case_opening', userCase.id, 'Открытие кейса');
+        logger.info(`Начислен опыт за открытие кейса для пользователя ${userId}`);
+      } catch (xpError) {
+        logger.error('Ошибка начисления опыта:', xpError);
+      }
+
+      // 3. Обновляем достижение для лучшего предмета
+      if (selectedItem.price && selectedItem.price > 0) {
+        await updateUserAchievementProgress(userId, 'best_item_value', selectedItem.price);
+        logger.info(`Обновлено достижение best_item_value для пользователя ${userId}: ${selectedItem.price}`);
+      }
+
+      // 4. Проверяем редкие предметы
+      const itemRarity = selectedItem.rarity?.toLowerCase();
+      if (['restricted', 'classified', 'covert', 'contraband'].includes(itemRarity)) {
+        await updateUserAchievementProgress(userId, 'rare_items_found', 1);
+        logger.info(`Обновлено достижение rare_items_found для пользователя ${userId}`);
+      }
+
+      // 5. Проверяем дорогие предметы (от 100 руб)
+      if (selectedItem.price && selectedItem.price >= 100) {
+        await updateUserAchievementProgress(userId, 'premium_items_found', 1);
+        logger.info(`Обновлено достижение premium_items_found для пользователя ${userId}`);
+      }
+
+    } catch (achievementError) {
+      logger.error('Ошибка обновления достижений:', achievementError);
+    }
+
+    // Дублируем в очереди как резервный механизм
     addJob.updateAchievements(userId, {
       achievementType: 'cases_opened',
       value: 1
     }).catch(err => logger.error('Failed to queue achievement update:', err));
 
-    // Начисление опыта за открытие кейса
+    // Начисление опыта за открытие кейса (резерв)
     addJob.updateAchievements(userId, {
       userId,
       amount: 10,
       reason: 'Открытие кейса'
     }, { jobType: 'add-experience' }).catch(err => logger.error('Failed to queue experience update:', err));
 
-    // Обновление достижений для лучшего предмета
+    // Обновление достижений для лучшего предмета (резерв)
     if (selectedItem.price && selectedItem.price > 0) {
       addJob.updateAchievements(userId, {
         achievementType: 'best_item_value',
@@ -538,20 +578,60 @@ async function openCaseFromInventory(req, res) {
 
       await t.commit();
 
-      // Добавляем задачи в очереди (асинхронно)
+      // Обновляем достижения НАПРЯМУЮ (не через очереди)
+      try {
+        const { updateUserAchievementProgress } = require('../../services/achievementService');
+        const { addExperience } = require('../../services/xpService');
+
+        // 1. Обновляем достижение "cases_opened"
+        await updateUserAchievementProgress(userId, 'cases_opened', 1);
+        logger.info(`Обновлено достижение cases_opened для пользователя ${userId} (из инвентаря)`);
+
+        // 2. Начисляем опыт за открытие кейса
+        try {
+          await addExperience(userId, 10, 'case_opening', newCase.id, 'Открытие кейса из инвентаря');
+          logger.info(`Начислен опыт за открытие кейса из инвентаря для пользователя ${userId}`);
+        } catch (xpError) {
+          logger.error('Ошибка начисления опыта:', xpError);
+        }
+
+        // 3. Обновляем достижение для лучшего предмета
+        if (selectedItem.price && selectedItem.price > 0) {
+          await updateUserAchievementProgress(userId, 'best_item_value', selectedItem.price);
+          logger.info(`Обновлено достижение best_item_value для пользователя ${userId}: ${selectedItem.price} (из инвентаря)`);
+        }
+
+        // 4. Проверяем редкие предметы
+        const itemRarity = selectedItem.rarity?.toLowerCase();
+        if (['restricted', 'classified', 'covert', 'contraband'].includes(itemRarity)) {
+          await updateUserAchievementProgress(userId, 'rare_items_found', 1);
+          logger.info(`Обновлено достижение rare_items_found для пользователя ${userId} (из инвентаря)`);
+        }
+
+        // 5. Проверяем дорогие предметы (от 100 руб)
+        if (selectedItem.price && selectedItem.price >= 100) {
+          await updateUserAchievementProgress(userId, 'premium_items_found', 1);
+          logger.info(`Обновлено достижение premium_items_found для пользователя ${userId} (из инвентаря)`);
+        }
+
+      } catch (achievementError) {
+        logger.error('Ошибка обновления достижений:', achievementError);
+      }
+
+      // Дублируем в очереди как резервный механизм
       addJob.updateAchievements(userId, {
         achievementType: 'cases_opened',
         value: 1
       }).catch(err => logger.error('Failed to queue achievement update:', err));
 
-      // Начисление опыта за открытие кейса
+      // Начисление опыта за открытие кейса (резерв)
       addJob.updateAchievements(userId, {
         userId,
         amount: 10,
         reason: 'Открытие кейса из инвентаря'
       }, { jobType: 'add-experience' }).catch(err => logger.error('Failed to queue experience update:', err));
 
-      // Обновление достижений для лучшего предмета
+      // Обновление достижений для лучшего предмета (резерв)
       if (selectedItem.price && selectedItem.price > 0) {
         addJob.updateAchievements(userId, {
           achievementType: 'best_item_value',

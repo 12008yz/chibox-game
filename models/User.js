@@ -241,11 +241,6 @@ module.exports = (sequelize) => {
     },
 
     // Статистика
-    total_cases_opened: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0,
-      comment: "Общее количество открытых кейсов"
-    },
     total_items_value: {
       type: DataTypes.DECIMAL(12, 2),
       defaultValue: 0.00,
