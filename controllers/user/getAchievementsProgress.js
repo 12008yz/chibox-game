@@ -48,7 +48,10 @@ async function getAchievementsProgress(req, res) {
       return 0;
     });
 
-    return res.json({ progress });
+    return res.json({
+      success: true,
+      data: progress
+    });
   } catch (error) {
     logger.error('Ошибка получения прогресса достижений:', error);
     return res.status(500).json({ message: 'Внутренняя ошибка сервера' });

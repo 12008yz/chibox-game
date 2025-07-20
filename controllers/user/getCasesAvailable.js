@@ -24,7 +24,7 @@ async function getCasesAvailable(req, res) {
 
     return res.json({
       success: true,
-      cases,
+      data: cases,
       user_info: {
         max_daily_cases: user.max_daily_cases,
         cases_opened_today: user.cases_opened_today,

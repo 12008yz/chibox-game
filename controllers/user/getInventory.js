@@ -112,14 +112,17 @@ async function getInventory(req, res) {
     );
 
     return res.json({
-      items: formattedItems,
-      cases: formattedCases,
-      totalItems: activeItems.length, // Активные предметы для совместимости
-      totalCases: activeCases.length, // Активные кейсы для совместимости
-      allItems: formattedItems.length, // Общее количество всех предметов
-      allCases: formattedCases.length, // Общее количество всех кейсов
-      currentPage: page,
-      totalPages: Math.ceil(inventoryItems.length / limit)
+      success: true,
+      data: {
+        items: formattedItems,
+        cases: formattedCases,
+        totalItems: activeItems.length, // Активные предметы для совместимости
+        totalCases: activeCases.length, // Активные кейсы для совместимости
+        allItems: formattedItems.length, // Общее количество всех предметов
+        allCases: formattedCases.length, // Общее количество всех кейсов
+        currentPage: page,
+        totalPages: Math.ceil(inventoryItems.length / limit)
+      }
     });
   } catch (error) {
     logger.error('Ошибка получения инвентаря:', error);
