@@ -38,9 +38,9 @@ module.exports = (sequelize) => {
       comment: "Источник получения предмета"
     },
     status: {
-      type: DataTypes.ENUM('inventory', 'sold', 'converted_to_subscription', 'withdrawn', 'used'),
+      type: DataTypes.ENUM('inventory', 'sold', 'converted_to_subscription', 'withdrawn', 'used', 'pending_withdrawal'),
       defaultValue: 'inventory',
-      comment: "Статус предмета: в инвентаре, продан, конвертирован в подписку, выведен в Steam, использован"
+      comment: "Статус предмета: в инвентаре, продан, конвертирован в подписку, выведен в Steam, использован, ожидает вывода"
     },
     transaction_date: {
       type: DataTypes.DATE,

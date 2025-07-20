@@ -130,7 +130,7 @@ async function withdrawItem(req, res) {
     // Связываем предмет с заявкой на вывод и обновляем статус
     await inventoryItem.update({
       withdrawal_id: withdrawal.id,
-      status: 'withdrawn', // Меняем статус сразу при создании заявки
+      status: 'pending_withdrawal', // Ставим статус ожидания вывода при создании заявки
       transaction_date: new Date()
     });
 

@@ -355,6 +355,41 @@ async function updateWithdrawalStatus(withdrawal, status, message, additionalDat
       ...additionalData
     }
   });
+
+  // Если withdrawal завершен успешно, обновляем статус предметов на 'withdrawn'
+  if (status === 'completed') {
+    await UserInventory.update(
+      {
+        status: 'withdrawn',
+        transaction_date: new Date()
+      },
+      {
+        where: {
+          withdrawal_id: withdrawal.id,
+          status: 'pending_withdrawal'
+        }
+      }
+    );
+    logger.info(`✅ Статус предметов обновлен на 'withdrawn' для withdrawal #${withdrawal.id}`);
+  }
+
+  // Если withdrawal провалился, возвращаем предметы в инвентарь
+  if (status === 'failed') {
+    await UserInventory.update(
+      {
+        status: 'inventory',
+        withdrawal_id: null,
+        transaction_date: null
+      },
+      {
+        where: {
+          withdrawal_id: withdrawal.id,
+          status: 'pending_withdrawal'
+        }
+      }
+    );
+    logger.info(`🔄 Статус предметов возвращен в 'inventory' для failed withdrawal #${withdrawal.id}`);
+  }
 }
 
 function delay(ms) {
