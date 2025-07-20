@@ -367,7 +367,8 @@ async function updateWithdrawalStatus(withdrawal, status, message, additionalDat
         where: {
           withdrawal_id: withdrawal.id,
           status: 'pending_withdrawal'
-        }
+        },
+        validate: false // Отключаем валидацию при обновлении статуса
       }
     );
     logger.info(`✅ Статус предметов обновлен на 'withdrawn' для withdrawal #${withdrawal.id}`);
@@ -385,7 +386,8 @@ async function updateWithdrawalStatus(withdrawal, status, message, additionalDat
         where: {
           withdrawal_id: withdrawal.id,
           status: 'pending_withdrawal'
-        }
+        },
+        validate: false // Отключаем валидацию при обновлении статуса
       }
     );
     logger.info(`🔄 Статус предметов возвращен в 'inventory' для failed withdrawal #${withdrawal.id}`);
