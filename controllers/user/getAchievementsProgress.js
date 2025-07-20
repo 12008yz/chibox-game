@@ -35,7 +35,11 @@ async function getAchievementsProgress(req, res) {
         name: ach.name,
         description: ach.description,
         completed: userAch ? userAch.is_completed : false,
-        progress: userAch ? userAch.current_progress : 0
+        progress: userAch ? userAch.current_progress : 0,
+        target: ach.requirement_value,
+        requirement_type: ach.requirement_type,
+        bonus_percentage: ach.bonus_percentage,
+        category: ach.category
       };
     });
 

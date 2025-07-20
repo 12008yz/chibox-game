@@ -7,6 +7,8 @@
 
 const cron = require('node-cron');
 const processSteamWithdrawals = require('./send-steam-withdrawals');
+const { trackSubscriptionDays } = require('./track-subscription-days');
+const { trackDailyStreaks } = require('./track-daily-streaks');
 const winston = require('winston');
 const path = require('path');
 const fs = require('fs');
@@ -110,6 +112,28 @@ cron.schedule('0 3 * * 1', async () => {
     logger.info('Еженедельный импорт предметов с LIS-Skins завершен');
   } catch (error) {
     logger.error('Ошибка при импорте предметов с LIS-Skins:', error);
+  }
+});
+
+// Ежедневное отслеживание дней подписки (каждый день в 00:01)
+cron.schedule('1 0 * * *', async () => {
+  logger.info('Запуск ежедневного отслеживания дней подписки...');
+  try {
+    const result = await trackSubscriptionDays();
+    logger.info(`Отслеживание дней подписки завершено. Обработано пользователей: ${result.processedUsers}, Успешно: ${result.successCount}, Ошибок: ${result.errorCount}`);
+  } catch (error) {
+    logger.error('Ошибка при отслеживании дней подписки:', error);
+  }
+});
+
+// Ежедневная проверка стриков активности (каждый день в 00:05)
+cron.schedule('5 0 * * *', async () => {
+  logger.info('Запуск проверки ежедневных стриков...');
+  try {
+    const result = await trackDailyStreaks();
+    logger.info(`Проверка стриков завершена. Активных пользователей: ${result.activeUsers}, Обновлено стриков: ${result.streakUpdated}, Сброшено: ${result.streakReset}`);
+  } catch (error) {
+    logger.error('Ошибка при проверке ежедневных стриков:', error);
   }
 });
 

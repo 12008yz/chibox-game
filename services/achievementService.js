@@ -68,8 +68,16 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
     // Обновить прогресс
     let newProgress;
     if (requirementType === 'best_item_value') {
+      // Для лучшего предмета берем максимальное значение
+      newProgress = Math.max(userAchievement.current_progress, progressToAdd);
+    } else if (requirementType === 'subscription_days') {
+      // Для дней подписки накапливаем общее количество дней
+      newProgress = userAchievement.current_progress + progressToAdd;
+    } else if (requirementType === 'daily_streak') {
+      // Для ежедневного стрика берем текущее значение стрика (не накапливаем)
       newProgress = Math.max(userAchievement.current_progress, progressToAdd);
     } else {
+      // Для остальных типов просто добавляем
       newProgress = userAchievement.current_progress + progressToAdd;
     }
     userAchievement.current_progress = Math.floor(newProgress);

@@ -1,5 +1,5 @@
 const { queues, logger } = require('../services/queueService');
-const { achievementService } = require('../services/achievementService');
+const { updateUserAchievementProgress } = require('../services/achievementService');
 const { xpService } = require('../services/xpService');
 const processSteamWithdrawals = require('./send-steam-withdrawals');
 
@@ -12,10 +12,10 @@ queues.achievements.process('update-achievements', async (job) => {
   try {
     logger.info(`Обработка достижения для пользователя ${userId}: ${achievementType} = ${value}`);
 
-    if (achievementService && typeof achievementService.updateAchievements === 'function') {
-      await achievementService.updateAchievements(userId, achievementType, value);
+    if (updateUserAchievementProgress && typeof updateUserAchievementProgress === 'function') {
+      await updateUserAchievementProgress(userId, achievementType, value);
     } else {
-      logger.warn('achievementService не найден или метод updateAchievements отсутствует');
+      logger.warn('updateUserAchievementProgress не найден');
     }
 
     return { success: true, message: 'Достижение обновлено' };
