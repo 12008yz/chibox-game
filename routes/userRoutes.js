@@ -44,6 +44,7 @@ const { getUserBonusInfoController } = require('../controllers/user/getUserBonus
 const { verifyEmailValidation, verifyEmail } = require('../controllers/user/verifyEmail');
 const { resendValidation, resendVerificationCode } = require('../controllers/user/resendVerificationCode');
 const { getWithdrawalStatus } = require('../controllers/user/withdrawItem');
+const { getLiveDrops } = require('../controllers/user/getLiveDrops');
 const authMiddleware = require('../middleware/auth');
 const { requireEmailVerification } = require('../middleware/emailVerification');
 
@@ -81,6 +82,7 @@ router.post('/login', login); // +
 router.post('/verify-email', verifyEmailValidation, verifyEmail); // Email verification
 router.post('/resend-verification-code', resendValidation, resendVerificationCode); // Resend verification code
 router.get('/users/:id', getPublicProfile); // +
+router.get('/live-drops', getLiveDrops); // + Публичное API для живого падения
 
 // Protected routes
 router.get('/profile', authMiddleware, getProfile);

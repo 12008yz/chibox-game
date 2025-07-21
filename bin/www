@@ -45,6 +45,12 @@ function broadcastOnlineUsers() {
   console.log(`Онлайн пользователей: ${onlineUsers}`);
 }
 
+// Функция для отправки живого падения всем подключенным клиентам
+function broadcastLiveDrop(dropData) {
+  io.emit('liveDrop', dropData);
+  console.log(`Live Drop отправлен: ${dropData.user.username} получил ${dropData.item.name}`);
+}
+
 io.on('connection', (socket) => {
   // Увеличиваем счетчик при подключении
   onlineUsers++;
@@ -110,3 +116,6 @@ function onListening() {
   console.log('Socket.IO готов.');
   console.log('Для боевого ssl просто поменяй сертификаты/пути через ENV переменные (SSL_KEY, SSL_CERT) — код менять не потребуется!');
 }
+
+// Экспортируем io и функцию для использования в других модулях
+module.exports = { io, broadcastLiveDrop };

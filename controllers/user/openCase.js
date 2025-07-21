@@ -2,6 +2,7 @@ const db = require('../../models');
 const { logger } = require('../../utils/logger');
 const { addJob } = require('../../services/queueService');
 const { calculateModifiedDropWeights, selectItemWithModifiedWeights, selectItemWithModifiedWeightsAndDuplicateProtection } = require('../../utils/dropWeightCalculator');
+const { broadcastDrop } = require('../../services/liveDropService');
 
 async function openCase(req, res) {
   try {
@@ -281,7 +282,7 @@ async function openCase(req, res) {
       }, { transaction: t });
 
       // Добавлено создание записи LiveDrop
-      await db.LiveDrop.create({
+      const liveDropRecord = await db.LiveDrop.create({
         user_id: userId,
         item_id: selectedItem.id,
         case_id: userCase.id,
@@ -294,6 +295,13 @@ async function openCase(req, res) {
         is_highlighted: selectedItem.price && selectedItem.price > 1000, // например, выделять дорогие предметы
         is_hidden: false
       }, { transaction: t });
+
+      // Транслируем живое падение через Socket.IO
+      broadcastDrop(user, selectedItem, userCase, {
+        id: liveDropRecord.id,
+        isRare: liveDropRecord.is_rare_item,
+        isHighlighted: liveDropRecord.is_highlighted
+      });
 
       user.cases_opened_today += 1;
       user.total_cases_opened = (user.total_cases_opened || 0) + 1
@@ -561,7 +569,7 @@ async function openCaseFromInventory(req, res) {
       await inventoryCase.save({ transaction: t });
 
       // Создаем запись в LiveDrop
-      await db.LiveDrop.create({
+      const liveDropRecord = await db.LiveDrop.create({
         user_id: userId,
         item_id: selectedItem.id,
         case_id: newCase.id,
@@ -574,6 +582,13 @@ async function openCaseFromInventory(req, res) {
         is_highlighted: selectedItem.price && selectedItem.price > 1000,
         is_hidden: false
       }, { transaction: t });
+
+      // Транслируем живое падение через Socket.IO
+      broadcastDrop(user, selectedItem, newCase, {
+        id: liveDropRecord.id,
+        isRare: liveDropRecord.is_rare_item,
+        isHighlighted: liveDropRecord.is_highlighted
+      });
 
       // Обновляем статистику пользователя
       user.cases_opened_today = (user.cases_opened_today || 0) + 1;
