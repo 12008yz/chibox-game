@@ -26,10 +26,52 @@ const sslOptions = getSSLOptions();
 const server = http.createServer(app);
 
 // === Подключаем socket.io ===
-const io = socketIO(server);
+const io = socketIO(server, {
+  cors: {
+    origin: process.env.NODE_ENV === 'production' 
+      ? ['https://your-domain.com'] 
+      : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+// Счетчик онлайн пользователей
+let onlineUsers = 0;
+
+// Функция для отправки обновления количества пользователей всем подключенным клиентам
+function broadcastOnlineUsers() {
+  io.emit('onlineUsersUpdate', { count: onlineUsers });
+  console.log(`Онлайн пользователей: ${onlineUsers}`);
+}
+
 io.on('connection', (socket) => {
-  console.log('Socket.IO: Пользователь подключился');
-   socket.emit('hello', { message: 'Привет через WebSocket!' });
+  // Увеличиваем счетчик при подключении
+  onlineUsers++;
+  console.log(`Socket.IO: Пользователь подключился. Онлайн: ${onlineUsers}`);
+  
+  // Отправляем приветственное сообщение новому пользователю
+  socket.emit('hello', { message: 'Привет через WebSocket!' });
+  
+  // Отправляем текущее количество пользователей новому клиенту
+  socket.emit('onlineUsersUpdate', { count: onlineUsers });
+  
+  // Уведомляем всех остальных о новом пользователе
+  socket.broadcast.emit('onlineUsersUpdate', { count: onlineUsers });
+
+  // Обработка отключения
+  socket.on('disconnect', (reason) => {
+    onlineUsers = Math.max(0, onlineUsers - 1); // Защита от отрицательных значений
+    console.log(`Socket.IO: Пользователь отключился (${reason}). Онлайн: ${onlineUsers}`);
+    
+    // Уведомляем всех о снижении количества пользователей
+    broadcastOnlineUsers();
+  });
+
+  // Обработка ошибок подключения
+  socket.on('error', (error) => {
+    console.error('Socket.IO error:', error);
+  });
 });
 
 server.listen(port, '0.0.0.0');
@@ -64,7 +106,7 @@ function onError(error) {
 function onListening() {
   const addr = server.address();
   const bind = typeof addr === 'string' ? 'pipe ' + addr : 'порт ' + addr.port;
-  console.log('HTTPS сервер запущен на ' + bind);
+  console.log('HTTP сервер запущен на ' + bind);
   console.log('Socket.IO готов.');
   console.log('Для боевого ssl просто поменяй сертификаты/пути через ENV переменные (SSL_KEY, SSL_CERT) — код менять не потребуется!');
 }
