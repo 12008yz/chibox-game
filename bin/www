@@ -117,5 +117,9 @@ function onListening() {
   console.log('Для боевого ssl просто поменяй сертификаты/пути через ENV переменные (SSL_KEY, SSL_CERT) — код менять не потребуется!');
 }
 
+// Инициализируем LiveDrop сервис
+const { initLiveDropService } = require('../services/liveDropService');
+initLiveDropService(broadcastLiveDrop);
+
 // Экспортируем io и функцию для использования в других модулях
 module.exports = { io, broadcastLiveDrop };
