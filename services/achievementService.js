@@ -18,6 +18,62 @@ async function sendAchievementNotification(userId, achievement) {
   });
 }
 
+/**
+ * Рассчитывает общую стоимость предметов в инвентаре пользователя
+ * @param {string} userId - ID пользователя
+ * @returns {number} Общая стоимость всех предметов в инвентаре
+ */
+async function calculateTotalInventoryValue(userId) {
+  const inventoryItems = await db.UserInventory.findAll({
+    where: {
+      user_id: userId,
+      item_type: 'item',
+      status: 'inventory'
+    },
+    include: [{
+      model: db.Item,
+      as: 'item',
+      attributes: ['price']
+    }]
+  });
+
+  const totalValue = inventoryItems.reduce((sum, inventoryItem) => {
+    if (inventoryItem.item && inventoryItem.item.price) {
+      return sum + parseFloat(inventoryItem.item.price);
+    }
+    return sum;
+  }, 0);
+
+  return Math.floor(totalValue);
+}
+
+/**
+ * Рассчитывает стоимость самого дорогого предмета в инвентаре пользователя
+ * @param {string} userId - ID пользователя
+ * @returns {number} Стоимость самого дорогого предмета
+ */
+async function calculateBestItemValue(userId) {
+  const bestItem = await db.UserInventory.findOne({
+    where: {
+      user_id: userId,
+      item_type: 'item',
+      status: 'inventory'
+    },
+    include: [{
+      model: db.Item,
+      as: 'item',
+      attributes: ['price']
+    }],
+    order: [[{model: db.Item, as: 'item'}, 'price', 'DESC']]
+  });
+
+  if (bestItem && bestItem.item && bestItem.item.price) {
+    return Math.floor(parseFloat(bestItem.item.price));
+  }
+
+  return 0;
+}
+
 async function updateUserAchievementProgress(userId, requirementType, progressToAdd) {
   // Найти активные достижения с данным типом требования
   const achievements = await db.Achievement.findAll({
@@ -68,8 +124,11 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
     // Обновить прогресс
     let newProgress;
     if (requirementType === 'best_item_value') {
-      // Для лучшего предмета берем максимальное значение
-      newProgress = Math.max(userAchievement.current_progress, progressToAdd);
+      // Для лучшего предмета перерассчитываем актуальную стоимость из инвентаря
+      newProgress = await calculateBestItemValue(userId);
+    } else if (requirementType === 'total_items_value') {
+      // Для общей стоимости перерассчитываем всю стоимость инвентаря
+      newProgress = await calculateTotalInventoryValue(userId);
     } else if (requirementType === 'subscription_days') {
       // Для дней подписки накапливаем общее количество дней
       newProgress = userAchievement.current_progress + progressToAdd;
@@ -91,16 +150,17 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
         // Применение бонуса к шансу выпадения дорогих предметов
         const user = await db.User.findByPk(userId);
         const currentAchievementsBonus = user.achievements_bonus_percentage || 0;
-        const newAchievementsBonus = Math.min(currentAchievementsBonus + achievement.bonus_percentage, 5.0);
+        // Убираем ограничение на 5% и увеличиваем до 25%
+        const newAchievementsBonus = Math.min(currentAchievementsBonus + achievement.bonus_percentage, 25.0);
 
         user.achievements_bonus_percentage = newAchievementsBonus;
 
-        // Пересчитываем общий бонус с ограничением 15%
+        // Пересчитываем общий бонус с ограничением 30%
         user.total_drop_bonus_percentage = Math.min(
           newAchievementsBonus +
           (user.level_bonus_percentage || 0) +
           (user.subscription_bonus_percentage || 0),
-          15.0
+          30.0
         );
 
         await user.save();
@@ -127,7 +187,28 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
   return completedAchievements;
 }
 
+/**
+ * Обновляет достижения, связанные с инвентарем (total_items_value и best_item_value)
+ * @param {string} userId - ID пользователя
+ */
+async function updateInventoryRelatedAchievements(userId) {
+  try {
+    // Обновляем достижение по общей стоимости инвентаря
+    await updateUserAchievementProgress(userId, 'total_items_value', 0);
+
+    // Обновляем достижение по лучшему предмету
+    await updateUserAchievementProgress(userId, 'best_item_value', 0);
+
+    console.log(`Обновлены достижения инвентаря для пользователя ${userId}`);
+  } catch (error) {
+    console.error('Ошибка обновления достижений инвентаря:', error);
+  }
+}
+
 module.exports = {
   updateUserAchievementProgress,
-  sendAchievementNotification
+  sendAchievementNotification,
+  updateInventoryRelatedAchievements,
+  calculateTotalInventoryValue,
+  calculateBestItemValue
 };

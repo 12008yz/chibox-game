@@ -303,7 +303,7 @@ async function openCase(req, res) {
 
     // Обновляем достижения НАПРЯМУЮ (не через очереди)
     try {
-      const { updateUserAchievementProgress } = require('../../services/achievementService');
+      const { updateUserAchievementProgress, updateInventoryRelatedAchievements } = require('../../services/achievementService');
       const { addExperience } = require('../../services/xpService');
 
       // 1. Обновляем достижение "cases_opened"
@@ -336,6 +336,10 @@ async function openCase(req, res) {
         await updateUserAchievementProgress(userId, 'premium_items_found', 1);
         logger.info(`Обновлено достижение premium_items_found для пользователя ${userId}`);
       }
+
+      // 6. Обновляем достижения инвентаря (Миллионер и Эксперт)
+      await updateInventoryRelatedAchievements(userId);
+      logger.info(`Обновлены достижения инвентаря для пользователя ${userId}`);
 
     } catch (achievementError) {
       logger.error('Ошибка обновления достижений:', achievementError);
@@ -580,7 +584,7 @@ async function openCaseFromInventory(req, res) {
 
       // Обновляем достижения НАПРЯМУЮ (не через очереди)
       try {
-        const { updateUserAchievementProgress } = require('../../services/achievementService');
+        const { updateUserAchievementProgress, updateInventoryRelatedAchievements } = require('../../services/achievementService');
         const { addExperience } = require('../../services/xpService');
 
         // 1. Обновляем достижение "cases_opened"
@@ -613,6 +617,10 @@ async function openCaseFromInventory(req, res) {
           await updateUserAchievementProgress(userId, 'premium_items_found', 1);
           logger.info(`Обновлено достижение premium_items_found для пользователя ${userId} (из инвентаря)`);
         }
+
+        // 6. Обновляем достижения инвентаря (Миллионер и Эксперт)
+        await updateInventoryRelatedAchievements(userId);
+        logger.info(`Обновлены достижения инвентаря для пользователя ${userId} (из инвентаря)`);
 
       } catch (achievementError) {
         logger.error('Ошибка обновления достижений:', achievementError);
