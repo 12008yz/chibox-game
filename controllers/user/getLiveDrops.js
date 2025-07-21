@@ -3,7 +3,7 @@ const { logger } = require('../../utils/logger');
 
 async function getLiveDrops(req, res) {
   try {
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = parseInt(req.query.limit) || 17;
     const offset = parseInt(req.query.offset) || 0;
 
     // Получаем последние падения с пользователями и предметами
