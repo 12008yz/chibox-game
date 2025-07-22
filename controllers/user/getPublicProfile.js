@@ -16,7 +16,7 @@ async function getPublicProfile(req, res) {
   try {
     const { id } = req.params;
     const user = await db.User.findByPk(id, {
-      attributes: ['id', 'username', 'createdAt', 'level', 'subscription_tier', 'total_cases_opened'],
+      attributes: ['id', 'username', 'createdAt', 'level', 'subscription_tier', 'total_cases_opened', 'steam_avatar', 'steam_profile'],
       include: [
         {
           model: db.UserInventory,
@@ -65,7 +65,9 @@ async function getPublicProfile(req, res) {
         subscriptionTier: user.subscription_tier,
         totalCasesOpened: totalCasesOpened, // Используем реальный подсчет
         inventory: user.inventory,
-        bestWeapon: bestWeapon
+        bestWeapon: bestWeapon,
+        steam_avatar: user.steam_avatar,
+        steam_profile: user.steam_profile
       }
     });
   } catch (error) {
