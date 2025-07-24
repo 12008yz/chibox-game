@@ -36,13 +36,15 @@ const io = socketIO(server, {
   }
 });
 
-// Счетчик онлайн пользователей
-let onlineUsers = 0;
+// Улучшенная система подсчета онлайн пользователей
+const userSessions = new Map(); // Хранит все сессии пользователей
+const userConnections = new Map(); // Хранит активные подключения для каждого пользователя
 
 // Функция для отправки обновления количества пользователей всем подключенным клиентам
 function broadcastOnlineUsers() {
+  const onlineUsers = userSessions.size;
   io.emit('onlineUsersUpdate', { count: onlineUsers });
-  console.log(`Онлайн пользователей: ${onlineUsers}`);
+  console.log(`Уникальных пользователей онлайн: ${onlineUsers}`);
 }
 
 // Функция для отправки живого падения всем подключенным клиентам
@@ -51,27 +53,77 @@ function broadcastLiveDrop(dropData) {
   console.log(`Live Drop отправлен: ${dropData.user.username} получил ${dropData.item.name}`);
 }
 
+// Функция для получения уникального идентификатора пользователя
+function getUserId(socket) {
+  // Пытаемся получить user ID из сессии
+  const session = socket.request.session;
+  if (session && session.user && session.user.id) {
+    return `user_${session.user.id}`;
+  }
+  
+  // Если нет авторизованного пользователя, используем IP + User-Agent
+  const ip = socket.handshake.address;
+  const userAgent = socket.handshake.headers['user-agent'] || 'unknown';
+  const fingerprint = require('crypto').createHash('md5').update(ip + userAgent).digest('hex');
+  return `guest_${fingerprint}`;
+}
+
 io.on('connection', (socket) => {
-  // Увеличиваем счетчик при подключении
-  onlineUsers++;
-  console.log(`Socket.IO: Пользователь подключился. Онлайн: ${onlineUsers}`);
+  const userId = getUserId(socket);
+  
+  // Проверяем, первое ли это подключение пользователя
+  let isNewUser = false;
+  if (!userSessions.has(userId)) {
+    userSessions.set(userId, {
+      id: userId,
+      firstConnectedAt: new Date(),
+      lastActivity: new Date()
+    });
+    isNewUser = true;
+  } else {
+    // Обновляем время последней активности
+    userSessions.get(userId).lastActivity = new Date();
+  }
+  
+  // Добавляем подключение в список активных подключений пользователя
+  if (!userConnections.has(userId)) {
+    userConnections.set(userId, new Set());
+  }
+  userConnections.get(userId).add(socket.id);
+  
+  if (isNewUser) {
+    console.log(`Socket.IO: Новый пользователь подключился (${userId}). Уникальных онлайн: ${userSessions.size}`);
+  } else {
+    console.log(`Socket.IO: Пользователь переподключился (${userId}). Соединений: ${userConnections.get(userId).size}`);
+  }
   
   // Отправляем приветственное сообщение новому пользователю
   socket.emit('hello', { message: 'Привет через WebSocket!' });
   
-  // Отправляем текущее количество пользователей новому клиенту
-  socket.emit('onlineUsersUpdate', { count: onlineUsers });
-  
-  // Уведомляем всех остальных о новом пользователе
-  socket.broadcast.emit('onlineUsersUpdate', { count: onlineUsers });
+  // Отправляем текущее количество пользователей
+  if (isNewUser) {
+    broadcastOnlineUsers();
+  } else {
+    // Для переподключений отправляем только текущему сокету
+    socket.emit('onlineUsersUpdate', { count: userSessions.size });
+  }
 
   // Обработка отключения
   socket.on('disconnect', (reason) => {
-    onlineUsers = Math.max(0, onlineUsers - 1); // Защита от отрицательных значений
-    console.log(`Socket.IO: Пользователь отключился (${reason}). Онлайн: ${onlineUsers}`);
-    
-    // Уведомляем всех о снижении количества пользователей
-    broadcastOnlineUsers();
+    const connections = userConnections.get(userId);
+    if (connections) {
+      connections.delete(socket.id);
+      
+      // Если у пользователя больше нет активных подключений
+      if (connections.size === 0) {
+        userConnections.delete(userId);
+        userSessions.delete(userId);
+        console.log(`Socket.IO: Пользователь полностью отключился (${userId}, ${reason}). Уникальных онлайн: ${userSessions.size}`);
+        broadcastOnlineUsers();
+      } else {
+        console.log(`Socket.IO: Одно из подключений пользователя закрыто (${userId}, ${reason}). Активных соединений: ${connections.size}`);
+      }
+    }
   });
 
   // Обработка ошибок подключения
@@ -79,6 +131,26 @@ io.on('connection', (socket) => {
     console.error('Socket.IO error:', error);
   });
 });
+
+// Очистка неактивных пользователей каждые 5 минут
+setInterval(() => {
+  const now = new Date();
+  const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+  
+  let cleanedUsers = 0;
+  for (const [userId, userData] of userSessions.entries()) {
+    if (userData.lastActivity < fiveMinutesAgo) {
+      userSessions.delete(userId);
+      userConnections.delete(userId);
+      cleanedUsers++;
+    }
+  }
+  
+  if (cleanedUsers > 0) {
+    console.log(`Очищено неактивных пользователей: ${cleanedUsers}. Онлайн: ${userSessions.size}`);
+    broadcastOnlineUsers();
+  }
+}, 5 * 60 * 1000);
 
 server.listen(port, '0.0.0.0');
 server.on('error', onError);
