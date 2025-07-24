@@ -47,7 +47,7 @@ async function getProfile(req, res) {
             as: 'item',
             attributes: ['id', 'name', 'rarity', 'price', 'image_url']
           }],
-          limit: 50,
+          limit: 200, // Увеличиваем лимит для отображения большего количества предметов
           order: [['created_at', 'DESC']]
         }
       ]

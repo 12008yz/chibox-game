@@ -16,7 +16,7 @@ async function getPublicProfile(req, res) {
   try {
     const { id } = req.params;
 
-    // Получаем пользователя с инвентарем
+    // Получаем пользователя с инвентарем (убираем лимит, возвращаем все предметы)
     const user = await db.User.findByPk(id, {
       attributes: [
         'id', 'username', 'createdAt', 'level', 'subscription_tier',
@@ -31,6 +31,7 @@ async function getPublicProfile(req, res) {
           as: 'inventory',
           where: { status: 'inventory' },
           required: false,
+          // Убираем лимит - возвращаем ВСЕ предметы
           include: [
             {
               model: db.Item,
