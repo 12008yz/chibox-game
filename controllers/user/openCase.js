@@ -304,7 +304,18 @@ async function openCase(req, res) {
       });
 
       user.cases_opened_today += 1;
-      user.total_cases_opened = (user.total_cases_opened || 0) + 1
+      user.total_cases_opened = (user.total_cases_opened || 0) + 1;
+
+      // Обновляем общую стоимость предметов и лучший предмет
+      const itemPrice = parseFloat(selectedItem.price) || 0;
+      user.total_items_value = (parseFloat(user.total_items_value) || 0) + itemPrice;
+
+      // Обновляем лучший предмет, если текущий дороже
+      const currentBestValue = parseFloat(user.best_item_value) || 0;
+      if (itemPrice > currentBestValue) {
+        user.best_item_value = itemPrice;
+      }
+
       await user.save({ transaction: t });
 
       await t.commit();

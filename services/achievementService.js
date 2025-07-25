@@ -19,16 +19,27 @@ async function sendAchievementNotification(userId, achievement) {
 }
 
 /**
- * Рассчитывает общую стоимость предметов в инвентаре пользователя
+ * Рассчитывает общую стоимость всех предметов, полученных пользователем за всё время
  * @param {string} userId - ID пользователя
- * @returns {number} Общая стоимость всех предметов в инвентаре
+ * @returns {number} Общая стоимость всех полученных предметов
  */
 async function calculateTotalInventoryValue(userId) {
+  // Сначала проверяем текущее значение в профиле пользователя
+  const user = await db.User.findByPk(userId, {
+    attributes: ['total_items_value']
+  });
+
+  if (user && user.total_items_value && user.total_items_value > 0) {
+    // Если значение уже есть в профиле, используем его
+    return Math.floor(parseFloat(user.total_items_value));
+  }
+
+  // Если значение не установлено, пересчитываем по всем предметам за всё время
   const inventoryItems = await db.UserInventory.findAll({
     where: {
       user_id: userId,
-      item_type: 'item',
-      status: 'inventory'
+      item_type: 'item'
+      // Убираем фильтр по статусу - считаем ВСЕ предметы за всё время
     },
     include: [{
       model: db.Item,
@@ -44,20 +55,36 @@ async function calculateTotalInventoryValue(userId) {
     return sum;
   }, 0);
 
+  // Обновляем значение в профиле пользователя для будущих запросов
+  if (user && totalValue > 0) {
+    await user.update({ total_items_value: totalValue });
+  }
+
   return Math.floor(totalValue);
 }
 
 /**
- * Рассчитывает стоимость самого дорогого предмета в инвентаре пользователя
+ * Рассчитывает стоимость самого дорогого предмета, полученного пользователем за всё время
  * @param {string} userId - ID пользователя
  * @returns {number} Стоимость самого дорогого предмета
  */
 async function calculateBestItemValue(userId) {
+  // Сначала проверяем текущее значение в профиле пользователя
+  const user = await db.User.findByPk(userId, {
+    attributes: ['best_item_value']
+  });
+
+  if (user && user.best_item_value && user.best_item_value > 0) {
+    // Если значение уже есть в профиле, используем его
+    return Math.floor(parseFloat(user.best_item_value));
+  }
+
+  // Если значение не установлено, пересчитываем по всем предметам за всё время
   const bestItem = await db.UserInventory.findOne({
     where: {
       user_id: userId,
-      item_type: 'item',
-      status: 'inventory'
+      item_type: 'item'
+      // Убираем фильтр по статусу - ищем среди ВСЕХ предметов за всё время
     },
     include: [{
       model: db.Item,
@@ -67,11 +94,17 @@ async function calculateBestItemValue(userId) {
     order: [[{model: db.Item, as: 'item'}, 'price', 'DESC']]
   });
 
+  let bestValue = 0;
   if (bestItem && bestItem.item && bestItem.item.price) {
-    return Math.floor(parseFloat(bestItem.item.price));
+    bestValue = Math.floor(parseFloat(bestItem.item.price));
+
+    // Обновляем значение в профиле пользователя для будущих запросов
+    if (user && bestValue > 0) {
+      await user.update({ best_item_value: bestValue });
+    }
   }
 
-  return 0;
+  return bestValue;
 }
 
 async function updateUserAchievementProgress(userId, requirementType, progressToAdd) {
