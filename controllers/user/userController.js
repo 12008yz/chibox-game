@@ -30,6 +30,7 @@ const { adminUpdateUser } = require('./adminUpdateUser');
 const { getInventory } = require('./getInventory');
 const { buyCase, getCasePurchaseInfo } = require('./buyCase');
 const { getCaseTemplateItems } = require('./getCaseTemplateItems');
+const { getCaseStatus } = require('./getCaseStatus');
 
 module.exports = {
   registerValidation,
@@ -69,5 +70,6 @@ module.exports = {
   getInventory,
   buyCase,
   getCasePurchaseInfo,
-  getCaseTemplateItems
+  getCaseTemplateItems,
+  getCaseStatus
 };
