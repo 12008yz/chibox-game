@@ -37,6 +37,7 @@ const {
   adminUpdateUser,
   buyCase,
   getCasePurchaseInfo,
+  getCaseTemplateItems,
 } = require('../controllers/user/userController');
 
 const { loginBot, sendTrade, getSteamInventory } = require('../controllers/user/steamBotController');
@@ -120,6 +121,7 @@ router.post('/bonus/play-squares', authMiddleware, playBonusSquares); //+
 router.get('/bonus/status', authMiddleware, getBonusStatus); //+
 router.post('/bonus/reset-cooldown', authMiddleware, resetBonusCooldown); //+ Сброс кулдауна бонуса
 router.get('/cases/available', getCasesAvailable); // Доступно всем для просмотра доступных кейсов
+router.get('/case-templates/:caseTemplateId/items', getCaseTemplateItems); // Получение предметов кейс-темплейта
 router.get('/achievements/progress', authMiddleware, getAchievementsProgress); //+
 
 // Case purchase routes
