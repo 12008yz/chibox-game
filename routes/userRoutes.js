@@ -95,7 +95,7 @@ router.post('/open-case', authMiddleware, openCase); //+
 router.post('/sell-item', authMiddleware, sellItem);
 router.post('/withdraw-item', authMiddleware, /* requireEmailVerification, */ withdrawItem);
 router.get('/withdraw-item/:withdrawalId', authMiddleware, getWithdrawalStatus);
-router.get('/cases', authMiddleware, getCases); //+
+router.get('/cases', getCases); // Доступно всем для просмотра кейсов
 router.get('/balance', authMiddleware, getBalance); //+
 router.post('/promo', authMiddleware, applyPromo);
 router.get('/transactions', authMiddleware, getTransactions);
@@ -119,7 +119,7 @@ router.post('/items/exchange-for-subscription', authMiddleware, exchangeItemForS
 router.post('/bonus/play-squares', authMiddleware, playBonusSquares); //+
 router.get('/bonus/status', authMiddleware, getBonusStatus); //+
 router.post('/bonus/reset-cooldown', authMiddleware, resetBonusCooldown); //+ Сброс кулдауна бонуса
-router.get('/cases/available', authMiddleware, getCasesAvailable); //+
+router.get('/cases/available', getCasesAvailable); // Доступно всем для просмотра доступных кейсов
 router.get('/achievements/progress', authMiddleware, getAchievementsProgress); //+
 
 // Case purchase routes
