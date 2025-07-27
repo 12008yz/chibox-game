@@ -45,6 +45,7 @@ const { verifyEmailValidation, verifyEmail } = require('../controllers/user/veri
 const { resendValidation, resendVerificationCode } = require('../controllers/user/resendVerificationCode');
 const { getWithdrawalStatus } = require('../controllers/user/withdrawItem');
 const { getLiveDrops } = require('../controllers/user/getLiveDrops');
+const { fetchSteamTradeUrl, getTradeUrlStatus } = require('../controllers/user/fetchSteamTradeUrl');
 const authMiddleware = require('../middleware/auth');
 const { requireEmailVerification } = require('../middleware/emailVerification');
 
@@ -129,5 +130,9 @@ router.get('/cases/purchase-info', authMiddleware, getCasePurchaseInfo); //+
 router.post('/steambot/login', authMiddleware, loginBot); //+
 router.post('/steambot/send-trade', authMiddleware, sendTrade);
 router.get('/steambot/inventory', authMiddleware, getSteamInventory); //+
+
+// Steam Trade URL routes
+router.post('/steam/fetch-trade-url', authMiddleware, fetchSteamTradeUrl); // Автоматическое получение Trade URL
+router.get('/steam/trade-url-status', authMiddleware, getTradeUrlStatus); // Проверка статуса Trade URL
 
 module.exports = router;

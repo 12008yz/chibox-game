@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { logger } = require('../utils/logger');
 const auth = require('../middleware/auth');
 const db = require('../models');
+const { getTradeUrlFromSteam, getTradePrivacyUrl } = require('../utils/steamTradeHelper');
 
 const router = express.Router();
 
@@ -196,12 +197,34 @@ router.get('/link-steam/return',
         steamProfile: steamData.steam_profile?.personaname
       });
 
-      await db.User.update({
+      // Пытаемся автоматически получить Trade URL
+      let autoTradeUrl = null;
+      try {
+        logger.info('Попытка автоматического получения Trade URL для Steam ID:', steamId);
+        autoTradeUrl = await getTradeUrlFromSteam(steamId);
+        if (autoTradeUrl) {
+          logger.info('Trade URL автоматически получен:', autoTradeUrl);
+        } else {
+          logger.info('Trade URL не удалось получить автоматически. Пользователь может указать его вручную.');
+        }
+      } catch (error) {
+        logger.error('Ошибка при автоматическом получении Trade URL:', error);
+      }
+
+      // Подготавливаем данные для обновления
+      const updateData = {
         steam_id: steamId,
         steam_profile: steamData.steam_profile,
         steam_avatar: steamData.steam_avatar,
         steam_profile_url: steamData.steam_profile_url
-      }, {
+      };
+
+      // Добавляем Trade URL если удалось получить
+      if (autoTradeUrl) {
+        updateData.steam_trade_url = autoTradeUrl;
+      }
+
+      await db.User.update(updateData, {
         where: { id: linkUserId }
       });
 
