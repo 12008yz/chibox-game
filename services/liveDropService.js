@@ -20,10 +20,16 @@ function broadcastDrop(user, item, caseData, dropData = {}) {
   }
 
   try {
-    const dropId = dropData.id || `${Date.now()}_${user.id}_${item.id}_${Math.random().toString(36).substr(2, 6)}`;
+    // Проверяем, что есть ID дропа - если нет, значит есть проблема
+    if (!dropData.id) {
+      logger.error('LiveDrop: Отсутствует ID дропа, пропускаем трансляцию');
+      return;
+    }
 
-    // Проверяем, не транслировали ли мы уже это падение
-    const dropKey = `${user.id}_${item.id}_${caseData?.id || 'no_case'}`;
+    const dropId = dropData.id;
+
+    // Используем dropId как уникальный ключ для предотвращения дублирования
+    const dropKey = `drop_${dropId}`;
     if (sentDrops.has(dropKey)) {
       logger.warn(`Live Drop уже был транслирован: ${dropKey}`);
       return;
