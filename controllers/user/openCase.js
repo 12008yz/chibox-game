@@ -281,20 +281,37 @@ async function openCase(req, res) {
         item_type: 'item'
       }, { transaction: t });
 
-      // Добавлено создание записи LiveDrop
-      const liveDropRecord = await db.LiveDrop.create({
-        user_id: userId,
-        item_id: selectedItem.id,
-        case_id: userCase.id,
-        drop_time: new Date(),
-        is_rare_item: selectedItem.rarity === 'rare' || selectedItem.rarity === 'legendary',
-        item_price: selectedItem.price || null,
-        item_rarity: selectedItem.rarity || null,
-        user_level: user.level || null,
-        user_subscription_tier: user.subscription_tier || null,
-        is_highlighted: selectedItem.price && selectedItem.price > 1000, // например, выделять дорогие предметы
-        is_hidden: false
-      }, { transaction: t });
+      // Создание записи LiveDrop с проверкой на дубликаты
+      const existingDrop = await db.LiveDrop.findOne({
+        where: {
+          user_id: userId,
+          item_id: selectedItem.id,
+          case_id: userCase.id
+        },
+        transaction: t
+      });
+
+      let liveDropRecord;
+      if (!existingDrop) {
+        liveDropRecord = await db.LiveDrop.create({
+          user_id: userId,
+          item_id: selectedItem.id,
+          case_id: userCase.id,
+          drop_time: new Date(),
+          is_rare_item: selectedItem.rarity === 'rare' || selectedItem.rarity === 'legendary',
+          item_price: selectedItem.price || null,
+          item_rarity: selectedItem.rarity || null,
+          user_level: user.level || null,
+          user_subscription_tier: user.subscription_tier || null,
+          is_highlighted: selectedItem.price && selectedItem.price > 1000,
+          is_hidden: false
+        }, { transaction: t });
+
+        logger.info(`LiveDrop запись создана для пользователя ${userId}, предмет ${selectedItem.id}, кейс ${userCase.id}`);
+      } else {
+        liveDropRecord = existingDrop;
+        logger.info(`LiveDrop запись уже существует для пользователя ${userId}, предмет ${selectedItem.id}, кейс ${userCase.id}`);
+      }
 
       // Транслируем живое падение через Socket.IO
       broadcastDrop(user, selectedItem, userCase, {
@@ -579,20 +596,37 @@ async function openCaseFromInventory(req, res) {
       inventoryCase.transaction_date = new Date();
       await inventoryCase.save({ transaction: t });
 
-      // Создаем запись в LiveDrop
-      const liveDropRecord = await db.LiveDrop.create({
-        user_id: userId,
-        item_id: selectedItem.id,
-        case_id: newCase.id,
-        drop_time: new Date(),
-        is_rare_item: selectedItem.rarity === 'rare' || selectedItem.rarity === 'legendary',
-        item_price: selectedItem.price || null,
-        item_rarity: selectedItem.rarity || null,
-        user_level: user.level || null,
-        user_subscription_tier: user.subscription_tier || null,
-        is_highlighted: selectedItem.price && selectedItem.price > 1000,
-        is_hidden: false
-      }, { transaction: t });
+      // Создаем запись в LiveDrop с проверкой на дубликаты
+      const existingDrop = await db.LiveDrop.findOne({
+        where: {
+          user_id: userId,
+          item_id: selectedItem.id,
+          case_id: newCase.id
+        },
+        transaction: t
+      });
+
+      let liveDropRecord;
+      if (!existingDrop) {
+        liveDropRecord = await db.LiveDrop.create({
+          user_id: userId,
+          item_id: selectedItem.id,
+          case_id: newCase.id,
+          drop_time: new Date(),
+          is_rare_item: selectedItem.rarity === 'rare' || selectedItem.rarity === 'legendary',
+          item_price: selectedItem.price || null,
+          item_rarity: selectedItem.rarity || null,
+          user_level: user.level || null,
+          user_subscription_tier: user.subscription_tier || null,
+          is_highlighted: selectedItem.price && selectedItem.price > 1000,
+          is_hidden: false
+        }, { transaction: t });
+
+        logger.info(`LiveDrop запись создана для пользователя ${userId}, предмет ${selectedItem.id}, кейс ${newCase.id} (из инвентаря)`);
+      } else {
+        liveDropRecord = existingDrop;
+        logger.info(`LiveDrop запись уже существует для пользователя ${userId}, предмет ${selectedItem.id}, кейс ${newCase.id} (из инвентаря)`);
+      }
 
       // Транслируем живое падение через Socket.IO
       broadcastDrop(user, selectedItem, newCase, {
