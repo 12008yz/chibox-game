@@ -22,14 +22,6 @@ function getNextDailyCaseTime() {
  * Проверяет, наступило ли время для выдачи ежедневных кейсов
  * @returns {boolean}
  */
-function isDailyCaseTime() {
-  const now = new Date();
-  const currentUTCHour = now.getUTCHours();
-  const currentUTCMinute = now.getUTCMinutes();
-
-  // Проверяем, что сейчас 18:41 UTC (± 1 минута для надежности)
-  return currentUTCHour === 19 && currentUTCMinute >= 1 && currentUTCMinute <= 2 ;
-}
 
 /**
  * Форматирует время до следующего кейса для отображения
@@ -59,6 +51,5 @@ function formatTimeUntilNextCase(nextCaseTime) {
 
 module.exports = {
   getNextDailyCaseTime,
-  isDailyCaseTime,
   formatTimeUntilNextCase
 };

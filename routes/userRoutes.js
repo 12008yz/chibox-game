@@ -48,6 +48,7 @@ const { resendValidation, resendVerificationCode } = require('../controllers/use
 const { getWithdrawalStatus } = require('../controllers/user/withdrawItem');
 const { getLiveDrops } = require('../controllers/user/getLiveDrops');
 const { fetchSteamTradeUrl, getTradeUrlStatus } = require('../controllers/user/fetchSteamTradeUrl');
+const { claimSubscriptionCase, getSubscriptionCaseStatus } = require('../controllers/user/claimSubscriptionCase');
 const authMiddleware = require('../middleware/auth');
 const { requireEmailVerification } = require('../middleware/emailVerification');
 
@@ -138,5 +139,9 @@ router.get('/steambot/inventory', authMiddleware, getSteamInventory); //+
 // Steam Trade URL routes
 router.post('/steam/fetch-trade-url', authMiddleware, fetchSteamTradeUrl); // Автоматическое получение Trade URL
 router.get('/steam/trade-url-status', authMiddleware, getTradeUrlStatus); // Проверка статуса Trade URL
+
+// Subscription daily cases routes
+router.post('/subscription/claim-case', authMiddleware, claimSubscriptionCase); // Получение ежедневных кейсов подписки
+router.get('/subscription/case-status', authMiddleware, getSubscriptionCaseStatus); // Статус доступности кейсов подписки
 
 module.exports = router;
