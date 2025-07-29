@@ -1,4 +1,5 @@
 const db = require('../../models');
+const { Op } = require('sequelize');
 const { logger } = require('../../utils/logger');
 const { addJob } = require('../../services/queueService');
 const { calculateModifiedDropWeights, selectItemWithModifiedWeights, selectItemWithModifiedWeightsAndDuplicateProtection } = require('../../utils/dropWeightCalculator');
@@ -20,7 +21,9 @@ async function openCase(req, res) {
     // Если указан template_id, ищем неоткрытый кейс пользователя с данным шаблоном
     if (templateId) {
       console.log('Ищем кейс по template_id:', templateId);
-      const templateCase = await db.Case.findOne({
+
+      // Сначала ищем в таблице Cases
+      let templateCase = await db.Case.findOne({
         where: {
           user_id: userId,
           template_id: templateId,
@@ -30,14 +33,136 @@ async function openCase(req, res) {
       });
 
       if (templateCase) {
-        console.log('Найден кейс по template_id:', templateCase.id);
+        console.log('Найден кейс в таблице Cases по template_id:', templateCase.id);
         caseId = templateCase.id;
       } else {
-        console.log('Кейс с template_id не найден:', templateId);
-        return res.status(404).json({
-          success: false,
-          message: 'Кейс с данным шаблоном не найден или уже открыт'
+        console.log('Кейс не найден в таблице Cases, ищем в UserInventory...');
+
+        // Если не найден в Cases, ищем в UserInventory (для ежедневных кейсов)
+        const now = new Date();
+        const inventoryCase = await db.UserInventory.findOne({
+          where: {
+            user_id: userId,
+            case_template_id: templateId,
+            item_type: 'case',
+            status: 'inventory',
+            [Op.or]: [
+              { expires_at: null },
+              { expires_at: { [Op.gt]: now } }
+            ]
+          },
+          include: [{
+            model: db.CaseTemplate,
+            as: 'case_template'
+          }],
+          order: [['acquisition_date', 'ASC']]
         });
+
+        if (inventoryCase) {
+          console.log('Найден кейс в UserInventory по template_id:', inventoryCase.id);
+          // Открываем кейс из инвентаря
+          return await openCaseFromInventory(req, res, inventoryCase.id);
+        } else {
+          console.log('Кейс с template_id не найден ни в Cases, ни в UserInventory. Проверяем возможность автовыдачи:', templateId);
+
+          // Проверяем, является ли это ежедневным кейсом и может ли пользователь его получить
+          const caseTemplate = await db.CaseTemplate.findByPk(templateId);
+          console.log('Найден шаблон кейса:', caseTemplate ? {
+            id: caseTemplate.id,
+            name: caseTemplate.name,
+            type: caseTemplate.type,
+            min_subscription_tier: caseTemplate.min_subscription_tier,
+            is_active: caseTemplate.is_active
+          } : 'null');
+
+          if (caseTemplate && caseTemplate.type === 'daily') {
+            console.log('Это ежедневный кейс, проверяем права пользователя');
+
+            const user = await db.User.findByPk(userId);
+            if (user && user.subscription_tier >= caseTemplate.min_subscription_tier) {
+              console.log('Пользователь имеет право на этот кейс, проверяем лимиты');
+
+              // Проверяем, не получал ли пользователь уже этот кейс сегодня
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const tomorrow = new Date(today);
+              tomorrow.setDate(tomorrow.getDate() + 1);
+
+              const existingTodayCase = await db.UserInventory.findOne({
+                where: {
+                  user_id: userId,
+                  case_template_id: templateId,
+                  item_type: 'case',
+                  acquisition_date: {
+                    [Op.gte]: today,
+                    [Op.lt]: tomorrow
+                  }
+                }
+              });
+
+              if (existingTodayCase) {
+                console.log('Пользователь уже получал этот кейс сегодня');
+                return res.status(400).json({
+                  success: false,
+                  message: 'Вы уже получали этот кейс сегодня. Попробуйте завтра!'
+                });
+              }
+
+              console.log('Лимиты проверены, выдаем кейс автоматически');
+
+              try {
+                // Выдаем конкретный ежедневный кейс пользователю
+                const { addCaseToInventory } = require('../../services/caseService');
+
+                // Если у пользователя есть активная подписка, кейс не протухает (expires_at = null)
+                // Иначе кейс протухает через cooldown_hours
+                const expiresAt = (user.subscription_expiry_date && user.subscription_expiry_date > now)
+                  ? null
+                  : new Date(now.getTime() + caseTemplate.cooldown_hours * 3600000);
+
+                await addCaseToInventory(userId, templateId, 'subscription', expiresAt);
+
+                // Пытаемся найти кейс снова
+                const newInventoryCase = await db.UserInventory.findOne({
+                  where: {
+                    user_id: userId,
+                    case_template_id: templateId,
+                    item_type: 'case',
+                    status: 'inventory',
+                    [Op.or]: [
+                      { expires_at: null },
+                      { expires_at: { [Op.gt]: now } }
+                    ]
+                  },
+                  include: [{
+                    model: db.CaseTemplate,
+                    as: 'case_template'
+                  }],
+                  order: [['acquisition_date', 'DESC']] // Берем самый новый
+                });
+
+                if (newInventoryCase) {
+                  console.log('Автовыданный кейс найден, открываем:', newInventoryCase.id);
+                  return await openCaseFromInventory(req, res, newInventoryCase.id);
+                }
+              } catch (autoGiveError) {
+                console.error('Ошибка при автовыдаче ежедневного кейса:', autoGiveError);
+              }
+            } else {
+              console.log('Пользователь не имеет права на этот кейс. subscription_tier:', user?.subscription_tier, 'required:', caseTemplate.min_subscription_tier);
+              return res.status(403).json({
+                success: false,
+                message: `Для этого кейса требуется подписка уровня ${caseTemplate.min_subscription_tier} или выше`
+              });
+            }
+          }
+
+          console.log('Кейс с template_id не найден и не может быть автовыдан:', templateId);
+          return res.status(404).json({
+            success: false,
+            message: 'Кейс с данным шаблоном не найден или уже открыт'
+          });
+        }
       }
     }
 
@@ -445,9 +570,9 @@ async function openCase(req, res) {
   }
 }
 
-async function openCaseFromInventory(req, res) {
+async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
   try {
-    const { inventoryItemId } = req.body;
+    const inventoryItemId = passedInventoryItemId || req.body.inventoryItemId;
     const userId = req.user.id;
 
     if (!inventoryItemId) {
