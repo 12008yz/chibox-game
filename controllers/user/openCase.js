@@ -44,8 +44,9 @@ async function openCase(req, res) {
 
           return res.status(404).json({ success: false, message: `Не найден неоткрытый кейс для пользователя.` });
         }
-        // Если next_case_available_time не установлен, установим его на 1 час вперед
-        const newNextCaseTime = new Date(new Date().getTime() + 60 * 60 * 1000);
+        // Если next_case_available_time не установлен, установим его на время следующей выдачи кейсов
+        const { getNextDailyCaseTime } = require('../../utils/cronHelper');
+        const newNextCaseTime = getNextDailyCaseTime();
         user.next_case_available_time = newNextCaseTime;
         await user.save();
 
