@@ -7,13 +7,38 @@ const { broadcastDrop } = require('../../services/liveDropService');
 async function openCase(req, res) {
   try {
     console.log('req.body:', req.body);
-    let caseId = req.body.caseId || req.params.caseId || req.query.caseId;
+    let caseId = req.body.caseId || req.body.case_id || req.params.caseId || req.query.caseId;
     const inventoryItemId = req.body.inventoryItemId;
+    const templateId = req.body.template_id;
     const userId = req.user.id;
 
     // Если указан inventoryItemId, открываем кейс из инвентаря
     if (inventoryItemId) {
       return await openCaseFromInventory(req, res);
+    }
+
+    // Если указан template_id, ищем неоткрытый кейс пользователя с данным шаблоном
+    if (templateId) {
+      console.log('Ищем кейс по template_id:', templateId);
+      const templateCase = await db.Case.findOne({
+        where: {
+          user_id: userId,
+          template_id: templateId,
+          is_opened: false
+        },
+        order: [['received_date', 'ASC']]
+      });
+
+      if (templateCase) {
+        console.log('Найден кейс по template_id:', templateCase.id);
+        caseId = templateCase.id;
+      } else {
+        console.log('Кейс с template_id не найден:', templateId);
+        return res.status(404).json({
+          success: false,
+          message: 'Кейс с данным шаблоном не найден или уже открыт'
+        });
+      }
     }
 
     // Сначала проверки без транзакции
@@ -458,8 +483,16 @@ async function openCaseFromInventory(req, res) {
       return res.status(404).json({ success: false, message: 'Кейс не найден в инвентаре' });
     }
 
+    console.log('inventoryCase найден:', {
+      id: inventoryCase.id,
+      case_template_id: inventoryCase.case_template_id,
+      case_template: !!inventoryCase.case_template,
+      case_template_name: inventoryCase.case_template?.name
+    });
+
     // Проверяем, что шаблон кейса существует
     if (!inventoryCase.case_template) {
+      console.error('Шаблон кейса не найден для case_template_id:', inventoryCase.case_template_id);
       return res.status(404).json({ success: false, message: 'Шаблон кейса не найден' });
     }
 
@@ -469,7 +502,10 @@ async function openCaseFromInventory(req, res) {
     }
 
     const items = inventoryCase.case_template.items || [];
+    console.log('Найдено предметов в кейсе:', items.length);
+
     if (!items.length) {
+      console.error('В кейсе нет предметов. case_template_id:', inventoryCase.case_template_id, 'case_template.name:', inventoryCase.case_template.name);
       return res.status(404).json({ success: false, message: 'В кейсе нет предметов' });
     }
 
