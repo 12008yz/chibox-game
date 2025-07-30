@@ -73,6 +73,12 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
     // Give daily case to user
     await giveDailyCaseToUser(userId, tierId);
 
+    // Устанавливаем время следующего получения кейсов
+    const { getNextDailyCaseTime } = require('../utils/cronHelper');
+    const nextCaseTime = getNextDailyCaseTime();
+    user.next_case_available_time = nextCaseTime;
+    await user.save();
+
     await db.SubscriptionHistory.create({
       user_id: userId,
       action: 'purchase',
