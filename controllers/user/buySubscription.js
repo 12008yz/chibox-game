@@ -49,6 +49,7 @@ async function buySubscription(req, res) {
         return res.status(400).json({ message: 'Недостаточно средств' });
       }
       user.balance -= price;
+      await user.save(); // Сохраняем изменения в базу данных
       logger.info(`Баланс пользователя после покупки: ${user.balance}`);
     } else if (method === 'item') {
       const rule = await db.ItemSubscriptionExchangeRule.findOne({
@@ -125,15 +126,15 @@ async function buySubscription(req, res) {
 
     if (method !== 'bank_card') {
       // Перед активацией подписки добавляем pending_subscription_days, если есть
-      const userFromDb = await db.User.findByPk(userId);
-      let totalExtraDays = promoExtendDays + (userFromDb.pending_subscription_days || 0);
+      // Обновляем user объект вместо загрузки нового
+      let totalExtraDays = promoExtendDays + (user.pending_subscription_days || 0);
       if (totalExtraDays > 0) {
         // Обнуляем pending_subscription_days
-        userFromDb.pending_subscription_days = 0;
-        await userFromDb.save();
+        user.pending_subscription_days = 0;
+        await user.save();
       }
       await activateSubscription(userId, parseInt(tierId), totalExtraDays);
-      // Заново загружаем пользователя, чтобы получить обновленные данные
+      // Заново загружаем пользователя, чтобы получить обновленные данные подписки
       const updatedUser = await db.User.findByPk(userId);
       user.subscription_expiry_date = updatedUser.subscription_expiry_date;
       user.subscription_tier = updatedUser.subscription_tier;
@@ -141,6 +142,8 @@ async function buySubscription(req, res) {
       user.max_daily_cases = updatedUser.max_daily_cases;
       user.subscription_bonus_percentage = updatedUser.subscription_bonus_percentage;
       user.cases_available = updatedUser.cases_available;
+      // Сохраняем баланс из нашего объекта user, чтобы не потерять изменения
+      user.balance = method === 'balance' ? user.balance : updatedUser.balance;
     }
 
     await db.SubscriptionHistory.create({

@@ -61,7 +61,7 @@ async function giveDailyCaseToUser(userId, subscriptionTier) {
         title: 'Новый кейс!',
         message: `Вы получили ежедневный кейс: ${template.name}`,
         type: 'success',
-        category: 'case',
+        category: 'case_opening',
         link: '/inventory',
         importance: 2,
         data: {
@@ -108,7 +108,7 @@ async function addCaseToInventory(userId, caseTemplateId, source = 'system', exp
     title: 'Новый кейс получен!',
     message: `Вы получили кейс: ${caseTemplate.name}`,
     type: 'success',
-    category: 'case',
+    category: 'case_opening',
     link: '/inventory',
     importance: 2,
     data: {
@@ -188,7 +188,7 @@ async function removeExpiredCases(userId = null) {
       title: 'Кейс просрочен',
       message: `Срок действия кейса "${expiredCase.case_template?.name || 'Неизвестный кейс'}" истек`,
       type: 'warning',
-      category: 'case',
+      category: 'general',
       importance: 1,
       data: {
         expired_case_id: expiredCase.id,
