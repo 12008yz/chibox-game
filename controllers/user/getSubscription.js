@@ -1,11 +1,7 @@
 const db = require('../../models');
 const winston = require('winston');
 
-const subscriptionTiers = {
-  1: { days: 30, max_daily_cases: 3, bonus_percentage: 3.0, name: 'Статус', price: 1210 },
-  2: { days: 30, max_daily_cases: 5, bonus_percentage: 5.0, name: 'Статус+', price: 2890 },
-  3: { days: 30, max_daily_cases: 10, bonus_percentage: 8.0, name: 'Статус++', price: 6819 }
-};
+const { subscriptionTiers } = require('./getSubscriptionTiers');
 
 const logger = winston.createLogger({
   level: 'info',

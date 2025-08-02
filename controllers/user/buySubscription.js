@@ -81,7 +81,10 @@ async function buySubscription(req, res) {
         const updatedUser = await db.User.findByPk(userId);
 
         return res.json({
-          paymentUrl,
+          success: true,
+          data: {
+            paymentUrl: paymentUrl
+          },
           message: 'Перенаправьте пользователя для оплаты',
           subscription_purchase_date: updatedUser.subscription_purchase_date,
           subscription_expiry_date: updatedUser.subscription_expiry_date,

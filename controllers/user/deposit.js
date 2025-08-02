@@ -18,17 +18,36 @@ async function deposit(req, res) {
     const { amount } = req.body;
 
     if (!amount || isNaN(amount) || amount <= 0) {
-      return res.status(400).json({ message: 'Некорректная сумма для пополнения' });
+      return res.status(400).json({
+        success: false,
+        message: 'Некорректная сумма для пополнения'
+      });
+    }
+
+    if (amount < 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Минимальная сумма пополнения: 100 рублей'
+      });
     }
 
     const paymentUrl = await createPayment(amount, userId, 'deposit');
 
     logger.info(`Пользователь ${userId} инициировал пополнение баланса на сумму ${amount}`);
 
-    return res.json({ url: paymentUrl, message: 'Перенаправьте пользователя для оплаты' });
+    return res.json({
+      success: true,
+      data: {
+        payment_url: paymentUrl
+      },
+      message: 'Перенаправьте пользователя для оплаты'
+    });
   } catch (error) {
     logger.error('Ошибка пополнения баланса:', error);
-    return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+    return res.status(500).json({
+      success: false,
+      message: 'Внутренняя ошибка сервера'
+    });
   }
 }
 
