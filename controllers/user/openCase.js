@@ -102,6 +102,16 @@ async function openCase(req, res) {
 
               if (existingTodayCase) {
                 console.log('Пользователь уже получал этот кейс сегодня');
+
+                // Обновляем next_case_available_time, если он устарел
+                const { getNextDailyCaseTime } = require('../../utils/cronHelper');
+                const newNextCaseTime = getNextDailyCaseTime();
+                if (!user.next_case_available_time || user.next_case_available_time < newNextCaseTime) {
+                  user.next_case_available_time = newNextCaseTime;
+                  await user.save();
+                  console.log('Обновили next_case_available_time при повторной попытке:', newNextCaseTime);
+                }
+
                 return res.status(400).json({
                   success: false,
                   message: 'Вы уже получали этот кейс сегодня. Попробуйте завтра!'
@@ -484,6 +494,14 @@ async function openCase(req, res) {
         user.best_item_value = itemPrice;
       }
 
+      // Обновляем next_case_available_time для бесплатных кейсов
+      if (!userCase.is_paid) {
+        const { getNextDailyCaseTime } = require('../../utils/cronHelper');
+        const newNextCaseTime = getNextDailyCaseTime();
+        user.next_case_available_time = newNextCaseTime;
+        console.log('Обновляем next_case_available_time для бесплатного кейса:', newNextCaseTime);
+      }
+
       await user.save({ transaction: t });
 
       await t.commit();
@@ -800,6 +818,16 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       // Обновляем статистику пользователя
       user.cases_opened_today = (user.cases_opened_today || 0) + 1;
       user.total_cases_opened = (user.total_cases_opened || 0) + 1;
+
+      // Обновляем next_case_available_time для бесплатных кейсов из инвентаря
+      // Если кейс был получен через подписку или автовыдачу (не покупной)
+      if (inventoryCase.source === 'subscription' || inventoryCase.source === 'daily' || !newCase.is_paid) {
+        const { getNextDailyCaseTime } = require('../../utils/cronHelper');
+        const newNextCaseTime = getNextDailyCaseTime();
+        user.next_case_available_time = newNextCaseTime;
+        console.log('Обновляем next_case_available_time для бесплатного кейса из инвентаря:', newNextCaseTime);
+      }
+
       await user.save({ transaction: t });
 
       await t.commit();
