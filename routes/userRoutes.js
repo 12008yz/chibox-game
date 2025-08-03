@@ -41,6 +41,8 @@ const {
   getCaseStatus,
 } = require('../controllers/user/userController');
 
+const { getSubscriptionTiers } = require('../controllers/user/getSubscriptionTiers');
+
 const { loginBot, sendTrade, getSteamInventory } = require('../controllers/user/steamBotController');
 const { getUserBonusInfoController } = require('../controllers/user/getUserBonusInfo');
 const { verifyEmailValidation, verifyEmail } = require('../controllers/user/verifyEmail');
@@ -118,6 +120,7 @@ router.delete('/notifications/:notificationId', authMiddleware, deleteNotificati
 // New routes from userController.js
 router.post('/subscription/buy', authMiddleware, buySubscription); //+
 router.get('/subscription', authMiddleware, getSubscription); //+
+router.get('/subscription/tiers', getSubscriptionTiers); // Public route for subscription tiers
 router.post('/items/exchange-for-subscription', authMiddleware, exchangeItemForSubscription); //+
 router.post('/bonus/play-squares', authMiddleware, playBonusSquares); //+
 router.get('/bonus/status', authMiddleware, getBonusStatus); //+

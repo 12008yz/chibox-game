@@ -14,28 +14,42 @@ const logger = winston.createLogger({
 
 async function getCasesAvailable(req, res) {
   try {
-    const userId = req.user.id;
-    const user = await db.User.findByPk(userId);
-
     // Получаем активные шаблоны кейсов
     const cases = await db.CaseTemplate.findAll({
       where: { is_active: true }
     });
 
-    return res.json({
+    const response = {
       success: true,
-      data: cases,
-      user_info: {
-        max_daily_cases: user.max_daily_cases,
-        cases_opened_today: user.cases_opened_today,
-        cases_available: Math.max(0, user.max_daily_cases - user.cases_opened_today),
-        last_reset_date: user.last_reset_date,
-        next_case_available_time: user.next_case_available_time,
+      data: cases
+    };
+
+    // Если пользователь аутентифицирован, добавляем информацию о пользователе
+    if (req.user && req.user.id) {
+      try {
+        const user = await db.User.findByPk(req.user.id);
+        if (user) {
+          response.user_info = {
+            max_daily_cases: user.max_daily_cases,
+            cases_opened_today: user.cases_opened_today,
+            cases_available: Math.max(0, user.max_daily_cases - user.cases_opened_today),
+            last_reset_date: user.last_reset_date,
+            next_case_available_time: user.next_case_available_time,
+          };
+        }
+      } catch (userError) {
+        logger.warn('Ошибка получения информации о пользователе:', userError);
+        // Продолжаем без информации о пользователе
       }
-    });
+    }
+
+    return res.json(response);
   } catch (error) {
     logger.error('Ошибка получения доступных кейсов:', error);
-    return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+    return res.status(500).json({
+      success: false,
+      message: 'Внутренняя ошибка сервера'
+    });
   }
 }
 
