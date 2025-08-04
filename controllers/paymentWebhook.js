@@ -23,25 +23,45 @@ function verifySignature(body, signature, secret) {
 
 async function yoomoneyWebhook(req, res) {
   try {
+    // Детальное логирование входящего запроса
+    logger.info('=== WEBHOOK RECEIVED ===');
+    logger.info('Headers:', JSON.stringify(req.headers, null, 2));
+    logger.info('Body:', JSON.stringify(req.body, null, 2));
+
     const secret = process.env.YOOKASSA_CLIENT_SECRET;
     if (!secret) {
       logger.error('YOOKASSA_CLIENT_SECRET is not set in environment variables');
       return res.status(500).send('Server configuration error');
     }
+
     const signature = req.headers['x-yookassa-signature'];
     if (!signature) {
       logger.warn('Signature missing in webhook request');
       return res.status(400).send('Signature missing');
     }
 
-    const rawBody = JSON.stringify(req.body);
-    // Убираем логирование чувствительных данных
-    // logger.debug(`Raw body for signature verification: ${rawBody}`);
-    // logger.debug(`Received signature: ${signature}`);
+    // Исправляем получение raw body для проверки подписи
+    let rawBody;
+    if (req.rawBody) {
+      rawBody = req.rawBody;
+    } else {
+      rawBody = JSON.stringify(req.body);
+    }
+
+    logger.debug(`Using raw body for signature verification: ${rawBody.substring(0, 200)}...`);
+    logger.debug(`Received signature: ${signature}`);
+    logger.debug(`Using secret: ${secret.substring(0, 10)}...`);
 
     if (!verifySignature(rawBody, signature, secret)) {
       logger.warn('Invalid signature in webhook request');
-      return res.status(400).send('Invalid signature');
+      // В режиме разработки можем пропустить проверку подписи для отладки
+      if (process.env.NODE_ENV === 'development') {
+        logger.warn('DEVELOPMENT MODE: Skipping signature verification');
+      } else {
+        return res.status(400).send('Invalid signature');
+      }
+    } else {
+      logger.info('✅ Signature verification passed');
     }
 
     const event = req.body.event;
@@ -52,9 +72,31 @@ async function yoomoneyWebhook(req, res) {
     // Найти платеж в базе
     const payment = await Payment.findOne({ where: { payment_id: paymentData.id } });
     if (!payment) {
-      logger.warn(`Payment not found: ${paymentData.id}`);
+      logger.warn(`Payment not found in database: ${paymentData.id}`);
+
+      // Попробуем найти все платежи для отладки
+      const allPayments = await Payment.findAll({
+        limit: 5,
+        order: [['created_at', 'DESC']],
+        attributes: ['id', 'payment_id', 'status', 'amount', 'user_id']
+      });
+      logger.info('Recent payments in database:', allPayments.map(p => ({
+        payment_id: p.payment_id,
+        status: p.status,
+        amount: p.amount
+      })));
+
       return res.status(404).send('Payment not found');
     }
+
+    logger.info(`Found payment in database:`, {
+      id: payment.id,
+      payment_id: payment.payment_id,
+      current_status: payment.status,
+      amount: payment.amount,
+      user_id: payment.user_id,
+      purpose: payment.purpose
+    });
 
     // Обновить статус платежа
     let newStatus = paymentData.status;
@@ -71,7 +113,7 @@ async function yoomoneyWebhook(req, res) {
       payment.completed_at = newStatus === 'completed' ? new Date() : null;
       await payment.save();
 
-      logger.info(`Payment status updated to ${newStatus} for paymentId=${paymentData.id}`);
+      logger.info(`✅ Payment status updated to ${newStatus} for paymentId=${paymentData.id}`);
 
       // Если платеж завершен успешно, активируем подписку или пополняем баланс
       if (newStatus === 'completed') {
@@ -81,8 +123,16 @@ async function yoomoneyWebhook(req, res) {
           return res.status(404).send('User not found');
         }
 
+        logger.info(`Processing completed payment for user:`, {
+          user_id: user.id,
+          username: user.username,
+          current_balance: user.balance,
+          payment_purpose: payment.purpose,
+          payment_amount: payment.amount
+        });
+
         // Создаем запись транзакции
-        await require('../models').Transaction.create({
+        const transaction = await require('../models').Transaction.create({
           user_id: user.id,
           type: payment.purpose === 'subscription' ? 'subscription_purchase' : 'balance_add',
           amount: parseFloat(payment.amount),
@@ -98,26 +148,43 @@ async function yoomoneyWebhook(req, res) {
           payment_id: payment.id
         });
 
-    if (payment.purpose === 'subscription') {
-      logger.info(`Activating subscription for user ${user.id} from payment ${payment.id}`);
-      const tierId = payment.metadata && payment.metadata.tierId ? payment.metadata.tierId : 1;
-      await activateSubscription(user.id, tierId);
-    } else if (payment.purpose === 'deposit') {
-      user.balance = (user.balance || 0) + parseFloat(payment.amount);
-      await user.save();
-      logger.info(`User ${user.id} balance updated by deposit payment ${payment.id}`);
+        logger.info(`✅ Transaction created:`, {
+          transaction_id: transaction.id,
+          type: transaction.type,
+          amount: transaction.amount
+        });
 
-      // Добавление опыта за пополнение баланса
-      await addExperience(user.id, 40, 'deposit', null, 'Пополнение баланса');
-    }
+        if (payment.purpose === 'subscription') {
+          logger.info(`Activating subscription for user ${user.id} from payment ${payment.id}`);
+          const tierId = payment.metadata && payment.metadata.tierId ? payment.metadata.tierId : 1;
+          await activateSubscription(user.id, tierId);
+          logger.info(`✅ Subscription activated for user ${user.id}`);
+        } else if (payment.purpose === 'deposit') {
+          const oldBalance = user.balance;
+          user.balance = (user.balance || 0) + parseFloat(payment.amount);
+          await user.save();
+
+          logger.info(`✅ User balance updated:`, {
+            user_id: user.id,
+            old_balance: oldBalance,
+            new_balance: user.balance,
+            added_amount: parseFloat(payment.amount)
+          });
+
+          // Добавление опыта за пополнение баланса
+          await addExperience(user.id, 40, 'deposit', null, 'Пополнение баланса');
+          logger.info(`✅ Experience added for deposit`);
+        }
       }
     } else {
-      logger.debug('Payment status unchanged');
+      logger.debug('Payment status unchanged, no action needed');
     }
 
+    logger.info('=== WEBHOOK PROCESSED SUCCESSFULLY ===');
     res.status(200).send('OK');
   } catch (error) {
-    logger.error('Error processing YooMoney webhook:', error);
+    logger.error('❌ Error processing YooMoney webhook:', error);
+    logger.error('Error stack:', error.stack);
     res.status(500).send('Internal Server Error');
   }
 }
