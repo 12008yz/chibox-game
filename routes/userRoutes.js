@@ -51,6 +51,7 @@ const { getWithdrawalStatus } = require('../controllers/user/withdrawItem');
 const { getLiveDrops } = require('../controllers/user/getLiveDrops');
 const { fetchSteamTradeUrl, getTradeUrlStatus } = require('../controllers/user/fetchSteamTradeUrl');
 const { claimSubscriptionCase, getSubscriptionCaseStatus } = require('../controllers/user/claimSubscriptionCase');
+const { createGame: createTicTacToeGame, getCurrentGame: getCurrentTicTacToeGame, makeMove: makeTicTacToeMove } = require('../controllers/user/ticTacToeController');
 const authMiddleware = require('../middleware/auth');
 const { requireEmailVerification } = require('../middleware/emailVerification');
 
@@ -146,5 +147,10 @@ router.get('/steam/trade-url-status', authMiddleware, getTradeUrlStatus); // П�
 // Subscription daily cases routes
 router.post('/subscription/claim-case', authMiddleware, claimSubscriptionCase); // Получение ежедневных кейсов подписки
 router.get('/subscription/case-status', authMiddleware, getSubscriptionCaseStatus); // Статус доступности кейсов подписки
+
+// Tic-Tac-Toe game routes
+router.post('/tic-tac-toe/new-game', authMiddleware, createTicTacToeGame); // Создание новой игры крестики-нолики
+router.get('/tic-tac-toe/current-game', authMiddleware, getCurrentTicTacToeGame); // Получение текущей игры
+router.post('/tic-tac-toe/move', authMiddleware, makeTicTacToeMove); // Совершение хода
 
 module.exports = router;
