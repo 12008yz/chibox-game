@@ -1,11 +1,12 @@
 const { TicTacToeGame, User, CaseTemplate, Case } = require('../../models');
 const ticTacToeService = require('../../services/ticTacToeService');
-const logger = require('../../utils/logger');
+const { logger } = require('../../utils/logger');
 
 // Создание новой игры
 const createGame = async (req, res) => {
   try {
     const userId = req.user.id;
+    logger.info(`Начинаем создание игры для пользователя ${userId}`);
 
     // Проверяем, есть ли у пользователя незавершенная игра
     const existingGame = await TicTacToeGame.findOne({
@@ -15,7 +16,10 @@ const createGame = async (req, res) => {
       }
     });
 
+    logger.info(`Существующая игра: ${existingGame ? 'найдена' : 'не найдена'}`);
+
     if (existingGame && existingGame.attempts_left > 0) {
+      logger.info(`Возвращаем существующую игру`);
       return res.json({
         success: true,
         game: existingGame,
@@ -31,31 +35,48 @@ const createGame = async (req, res) => {
       order: [['created_at', 'DESC']]
     });
 
+    logger.info(`Последняя игра: ${recentGame ? 'найдена' : 'не найдена'}`);
+    if (recentGame) {
+      logger.info(`Попытки в последней игре: ${recentGame.attempts_left}, дата создания: ${recentGame.created_at}`);
+    }
+
     let attemptsLeft = 3;
     if (recentGame && recentGame.attempts_left <= 0) {
       // Проверяем, прошло ли 24 часа с последней игры
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      logger.info(`Проверяем 24 часа: последняя игра ${recentGame.created_at}, 24 часа назад ${twentyFourHoursAgo}`);
+
       if (recentGame.created_at > twentyFourHoursAgo) {
+        logger.info(`Попытки закончились, возвращаем ошибку`);
         return res.status(400).json({
           success: false,
           error: 'У вас закончились попытки. Попробуйте завтра!'
         });
       }
       attemptsLeft = 3; // Сбрасываем попытки через 24 часа
+      logger.info(`Сбрасываем попытки через 24 часа`);
     } else if (recentGame) {
       attemptsLeft = recentGame.attempts_left;
+      logger.info(`Используем оставшиеся попытки: ${attemptsLeft}`);
     }
 
+    logger.info(`Попытки для новой игры: ${attemptsLeft}`);
+
     // Создаем новую игру
+    logger.info(`Создаем состояние новой игры`);
     const gameState = ticTacToeService.createNewGame();
+    logger.info(`Состояние игры создано:`, gameState);
 
     // Если бот ходит первым, делаем его ход
     if (gameState.botGoesFirst) {
+      logger.info(`Бот ходит первым, делаем его ход`);
       const updatedGameState = ticTacToeService.makeBotFirstMove(gameState);
       gameState.board = updatedGameState.board;
       gameState.currentPlayer = updatedGameState.currentPlayer;
+      logger.info(`Ход бота сделан, новое состояние:`, gameState);
     }
 
+    logger.info(`Сохраняем новую игру в базу данных`);
     const newGame = await TicTacToeGame.create({
       user_id: userId,
       game_state: gameState,
@@ -63,8 +84,9 @@ const createGame = async (req, res) => {
       bot_goes_first: gameState.botGoesFirst
     });
 
-    logger.info(`Создана новая игра крестики-нолики для пользователя ${userId}`);
+    logger.info(`Создана новая игра крестики-нолики для пользователя ${userId}, ID игры: ${newGame.id}`);
 
+    logger.info(`Отправляем ответ клиенту`);
     res.json({
       success: true,
       game: newGame
