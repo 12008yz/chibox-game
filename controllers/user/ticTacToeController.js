@@ -1,4 +1,4 @@
-const { TicTacToeGame, User, CaseTemplate, Case } = require('../../models');
+const { TicTacToeGame, User, CaseTemplate, UserInventory } = require('../../models');
 const { Op } = require('sequelize');
 const ticTacToeService = require('../../services/ticTacToeService');
 const { logger } = require('../../utils/logger');
@@ -295,12 +295,17 @@ const giveReward = async (userId) => {
       return false;
     }
 
-    // Создаем кейс для пользователя
+    // Создаем кейс для пользователя в инвентаре
     logger.info(`🎯 [REWARD] Создаем новый кейс для пользователя ${userId}...`);
-    const newCase = await Case.create({
+    const newCase = await UserInventory.create({
       user_id: userId,
+      item_id: null, // Для кейсов item_id не используется
+      item_type: 'case',
       case_template_id: bonusCaseTemplate.id,
-      status: 'available'
+      source: 'bonus',
+      status: 'inventory',
+      acquisition_date: new Date(),
+      expires_at: bonusCaseTemplate.availability_end || null
     });
 
     logger.info(`🎯 [REWARD] ✅ Выдан бонусный кейс пользователю ${userId} за победу в крестики-нолики. ID кейса: ${newCase.id}`);
