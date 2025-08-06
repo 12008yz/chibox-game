@@ -1,4 +1,5 @@
 const { TicTacToeGame, User, CaseTemplate, Case } = require('../../models');
+const { Op } = require('sequelize');
 const ticTacToeService = require('../../services/ticTacToeService');
 const { logger } = require('../../utils/logger');
 
@@ -106,6 +107,7 @@ const getCurrentGame = async (req, res) => {
   try {
     const userId = req.user.id;
 
+    // Ищем только активную игру
     const game = await TicTacToeGame.findOne({
       where: {
         user_id: userId,
@@ -113,14 +115,6 @@ const getCurrentGame = async (req, res) => {
       },
       order: [['created_at', 'DESC']]
     });
-
-    if (!game) {
-      return res.json({
-        success: true,
-        game: null,
-        canPlay: true
-      });
-    }
 
     // Проверяем, можно ли играть (остались ли попытки)
     const recentGame = await TicTacToeGame.findOne({
@@ -189,14 +183,18 @@ const makeMove = async (req, res) => {
     if (newGameState.status === 'finished') {
       if (newGameState.winner === 'player') {
         result = 'win';
+        logger.info(`Игрок ${userId} выиграл! Пытаемся выдать бонусный кейс...`);
         // Выдаем бонусный кейс
         rewardGiven = await giveReward(userId);
+        logger.info(`Результат выдачи бонусного кейса: ${rewardGiven}`);
       } else if (newGameState.winner === 'bot') {
         result = 'lose';
+        logger.info(`Игрок ${userId} проиграл. Уменьшаем попытки.`);
         // Уменьшаем количество попыток
         game.attempts_left = Math.max(0, game.attempts_left - 1);
       } else {
         result = 'draw';
+        logger.info(`Ничья для игрока ${userId}. Уменьшаем попытки.`);
         // При ничьей тоже уменьшаем попытки
         game.attempts_left = Math.max(0, game.attempts_left - 1);
       }
@@ -242,21 +240,27 @@ const makeMove = async (req, res) => {
 // Функция для выдачи награды (бонусного кейса)
 const giveReward = async (userId) => {
   try {
-    // Проверяем, не получал ли пользователь уже бонусный кейс
+    logger.info(`Начинаем выдачу награды для пользователя ${userId}`);
+
+    // Проверяем, не получал ли пользователь уже бонусный кейс за последние 24 часа
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const existingReward = await TicTacToeGame.findOne({
       where: {
         user_id: userId,
         result: 'win',
-        reward_given: true
-      }
+        reward_given: true,
+        updated_at: {
+          [Op.gte]: twentyFourHoursAgo
+        }
+      },
+      order: [['updated_at', 'DESC']]
     });
 
+    logger.info(`Существующая награда за последние 24 часа: ${existingReward ? 'найдена' : 'не найдена'}`);
+
     if (existingReward) {
-      // Проверяем, прошло ли 24 часа с последней награды
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      if (existingReward.updated_at > twentyFourHoursAgo) {
-        return false; // Награда уже получена недавно
-      }
+      logger.info(`Награда уже получена недавно: ${existingReward.updated_at}`);
+      return false; // Награда уже получена недавно
     }
 
     // Найдем бонусный кейс
@@ -267,8 +271,10 @@ const giveReward = async (userId) => {
       }
     });
 
+    logger.info(`Бонусный кейс шаблон: ${bonusCaseTemplate ? 'найден' : 'не найден'}`);
+
     if (!bonusCaseTemplate) {
-      logger.error('Бонусный кейс не найден');
+      logger.error('Бонусный кейс не найден в базе данных');
       return false;
     }
 
@@ -279,7 +285,7 @@ const giveReward = async (userId) => {
       status: 'available'
     });
 
-    logger.info(`Выдан бонусный кейс пользователю ${userId} за победу в крестики-нолики`);
+    logger.info(`Выдан бонусный кейс пользователю ${userId} за победу в крестики-нолики. ID кейса: ${newCase.id}`);
     return true;
 
   } catch (error) {
