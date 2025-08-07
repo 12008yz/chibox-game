@@ -1,5 +1,5 @@
 const { User, BonusMiniGameHistory } = require('../../models');
-const logger = require('../../utils/logger');
+const { logger } = require('../../utils/logger');
 
 const playRoulette = async (req, res) => {
   try {
@@ -81,12 +81,9 @@ const playRoulette = async (req, res) => {
     // Записываем в историю
     await BonusMiniGameHistory.create({
       user_id: userId,
-      game_type: 'roulette',
-      game_data: {
-        winner_index: winnerIndex,
-        prize_type: winnerItem.type,
-        prize_value: prizeValue
-      },
+      game_grid: JSON.stringify(rouletteItems), // Сохраняем структуру рулетки
+      chosen_cells: JSON.stringify([winnerIndex]), // Сохраняем выбранный сектор
+      won: winnerItem.type !== 'empty', // Выиграл, если не пустой сектор
       prize_type: winnerItem.type,
       prize_value: prizeValue.toString(),
       played_at: now

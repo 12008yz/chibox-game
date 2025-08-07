@@ -29,7 +29,6 @@ const {
   buySubscription,
   getSubscription,
   exchangeItemForSubscription,
-  playBonusSquares,
   getBonusStatus,
   resetBonusCooldown,
   getCasesAvailable,
@@ -124,7 +123,6 @@ router.post('/subscription/buy', authMiddleware, buySubscription); //+
 router.get('/subscription', authMiddleware, getSubscription); //+
 router.get('/subscription/tiers', getSubscriptionTiers); // Public route for subscription tiers
 router.post('/items/exchange-for-subscription', authMiddleware, exchangeItemForSubscription); //+
-router.post('/bonus/play-squares', authMiddleware, playBonusSquares); //+
 router.post('/bonus/play-roulette', authMiddleware, playRoulette); //+
 router.get('/bonus/status', authMiddleware, getBonusStatus); //+
 router.post('/bonus/reset-cooldown', authMiddleware, resetBonusCooldown); //+ Сброс кулдауна бонуса

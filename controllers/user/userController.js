@@ -22,7 +22,6 @@ const { buySubscription } = require('./buySubscription');
 const { getSubscription } = require('./getSubscription');
 const { getSubscriptionTiers } = require('./getSubscriptionTiers');
 const { exchangeItemForSubscription } = require('./exchangeItemForSubscription');
-const { playBonusSquares } = require('./playBonusSquares');
 const { getBonusStatus } = require('./getBonusStatus');
 const { resetBonusCooldown } = require('./resetBonusCooldown');
 const { getCasesAvailable } = require('./getCasesAvailable');
@@ -62,7 +61,6 @@ module.exports = {
   buySubscription,
   getSubscription,
   exchangeItemForSubscription,
-  playBonusSquares,
   getBonusStatus,
   resetBonusCooldown,
   getCasesAvailable,
