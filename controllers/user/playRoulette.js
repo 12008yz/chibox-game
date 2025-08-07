@@ -79,24 +79,36 @@ const playRoulette = async (req, res) => {
       winnerIndex = weightedSectors[Math.floor(Math.random() * weightedSectors.length)];
     }
 
-    // Генерируем реалистичный угол поворота
-    // Рулетка крутится 5-8 полных оборотов + точный угол до нужного сектора
-    const sectorAngle = 360 / rouletteItems.length; // 40 градусов на сектор
+    // Генерируем реалистичный угол поворота для точного попадания
+    const sectorAngle = 360 / rouletteItems.length; // 40 градусов на сектор (9 секторов)
 
-    // Рассчитываем точный угол для попадания на центр нужного сектора
-    // Сектор 0 находится вверху (12 часов) после поворота на 0°
-    // Чтобы сектор winnerIndex оказался вверху, нужно повернуть на -winnerIndex * sectorAngle
-    const targetSectorCenter = -winnerIndex * sectorAngle;
+    // ИСПРАВЛЕННАЯ ЛОГИКА:
+    // Указатель фиксированный вверху (0°), колесо вращается
+    // В клиентской части сектор 0 находится вверху благодаря startAngle = index * sectorAngle - 90
+    // Чтобы нужный сектор оказался под указателем, используем формулу:
+    // Угол = -(winnerIndex * sectorAngle) + смещение к центру сектора
+
+    // Смещаем к центру сектора (половина сектора)
+    const sectorCenterOffset = sectorAngle / 2;
+
+    // Базовый угол для попадания на нужный сектор
+    // ПРАВИЛЬНАЯ ЛОГИКА: Рассчитываем позицию центра нужного сектора
+    const sectorStartAngle = winnerIndex * sectorAngle - 90; // начало сектора
+    const sectorCenterAngle = sectorStartAngle + (sectorAngle / 2); // центр сектора
+
+    // Чтобы указатель (0°) попал на центр сектора, колесо должно повернуться на:
+    const targetAngle = -sectorCenterAngle;
 
     // Добавляем 5-8 полных оборотов для красивой анимации
     const fullRotations = 5 + Math.random() * 3; // 5-8 оборотов
+    const fullRotationsDegrees = fullRotations * 360;
 
-    // Небольшое случайное смещение в центре сектора (±10° максимум)
-    const maxOffset = Math.min(sectorAngle * 0.25, 10); // Не более 25% сектора или 10°
-    const sectorOffset = (Math.random() - 0.5) * 2 * maxOffset;
+    // Небольшое случайное смещение внутри сектора (±5° максимум)
+    const maxOffset = Math.min(sectorAngle * 0.2, 5); // Не более 20% сектора или 5°
+    const randomOffset = (Math.random() - 0.5) * 2 * maxOffset;
 
-    // Итоговый угол: полные обороты + точный угол до центра сектора + небольшое смещение
-    const finalAngle = fullRotations * 360 + targetSectorCenter + sectorOffset;
+    // Итоговый угол для анимации
+    const finalAngle = fullRotationsDegrees + targetAngle + randomOffset;
 
     const winnerItem = rouletteItems[winnerIndex];
     let message = '';
@@ -133,7 +145,7 @@ const playRoulette = async (req, res) => {
       played_at: now
     });
 
-    logger.info(`User ${userId} played roulette - Winner: ${winnerIndex}, Prize: ${winnerItem.type}, TargetCenter: ${targetSectorCenter}, FinalAngle: ${finalAngle}`);
+    logger.info(`User ${userId} played roulette - Winner: ${winnerIndex}, Prize: ${winnerItem.type}, SectorStart: ${sectorStartAngle}°, SectorCenter: ${sectorCenterAngle}°, TargetAngle: ${targetAngle}°, FinalAngle: ${finalAngle}°, FullRotations: ${fullRotations}`);
 
     res.json({
       success: true,
