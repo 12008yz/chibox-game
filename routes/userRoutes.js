@@ -48,6 +48,7 @@ const { getUserBonusInfoController } = require('../controllers/user/getUserBonus
 const { verifyEmailValidation, verifyEmail } = require('../controllers/user/verifyEmail');
 const { resendValidation, resendVerificationCode } = require('../controllers/user/resendVerificationCode');
 const { getWithdrawalStatus } = require('../controllers/user/withdrawItem');
+const playRoulette = require('../controllers/user/playRoulette');
 const { getLiveDrops } = require('../controllers/user/getLiveDrops');
 const { fetchSteamTradeUrl, getTradeUrlStatus } = require('../controllers/user/fetchSteamTradeUrl');
 const { claimSubscriptionCase, getSubscriptionCaseStatus } = require('../controllers/user/claimSubscriptionCase');
@@ -124,6 +125,7 @@ router.get('/subscription', authMiddleware, getSubscription); //+
 router.get('/subscription/tiers', getSubscriptionTiers); // Public route for subscription tiers
 router.post('/items/exchange-for-subscription', authMiddleware, exchangeItemForSubscription); //+
 router.post('/bonus/play-squares', authMiddleware, playBonusSquares); //+
+router.post('/bonus/play-roulette', authMiddleware, playRoulette); //+
 router.get('/bonus/status', authMiddleware, getBonusStatus); //+
 router.post('/bonus/reset-cooldown', authMiddleware, resetBonusCooldown); //+ Сброс кулдауна бонуса
 router.get('/cases/available', getCasesAvailable); // Доступно всем для просмотра доступных кейсов
