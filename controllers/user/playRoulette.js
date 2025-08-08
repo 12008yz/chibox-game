@@ -1,11 +1,73 @@
-const { User, BonusMiniGameHistory } = require('../../models');
-const { logger } = require('../../utils/logger');
+const { User } = require('../../models');
+const logger = require('../../utils/logger');
 
+// Конфигурация колеса рулетки (9 секций)
+const ROULETTE_SEGMENTS = [
+  { id: 0, type: 'empty', value: 0, weight: 15 },      // Пустая секция
+  { id: 1, type: 'sub_1_day', value: 1, weight: 8 },   // 1 день подписки (менее вероятно)
+  { id: 2, type: 'empty', value: 0, weight: 15 },      // Пустая секция
+  { id: 3, type: 'empty', value: 0, weight: 15 },      // Пустая секция
+  { id: 4, type: 'sub_2_days', value: 2, weight: 4 },  // 2 дня подписки (редко)
+  { id: 5, type: 'empty', value: 0, weight: 15 },      // Пустая секция
+  { id: 6, type: 'empty', value: 0, weight: 15 },      // Пустая секция
+  { id: 7, type: 'empty', value: 0, weight: 15 },      // Пустая секция
+  { id: 8, type: 'empty', value: 0, weight: 15 }       // Пустая секция
+];
+
+// Общий вес всех секций
+const TOTAL_WEIGHT = ROULETTE_SEGMENTS.reduce((sum, segment) => sum + segment.weight, 0);
+
+// Кулдаун между играми в миллисекундах (например, 24 часа)
+const ROULETTE_COOLDOWN = 24 * 60 * 60 * 1000;
+
+/**
+ * Выбирает случайную секцию на основе весов
+ * @returns {Object} Выбранная секция
+ */
+function selectRandomSegment() {
+  const random = Math.random() * TOTAL_WEIGHT;
+  let currentWeight = 0;
+
+  for (const segment of ROULETTE_SEGMENTS) {
+    currentWeight += segment.weight;
+    if (random <= currentWeight) {
+      return segment;
+    }
+  }
+
+  // Fallback на последнюю секцию (не должно происходить)
+  return ROULETTE_SEGMENTS[ROULETTE_SEGMENTS.length - 1];
+}
+
+/**
+ * Вычисляет угол поворота для конкретной секции
+ * @param {number} segmentId - ID секции (0-8)
+ * @returns {number} Угол поворота в градусах
+ */
+function calculateRotationAngle(segmentId) {
+  // Каждая секция занимает 40 градусов (360 / 9)
+  const segmentAngle = 360 / 9;
+
+  // Базовый угол для секции (центр секции)
+  const baseAngle = segmentId * segmentAngle + (segmentAngle / 2);
+
+  // Добавляем случайное отклонение в пределах секции
+  const randomOffset = (Math.random() - 0.5) * (segmentAngle * 0.8);
+
+  // Добавляем несколько полных оборотов для эффектности (3-5 оборотов)
+  const fullRotations = (Math.floor(Math.random() * 3) + 3) * 360;
+
+  return fullRotations + baseAngle + randomOffset;
+}
+
+/**
+ * Игра в рулетку
+ */
 const playRoulette = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Получаем пользователя
+    // Получаем информацию о пользователе
     const user = await User.findByPk(userId);
     if (!user) {
       return res.status(404).json({
@@ -14,158 +76,64 @@ const playRoulette = async (req, res) => {
       });
     }
 
-    // Проверяем, можно ли играть в рулетку
+    // Проверяем кулдаун
     const now = new Date();
-    const nextBonusTime = user.next_bonus_time ? new Date(user.next_bonus_time) : null;
+    const lastRoulettePlay = user.last_roulette_play || new Date(0);
+    const timeSinceLastPlay = now.getTime() - lastRoulettePlay.getTime();
 
-    if (nextBonusTime && now < nextBonusTime) {
-      const timeLeft = Math.ceil((nextBonusTime - now) / 1000);
-      return res.status(400).json({
+    if (timeSinceLastPlay < ROULETTE_COOLDOWN) {
+      const timeRemaining = ROULETTE_COOLDOWN - timeSinceLastPlay;
+      const hoursRemaining = Math.ceil(timeRemaining / (60 * 60 * 1000));
+
+      return res.status(429).json({
         success: false,
-        message: 'Рулетка пока недоступна',
-        time_until_next_seconds: timeLeft
+        message: `Следующая игра в рулетку будет доступна через ${hoursRemaining} часов`,
+        next_time: new Date(lastRoulettePlay.getTime() + ROULETTE_COOLDOWN).toISOString()
       });
     }
 
-    // Определяем элементы рулетки (9 позиций, 2 с подарками)
-    const rouletteItems = [
-      { index: 0, type: 'empty', prize_value: 0, weight: 7 },
-      { index: 1, type: 'sub_1_day', prize_value: 1, weight: 2 }, // 20% вероятность
-      { index: 2, type: 'empty', prize_value: 0, weight: 7 },
-      { index: 3, type: 'empty', prize_value: 0, weight: 7 },
-      { index: 4, type: 'sub_3_days', prize_value: 3, weight: 1 }, // 10% вероятность
-      { index: 5, type: 'empty', prize_value: 0, weight: 7 },
-      { index: 6, type: 'empty', prize_value: 0, weight: 7 },
-      { index: 7, type: 'empty', prize_value: 0, weight: 7 },
-      { index: 8, type: 'empty', prize_value: 0, weight: 7 }
-    ];
+    // Выбираем случайную секцию
+    const selectedSegment = selectRandomSegment();
 
-    // 🎰 ПРАВИЛЬНЫЙ АЛГОРИТМ РУЛЕТКИ (как в wheelofnames.com):
-    // 1. Генерируем случайный угол поворота (честно)
-    // 2. Определяем на какой сектор указывает стрелочка
-    // 3. Применяем веса через вероятностную корректировку
+    // Вычисляем угол поворота
+    const rotationAngle = calculateRotationAngle(selectedSegment.id);
 
-    const sectorAngle = 360 / rouletteItems.length; // 40 градусов на сектор
+    // Обновляем время последней игры
+    user.last_roulette_play = now;
 
-    // Создаем взвешенный массив для корректной вероятности
-    const weightedSectors = [];
-    for (let i = 0; i < rouletteItems.length; i++) {
-      const weight = rouletteItems[i].weight;
-      for (let j = 0; j < weight; j++) {
-        weightedSectors.push(i);
-      }
+    // Применяем приз, если есть
+    if (selectedSegment.type === 'sub_1_day' || selectedSegment.type === 'sub_2_days') {
+      const currentSubscriptionDays = user.subscription_days_left || 0;
+      user.subscription_days_left = currentSubscriptionDays + selectedSegment.value;
+
+      logger.info(`Пользователь ${user.username} выиграл ${selectedSegment.value} дней подписки в рулетке`);
     }
-
-    // Используем взвешенный выбор для определения победителя (честный способ)
-    const winnerIndex = weightedSectors[Math.floor(Math.random() * weightedSectors.length)];
-
-    // 🎯 ИСПРАВЛЕННЫЙ РАСЧЕТ УГЛОВ
-    // Во фронтенде секторы размещены так:
-    // Сектор 0: центр на 0° (сверху)
-    // Сектор 1: центр на 40° (по часовой)
-    // Сектор 2: центр на 80°, и т.д.
-
-    const winnerSectorCenter = winnerIndex * sectorAngle;
-
-    // Стрелочка указывает на 0° (вверх)
-    // Чтобы центр выигрышного сектора попал под стрелочку,
-    // нужно повернуть колесо ПРОТИВ часовой стрелки на угол центра сектора
-    // CSS rotate: положительный угол = по часовой, отрицательный = против часовой
-    let targetRotation = -winnerSectorCenter;
-
-    // Нормализуем в положительный диапазон [0, 360)
-    if (targetRotation < 0) {
-      targetRotation += 360;
-    }
-
-    // Добавляем случайное смещение в пределах сектора для реалистичности
-    const maxOffset = sectorAngle * 0.3; // 30% от размера сектора
-    const randomOffset = (Math.random() - 0.5) * maxOffset;
-
-    // Добавляем 5-8 полных оборотов для эффектности
-    const fullRotations = (5 + Math.random() * 3) * 360;
-
-    // Итоговый угол поворота
-    const finalAngle = fullRotations + targetRotation + randomOffset;
-
-    const winnerItem = rouletteItems[winnerIndex];
-    let message = '';
-    let prizeValue = 0;
-
-    // Обрабатываем выигрыш
-    if (winnerItem.type === 'sub_1_day') {
-      user.subscription_days_left = (user.subscription_days_left || 0) + 1;
-      message = 'Поздравляем! Вы выиграли 1 день подписки!';
-      prizeValue = 1;
-    } else if (winnerItem.type === 'sub_3_days') {
-      user.subscription_days_left = (user.subscription_days_left || 0) + 3;
-      message = 'Поздравляем! Вы выиграли 3 дня подписки!';
-      prizeValue = 3;
-    } else {
-      message = 'В этот раз не повезло. Попробуйте завтра!';
-      prizeValue = 0;
-    }
-
-    // Устанавливаем следующее время доступности рулетки (24 часа)
-    const nextTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-    user.next_bonus_time = nextTime;
 
     await user.save();
 
-    // Записываем в историю
-    await BonusMiniGameHistory.create({
-      user_id: userId,
-      game_grid: JSON.stringify(rouletteItems),
-      chosen_cells: JSON.stringify([winnerIndex]),
-      won: winnerItem.type !== 'empty',
-      prize_type: winnerItem.type,
-      prize_value: prizeValue.toString(),
-      played_at: now
-    });
+    // Вычисляем время следующей игры
+    const nextPlayTime = new Date(now.getTime() + ROULETTE_COOLDOWN);
 
-    logger.info(`🎰 User ${userId} played roulette (FIXED ALGORITHM):`, {
-      winnerIndex,
-      winnerItem: {
-        type: winnerItem.type,
-        prizeValue: winnerItem.prize_value,
-        weight: winnerItem.weight
-      },
-      calculations: {
-        sectorAngle: sectorAngle.toFixed(1),
-        winnerSectorCenter: winnerSectorCenter.toFixed(1),
-        targetRotation: targetRotation.toFixed(1),
-        randomOffset: randomOffset.toFixed(1),
-        maxOffset: maxOffset.toFixed(1),
-        fullRotations: fullRotations.toFixed(1),
-        finalAngle: finalAngle.toFixed(1)
-      },
-      result: {
-        won: winnerItem.type !== 'empty',
-        message,
-        prizeValue
-      },
-      stats: {
-        rouletteItemsCount: rouletteItems.length,
-        weightedSectorsCount: weightedSectors.length,
-        winProbability: ((winnerItem.weight / weightedSectors.length) * 100).toFixed(1) + '%'
-      }
-    });
-
-    res.json({
+    // Формируем ответ
+    const response = {
       success: true,
-      message,
-      winner_index: winnerIndex,
-      prize_type: winnerItem.type,
-      prize_value: prizeValue,
-      rotation_angle: finalAngle,
-      next_time: nextTime.toISOString()
-    });
+      message: selectedSegment.type === 'empty'
+        ? 'Удачи в следующий раз!'
+        : `Поздравляем! Вы выиграли ${selectedSegment.value} ${selectedSegment.value === 1 ? 'день' : 'дня'} подписки!`,
+      winner_index: selectedSegment.id,
+      prize_type: selectedSegment.type,
+      prize_value: selectedSegment.value,
+      rotation_angle: rotationAngle,
+      next_time: nextPlayTime.toISOString()
+    };
+
+    res.json(response);
 
   } catch (error) {
-    logger.error('Error in playRoulette:', error);
+    logger.error('Ошибка при игре в рулетку:', error);
     res.status(500).json({
       success: false,
-      message: 'Произошла ошибка при игре в рулетку'
+      message: 'Внутренняя ошибка сервера'
     });
   }
 };

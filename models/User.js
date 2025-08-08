@@ -211,6 +211,13 @@ module.exports = (sequelize) => {
       comment: "Количество успешных угадываний ячеек"
     },
 
+    // Рулетка (раз в 24 часа)
+    last_roulette_play: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Время последней игры в рулетку"
+    },
+
     // Достижения и модификатор выпадения предметов
     drop_rate_modifier: {
       type: DataTypes.FLOAT,
