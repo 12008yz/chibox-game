@@ -29,86 +29,48 @@ const playRoulette = async (req, res) => {
 
     // Определяем элементы рулетки (9 позиций, 2 с подарками)
     const rouletteItems = [
-      { index: 0, type: 'empty', prize_value: 0, weight: 1 },
-      { index: 1, type: 'sub_1_day', prize_value: 1, weight: 0.286 }, // ~20% вероятность (2/7)
-      { index: 2, type: 'empty', prize_value: 0, weight: 1 },
-      { index: 3, type: 'empty', prize_value: 0, weight: 1 },
-      { index: 4, type: 'sub_3_days', prize_value: 3, weight: 0.143 }, // ~10% вероятность (1/7)
-      { index: 5, type: 'empty', prize_value: 0, weight: 1 },
-      { index: 6, type: 'empty', prize_value: 0, weight: 1 },
-      { index: 7, type: 'empty', prize_value: 0, weight: 1 },
-      { index: 8, type: 'empty', prize_value: 0, weight: 1 }
+      { index: 0, type: 'empty', prize_value: 0, weight: 7 },
+      { index: 1, type: 'sub_1_day', prize_value: 1, weight: 2 }, // 20% вероятность
+      { index: 2, type: 'empty', prize_value: 0, weight: 7 },
+      { index: 3, type: 'empty', prize_value: 0, weight: 7 },
+      { index: 4, type: 'sub_3_days', prize_value: 3, weight: 1 }, // 10% вероятность
+      { index: 5, type: 'empty', prize_value: 0, weight: 7 },
+      { index: 6, type: 'empty', prize_value: 0, weight: 7 },
+      { index: 7, type: 'empty', prize_value: 0, weight: 7 },
+      { index: 8, type: 'empty', prize_value: 0, weight: 7 }
     ];
 
-    // Создаем взвешенный массив секторов для правильной вероятности
+    // Создаем взвешенный массив для правильной вероятности
     const weightedSectors = [];
     for (let i = 0; i < rouletteItems.length; i++) {
       const weight = rouletteItems[i].weight;
-      const repeats = weight >= 1 ? Math.round(weight) : Math.round(1 / weight);
-
-      if (weight >= 1) {
-        // Если вес >= 1, добавляем сектор weight раз
-        for (let j = 0; j < repeats; j++) {
-          weightedSectors.push(i);
-        }
-      } else {
-        // Если вес < 1, добавляем сектор реже
-        if (Math.random() < weight * repeats) {
-          weightedSectors.push(i);
-        }
+      for (let j = 0; j < weight; j++) {
+        weightedSectors.push(i);
       }
     }
 
-    // Если weightedSectors пуст или нужно гарантировать результат, используем альтернативный метод
-    if (weightedSectors.length === 0) {
-      // Альтернативный метод с прямой вероятностью
-      const random = Math.random();
-      let winnerIndex;
+    // Выбираем победителя
+    const winnerIndex = weightedSectors[Math.floor(Math.random() * weightedSectors.length)];
 
-      if (random < 0.1) {
-        winnerIndex = 4; // 3 дня подписки (10% шанс)
-      } else if (random < 0.3) {
-        winnerIndex = 1; // 1 день подписки (20% шанс)
-      } else {
-        // Выбираем случайный пустой слот (70% шанс)
-        const emptySlots = [0, 2, 3, 5, 6, 7, 8];
-        winnerIndex = emptySlots[Math.floor(Math.random() * emptySlots.length)];
-      }
-    } else {
-      // Выбираем случайный элемент из взвешенного массива
-      winnerIndex = weightedSectors[Math.floor(Math.random() * weightedSectors.length)];
-    }
+    // Логика расчета угла для указателя сверху (0°)
+    const sectorAngle = 360 / rouletteItems.length; // 40 градусов на сектор
 
-    // Генерируем реалистичный угол поворота для точного попадания
-    const sectorAngle = 360 / rouletteItems.length; // 40 градусов на сектор (9 секторов)
+    // В клиенте сектор 0 центрирован на 0°, сектор 1 на 40°, и т.д.
+    // Центр сектора N находится на (N * sectorAngle)
+    const winnerSectorCenter = winnerIndex * sectorAngle;
 
-    // ИСПРАВЛЕННАЯ ЛОГИКА:
-    // Указатель фиксированный вверху (0°), колесо вращается
-    // В клиентской части сектор 0 находится вверху благодаря startAngle = index * sectorAngle - 90
-    // Чтобы нужный сектор оказался под указателем, используем формулу:
-    // Угол = -(winnerIndex * sectorAngle) + смещение к центру сектора
+    // Чтобы центр выигрышного сектора попал под указатель (0°),
+    // нужно повернуть колесо на отрицательный угол центра сектора
+    const targetRotation = -winnerSectorCenter;
 
-    // Смещаем к центру сектора (половина сектора)
-    const sectorCenterOffset = sectorAngle / 2;
+    // Добавляем небольшое случайное смещение для реалистичности (±5°)
+    const randomOffset = (Math.random() - 0.5) * 10;
 
-    // Базовый угол для попадания на нужный сектор
-    // ПРАВИЛЬНАЯ ЛОГИКА: Рассчитываем позицию центра нужного сектора
-    const sectorStartAngle = winnerIndex * sectorAngle - 90; // начало сектора
-    const sectorCenterAngle = sectorStartAngle + (sectorAngle / 2); // центр сектора
+    // Добавляем 5-8 полных оборотов для эффектности
+    const fullRotations = (5 + Math.random() * 3) * 360;
 
-    // Чтобы указатель (0°) попал на центр сектора, колесо должно повернуться на:
-    const targetAngle = -sectorCenterAngle;
-
-    // Добавляем 5-8 полных оборотов для красивой анимации
-    const fullRotations = 5 + Math.random() * 3; // 5-8 оборотов
-    const fullRotationsDegrees = fullRotations * 360;
-
-    // Небольшое случайное смещение внутри сектора (±5° максимум)
-    const maxOffset = Math.min(sectorAngle * 0.2, 5); // Не более 20% сектора или 5°
-    const randomOffset = (Math.random() - 0.5) * 2 * maxOffset;
-
-    // Итоговый угол для анимации
-    const finalAngle = fullRotationsDegrees + targetAngle + randomOffset;
+    // Итоговый угол поворота
+    const finalAngle = fullRotations + targetRotation + randomOffset;
 
     const winnerItem = rouletteItems[winnerIndex];
     let message = '';
@@ -137,15 +99,15 @@ const playRoulette = async (req, res) => {
     // Записываем в историю
     await BonusMiniGameHistory.create({
       user_id: userId,
-      game_grid: JSON.stringify(rouletteItems), // Сохраняем структуру рулетки
-      chosen_cells: JSON.stringify([winnerIndex]), // Сохраняем выбранный сектор
-      won: winnerItem.type !== 'empty', // Выиграл, если не пустой сектор
+      game_grid: JSON.stringify(rouletteItems),
+      chosen_cells: JSON.stringify([winnerIndex]),
+      won: winnerItem.type !== 'empty',
       prize_type: winnerItem.type,
       prize_value: prizeValue.toString(),
       played_at: now
     });
 
-    logger.info(`User ${userId} played roulette - Winner: ${winnerIndex}, Prize: ${winnerItem.type}, SectorStart: ${sectorStartAngle}°, SectorCenter: ${sectorCenterAngle}°, TargetAngle: ${targetAngle}°, FinalAngle: ${finalAngle}°, FullRotations: ${fullRotations}`);
+    logger.info(`User ${userId} played roulette - Winner: ${winnerIndex}, Prize: ${winnerItem.type}, FinalAngle: ${finalAngle}°`);
 
     res.json({
       success: true,
@@ -153,7 +115,7 @@ const playRoulette = async (req, res) => {
       winner_index: winnerIndex,
       prize_type: winnerItem.type,
       prize_value: prizeValue,
-      rotation_angle: finalAngle, // Добавляем точный угол поворота
+      rotation_angle: finalAngle,
       next_time: nextTime.toISOString()
     });
 
