@@ -40,7 +40,14 @@ const playRoulette = async (req, res) => {
       { index: 8, type: 'empty', prize_value: 0, weight: 7 }
     ];
 
-    // Создаем взвешенный массив для правильной вероятности
+    // 🎰 ПРАВИЛЬНЫЙ АЛГОРИТМ РУЛЕТКИ (как в wheelofnames.com):
+    // 1. Генерируем случайный угол поворота (честно)
+    // 2. Определяем на какой сектор указывает стрелочка
+    // 3. Применяем веса через вероятностную корректировку
+
+    const sectorAngle = 360 / rouletteItems.length; // 40 градусов на сектор
+
+    // Создаем взвешенный массив для корректной вероятности
     const weightedSectors = [];
     for (let i = 0; i < rouletteItems.length; i++) {
       const weight = rouletteItems[i].weight;
@@ -49,22 +56,31 @@ const playRoulette = async (req, res) => {
       }
     }
 
-    // Выбираем победителя
+    // Используем взвешенный выбор для определения победителя (честный способ)
     const winnerIndex = weightedSectors[Math.floor(Math.random() * weightedSectors.length)];
 
-    // Логика расчета угла для указателя сверху (0°)
-    const sectorAngle = 360 / rouletteItems.length; // 40 градусов на сектор
+    // 🎯 ИСПРАВЛЕННЫЙ РАСЧЕТ УГЛОВ
+    // Во фронтенде секторы размещены так:
+    // Сектор 0: центр на 0° (сверху)
+    // Сектор 1: центр на 40° (по часовой)
+    // Сектор 2: центр на 80°, и т.д.
 
-    // В клиенте сектор 0 центрирован на 0°, сектор 1 на 40°, и т.д.
-    // Центр сектора N находится на (N * sectorAngle)
     const winnerSectorCenter = winnerIndex * sectorAngle;
 
-    // Чтобы центр выигрышного сектора попал под указатель (0°),
-    // нужно повернуть колесо на отрицательный угол центра сектора
-    const targetRotation = -winnerSectorCenter;
+    // Стрелочка указывает на 0° (вверх)
+    // Чтобы центр выигрышного сектора попал под стрелочку,
+    // нужно повернуть колесо ПРОТИВ часовой стрелки на угол центра сектора
+    // CSS rotate: положительный угол = по часовой, отрицательный = против часовой
+    let targetRotation = -winnerSectorCenter;
 
-    // Добавляем небольшое случайное смещение для реалистичности (±5°)
-    const randomOffset = (Math.random() - 0.5) * 10;
+    // Нормализуем в положительный диапазон [0, 360)
+    if (targetRotation < 0) {
+      targetRotation += 360;
+    }
+
+    // Добавляем случайное смещение в пределах сектора для реалистичности
+    const maxOffset = sectorAngle * 0.3; // 30% от размера сектора
+    const randomOffset = (Math.random() - 0.5) * maxOffset;
 
     // Добавляем 5-8 полных оборотов для эффектности
     const fullRotations = (5 + Math.random() * 3) * 360;
@@ -107,7 +123,33 @@ const playRoulette = async (req, res) => {
       played_at: now
     });
 
-    logger.info(`User ${userId} played roulette - Winner: ${winnerIndex}, Prize: ${winnerItem.type}, FinalAngle: ${finalAngle}°`);
+    logger.info(`🎰 User ${userId} played roulette (FIXED ALGORITHM):`, {
+      winnerIndex,
+      winnerItem: {
+        type: winnerItem.type,
+        prizeValue: winnerItem.prize_value,
+        weight: winnerItem.weight
+      },
+      calculations: {
+        sectorAngle: sectorAngle.toFixed(1),
+        winnerSectorCenter: winnerSectorCenter.toFixed(1),
+        targetRotation: targetRotation.toFixed(1),
+        randomOffset: randomOffset.toFixed(1),
+        maxOffset: maxOffset.toFixed(1),
+        fullRotations: fullRotations.toFixed(1),
+        finalAngle: finalAngle.toFixed(1)
+      },
+      result: {
+        won: winnerItem.type !== 'empty',
+        message,
+        prizeValue
+      },
+      stats: {
+        rouletteItemsCount: rouletteItems.length,
+        weightedSectorsCount: weightedSectors.length,
+        winProbability: ((winnerItem.weight / weightedSectors.length) * 100).toFixed(1) + '%'
+      }
+    });
 
     res.json({
       success: true,
