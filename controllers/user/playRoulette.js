@@ -17,8 +17,8 @@ const ROULETTE_SEGMENTS = [
 // Общий вес всех секций
 const TOTAL_WEIGHT = ROULETTE_SEGMENTS.reduce((sum, segment) => sum + segment.weight, 0);
 
-// Кулдаун между играми в миллисекундах (например, 24 часа)
-const ROULETTE_COOLDOWN = 24 * 60 * 60 * 1000;
+// Кулдаун между играми в миллисекундах (30 игр в день = 24 часа / 30 = 48 минут)
+const ROULETTE_COOLDOWN = 1 * 6 * 1000;
 
 /**
  * Выбирает случайную секцию на основе весов
@@ -83,11 +83,11 @@ const playRoulette = async (req, res) => {
 
     if (timeSinceLastPlay < ROULETTE_COOLDOWN) {
       const timeRemaining = ROULETTE_COOLDOWN - timeSinceLastPlay;
-      const hoursRemaining = Math.ceil(timeRemaining / (60 * 60 * 1000));
+      const minutesRemaining = Math.ceil(timeRemaining / (60 * 1000));
 
       return res.status(429).json({
         success: false,
-        message: `Следующая игра в рулетку будет доступна через ${hoursRemaining} часов`,
+        message: `Следующая игра в рулетку будет доступна через ${minutesRemaining} минут`,
         next_time: new Date(lastRoulettePlay.getTime() + ROULETTE_COOLDOWN).toISOString()
       });
     }
