@@ -1,5 +1,5 @@
 const { User } = require('../../models');
-const logger = require('../../utils/logger');
+const { logger } = require('../../utils/logger');
 
 // Конфигурация колеса рулетки (9 секций)
 const ROULETTE_SEGMENTS = [
