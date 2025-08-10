@@ -185,7 +185,7 @@ async function trackSubscriptionDays() {
 
         const expiryDate = new Date(user.subscription_expiry_date);
         const msLeft = expiryDate.getTime() - now.getTime();
-        const daysLeft = msLeft > 0 ? Math.ceil(msLeft / (1000 * 60 * 60 * 24)) : 0;
+        const daysLeft = msLeft > 0 ? Math.floor(msLeft / (1000 * 60 * 60 * 24)) : 0;
 
         // Если подписка истекла
         if (daysLeft <= 0) {

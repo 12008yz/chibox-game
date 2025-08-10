@@ -37,24 +37,21 @@ async function exchangeItemForSubscription(req, res) {
     const itemPrice = parseFloat(inventoryItem.item.price || 0);
     console.log(`Item price: ${itemPrice} rubles`);
 
-    // Базовая стоимость 1 дня подписки (средняя стоимость по тарифам)
-    // Тариф 1: 1210₽ за 30 дней = 40.33₽/день
-    // Тариф 2: 2890₽ за 30 дней = 96.33₽/день
-    // Тариф 3: 6819₽ за 30 дней = 227.3₽/день
-    // Используем среднее значение: примерно 120₽ за 1 день
+    // Базовая стоимость 1 дня подписки
+    // Используем простую и понятную формулу: 120₽ за 1 день
     const pricePerDay = 120;
 
-    // Вычисляем количество дней подписки
-    const subscriptionDays = Math.floor(itemPrice / pricePerDay);
-    console.log(`Calculated subscription days: ${subscriptionDays} for item price ${itemPrice}`);
+    // Вычисляем количество дней подписки простым делением с округлением
+    const subscriptionDays = Math.round(itemPrice / pricePerDay);
+    console.log(`Calculated subscription days: ${subscriptionDays} for item price ${itemPrice} (${(itemPrice/pricePerDay).toFixed(2)} exact)`);
 
-    // Минимальная проверка: предмет должен стоить минимум 1 день подписки
+    // Минимальная проверка: предмет должен давать минимум 1 день
     if (subscriptionDays < 1) {
       await transaction.rollback();
       return res.status(400).json({
         success: false,
-        message: `Предмет слишком дешевый для обмена. Минимальная стоимость: ${pricePerDay}₽ (стоимость предмета: ${itemPrice}₽)`,
-        required_price: pricePerDay,
+        message: `Предмет слишком дешевый для обмена. Минимальная стоимость: ${Math.ceil(pricePerDay * 0.5)}₽ (стоимость предмета: ${itemPrice}₽)`,
+        required_price: Math.ceil(pricePerDay * 0.5),
         item_price: itemPrice
       });
     }
@@ -73,18 +70,21 @@ async function exchangeItemForSubscription(req, res) {
       user.subscription_purchase_date = now;
     }
 
-    // Обновляем дату истечения подписки
+    // Получаем текущие дни подписки более точно
+    let currentDaysLeft = 0;
     if (user.subscription_expiry_date && user.subscription_expiry_date > now) {
-      // Если подписка ещё активна, добавляем дни к текущей дате истечения
-      user.subscription_expiry_date = new Date(user.subscription_expiry_date.getTime() + (subscriptionDays * 24 * 60 * 60 * 1000));
-    } else {
-      // Если подписка истекла или нет, начинаем с текущей даты
-      user.subscription_expiry_date = new Date(now.getTime() + (subscriptionDays * 24 * 60 * 60 * 1000));
+      const msLeft = user.subscription_expiry_date.getTime() - now.getTime();
+      currentDaysLeft = Math.max(0, Math.floor(msLeft / (24 * 60 * 60 * 1000)));
     }
 
-    // Обновляем поле subscription_days_left
-    const msLeft = user.subscription_expiry_date.getTime() - now.getTime();
-    user.subscription_days_left = Math.ceil(msLeft / (24 * 60 * 60 * 1000));
+    console.log(`Current subscription days left: ${currentDaysLeft}, adding: ${subscriptionDays}`);
+
+    // Просто добавляем дни к текущему количеству
+    const newDaysTotal = currentDaysLeft + subscriptionDays;
+
+    // Устанавливаем новую дату истечения от текущего момента
+    user.subscription_expiry_date = new Date(now.getTime() + (newDaysTotal * 24 * 60 * 60 * 1000));
+    user.subscription_days_left = newDaysTotal;
 
     await user.save({ transaction });
 
