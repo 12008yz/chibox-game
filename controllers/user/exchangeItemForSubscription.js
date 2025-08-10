@@ -1,4 +1,4 @@
-const { UserInventory, User, Achievement, sequelize } = require('../../models');
+const { UserInventory, User, Achievement, SubscriptionHistory, sequelize } = require('../../models');
 
 async function exchangeItemForSubscription(req, res) {
   const { userId, itemId } = req.body;
@@ -33,26 +33,43 @@ async function exchangeItemForSubscription(req, res) {
       return res.status(404).json({ message: 'Нет такого предмета для обмена' });
     }
 
+    // Получить пользователя и определить тариф
+    const user = await User.findByPk(userId, { transaction });
+
     // Получить стоимость предмета в рублях
     const itemPrice = parseFloat(inventoryItem.item.price || 0);
     console.log(`Item price: ${itemPrice} rubles`);
 
-    // Базовая стоимость 1 дня подписки
-    // Используем простую и понятную формулу: 120₽ за 1 день
-    const pricePerDay = 120;
+    // Определяем цену за день в зависимости от текущего тарифа подписки
+    let pricePerDay;
+    const currentTier = user.subscription_tier || 1; // По умолчанию тариф 1
 
-    // Вычисляем количество дней подписки простым делением с округлением
-    const subscriptionDays = Math.round(itemPrice / pricePerDay);
-    console.log(`Calculated subscription days: ${subscriptionDays} for item price ${itemPrice} (${(itemPrice/pricePerDay).toFixed(2)} exact)`);
+    if (currentTier === 3) {
+      pricePerDay = 300; // 300₽ за день для тарифа "Статус++"
+    } else {
+      pricePerDay = 150; // 150₽ за день для тарифов "Статус" и "Статус+"
+    }
+
+    console.log(`Using price per day: ${pricePerDay}₽ for tier ${currentTier}`);
+
+    // Вычисляем количество дней подписки с правильной логикой
+    // Для тарифа 3: 280-300₽ = 1 день, 580-600₽ = 2 дня и т.д.
+    // Для тарифов 1,2: 140-150₽ = 1 день, 290-300₽ = 2 дня и т.д.
+    const subscriptionDays = Math.floor((itemPrice + pricePerDay * 0.067) / pricePerDay);
+
+    console.log(`Calculated subscription days: ${subscriptionDays} for item price ${itemPrice} (formula: floor((${itemPrice} + ${pricePerDay * 0.067}) / ${pricePerDay})) for tier ${currentTier}`);
 
     // Минимальная проверка: предмет должен давать минимум 1 день
-    if (subscriptionDays < 1) {
+    const minPrice = Math.floor(pricePerDay * 0.93); // ~93% от цены за день
+    if (subscriptionDays < 1 || itemPrice < minPrice) {
       await transaction.rollback();
       return res.status(400).json({
         success: false,
-        message: `Предмет слишком дешевый для обмена. Минимальная стоимость: ${Math.ceil(pricePerDay * 0.5)}₽ (стоимость предмета: ${itemPrice}₽)`,
-        required_price: Math.ceil(pricePerDay * 0.5),
-        item_price: itemPrice
+        message: `Предмет слишком дешевый для обмена. Минимальная стоимость для тарифа ${currentTier}: ${minPrice}₽ (стоимость предмета: ${itemPrice}₽)`,
+        required_price: minPrice,
+        item_price: itemPrice,
+        tier: currentTier,
+        price_per_day: pricePerDay
       });
     }
 
@@ -60,8 +77,7 @@ async function exchangeItemForSubscription(req, res) {
     inventoryItem.status = 'used';
     await inventoryItem.save({ transaction });
 
-    // Получить пользователя и обновить подписку
-    const user = await User.findByPk(userId, { transaction });
+    // Получаем текущие дни подписки более точно
     const now = new Date();
 
     // Если нет текущей подписки, установить минимальный тариф (1)
@@ -87,6 +103,17 @@ async function exchangeItemForSubscription(req, res) {
     user.subscription_days_left = newDaysTotal;
 
     await user.save({ transaction });
+
+    // Записываем историю обмена в SubscriptionHistory
+    await SubscriptionHistory.create({
+      user_id: userId,
+      action: 'exchange_item',
+      days: subscriptionDays,
+      price: 0.00, // Обмен бесплатный
+      item_id: inventoryItem.item.id,
+      method: 'item_exchange',
+      date: now
+    }, { transaction });
 
     // Обновляем прогресс достижений
     const { updateUserAchievementProgress } = require('../../services/achievementService');
