@@ -15,6 +15,8 @@ const logger = winston.createLogger({
 });
 
 async function sellItem(req, res) {
+  const transaction = await db.sequelize.transaction();
+
   try {
     logger.info('sellItem request body:', req.body);
 
@@ -23,36 +25,55 @@ async function sellItem(req, res) {
     const effectiveItemId = itemId || item_id;
 
     if (!effectiveItemId) {
+      await transaction.rollback();
       return res.status(400).json({ message: 'itemId is required' });
     }
 
-    const inventoryItem = await db.UserInventory.findOne({ where: { user_id: userId, item_id: effectiveItemId } });
+    // Ищем конкретный экземпляр предмета с блокировкой для предотвращения race conditions
+    const inventoryItem = await db.UserInventory.findOne({
+      where: {
+        user_id: userId,
+        id: effectiveItemId,
+        status: 'inventory' // Проверяем, что предмет действительно в инвентаре
+      },
+      transaction,
+      lock: transaction.LOCK.UPDATE
+    });
+
     if (!inventoryItem) {
-      return res.status(404).json({ message: 'Предмет не найден в инвентаре' });
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Предмет не найден в инвентаре или уже продан' });
     }
 
-    const item = await db.Item.findByPk(effectiveItemId);
+    const item = await db.Item.findByPk(inventoryItem.item_id, { transaction });
     if (!item) {
+      await transaction.rollback();
       return res.status(404).json({ message: 'Предмет не найден' });
     }
 
-    await inventoryItem.destroy();
+    // Обновляем статус только этого конкретного экземпляра
+    inventoryItem.status = 'sold';
+    inventoryItem.transaction_date = new Date();
+    await inventoryItem.save({ transaction });
 
-    const user = await db.User.findByPk(userId);
+    const user = await db.User.findByPk(userId, { transaction });
     if (user) {
       // Цена продажи = 70% от рыночной стоимости
       const itemPrice = parseFloat(item.price) || 0;
       const sellPrice = Math.round(itemPrice * 0.7);
       user.balance = (parseFloat(user.balance) || 0) + sellPrice;
-      await user.save();
+      await user.save({ transaction });
 
-      // Update achievement progress for sell item
+      // Коммитим транзакцию
+      await transaction.commit();
+
+      // Update achievement progress for sell item (после коммита)
       await updateUserAchievementProgress(userId, 'sell_item', 1);
 
-      // Добавление опыта за продажу предмета
+      // Добавление опыта за продажу предмета (после коммита)
       await addExperience(userId, 15, 'sell_item', null, 'Продажа предмета');
 
-      logger.info(`Пользователь ${userId} продал предмет ${effectiveItemId} за ${sellPrice}₽`);
+      logger.info(`Пользователь ${userId} продал 1 экземпляр предмета ${item.name} (inventory ID: ${effectiveItemId}, item ID: ${inventoryItem.item_id}) за ${sellPrice}₽`);
 
       return res.json({
         success: true,
@@ -61,8 +82,10 @@ async function sellItem(req, res) {
       });
     }
 
+    await transaction.rollback();
     return res.status(500).json({ message: 'Ошибка при обновлении баланса пользователя' });
   } catch (error) {
+    await transaction.rollback();
     logger.error('Ошибка при продаже предмета:', error);
     return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
   }
