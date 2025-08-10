@@ -40,7 +40,9 @@ async function sellItem(req, res) {
 
     const user = await db.User.findByPk(userId);
     if (user) {
-      const sellPrice = parseFloat(item.sellPrice) || 0;
+      // Цена продажи = 70% от рыночной стоимости
+      const itemPrice = parseFloat(item.price) || 0;
+      const sellPrice = Math.round(itemPrice * 0.7);
       user.balance = (parseFloat(user.balance) || 0) + sellPrice;
       await user.save();
 
@@ -49,11 +51,17 @@ async function sellItem(req, res) {
 
       // Добавление опыта за продажу предмета
       await addExperience(userId, 15, 'sell_item', null, 'Продажа предмета');
+
+      logger.info(`Пользователь ${userId} продал предмет ${effectiveItemId} за ${sellPrice}₽`);
+
+      return res.json({
+        success: true,
+        message: `Предмет продан за ${sellPrice}₽`,
+        data: { new_balance: parseFloat(user.balance) }
+      });
     }
 
-    logger.info(`Пользователь ${userId} продал предмет ${effectiveItemId} за ${item.sellPrice}`);
-
-    return res.json({ success: true, message: `Предмет продан за ${item.sellPrice}` });
+    return res.status(500).json({ message: 'Ошибка при обновлении баланса пользователя' });
   } catch (error) {
     logger.error('Ошибка при продаже предмета:', error);
     return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
