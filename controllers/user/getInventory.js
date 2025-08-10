@@ -18,13 +18,21 @@ async function getInventory(req, res) {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
     const offset = (page - 1) * limit;
+    const status = req.query.status;
 
-    // Получаем все предметы и кейсы из UserInventory с пагинацией
+    // Формируем условие поиска
+    const whereCondition = {
+      user_id: userId
+    };
+
+    // Добавляем фильтр по статусу, если он указан
+    if (status) {
+      whereCondition.status = status;
+    }
+
+    // Получаем предметы и кейсы из UserInventory с пагинацией
     const { count, rows: inventoryItems } = await db.UserInventory.findAndCountAll({
-      where: {
-        user_id: userId
-        // Убираем фильтр по статусу - возвращаем ВСЕ записи
-      },
+      where: whereCondition,
       include: [
         {
           model: db.Item,
@@ -57,7 +65,7 @@ async function getInventory(req, res) {
     const items = inventoryItems.filter(item => item.item_type === 'item');
     const cases = inventoryItems.filter(item => item.item_type === 'case');
 
-    logger.info(`Получен инвентарь для пользователя ${userId}, страница ${page}`);
+    logger.info(`Получен инвентарь для пользователя ${userId}, страница ${page}, статус: ${status || 'все'}`);
     logger.info(`Всего предметов: ${items.length}`);
     logger.info(`Всего кейсов: ${cases.length}`);
 
