@@ -13,11 +13,11 @@ async function exchangeItemForSubscription(req, res) {
   const transaction = await sequelize.transaction();
 
   try {
-    // Найти предмет в инвентаре пользователя с статусом 'inventory'
+    // Найти конкретный экземпляр предмета в инвентаре пользователя
     const inventoryItem = await UserInventory.findOne({
       where: {
+        id: itemId,  // ID конкретного экземпляра в инвентаре
         user_id: userId,
-        item_id: itemId,
         status: 'inventory',
       },
       include: [{
@@ -86,21 +86,27 @@ async function exchangeItemForSubscription(req, res) {
       user.subscription_purchase_date = now;
     }
 
-    // Получаем текущие дни подписки более точно
-    let currentDaysLeft = 0;
+    // Правильная логика добавления дней к подписке
+    let newExpiryDate;
+    let newDaysLeft;
+
     if (user.subscription_expiry_date && user.subscription_expiry_date > now) {
-      const msLeft = user.subscription_expiry_date.getTime() - now.getTime();
-      currentDaysLeft = Math.max(0, Math.floor(msLeft / (24 * 60 * 60 * 1000)));
+      // Если подписка активна, добавляем дни к существующей дате истечения
+      newExpiryDate = new Date(user.subscription_expiry_date.getTime() + (subscriptionDays * 24 * 60 * 60 * 1000));
+
+      // Пересчитываем дни от текущего момента до новой даты истечения
+      const msLeft = newExpiryDate.getTime() - now.getTime();
+      newDaysLeft = Math.max(0, Math.ceil(msLeft / (24 * 60 * 60 * 1000))); // Используем ceil для округления вверх
+    } else {
+      // Если подписка неактивна, устанавливаем от текущего момента
+      newExpiryDate = new Date(now.getTime() + (subscriptionDays * 24 * 60 * 60 * 1000));
+      newDaysLeft = subscriptionDays;
     }
 
-    console.log(`Current subscription days left: ${currentDaysLeft}, adding: ${subscriptionDays}`);
+    console.log(`Adding ${subscriptionDays} days. New expiry: ${newExpiryDate}, days left: ${newDaysLeft}`);
 
-    // Просто добавляем дни к текущему количеству
-    const newDaysTotal = currentDaysLeft + subscriptionDays;
-
-    // Устанавливаем новую дату истечения от текущего момента
-    user.subscription_expiry_date = new Date(now.getTime() + (newDaysTotal * 24 * 60 * 60 * 1000));
-    user.subscription_days_left = newDaysTotal;
+    user.subscription_expiry_date = newExpiryDate;
+    user.subscription_days_left = newDaysLeft;
 
     await user.save({ transaction });
 
@@ -110,7 +116,7 @@ async function exchangeItemForSubscription(req, res) {
       action: 'exchange_item',
       days: subscriptionDays,
       price: 0.00, // Обмен бесплатный
-      item_id: inventoryItem.item.id,
+      item_id: inventoryItem.item.id,  // ID шаблона предмета для истории
       method: 'item_exchange',
       date: now
     }, { transaction });
@@ -130,7 +136,7 @@ async function exchangeItemForSubscription(req, res) {
       category: 'subscription',
       importance: 5,
       data: {
-        itemId: itemId,
+        itemId: inventoryItem.item.id,  // ID шаблона предмета для уведомления
         item_name: inventoryItem.item.name,
         item_price: itemPrice,
         subscription_days_added: subscriptionDays,
