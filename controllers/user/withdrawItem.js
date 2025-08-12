@@ -82,11 +82,59 @@ async function withdrawItem(req, res) {
       });
     }
 
+    // Получаем данные пользователя для проверки подписки и Steam Trade URL
+    const user = await db.User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Пользователь не найден'
+      });
+    }
+
+    // ✅ ПРОВЕРЯЕМ ПОДПИСКУ: пользователь должен иметь действующую подписку
+    const now = new Date();
+    let hasActiveSubscription = false;
+    let subscriptionStatus = 'Подписка отсутствует';
+
+    // Проверяем количество оставшихся дней подписки
+    if (user.subscription_days_left && user.subscription_days_left > 0) {
+      hasActiveSubscription = true;
+      subscriptionStatus = `${user.subscription_days_left} дней подписки`;
+    }
+
+    // Дополнительная проверка через дату истечения подписки
+    if (user.subscription_expiry_date) {
+      const expiryDate = new Date(user.subscription_expiry_date);
+      if (expiryDate > now) {
+        hasActiveSubscription = true;
+        const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+        subscriptionStatus = `${daysLeft} дней подписки (до ${expiryDate.toLocaleDateString('ru-RU')})`;
+      }
+    }
+
+    // Блокируем вывод для пользователей без подписки
+    if (!hasActiveSubscription) {
+      logger.warn(`Попытка вывода предмета пользователем ${userId} без действующей подписки`);
+
+      return res.status(403).json({
+        success: false,
+        message: 'Для вывода предметов в Steam необходима действующая подписка',
+        error_code: 'SUBSCRIPTION_REQUIRED',
+        data: {
+          subscription_status: subscriptionStatus,
+          subscription_days_left: user.subscription_days_left || 0,
+          subscription_expiry_date: user.subscription_expiry_date,
+          can_purchase_subscription: true
+        }
+      });
+    }
+
+    logger.info(`Пользователь ${userId} имеет действующую подписку: ${subscriptionStatus}`);
+
     // Проверяем Steam Trade URL
     let tradeUrl = steamTradeUrl;
     if (!tradeUrl) {
-      // Если в запросе не предоставлен URL, проверяем профиль пользователя
-      const user = await db.User.findByPk(userId);
+      // Используем URL из профиля пользователя
       tradeUrl = user.steam_trade_url;
 
       if (!tradeUrl) {
@@ -181,7 +229,7 @@ async function withdrawItem(req, res) {
     // Обновляем прогресс достижений
     await updateUserAchievementProgress(userId, 'steam_inventory', 1);
 
-    logger.info(`Пользователь ${userId} запросил вывод предмета ${inventoryItem.item.id} (${inventoryItem.item.name})`);
+    logger.info(`Пользователь ${userId} запросил вывод предмета ${inventoryItem.item.id} (${inventoryItem.item.name}). Статус подписки: ${subscriptionStatus}`);
 
     return res.json({
       success: true,
@@ -189,7 +237,8 @@ async function withdrawItem(req, res) {
       data: {
         withdrawal_id: withdrawal.id,
         status: withdrawal.status,
-        created_at: withdrawal.request_date
+        created_at: withdrawal.request_date,
+        subscription_status: subscriptionStatus
       }
     });
   } catch (error) {
