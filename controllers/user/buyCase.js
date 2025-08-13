@@ -14,7 +14,7 @@ const logger = winston.createLogger({
   ],
 });
 
-const MAX_PAID_CASES_PER_DAY = 50000; // Максимум 5 покупных кейсов в день
+// Убрано ограничение на максимальное количество кейсов в день
 
 async function buyCase(req, res) {
   try {
@@ -22,9 +22,9 @@ async function buyCase(req, res) {
     const { method, quantity = 1, caseTemplateId } = req.body;
 
     // Валидация количества
-    if (!quantity || quantity < 1 || quantity > MAX_PAID_CASES_PER_DAY) {
+    if (!quantity || quantity < 1) {
       return res.status(400).json({
-        message: `Количество кейсов должно быть от 1 до ${MAX_PAID_CASES_PER_DAY}`
+        message: 'Количество кейсов должно быть больше 0'
       });
     }
 
@@ -53,30 +53,7 @@ async function buyCase(req, res) {
 
     const CASE_PRICE = parseFloat(caseTemplate.price);
 
-    // Проверяем дневной лимит покупных кейсов
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    // Сбрасываем счетчик покупных кейсов если новый день
-    if (!user.last_reset_date || new Date(user.last_reset_date).setHours(0,0,0,0) < today.getTime()) {
-      user.paid_cases_bought_today = 0;
-      user.last_reset_date = today;
-      await user.save();
-    }
-
-    const currentPaidCases = user.paid_cases_bought_today || 0;
-    let allowedQuantity = quantity;
-    if (currentPaidCases + quantity > MAX_PAID_CASES_PER_DAY) {
-      allowedQuantity = MAX_PAID_CASES_PER_DAY - currentPaidCases;
-    }
-
-    if (allowedQuantity <= 0) {
-      return res.status(400).json({
-        message: `Превышен дневной лимит покупки кейсов. Осталось: 0 из ${MAX_PAID_CASES_PER_DAY}`,
-        remaining_cases: 0
-      });
-    }
-
+    const allowedQuantity = quantity;
     const totalPrice = CASE_PRICE * allowedQuantity;
 
     if (method === 'balance') {
@@ -91,16 +68,10 @@ async function buyCase(req, res) {
 
       // Списываем средства
       user.balance -= totalPrice;
-      user.paid_cases_bought_today = currentPaidCases + allowedQuantity;
-      user.last_reset_date = new Date(new Date().setHours(0,0,0,0)); // Обновляем дату сброса на сегодня
       await user.save();
-
-      logger.info(`После сохранения: paid_cases_bought_today = ${user.paid_cases_bought_today}, last_reset_date = ${user.last_reset_date}`);
 
       // Обновляем данные пользователя из базы для корректного ответа
       await user.reload();
-
-      logger.info(`После перезагрузки: paid_cases_bought_today = ${user.paid_cases_bought_today}, last_reset_date = ${user.last_reset_date}`);
 
       // Используем выбранный шаблон кейса
 
@@ -154,26 +125,13 @@ async function buyCase(req, res) {
           expires_at: c.expires_at,
           item_type: c.item_type
         })),
-        balance: user.balance,
-        paid_cases_bought_today: user.paid_cases_bought_today,
-        remaining_cases: MAX_PAID_CASES_PER_DAY - user.paid_cases_bought_today
+        balance: user.balance
       });
 
     } else if (method === 'bank_card') {
       // Покупка через банковскую карту
       try {
-        let allowedQuantity = quantity;
-        if (currentPaidCases + quantity > MAX_PAID_CASES_PER_DAY) {
-          allowedQuantity = MAX_PAID_CASES_PER_DAY - currentPaidCases;
-        }
-
-        if (allowedQuantity <= 0) {
-          return res.status(400).json({
-            message: `Превышен дневной лимит покупки кейсов. Осталось: 0 из ${MAX_PAID_CASES_PER_DAY}`,
-            remaining_cases: 0
-          });
-        }
-
+        const allowedQuantity = quantity;
         const totalPrice = CASE_PRICE * allowedQuantity;
 
         // Добавляем платеж в очередь для обработки
@@ -224,17 +182,6 @@ async function getCasePurchaseInfo(req, res) {
       return res.status(404).json({ message: 'Пользователь не найден' });
     }
 
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    // Проверяем нужно ли сбросить счетчик
-    let paidCasesToday = user.paid_cases_bought_today || 0;
-    if (!user.last_reset_date || user.last_reset_date < today) {
-      paidCasesToday = 0;
-    }
-
-    const remainingCases = MAX_PAID_CASES_PER_DAY - paidCasesToday;
-
     // Получаем доступные покупные кейсы
     const availableCases = await db.CaseTemplate.findAll({
       where: {
@@ -255,10 +202,7 @@ async function getCasePurchaseInfo(req, res) {
         color_scheme: caseTemplate.color_scheme,
         image_url: caseTemplate.image_url
       })),
-      max_cases_per_day: MAX_PAID_CASES_PER_DAY,
-      paid_cases_bought_today: paidCasesToday,
-      remaining_cases: remainingCases,
-      can_buy: remainingCases > 0,
+      can_buy: true, // Теперь всегда можно покупать
       user_balance: user.balance || 0
     });
 
@@ -270,6 +214,5 @@ async function getCasePurchaseInfo(req, res) {
 
 module.exports = {
   buyCase,
-  getCasePurchaseInfo,
-  MAX_PAID_CASES_PER_DAY
+  getCasePurchaseInfo
 };

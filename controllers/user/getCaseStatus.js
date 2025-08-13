@@ -1,6 +1,5 @@
 const db = require('../../models');
 const { logger } = require('../../utils/logger');
-const { MAX_PAID_CASES_PER_DAY } = require('./buyCase');
 
 async function getCaseStatus(req, res) {
   try {

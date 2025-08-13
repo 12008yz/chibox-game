@@ -58,7 +58,7 @@ async function addExperience(userId, amount, sourceType, sourceId = null, descri
       await db.Notification.create({
         user_id: userId,
         title: 'Повышение уровня',
-        message: `Поздравляем! Вы достигли уровня ${newLevel}. Бонус к шансу дорогих предметов: +${bonusInfo.newLevelBonus.toFixed(1)}%`,
+        message: `Поздравляем! Вы достигли уровня ${newLevel}. Бонус к шансу дорогих предметов: +${bonusInfo.newLevelBonus.toFixed(2)}%`,
         type: 'success',
         category: 'level_up',
         importance: 5,
