@@ -21,27 +21,25 @@ const redisConfig = {
     host: process.env.REDIS_HOST || '127.0.0.1',
     password: process.env.REDIS_PASSWORD || undefined,
     db: process.env.REDIS_DB || 0,
-    connectTimeout: 60000,
-    lazyConnect: true,
+    maxRetriesPerRequest: 3,
     retryDelayOnFailover: 100,
-    maxRetriesPerRequest: 3
+    enableReadyCheck: false,
+    lazyConnect: true,
+    // Исправляем проблемы с timeout
+    connectTimeout: 60000,
+    commandTimeout: 5000,
+    // Добавляем настройки для брокера сообщений
+    maxmemoryPolicy: 'allkeys-lru'
   },
-  defaultJobOptions: {
-    removeOnComplete: 100,
-    removeOnFail: 50,
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 2000
-    }
-  },
+  // Настройки для Bull
   settings: {
-    stalledInterval: 30 * 1000,
-    maxStalledCount: 1
+    stalledInterval: 30 * 1000, // 30 секунд
+    maxStalledCount: 1,
+    retryProcessDelay: 5 * 1000 // 5 секунд
   }
 };
 
-// Создание очередей для разных типов задач
+// Создание очередей для разных типов задач с правильными настройками
 const queues = {
   // Обработка платежей
   payments: new Queue('payment processing', redisConfig),
@@ -67,6 +65,20 @@ const queues = {
   // Обновление пользовательской статистики
   userStats: new Queue('user statistics', redisConfig)
 };
+
+// Настраиваем опции для всех очередей
+Object.values(queues).forEach(queue => {
+  // Настройки по умолчанию для всех задач
+  queue.defaultJobOptions = {
+    removeOnComplete: 10,
+    removeOnFail: 20,
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 2000,
+    },
+  };
+});
 
 // Настройка обработчиков событий для мониторинга
 Object.keys(queues).forEach(queueName => {
@@ -222,11 +234,43 @@ async function getQueueStats() {
 async function cleanQueues(maxAge = 24 * 60 * 60 * 1000) { // 24 часа по умолчанию
   for (const [name, queue] of Object.entries(queues)) {
     try {
-      await queue.clean(maxAge, 'completed');
-      await queue.clean(maxAge, 'failed');
-      logger.info(`Cleaned old jobs from queue: ${name}`);
+      // Очищаем только валидные типы задач
+      const cleanedCompleted = await queue.clean(maxAge, 'completed', 100);
+      const cleanedFailed = await queue.clean(maxAge, 'failed', 100);
+
+      if (cleanedCompleted > 0 || cleanedFailed > 0) {
+        logger.info(`Cleaned queue ${name}: ${cleanedCompleted} completed, ${cleanedFailed} failed jobs`);
+      }
     } catch (error) {
       logger.error(`Error cleaning queue ${name}:`, error);
+    }
+  }
+}
+
+// Функция для обработки зависших задач
+async function cleanStalledJobs() {
+  for (const [name, queue] of Object.entries(queues)) {
+    try {
+      // Получаем зависшие задачи и перезапускаем их
+      const stalledJobs = await queue.getJobs(['stalled'], 0, 100);
+
+      if (stalledJobs.length > 0) {
+        logger.warn(`Found ${stalledJobs.length} stalled jobs in queue ${name}`);
+
+        for (const job of stalledJobs) {
+          try {
+            // Пытаемся перезапустить зависшую задачу
+            await job.retry();
+            logger.info(`Retried stalled job ${job.id} in queue ${name}`);
+          } catch (retryError) {
+            logger.error(`Failed to retry job ${job.id}:`, retryError);
+            // Если не можем перезапустить, помечаем как failed
+            await job.moveToFailed({ message: 'Job was stalled and retry failed' });
+          }
+        }
+      }
+    } catch (error) {
+      logger.error(`Error handling stalled jobs in queue ${name}:`, error);
     }
   }
 }
@@ -247,5 +291,6 @@ module.exports = {
   addJob,
   getQueueStats,
   cleanQueues,
+  cleanStalledJobs,
   logger
 };

@@ -44,10 +44,10 @@ module.exports = {
       merge_logs: true
     },
 
-    // ✅ ДОБАВЛЕНО: Cron задачи (включая обработку withdrawal)
+    // ✅ ИСПРАВЛЕНО: Cron задачи (включая обработку withdrawal)
     {
       name: "chibox-cron",
-      script: "./scripts/setup-cron.js",
+      script: "./scripts/setup-cron-improved.js",
       instances: 1,
       autorestart: true,
       watch: false,
