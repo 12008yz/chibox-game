@@ -43,6 +43,18 @@ async function getPublicProfile(req, res) {
       ]
     });
 
+    // Получаем ВСЕ предметы пользователя (включая проданные, обмененные и т.д.) для вычисления лучшего оружия и общей стоимости
+    const allUserItems = await db.UserInventory.findAll({
+      where: { user_id: id },
+      include: [
+        {
+          model: db.Item,
+          as: 'item',
+          attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
+        }
+      ]
+    });
+
     if (!user) {
       return res.status(404).json({ message: 'Пользователь не найден' });
     }
@@ -71,22 +83,90 @@ async function getPublicProfile(req, res) {
       }
     });
 
-    // Фильтруем инвентарь, удаляя записи с отсутствующими предметами и определяем лучшее оружие
-    let bestWeapon = null;
+    // Фильтруем инвентарь, удаляя записи с отсутствующими предметами
     let filteredInventory = [];
-
     if (user.inventory && user.inventory.length > 0) {
       // Фильтруем только предметы, которые действительно существуют
       filteredInventory = user.inventory.filter(inventoryItem => inventoryItem.item !== null);
+    }
 
-      if (filteredInventory.length > 0) {
-        bestWeapon = filteredInventory.reduce((prev, current) => {
+    // Определяем лучшее оружие за ВСЁ ВРЕМЯ на основе сохраненного значения best_item_value
+    let bestWeapon = null;
+    if (user.best_item_value && allUserItems && allUserItems.length > 0) {
+      // Ищем предмет с ценой равной или максимально близкой к best_item_value
+      const validItems = allUserItems.filter(inventoryItem => inventoryItem.item !== null);
+
+      if (validItems.length > 0) {
+        const bestItemValue = parseFloat(user.best_item_value);
+
+        // Ищем предмет с точной ценой
+        let foundItem = validItems.find(inventoryItem => {
+          const itemPrice = parseFloat(inventoryItem.item.price);
+          return Math.abs(itemPrice - bestItemValue) < 0.01; // Допускаем погрешность в 0.01
+        });
+
+        if (foundItem) {
+          // Если найден предмет с точной ценой, используем его
+          bestWeapon = foundItem.item;
+        } else {
+          // Если предмет с рекордной ценой не найден (продан/обменен),
+          // создаем "виртуальный" предмет для отображения рекорда
+          const mostExpensive = validItems.reduce((prev, current) => {
+            const prevPrice = parseFloat(prev.item.price) || 0;
+            const currentPrice = parseFloat(current.item.price) || 0;
+            return (prevPrice > currentPrice) ? prev : current;
+          });
+
+          // Создаем виртуальный предмет с рекордной ценой
+          bestWeapon = {
+            ...mostExpensive.item,
+            price: bestItemValue.toString(), // ВАЖНО: Показываем рекордную цену!
+            name: mostExpensive.item.name + " (рекорд)", // Помечаем как рекорд
+            isRecord: true // Флаг для фронтенда
+          };
+        }
+      }
+    } else if (user.best_item_value && (!allUserItems || allUserItems.length === 0)) {
+      // Если есть рекорд, но нет предметов в базе, создаем виртуальный предмет
+      bestWeapon = {
+        id: 'virtual',
+        name: 'Рекордный предмет (удален)',
+        rarity: 'covert',
+        price: user.best_item_value.toString(),
+        weapon_type: 'Неизвестно',
+        skin_name: '',
+        image_url: null,
+        isRecord: true
+      };
+    } else if (allUserItems && allUserItems.length > 0) {
+      // Если best_item_value не установлено, находим самый дорогой предмет
+      const validItems = allUserItems.filter(inventoryItem => inventoryItem.item !== null);
+
+      if (validItems.length > 0) {
+        const foundItem = validItems.reduce((prev, current) => {
           const prevPrice = parseFloat(prev.item.price) || 0;
           const currentPrice = parseFloat(current.item.price) || 0;
           return (prevPrice > currentPrice) ? prev : current;
-        }).item;
+        });
+        bestWeapon = foundItem.item;
       }
     }
+
+    // Вычисляем общую стоимость всех когда-либо полученных предметов
+    let totalItemsValue = 0;
+    if (allUserItems && allUserItems.length > 0) {
+      totalItemsValue = allUserItems.reduce((total, inventoryItem) => {
+        if (inventoryItem.item) {
+          return total + (parseFloat(inventoryItem.item.price) || 0);
+        }
+        return total;
+      }, 0);
+    }
+
+    // Получаем актуальные значения ежедневной серии
+    // Если значения в базе null или 0, используем значения по умолчанию
+    const dailyStreak = user.daily_streak || 0;
+    const maxDailyStreak = user.max_daily_streak || 0;
 
     // Формируем статус подписки
     const getSubscriptionStatus = (tier) => {
@@ -117,10 +197,10 @@ async function getPublicProfile(req, res) {
         totalCasesOpened: totalCasesOpened,
         inventory: filteredInventory,
         bestWeapon: bestWeapon,
-        bestItemValue: user.best_item_value,
-        totalItemsValue: user.total_items_value,
-        dailyStreak: user.daily_streak,
-        maxDailyStreak: user.max_daily_streak,
+        bestItemValue: user.best_item_value || 0, // Всегда используем сохранённое значение из базы
+        totalItemsValue: totalItemsValue, // Используем вычисленное значение
+        dailyStreak: dailyStreak, // Используем актуальное значение
+        maxDailyStreak: maxDailyStreak, // Используем актуальное значение
         steam_avatar: user.steam_avatar,
         steam_profile: user.steam_profile,
         achievements: userAchievements.map(ua => ({
