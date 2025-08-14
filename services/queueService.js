@@ -20,7 +20,24 @@ const redisConfig = {
     port: process.env.REDIS_PORT || 6379,
     host: process.env.REDIS_HOST || '127.0.0.1',
     password: process.env.REDIS_PASSWORD || undefined,
-    db: process.env.REDIS_DB || 0
+    db: process.env.REDIS_DB || 0,
+    connectTimeout: 60000,
+    lazyConnect: true,
+    retryDelayOnFailover: 100,
+    maxRetriesPerRequest: 3
+  },
+  defaultJobOptions: {
+    removeOnComplete: 100,
+    removeOnFail: 50,
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 2000
+    }
+  },
+  settings: {
+    stalledInterval: 30 * 1000,
+    maxStalledCount: 1
   }
 };
 

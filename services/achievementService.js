@@ -56,8 +56,11 @@ async function calculateTotalInventoryValue(userId) {
   }, 0);
 
   // Обновляем значение в профиле пользователя для будущих запросов
-  if (user && totalValue > 0) {
-    await user.update({ total_items_value: totalValue });
+  if (totalValue > 0) {
+    await db.User.update(
+      { total_items_value: totalValue },
+      { where: { id: userId } }
+    );
   }
 
   return Math.floor(totalValue);
@@ -99,8 +102,11 @@ async function calculateBestItemValue(userId) {
     bestValue = Math.floor(parseFloat(bestItem.item.price));
 
     // Обновляем значение в профиле пользователя для будущих запросов
-    if (user && bestValue > 0) {
-      await user.update({ best_item_value: bestValue });
+    if (bestValue > 0) {
+      await db.User.update(
+        { best_item_value: bestValue },
+        { where: { id: userId } }
+      );
     }
   }
 
@@ -132,14 +138,11 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
     userAchievementMap.set(ua.achievement_id, ua);
   });
 
-  // Массив для bulk операций
-  const bulkOperations = [];
-
   for (const achievement of achievements) {
     let userAchievement = userAchievementMap.get(achievement.id);
 
     if (!userAchievement) {
-      userAchievement = db.UserAchievement.build({
+      userAchievement = await db.UserAchievement.create({
         user_id: userId,
         achievement_id: achievement.id,
         current_progress: 0,
@@ -211,11 +214,9 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
       completedAchievements.push(achievement);
     }
 
-    bulkOperations.push(userAchievement);
+    // Сохраняем изменения для каждого UserAchievement
+    await userAchievement.save();
   }
-
-  // Сохраняем все изменения bulk операцией
-  await Promise.all(bulkOperations.map(ua => ua.save()));
 
   return completedAchievements;
 }

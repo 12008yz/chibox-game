@@ -5,12 +5,50 @@ const processSteamWithdrawals = require('./send-steam-withdrawals');
 
 console.log('🚀 Запуск воркеров для обработки очередей...');
 
+// Очистка зависших задач при старте
+async function cleanStalledJobs() {
+  try {
+    await queues.achievements.clean(10000, 'failed');
+    await queues.achievements.clean(10000, 'completed');
+    await queues.achievements.clean(0, 'stalled');
+    logger.info('Зависшие задачи очищены при старте');
+  } catch (error) {
+    logger.error('Ошибка очистки зависших задач:', error);
+  }
+}
+
+// Обработка событий очереди
+queues.achievements.on('error', (error) => {
+  logger.error('Ошибка очереди достижений:', error);
+});
+
+queues.achievements.on('stalled', (job) => {
+  logger.warn(`Задача зависла: ${job.id}`, job.data);
+});
+
+queues.achievements.on('failed', (job, err) => {
+  logger.error(`Задача провалена: ${job.id}`, { data: job.data, error: err.message });
+});
+
+// Очистка при старте
+cleanStalledJobs();
+
+// Настройка обработки очереди достижений с ограничением concurrency
+const CONCURRENCY = 5; // Максимум 5 параллельных задач
+const JOB_TIMEOUT = 30000; // 30 секунд на выполнение задачи
+
 // Обработчик для очереди достижений
-queues.achievements.process('update-achievements', async (job) => {
+queues.achievements.process('update-achievements', CONCURRENCY, async (job) => {
   const { userId, achievementType, value } = job.data;
 
   try {
     logger.info(`Обработка достижения для пользователя ${userId}: ${achievementType} = ${value}`);
+
+    // Проверяем, что все параметры определены
+    if (!userId || !achievementType || value === undefined || value === null) {
+      logger.error(`Пропущены обязательные параметры: userId=${userId}, achievementType=${achievementType}, value=${value}`);
+      return { success: false, message: 'Пропущены обязательные параметры' };
+    }
 
     if (updateUserAchievementProgress && typeof updateUserAchievementProgress === 'function') {
       await updateUserAchievementProgress(userId, achievementType, value);
@@ -26,7 +64,7 @@ queues.achievements.process('update-achievements', async (job) => {
 });
 
 // Обработчик для очереди начисления XP
-queues.achievements.process('add-experience', async (job) => {
+queues.achievements.process('add-experience', CONCURRENCY, async (job) => {
   const { userId, amount, reason } = job.data;
 
   try {
