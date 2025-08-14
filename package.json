@@ -10,9 +10,16 @@
     "queue:clean": "node -e \"require('./services/queueService').cleanQueues().then(() => console.log('Queues cleaned'))\"",
     "security-audit": "npm audit",
     "security-fix": "npm audit fix",
-    "security-snyk": "snyk test",
     "security-lint": "eslint . --ext .js",
-    "security-full": "npm run security-audit && npm run security-snyk && npm run security-lint"
+    "security-full": "npm run security-audit && npm run security-snyk && npm run security-lint",
+    "system:start": "node ./scripts/start-system.js",
+    "system:stop": "pm2 stop all",
+    "system:restart": "pm2 restart all",
+    "system:status": "pm2 status",
+    "system:logs": "pm2 logs",
+    "system:monit": "pm2 monit",
+    "cron:start": "node ./scripts/setup-cron-improved.js",
+    "cron:legacy": "node ./scripts/setup-cron.js"
   },
   "dependencies": {
     "@fastify/csrf-protection": "^6.0.0",
