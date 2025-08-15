@@ -309,7 +309,8 @@ async function openCase(req, res) {
 
     let selectedItem = null;
 
-    logger.info(`Начинаем выбор предмета. Предметов в кейсе: ${items.length}, userDropBonus: ${userDropBonus}, userSubscriptionTier: ${userSubscriptionTier}, is_paid: ${userCase.is_paid}`);
+    logger.info(`Начинаем выбор предмета. Предметов в кейсе: ${items.length}, userDropBonus: ${userDropBonus}%, userSubscriptionTier: ${userSubscriptionTier}, is_paid: ${userCase.is_paid}`);
+    logger.info(`Бонусы пользователя: достижения=${user.achievements_bonus_percentage || 0}%, уровень=${user.level_bonus_percentage || 0}%, подписка=${user.subscription_bonus_percentage || 0}%, итого=${user.total_drop_bonus_percentage || 0}%`);
 
     // Логируем первые несколько предметов для отладки
     logger.info('Первые 3 предмета в кейсе:', items.slice(0, 3).map(item => ({
@@ -321,6 +322,7 @@ async function openCase(req, res) {
 
     if (userDropBonus > 0) {
       // Используем модифицированную систему весов
+      // Передаем процент как число (например, 15.5 для 15.5%)
       const modifiedItems = calculateModifiedDropWeights(items, userDropBonus);
 
       logger.info(`Модифицированных предметов: ${modifiedItems.length}`);
@@ -661,10 +663,12 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
 
     let selectedItem = null;
 
-    logger.info(`Открытие кейса из инвентаря. Предметов в кейсе: ${items.length}, userDropBonus: ${userDropBonus}, userSubscriptionTier: ${userSubscriptionTier}`);
+    logger.info(`Открытие кейса из инвентаря. Предметов в кейсе: ${items.length}, userDropBonus: ${userDropBonus}%, userSubscriptionTier: ${userSubscriptionTier}`);
+    logger.info(`Бонусы пользователя для инвентарного кейса: итого=${user.total_drop_bonus_percentage || 0}%`);
 
     if (userDropBonus > 0) {
       // Используем модифицированную систему весов
+      // Передаем процент как число (например, 15.5 для 15.5%)
       const modifiedItems = calculateModifiedDropWeights(items, userDropBonus);
 
       // Применяем защиту от дубликатов для 3 уровня подписки

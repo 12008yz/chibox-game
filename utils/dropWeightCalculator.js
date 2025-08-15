@@ -3,11 +3,12 @@ const { logger } = require('./logger');
 /**
  * Рассчитать модифицированные веса выпадения с учетом бонусов пользователя
  * @param {Array} items - массив предметов с их базовыми весами
- * @param {Object} userBonuses - бонусы пользователя
+ * @param {Object|number} userBonuses - бонусы пользователя (объект или общий процент)
  * @returns {Array} массив предметов с модифицированными весами
  */
 function calculateModifiedDropWeights(items, userBonuses = {}) {
   console.log(`[calculateModifiedDropWeights] Получено ${items ? items.length : 'null/undefined'} предметов`);
+  console.log(`[calculateModifiedDropWeights] Бонусы пользователя:`, userBonuses);
 
   if (!items || items.length === 0) {
     return [];
@@ -20,14 +21,22 @@ function calculateModifiedDropWeights(items, userBonuses = {}) {
     price: item.price
   })));
 
-  const {
-    subscriptionBonus = 0,    // бонус от подписки (до 8%)
-    achievementBonus = 0,     // бонус от достижений (до 5%)
-    levelBonus = 0           // бонус от уровня (до 2%)
-  } = userBonuses;
-
-  // Максимальный бонус 15%
-  const totalBonus = Math.min(subscriptionBonus + achievementBonus + levelBonus, 0.15);
+  // Поддерживаем как объект, так и число
+  let totalBonus = 0;
+  if (typeof userBonuses === 'number') {
+    // Если передан процент как число, преобразуем его в долю (например, 15% -> 0.15)
+    totalBonus = Math.min(userBonuses / 100, 0.30); // Максимум 30%
+    console.log(`[calculateModifiedDropWeights] Получен числовой бонус: ${userBonuses}% -> ${totalBonus}`);
+  } else {
+    // Если передан объект с отдельными бонусами
+    const {
+      subscriptionBonus = 0,    // бонус от подписки (до 8%)
+      achievementBonus = 0,     // бонус от достижений (до 25%)
+      levelBonus = 0           // бонус от уровня (до 2%)
+    } = userBonuses;
+    totalBonus = Math.min((subscriptionBonus + achievementBonus + levelBonus) / 100, 0.30); // Максимум 30%
+    console.log(`[calculateModifiedDropWeights] Объект бонусов: подписка=${subscriptionBonus}%, достижения=${achievementBonus}%, уровень=${levelBonus}%, итого=${totalBonus}`);
+  }
 
   const result = items.map(item => {
     const baseWeight = parseFloat(item.drop_weight) || 0;
@@ -36,10 +45,13 @@ function calculateModifiedDropWeights(items, userBonuses = {}) {
     // Бонус применяется больше к дорогим предметам
     let weightMultiplier = 1;
     if (totalBonus > 0) {
-      // Для дорогих предметов (>1000₽) бонус работает сильнее
-      const priceCategory = Math.min(itemPrice / 1000, 10); // категория от 0 до 10
-      const bonusEffect = 1 + (totalBonus * priceCategory / 10);
+      // Для дорогих предметов (≥100₽) бонус работает сильнее
+      // Предметы от 100₽ до 10000₽ получают масштабируемый бонус
+      const priceCategory = Math.min(Math.max(itemPrice - 100, 0) / 100, 50); // категория от 0 до 50
+      const bonusEffect = 1 + (totalBonus * (1 + priceCategory / 50));
       weightMultiplier = bonusEffect;
+
+      console.log(`[calculateModifiedDropWeights] Предмет ${item.id} (${itemPrice}₽): категория=${priceCategory.toFixed(2)}, множитель=${weightMultiplier.toFixed(3)}`);
     }
 
     const modifiedWeight = baseWeight * weightMultiplier;
@@ -191,7 +203,7 @@ function getWeightDistributionStats(items) {
 
   const averageWeight = totalWeight / items.length;
 
-  // Группировка по ценовым категориям
+  // Группировка по ценовым категориям (дорогие предметы начинаются от 100₽)
   const priceCategories = {
     'legendary': { items: [], totalWeight: 0, minPrice: 50000 },
     'mythic': { items: [], totalWeight: 0, minPrice: 30000 },
@@ -203,8 +215,8 @@ function getWeightDistributionStats(items) {
     'commonPlus': { items: [], totalWeight: 0, minPrice: 3000 },
     'common': { items: [], totalWeight: 0, minPrice: 1000 },
     'frequent': { items: [], totalWeight: 0, minPrice: 500 },
-    'veryFrequent': { items: [], totalWeight: 0, minPrice: 100 },
-    'cheap': { items: [], totalWeight: 0, minPrice: 0 }
+    'expensive': { items: [], totalWeight: 0, minPrice: 100 }, // Дорогие предметы (≥100₽) с бонусом
+    'cheap': { items: [], totalWeight: 0, minPrice: 0 }        // Дешевые предметы (<100₽) без бонуса
   };
 
   items.forEach(item => {
@@ -222,7 +234,7 @@ function getWeightDistributionStats(items) {
     else if (price >= 3000) category = 'commonPlus';
     else if (price >= 1000) category = 'common';
     else if (price >= 500) category = 'frequent';
-    else if (price >= 100) category = 'veryFrequent';
+    else if (price >= 100) category = 'expensive'; // Дорогие предметы с бонусом
 
     priceCategories[category].items.push(item);
     priceCategories[category].totalWeight += weight;

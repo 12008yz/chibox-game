@@ -53,6 +53,7 @@ const { fetchSteamTradeUrl, getTradeUrlStatus } = require('../controllers/user/f
 const { claimSubscriptionCase, getSubscriptionCaseStatus } = require('../controllers/user/claimSubscriptionCase');
 const { createGame: createTicTacToeGame, getCurrentGame: getCurrentTicTacToeGame, makeMove: makeTicTacToeMove } = require('../controllers/user/ticTacToeController');
 const authMiddleware = require('../middleware/auth');
+const optionalAuthMiddleware = require('../middleware/optionalAuth');
 const { requireEmailVerification } = require('../middleware/emailVerification');
 
 
@@ -127,7 +128,7 @@ router.post('/bonus/play-roulette', authMiddleware, playRoulette); //+
 router.get('/bonus/status', authMiddleware, getBonusStatus); //+
 router.post('/bonus/reset-cooldown', authMiddleware, resetBonusCooldown); //+ Сброс кулдауна бонуса
 router.get('/cases/available', getCasesAvailable); // Доступно всем для просмотра доступных кейсов
-router.get('/case-templates/:caseTemplateId/items', getCaseTemplateItems); // Получение предметов кейс-темплейта
+router.get('/case-templates/:caseTemplateId/items', optionalAuthMiddleware, getCaseTemplateItems); // Получение предметов кейс-темплейта с опциональной аутентификацией
 router.get('/case-templates/:caseTemplateId/status', authMiddleware, getCaseStatus); // Получение статуса кейса
 router.get('/achievements/progress', authMiddleware, getAchievementsProgress); //+
 

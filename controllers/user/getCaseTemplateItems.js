@@ -1,5 +1,6 @@
-const { CaseTemplate, Item } = require('../../models');
+const { CaseTemplate, Item, User } = require('../../models');
 const { logger } = require('../../utils/logger');
+const { calculateModifiedDropWeights } = require('../../utils/dropWeightCalculator');
 
 const getCaseTemplateItems = async (req, res) => {
   try {
@@ -52,7 +53,87 @@ const getCaseTemplateItems = async (req, res) => {
       });
     }
 
-    // Возвращаем предметы
+    let itemsWithChances = caseTemplate.items || [];
+    let userBonusInfo = null;
+
+    // Если пользователь аутентифицирован, рассчитываем модифицированные шансы
+    if (req.user && req.user.id) {
+      try {
+        const user = await User.findByPk(req.user.id, {
+          attributes: [
+            'id',
+            'total_drop_bonus_percentage',
+            'achievements_bonus_percentage',
+            'level_bonus_percentage',
+            'subscription_bonus_percentage'
+          ]
+        });
+
+        if (user && user.total_drop_bonus_percentage > 0) {
+          logger.info(`Расчет модифицированных шансов для пользователя ${user.id}, бонус: ${user.total_drop_bonus_percentage}%`);
+
+          // Рассчитываем модифицированные веса
+          const modifiedItems = calculateModifiedDropWeights(itemsWithChances, user.total_drop_bonus_percentage);
+
+          // Рассчитываем общий вес для расчета процентов
+          const totalWeight = modifiedItems.reduce((sum, item) => sum + (item.modifiedWeight || item.drop_weight || 0), 0);
+
+          // Добавляем информацию о шансах к каждому предмету
+          itemsWithChances = modifiedItems.map(item => {
+            const weight = item.modifiedWeight || item.drop_weight || 0;
+            const chance = totalWeight > 0 ? (weight / totalWeight * 100) : 0;
+
+            return {
+              id: item.id,
+              name: item.name,
+              description: item.description,
+              image_url: item.image_url,
+              price: item.price,
+              rarity: item.rarity,
+              drop_weight: item.drop_weight,
+              category_id: item.category_id,
+              is_tradable: item.is_tradable,
+              in_stock: item.in_stock,
+              // Добавляем информацию о модифицированных шансах
+              modified_weight: item.modifiedWeight,
+              drop_chance_percent: Math.round(chance * 100) / 100, // Округляем до 2 знаков
+              weight_multiplier: item.weightMultiplier,
+              bonus_applied: item.bonusApplied
+            };
+          });
+
+          userBonusInfo = {
+            total_bonus: user.total_drop_bonus_percentage,
+            achievements_bonus: user.achievements_bonus_percentage || 0,
+            level_bonus: user.level_bonus_percentage || 0,
+            subscription_bonus: user.subscription_bonus_percentage || 0
+          };
+        }
+      } catch (error) {
+        logger.error('Ошибка при расчете модифицированных шансов:', error);
+        // Продолжаем с базовыми весами при ошибке
+      }
+    }
+
+    // Если модификация не была применена, рассчитываем базовые шансы
+    if (!userBonusInfo) {
+      const totalWeight = itemsWithChances.reduce((sum, item) => sum + (parseFloat(item.drop_weight) || 0), 0);
+
+      itemsWithChances = itemsWithChances.map(item => {
+        const weight = parseFloat(item.drop_weight) || 0;
+        const chance = totalWeight > 0 ? (weight / totalWeight * 100) : 0;
+
+        return {
+          ...item.toJSON ? item.toJSON() : item,
+          drop_chance_percent: Math.round(chance * 100) / 100,
+          modified_weight: null,
+          weight_multiplier: 1,
+          bonus_applied: 0
+        };
+      });
+    }
+
+    // Возвращаем предметы с рассчитанными шансами
     res.json({
       success: true,
       data: {
@@ -62,7 +143,8 @@ const getCaseTemplateItems = async (req, res) => {
           description: caseTemplate.description,
           type: caseTemplate.type
         },
-        items: caseTemplate.items || []
+        items: itemsWithChances,
+        user_bonus: userBonusInfo
       }
     });
 
