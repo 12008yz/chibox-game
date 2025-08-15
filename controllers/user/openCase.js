@@ -2,7 +2,7 @@ const db = require('../../models');
 const { Op } = require('sequelize');
 const { logger } = require('../../utils/logger');
 const { addJob } = require('../../services/queueService');
-const { calculateModifiedDropWeights, selectItemWithModifiedWeights, selectItemWithModifiedWeightsAndDuplicateProtection } = require('../../utils/dropWeightCalculator');
+const { calculateModifiedDropWeights, selectItemWithModifiedWeights, selectItemWithModifiedWeightsAndDuplicateProtection, selectItemWithCorrectWeights } = require('../../utils/dropWeightCalculator');
 const { broadcastDrop } = require('../../services/liveDropService');
 
 async function openCase(req, res) {
@@ -388,25 +388,8 @@ async function openCase(req, res) {
           5
         );
       } else {
-        const totalWeight = items.reduce((sum, item) => sum + (item.drop_weight || 1), 0);
-
-        if (totalWeight <= 0) {
-          logger.error(`Общий вес предметов равен 0 для кейса ${caseId}`);
-          selectedItem = items[0]; // Берем первый предмет
-        } else {
-          let randomWeight = Math.random() * totalWeight;
-
-          for (const item of items) {
-            randomWeight -= (item.drop_weight || 1);
-            if (randomWeight <= 0) {
-              selectedItem = item;
-              break;
-            }
-          }
-          if (!selectedItem) {
-            selectedItem = items[items.length - 1];
-          }
-        }
+        // Используем систему весов без бонусов, но с правильными весами на основе цены
+        selectedItem = selectItemWithCorrectWeights(items);
       }
     }
 
@@ -714,24 +697,8 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
           5
         );
       } else {
-        const totalWeight = items.reduce((sum, item) => sum + (item.drop_weight || 1), 0);
-
-        if (totalWeight <= 0) {
-          selectedItem = items[0];
-        } else {
-          let randomWeight = Math.random() * totalWeight;
-
-          for (const item of items) {
-            randomWeight -= (item.drop_weight || 1);
-            if (randomWeight <= 0) {
-              selectedItem = item;
-              break;
-            }
-          }
-          if (!selectedItem) {
-            selectedItem = items[items.length - 1];
-          }
-        }
+        // Используем систему весов без бонусов, но с правильными весами на основе цены
+        selectedItem = selectItemWithCorrectWeights(items);
       }
     }
 

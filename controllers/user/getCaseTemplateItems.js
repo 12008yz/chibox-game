@@ -2,6 +2,29 @@ const { CaseTemplate, Item, User } = require('../../models');
 const { logger } = require('../../utils/logger');
 const { calculateModifiedDropWeights } = require('../../utils/dropWeightCalculator');
 
+/**
+ * Рассчитать правильный вес предмета на основе его цены
+ * @param {number} price - цена предмета
+ * @returns {number} правильный вес предмета
+ */
+function calculateCorrectWeightByPrice(price) {
+  price = parseFloat(price) || 0;
+
+  // Система весов на основе цены для создания правильного распределения
+  if (price >= 50000) return 0.005;     // 0.5% - легендарные
+  if (price >= 30000) return 0.008;     // 0.8% - мифические
+  if (price >= 20000) return 0.015;     // 1.5% - эпические
+  if (price >= 15000) return 0.025;     // 2.5% - очень редкие
+  if (price >= 10000) return 0.04;      // 4% - редкие
+  if (price >= 8000) return 0.06;       // 6% - необычные+
+  if (price >= 5000) return 0.1;        // 10% - необычные
+  if (price >= 3000) return 0.2;        // 20% - обычные+
+  if (price >= 1000) return 0.35;       // 35% - обычные
+  if (price >= 500) return 0.5;         // 50% - частые
+  if (price >= 100) return 0.7;         // 70% - очень частые
+  return 1.0;                           // 100% - базовые/дешевые
+}
+
 const getCaseTemplateItems = async (req, res) => {
   try {
     const { caseTemplateId } = req.params;
@@ -115,20 +138,44 @@ const getCaseTemplateItems = async (req, res) => {
       }
     }
 
-    // Если модификация не была применена, рассчитываем базовые шансы
+    // Если модификация не была применена, рассчитываем базовые шансы на основе правильных весов
     if (!userBonusInfo) {
-      const totalWeight = itemsWithChances.reduce((sum, item) => sum + (parseFloat(item.drop_weight) || 0), 0);
+      // Рассчитываем правильные веса на основе цен вместо drop_weight из БД
+      const itemsWithCorrectWeights = [];
+      let totalWeight = 0;
 
-      itemsWithChances = itemsWithChances.map(item => {
-        const weight = parseFloat(item.drop_weight) || 0;
+      for (const item of itemsWithChances) {
+        const itemData = item.toJSON ? item.toJSON() : item;
+        const price = parseFloat(itemData.price) || 0;
+        const correctWeight = calculateCorrectWeightByPrice(price);
+
+        itemsWithCorrectWeights.push({
+          ...itemData,
+          correctWeight: correctWeight
+        });
+        totalWeight += correctWeight;
+      }
+
+      itemsWithChances = itemsWithCorrectWeights.map(item => {
+        const weight = item.correctWeight;
         const chance = totalWeight > 0 ? (weight / totalWeight * 100) : 0;
 
         return {
-          ...item.toJSON ? item.toJSON() : item,
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          image_url: item.image_url,
+          price: item.price,
+          rarity: item.rarity,
+          drop_weight: item.drop_weight,
+          category_id: item.category_id,
+          is_tradable: item.is_tradable,
+          in_stock: item.in_stock,
           drop_chance_percent: Math.round(chance * 100) / 100,
           modified_weight: null,
           weight_multiplier: 1,
-          bonus_applied: 0
+          bonus_applied: 0,
+          correct_weight: weight // Добавляем для отладки
         };
       });
     }

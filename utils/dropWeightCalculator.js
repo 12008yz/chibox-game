@@ -1,6 +1,101 @@
 const { logger } = require('./logger');
 
 /**
+ * Рассчитать правильный вес предмета на основе его цены
+ * @param {number} price - цена предмета
+ * @returns {number} правильный вес предмета
+ */
+function calculateCorrectWeightByPrice(price) {
+  price = parseFloat(price) || 0;
+
+  // Система весов на основе цены для создания правильного распределения
+  if (price >= 50000) return 0.005;     // 0.5% - легендарные
+  if (price >= 30000) return 0.008;     // 0.8% - мифические
+  if (price >= 20000) return 0.015;     // 1.5% - эпические
+  if (price >= 15000) return 0.025;     // 2.5% - очень редкие
+  if (price >= 10000) return 0.04;      // 4% - редкие
+  if (price >= 8000) return 0.06;       // 6% - необычные+
+  if (price >= 5000) return 0.1;        // 10% - необычные
+  if (price >= 3000) return 0.2;        // 20% - обычные+
+  if (price >= 1000) return 0.35;       // 35% - обычные
+  if (price >= 500) return 0.5;         // 50% - частые
+  if (price >= 100) return 0.7;         // 70% - очень частые
+  return 1.0;                           // 100% - базовые/дешевые
+}
+
+/**
+ * Выбрать предмет с правильными весами на основе цены (игнорирует drop_weight из БД)
+ * @param {Array} items - массив предметов
+ * @returns {Object|null} выбранный предмет
+ */
+function selectItemWithCorrectWeights(items) {
+  console.log(`[selectItemWithCorrectWeights] Получено предметов: ${items ? items.length : 'null/undefined'}`);
+
+  if (!items || items.length === 0) {
+    console.log(`[selectItemWithCorrectWeights] Массив предметов пуст или не существует`);
+    return null;
+  }
+
+  // Рассчитываем правильные веса на основе цен
+  const itemsWithCorrectWeights = items.map(item => {
+    const price = parseFloat(item.price) || 0;
+    const correctWeight = calculateCorrectWeightByPrice(price);
+
+    return {
+      ...item,
+      correctWeight: correctWeight,
+      price: price
+    };
+  });
+
+  // Рассчитываем общий вес
+  const totalWeight = itemsWithCorrectWeights.reduce((sum, item) => {
+    return sum + item.correctWeight;
+  }, 0);
+
+  console.log(`[selectItemWithCorrectWeights] Общий вес: ${totalWeight}`);
+  console.log(`[selectItemWithCorrectWeights] Первые 5 предметов с весами:`,
+    itemsWithCorrectWeights.slice(0, 5).map(item => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      correctWeight: item.correctWeight,
+      chance: ((item.correctWeight / totalWeight) * 100).toFixed(4) + '%'
+    }))
+  );
+
+  if (totalWeight <= 0) {
+    // Если общий вес 0, выбираем случайный предмет
+    console.log(`[selectItemWithCorrectWeights] Общий вес 0, выбираем случайный предмет`);
+    const randomItem = itemsWithCorrectWeights[Math.floor(Math.random() * itemsWithCorrectWeights.length)];
+    console.log(`[selectItemWithCorrectWeights] Выбран случайный предмет: ${randomItem ? randomItem.id : 'undefined'}`);
+    return randomItem;
+  }
+
+  // Генерируем случайное число
+  const random = Math.random() * totalWeight;
+  let currentWeight = 0;
+
+  console.log(`[selectItemWithCorrectWeights] Случайное число: ${random}`);
+
+  // Находим предмет, соответствующий случайному числу
+  for (const item of itemsWithCorrectWeights) {
+    currentWeight += item.correctWeight;
+    console.log(`[selectItemWithCorrectWeights] Предмет ${item.id} (${item.price}₽), вес: ${item.correctWeight}, текущий вес: ${currentWeight}`);
+
+    if (random <= currentWeight) {
+      console.log(`[selectItemWithCorrectWeights] Выбран предмет: ${item.id} с ценой ${item.price}₽`);
+      return item;
+    }
+  }
+
+  // Fallback - возвращаем последний предмет
+  const fallbackItem = itemsWithCorrectWeights[itemsWithCorrectWeights.length - 1];
+  console.log(`[selectItemWithCorrectWeights] Fallback - выбран последний предмет: ${fallbackItem ? fallbackItem.id : 'undefined'}`);
+  return fallbackItem;
+}
+
+/**
  * Рассчитать модифицированные веса выпадения с учетом бонусов пользователя
  * @param {Array} items - массив предметов с их базовыми весами
  * @param {Object|number} userBonuses - бонусы пользователя (объект или общий процент)
@@ -39,8 +134,9 @@ function calculateModifiedDropWeights(items, userBonuses = {}) {
   }
 
   const result = items.map(item => {
-    const baseWeight = parseFloat(item.drop_weight) || 0;
     const itemPrice = parseFloat(item.price) || 0;
+    // Используем правильный вес на основе цены вместо drop_weight из БД
+    const baseWeight = calculateCorrectWeightByPrice(itemPrice);
 
     // Бонус применяется больше к дорогим предметам
     let weightMultiplier = 1;
@@ -64,7 +160,7 @@ function calculateModifiedDropWeights(items, userBonuses = {}) {
       image_url: item.image_url,
       price: item.price,
       rarity: item.rarity,
-      drop_weight: item.drop_weight,
+      drop_weight: baseWeight, // Используем правильный базовый вес
       min_subscription_tier: item.min_subscription_tier,
       weapon_type: item.weapon_type,
       skin_name: item.skin_name,
@@ -116,7 +212,7 @@ function selectItemWithModifiedWeights(itemsWithWeights) {
 
   // Рассчитываем общий вес
   const totalWeight = itemsWithWeights.reduce((sum, item) => {
-    const weight = item.modifiedWeight || item.drop_weight || 0;
+    const weight = item.modifiedWeight || calculateCorrectWeightByPrice(parseFloat(item.price) || 0);
     return sum + weight;
   }, 0);
 
@@ -138,7 +234,7 @@ function selectItemWithModifiedWeights(itemsWithWeights) {
 
   // Находим предмет, соответствующий случайному числу
   for (const item of itemsWithWeights) {
-    const itemWeight = item.modifiedWeight || item.drop_weight || 0;
+    const itemWeight = item.modifiedWeight || calculateCorrectWeightByPrice(parseFloat(item.price) || 0);
     currentWeight += itemWeight;
     console.log(`[selectItemWithModifiedWeights] Предмет ${item.id}, вес: ${itemWeight}, текущий вес: ${currentWeight}`);
 
@@ -198,7 +294,7 @@ function getWeightDistributionStats(items) {
   }
 
   const totalWeight = items.reduce((sum, item) => {
-    return sum + (item.modifiedWeight || item.drop_weight || 0);
+    return sum + (item.modifiedWeight || calculateCorrectWeightByPrice(parseFloat(item.price) || 0));
   }, 0);
 
   const averageWeight = totalWeight / items.length;
@@ -221,7 +317,7 @@ function getWeightDistributionStats(items) {
 
   items.forEach(item => {
     const price = parseFloat(item.price) || 0;
-    const weight = item.modifiedWeight || item.drop_weight || 0;
+    const weight = item.modifiedWeight || calculateCorrectWeightByPrice(price);
 
     let category = 'cheap';
     if (price >= 50000) category = 'legendary';
@@ -252,5 +348,7 @@ module.exports = {
   calculateModifiedDropWeights,
   selectItemWithModifiedWeights,
   selectItemWithModifiedWeightsAndDuplicateProtection,
-  getWeightDistributionStats
+  getWeightDistributionStats,
+  calculateCorrectWeightByPrice,
+  selectItemWithCorrectWeights
 };
