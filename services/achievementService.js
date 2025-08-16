@@ -1,6 +1,7 @@
 const db = require('../models');
 const { Op } = require('sequelize');
 const { addExperience } = require('./xpService');
+const { updateUserBonuses } = require('../utils/userBonusCalculator');
 
 async function sendAchievementNotification(userId, achievement) {
   // Здесь можно реализовать отправку уведомления пользователю
@@ -202,6 +203,13 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
         await user.save();
 
         userAchievement.bonus_applied = true;
+
+        // Пересчитываем все бонусы пользователя для корректного отображения
+        try {
+          await updateUserBonuses(userId);
+        } catch (bonusError) {
+          console.error('Ошибка при пересчете бонусов после получения достижения:', bonusError);
+        }
       }
 
       if (!userAchievement.notified) {

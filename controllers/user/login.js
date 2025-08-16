@@ -2,6 +2,7 @@ const argon2 = require('argon2');
 const db = require('../../models');
 const jwt = require('jsonwebtoken');
 const { logger } = require('../../middleware/logger');
+const { updateUserBonuses } = require('../../utils/userBonusCalculator');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
@@ -62,6 +63,16 @@ async function login(req, res) {
 
     // Очистка после удачного входа
     failedLogin.delete(key);
+
+    // Обновляем бонусы пользователя при логине
+    try {
+      await updateUserBonuses(user.id);
+      // Получаем обновленные данные пользователя
+      await user.reload();
+    } catch (bonusError) {
+      logger.error('Ошибка при обновлении бонусов пользователя:', bonusError);
+      // Не прерываем процесс логина, просто логируем ошибку
+    }
 
     // Объединяем запросы для избежания N+1
     const userWithDetails = await db.User.findByPk(user.id, {
