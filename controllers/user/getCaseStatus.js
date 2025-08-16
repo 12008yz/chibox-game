@@ -28,7 +28,6 @@ async function getCaseStatus(req, res) {
     // Сбрасываем дневные счетчики если новый день
     if (!user.last_reset_date || new Date(user.last_reset_date).setHours(0,0,0,0) < today.getTime()) {
       user.cases_opened_today = 0;
-      user.paid_cases_bought_today = 0;
       user.last_reset_date = today;
       await user.save();
     }
@@ -55,16 +54,10 @@ async function getCaseStatus(req, res) {
     if (casePrice > 0) {
       status.canBuy = true;
 
-      // Проверяем дневной лимит покупок
-      const paidCasesToday = user.paid_cases_bought_today || 0;
-      if (paidCasesToday >= MAX_PAID_CASES_PER_DAY) {
-        status.canBuy = false;
-        status.reason = `Достигнут дневной лимит покупки кейсов (${MAX_PAID_CASES_PER_DAY})`;
-      }
-
       // Проверяем баланс
-      if ((user.balance || 0) < casePrice && status.canBuy) {
-        status.reason = status.reason ? status.reason + '. Недостаточно средств' : 'Недостаточно средств';
+      if ((user.balance || 0) < casePrice) {
+        status.canBuy = false;
+        status.reason = 'Недостаточно средств';
       }
 
       return res.json({ success: true, data: status });

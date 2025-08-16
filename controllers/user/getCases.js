@@ -32,7 +32,7 @@ async function getCases(req, res) {
     let user = null;
     if (userId) {
       user = await db.User.findByPk(userId, {
-        attributes: ['id', 'subscription_tier', 'paid_cases_bought_today', 'last_reset_date']
+        attributes: ['id', 'subscription_tier', 'last_reset_date']
       });
 
       // Получаем кейсы из инвентаря
