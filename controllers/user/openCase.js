@@ -329,23 +329,23 @@ async function openCase(req, res) {
 
       // Применяем защиту от дубликатов для 3 уровня подписки (только для подписочных кейсов)
       if (!userCase.is_paid && userSubscriptionTier === 3) {
-        logger.info('Используем защиту от дубликатов');
-        // Получаем последние 5 предметов пользователя для защиты от дубликатов
-        const recentInventory = await db.UserInventory.findAll({
+        logger.info('Используем защиту от дубликатов для Статус++');
+        // Получаем уже выпавшие предметы из этого кейса для данного пользователя
+        const droppedItems = await db.CaseItemDrop.findAll({
           where: {
             user_id: userId,
-            item_type: 'item'  // Только обычные предметы, не кейсы
+            case_template_id: userCase.template_id
           },
-          order: [['createdAt', 'DESC']],
-          limit: 5,
           attributes: ['item_id']
         });
-        const recentItemIds = recentInventory.map(inv => inv.item_id);
+        const droppedItemIds = droppedItems.map(drop => drop.item_id);
+
+        logger.info(`Пользователь ${userId} уже получал из кейса ${userCase.template_id}: ${droppedItemIds.length} предметов`);
 
         selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
           modifiedItems,
-          recentItemIds,
-          5
+          droppedItemIds,
+          droppedItemIds.length
         );
       } else {
         logger.info('Используем стандартный выбор с модифицированными весами');
@@ -370,22 +370,22 @@ async function openCase(req, res) {
     } else {
       // Стандартная система без бонусов, но с защитой от дубликатов если есть 3 уровень подписки (только для подписочных кейсов)
       if (!userCase.is_paid && userSubscriptionTier === 3) {
-        // Получаем последние 5 предметов пользователя для защиты от дубликатов
-        const recentInventory = await db.UserInventory.findAll({
+        // Получаем уже выпавшие предметы из этого кейса для данного пользователя
+        const droppedItems = await db.CaseItemDrop.findAll({
           where: {
             user_id: userId,
-            item_type: 'item'  // Только обычные предметы, не кейсы
+            case_template_id: userCase.template_id
           },
-          order: [['createdAt', 'DESC']],
-          limit: 5,
           attributes: ['item_id']
         });
-        const recentItemIds = recentInventory.map(inv => inv.item_id);
+        const droppedItemIds = droppedItems.map(drop => drop.item_id);
+
+        logger.info(`Пользователь ${userId} уже получал из кейса ${userCase.template_id}: ${droppedItemIds.length} предметов (без бонусов)`);
 
         selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
           items,
-          recentItemIds,
-          5
+          droppedItemIds,
+          droppedItemIds.length
         );
       } else {
         // Используем систему весов без бонусов, но с правильными весами на основе цены
@@ -426,6 +426,26 @@ async function openCase(req, res) {
         case_id: userCase.id,
         item_type: 'item'
       }, { transaction: t });
+
+      // Записываем выпавший предмет для пользователей Статус++ (3 уровень подписки)
+      if (userSubscriptionTier === 3) {
+        try {
+          await db.CaseItemDrop.create({
+            user_id: userId,
+            case_template_id: userCase.template_id,
+            item_id: selectedItem.id,
+            case_id: userCase.id,
+            dropped_at: new Date()
+          }, {
+            transaction: t,
+            ignoreDuplicates: true // Игнорируем дубликаты на случай повторной записи
+          });
+          logger.info(`Записан выпавший предмет ${selectedItem.id} для пользователя Статус++ ${userId} из кейса ${userCase.template_id}`);
+        } catch (dropError) {
+          // Логируем ошибку, но не прерываем транзакцию
+          logger.error('Ошибка записи выпавшего предмета:', dropError);
+        }
+      }
 
       // Создание записи LiveDrop с проверкой на дубликаты
       const existingDrop = await db.LiveDrop.findOne({
@@ -656,23 +676,23 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
 
       // Применяем защиту от дубликатов для 3 уровня подписки
       if (userSubscriptionTier === 3) {
-        logger.info('Используем защиту от дубликатов для кейса из инвентаря');
-        // Получаем последние 5 предметов пользователя для защиты от дубликатов
-        const recentInventory = await db.UserInventory.findAll({
+        logger.info('Используем защиту от дубликатов для кейса из инвентаря (Статус++)');
+        // Получаем уже выпавшие предметы из этого кейса для данного пользователя
+        const droppedItems = await db.CaseItemDrop.findAll({
           where: {
             user_id: userId,
-            item_type: 'item'  // Только обычные предметы, не кейсы
+            case_template_id: inventoryCase.case_template_id
           },
-          order: [['createdAt', 'DESC']],
-          limit: 5,
           attributes: ['item_id']
         });
-        const recentItemIds = recentInventory.map(inv => inv.item_id);
+        const droppedItemIds = droppedItems.map(drop => drop.item_id);
+
+        logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс)`);
 
         selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
           modifiedItems,
-          recentItemIds,
-          5
+          droppedItemIds,
+          droppedItemIds.length
         );
       } else {
         selectedItem = selectItemWithModifiedWeights(modifiedItems);
@@ -680,21 +700,22 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
     } else {
       // Стандартная система без бонусов, но с защитой от дубликатов если есть 3 уровень подписки
       if (userSubscriptionTier === 3) {
-        const recentInventory = await db.UserInventory.findAll({
+        // Получаем уже выпавшие предметы из этого кейса для данного пользователя
+        const droppedItems = await db.CaseItemDrop.findAll({
           where: {
             user_id: userId,
-            item_type: 'item'  // Только обычные предметы, не кейсы
+            case_template_id: inventoryCase.case_template_id
           },
-          order: [['createdAt', 'DESC']],
-          limit: 5,
           attributes: ['item_id']
         });
-        const recentItemIds = recentInventory.map(inv => inv.item_id);
+        const droppedItemIds = droppedItems.map(drop => drop.item_id);
+
+        logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
 
         selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
           items,
-          recentItemIds,
-          5
+          droppedItemIds,
+          droppedItemIds.length
         );
       } else {
         // Используем систему весов без бонусов, но с правильными весами на основе цены
@@ -741,6 +762,26 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
         case_id: newCase.id,
         item_type: 'item'
       }, { transaction: t });
+
+      // Записываем выпавший предмет для пользователей Статус++ (3 уровень подписки)
+      if (userSubscriptionTier === 3) {
+        try {
+          await db.CaseItemDrop.create({
+            user_id: userId,
+            case_template_id: inventoryCase.case_template_id,
+            item_id: selectedItem.id,
+            case_id: newCase.id,
+            dropped_at: new Date()
+          }, {
+            transaction: t,
+            ignoreDuplicates: true // Игнорируем дубликаты на случай повторной записи
+          });
+          logger.info(`Записан выпавший предмет ${selectedItem.id} для пользователя Статус++ ${userId} из инвентарного кейса ${inventoryCase.case_template_id}`);
+        } catch (dropError) {
+          // Логируем ошибку, но не прерываем транзакцию
+          logger.error('Ошибка записи выпавшего предмета (инвентарный кейс):', dropError);
+        }
+      }
 
       // Удаляем кейс из инвентаря (помечаем как использованный)
       inventoryCase.status = 'used';

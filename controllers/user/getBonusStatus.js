@@ -20,7 +20,8 @@ async function getBonusStatus(req, res) {
 
     // Проверяем статус подписки
     const hasActiveSubscription = user.subscription_expiry_date && user.subscription_expiry_date > now;
-    const cooldownHours = hasActiveSubscription ? 24 : 48;
+    // ИЗМЕНЕНО: Cooldown теперь 10 секунд вместо 24/48 часов
+    const cooldownHours = 10 / 3600; // 10 секунд в часах для совместимости
 
     // Проверяем доступность бонуса
     const isAvailable = !user.next_bonus_available_time || user.next_bonus_available_time <= now;

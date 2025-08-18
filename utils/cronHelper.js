@@ -1,19 +1,11 @@
 /**
- * Вычисляет время следующего запуска cron задачи dailyCaseIssuer
- * Cron: '41 18 * * *' - каждый день в 18:41 UTC (21:41 МСК)
+ * Вычисляет время следующего доступного кейса
+ * ИЗМЕНЕНО: Теперь кейсы доступны каждые 10 секунд вместо 24 часов
  * @returns {Date} время следующего запуска
  */
 function getNextDailyCaseTime() {
   const now = new Date();
-  const nextRun = new Date();
-
-  // Устанавливаем время на 18:41 UTC (21:41 МСК)
-  nextRun.setUTCHours(18, 41, 0, 0);
-
-  // Если время уже прошло сегодня, переносим на завтра
-  if (nextRun <= now) {
-    nextRun.setUTCDate(nextRun.getUTCDate() + 1);
-  }
+  const nextRun = new Date(now.getTime() + 10 * 1000); // Добавляем 10 секунд
 
   return nextRun;
 }

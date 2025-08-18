@@ -84,14 +84,8 @@ async function getCaseStatus(req, res) {
         return res.json({ success: true, data: status });
       }
 
-      // Проверяем дневной лимит
-      const maxDailyCases = user.max_daily_cases || 0;
-      const casesOpenedToday = user.cases_opened_today || 0;
-
-      if (casesOpenedToday >= maxDailyCases && maxDailyCases > 0) {
-        status.reason = 'Достигнут дневной лимит открытия бесплатных кейсов';
-        return res.json({ success: true, data: status });
-      }
+      // ОТКЛЮЧЕНО: Проверка дневного лимита убрана - кейсы доступны каждые 10 секунд
+      console.log('Проверка дневного лимита в getCaseStatus отключена');
 
       status.canOpen = true;
       return res.json({ success: true, data: status });

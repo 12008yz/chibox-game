@@ -328,7 +328,7 @@ async function createCaseTemplates() {
       type: 'daily',
       min_subscription_tier: 1,
       is_active: true,
-      cooldown_hours: 24,
+      cooldown_hours: 0.003, // ~10 секунд (было 24 часа)
       price: null,
       color_scheme: '#4CAF50',
       sort_order: 1
@@ -339,7 +339,7 @@ async function createCaseTemplates() {
       type: 'daily',
       min_subscription_tier: 2,
       is_active: true,
-      cooldown_hours: 24,
+      cooldown_hours: 0.003, // ~10 секунд (было 24 часа)
       price: null,
       color_scheme: '#2196F3',
       sort_order: 2
@@ -350,7 +350,7 @@ async function createCaseTemplates() {
       type: 'daily',
       min_subscription_tier: 3,
       is_active: true,
-      cooldown_hours: 24,
+      cooldown_hours: 0.003, // ~10 секунд (было 24 часа)
       price: null,
       color_scheme: '#9C27B0',
       sort_order: 3
@@ -560,5 +560,5 @@ if (require.main === module) {
     .catch(error => {
       console.error('❌ Ошибка настройки системы кейсов:', error);
       process.exit(1);
-    }); 
+    });
 }

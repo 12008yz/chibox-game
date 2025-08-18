@@ -1,4 +1,4 @@
-const { CaseTemplate, Item, User } = require('../../models');
+const { CaseTemplate, Item, User, CaseItemDrop } = require('../../models');
 const { logger } = require('../../utils/logger');
 const { calculateModifiedDropWeights } = require('../../utils/dropWeightCalculator');
 
@@ -88,9 +88,24 @@ const getCaseTemplateItems = async (req, res) => {
             'total_drop_bonus_percentage',
             'achievements_bonus_percentage',
             'level_bonus_percentage',
-            'subscription_bonus_percentage'
+            'subscription_bonus_percentage',
+            'subscription_tier'
           ]
         });
+
+        // Получаем уже выпавшие предметы для пользователей Статус++ (3 уровень подписки)
+        let droppedItemIds = [];
+        if (user && user.subscription_tier >= 3) {
+          const droppedItems = await CaseItemDrop.findAll({
+            where: {
+              user_id: user.id,
+              case_template_id: caseTemplateId
+            },
+            attributes: ['item_id']
+          });
+          droppedItemIds = droppedItems.map(drop => drop.item_id);
+          logger.info(`Пользователь Статус++ ${user.id} уже получал из кейса ${caseTemplateId}: ${droppedItemIds.length} предметов`);
+        }
 
         if (user && user.total_drop_bonus_percentage > 0) {
           logger.info(`Расчет модифицированных шансов для пользователя ${user.id}, бонус: ${user.total_drop_bonus_percentage}%`);
@@ -103,7 +118,8 @@ const getCaseTemplateItems = async (req, res) => {
 
           // Добавляем информацию о шансах к каждому предмету
           itemsWithChances = modifiedItems.map(item => {
-            const weight = item.modifiedWeight || item.drop_weight || 0;
+            const isAlreadyDropped = droppedItemIds.includes(item.id);
+            const weight = isAlreadyDropped && user.subscription_tier >= 3 ? 0 : (item.modifiedWeight || item.drop_weight || 0);
             const chance = totalWeight > 0 ? (weight / totalWeight * 100) : 0;
 
             return {
@@ -121,7 +137,10 @@ const getCaseTemplateItems = async (req, res) => {
               modified_weight: item.modifiedWeight,
               drop_chance_percent: Math.round(chance * 100) / 100, // Округляем до 2 знаков
               weight_multiplier: item.weightMultiplier,
-              bonus_applied: item.bonusApplied
+              bonus_applied: item.bonusApplied,
+              // Добавляем информацию о том, что предмет уже выпадал
+              is_already_dropped: isAlreadyDropped && user.subscription_tier >= 3,
+              is_excluded: isAlreadyDropped && user.subscription_tier >= 3
             };
           });
 
@@ -140,6 +159,37 @@ const getCaseTemplateItems = async (req, res) => {
 
     // Если модификация не была применена, рассчитываем базовые шансы на основе правильных весов
     if (!userBonusInfo) {
+      // Получаем информацию о пользователе для определения уже выпавших предметов
+      let droppedItemIds = [];
+      let userSubscriptionTier = 0;
+
+      if (req.user && req.user.id) {
+        try {
+          const user = await User.findByPk(req.user.id, {
+            attributes: ['id', 'subscription_tier']
+          });
+
+          if (user) {
+            userSubscriptionTier = user.subscription_tier || 0;
+
+            // Получаем уже выпавшие предметы для пользователей Статус++ (3 уровень подписки)
+            if (userSubscriptionTier >= 3) {
+              const droppedItems = await CaseItemDrop.findAll({
+                where: {
+                  user_id: user.id,
+                  case_template_id: caseTemplateId
+                },
+                attributes: ['item_id']
+              });
+              droppedItemIds = droppedItems.map(drop => drop.item_id);
+              logger.info(`Пользователь Статус++ ${user.id} уже получал из кейса ${caseTemplateId}: ${droppedItemIds.length} предметов (базовые шансы)`);
+            }
+          }
+        } catch (error) {
+          logger.error('Ошибка при получении информации о пользователе для базовых шансов:', error);
+        }
+      }
+
       // Рассчитываем правильные веса на основе цен вместо drop_weight из БД
       const itemsWithCorrectWeights = [];
       let totalWeight = 0;
@@ -147,11 +197,14 @@ const getCaseTemplateItems = async (req, res) => {
       for (const item of itemsWithChances) {
         const itemData = item.toJSON ? item.toJSON() : item;
         const price = parseFloat(itemData.price) || 0;
-        const correctWeight = calculateCorrectWeightByPrice(price);
+        const isAlreadyDropped = droppedItemIds.includes(itemData.id);
+        const correctWeight = isAlreadyDropped && userSubscriptionTier >= 3 ? 0 : calculateCorrectWeightByPrice(price);
 
         itemsWithCorrectWeights.push({
           ...itemData,
-          correctWeight: correctWeight
+          correctWeight: correctWeight,
+          isAlreadyDropped: isAlreadyDropped,
+          userSubscriptionTier: userSubscriptionTier
         });
         totalWeight += correctWeight;
       }
@@ -175,7 +228,10 @@ const getCaseTemplateItems = async (req, res) => {
           modified_weight: null,
           weight_multiplier: 1,
           bonus_applied: 0,
-          correct_weight: weight // Добавляем для отладки
+          correct_weight: weight, // Добавляем для отладки
+          // Добавляем информацию о том, что предмет уже выпадал
+          is_already_dropped: item.isAlreadyDropped && item.userSubscriptionTier >= 3,
+          is_excluded: item.isAlreadyDropped && item.userSubscriptionTier >= 3
         };
       });
     }

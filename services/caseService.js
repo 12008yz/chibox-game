@@ -38,10 +38,10 @@ async function giveDailyCaseToUser(userId, subscriptionTier) {
 
     if (!existingCase) {
       // Если у пользователя есть активная подписка, кейс не протухает (expires_at = null)
-      // Иначе кейс протухает через cooldown_hours
+      // ИЗМЕНЕНО: Кейс протухает через 10 секунд вместо часов
       const expiresAt = (user && user.subscription_expiry_date && user.subscription_expiry_date > now)
         ? null
-        : new Date(now.getTime() + template.cooldown_hours * 3600000);
+        : new Date(now.getTime() + 10 * 1000); // 10 секунд вместо template.cooldown_hours * 3600000
 
       // Создаём новый кейс в инвентаре пользователя
       await db.UserInventory.create({

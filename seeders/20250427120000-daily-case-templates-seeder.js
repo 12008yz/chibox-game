@@ -10,7 +10,7 @@ module.exports = {
         description: 'Ежедневный кейс для пользователей без подписки',
         type: 'daily',
         min_subscription_tier: 0,
-        cooldown_hours: 24,
+        cooldown_hours: 0.003, // ~10 секунд (было 24 часа)
         is_active: true,
         created_at: new Date(),
         updated_at: new Date()
@@ -21,7 +21,7 @@ module.exports = {
         description: 'Ежедневный кейс для подписчиков уровня Статус',
         type: 'daily',
         min_subscription_tier: 1,
-        cooldown_hours: 24,
+        cooldown_hours: 0.003, // ~10 секунд (было 24 часа)
         is_active: true,
         created_at: new Date(),
         updated_at: new Date()
@@ -32,7 +32,7 @@ module.exports = {
         description: 'Ежедневный кейс для подписчиков уровня Статус+',
         type: 'daily',
         min_subscription_tier: 2,
-        cooldown_hours: 24,
+        cooldown_hours: 0.003, // ~10 секунд (было 24 часа)
         is_active: true,
         created_at: new Date(),
         updated_at: new Date()
@@ -43,7 +43,7 @@ module.exports = {
         description: 'Ежедневный кейс для подписчиков уровня Статус++',
         type: 'daily',
         min_subscription_tier: 3,
-        cooldown_hours: 24,
+        cooldown_hours: 0.003, // ~10 секунд (было 24 часа)
         is_active: true,
         created_at: new Date(),
         updated_at: new Date()
