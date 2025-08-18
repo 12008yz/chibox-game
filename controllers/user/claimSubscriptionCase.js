@@ -39,16 +39,8 @@ async function claimSubscriptionCase(req, res) {
       });
     }
 
-    // Проверяем, можно ли получить кейс (прошло ли 24 часа)
-    if (user.next_case_available_time && user.next_case_available_time > now) {
-      const timeRemaining = formatTimeUntilNextCase(user.next_case_available_time);
-      return res.status(400).json({
-        success: false,
-        message: `Кейсы будут доступны через: ${timeRemaining}`,
-        next_available_time: user.next_case_available_time,
-        time_remaining: timeRemaining
-      });
-    }
+    // ОГРАНИЧЕНИЯ НА 24 ЧАСА ОТКЛЮЧЕНЫ
+    // Пользователи могут получать кейсы по подписке в любое время
 
     // Выдаем ежедневные кейсы
     await giveDailyCaseToUser(userId, user.subscription_tier);

@@ -82,41 +82,8 @@ async function openCase(req, res) {
             if (user && user.subscription_tier >= caseTemplate.min_subscription_tier) {
               console.log('Пользователь имеет право на этот кейс, проверяем лимиты');
 
-              // Проверяем, не получал ли пользователь уже этот кейс сегодня
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-              const tomorrow = new Date(today);
-              tomorrow.setDate(tomorrow.getDate() + 1);
-
-              const existingTodayCase = await db.UserInventory.findOne({
-                where: {
-                  user_id: userId,
-                  case_template_id: templateId,
-                  item_type: 'case',
-                  acquisition_date: {
-                    [Op.gte]: today,
-                    [Op.lt]: tomorrow
-                  }
-                }
-              });
-
-              if (existingTodayCase) {
-                console.log('Пользователь уже получал этот кейс сегодня');
-
-                // Обновляем next_case_available_time, если он устарел
-                const { getNextDailyCaseTime } = require('../../utils/cronHelper');
-                const newNextCaseTime = getNextDailyCaseTime();
-                if (!user.next_case_available_time || user.next_case_available_time < newNextCaseTime) {
-                  user.next_case_available_time = newNextCaseTime;
-                  await user.save();
-                  console.log('Обновили next_case_available_time при повторной попытке:', newNextCaseTime);
-                }
-
-                return res.status(400).json({
-                  success: false,
-                  message: 'Вы уже получали этот кейс сегодня. Попробуйте завтра!'
-                });
-              }
+              // ОГРАНИЧЕНИЕ НА ЕЖЕДНЕВНЫЙ ЛИМИТ ОТКЛЮЧЕНО
+              // Пользователь может получать кейс сколько угодно раз
 
               console.log('Лимиты проверены, выдаем кейс автоматически');
 
@@ -254,19 +221,8 @@ async function openCase(req, res) {
       }
     }
 
-    // Убираем ограничение на время открытия кейса
-    // Проверяем ограничение времени открытия кейса только для кейсов из подписки (не купленных)
-    if (!userCase.is_paid && user.next_case_available_time && user.next_case_available_time > now) {
-      const msRemaining = user.next_case_available_time.getTime() - now.getTime();
-
-      const hours = Math.floor(msRemaining / (1000 * 60 * 60));
-      const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((msRemaining % (1000 * 60)) / 1000);
-
-      const timeString = `${hours}ч ${minutes}м ${seconds}с`;
-
-      return res.status(400).json({ success: false, message: `Кейс временно недоступен` });
-    }
+    // ВРЕМЕННЫЕ ОГРАНИЧЕНИЯ НА ОТКРЫТИЕ КЕЙСОВ ОТКЛЮЧЕНЫ
+    // Пользователи могут открывать кейсы в любое время
 
     userCase = await db.Case.findOne({
       where: { id: caseId, user_id: userId, is_opened: false },
@@ -327,9 +283,9 @@ async function openCase(req, res) {
 
       logger.info(`Модифицированных предметов: ${modifiedItems.length}`);
 
-      // Применяем защиту от дубликатов для 3 уровня подписки (только для подписочных кейсов)
-      if (!userCase.is_paid && userSubscriptionTier === 3) {
-        logger.info('Используем защиту от дубликатов для Статус++');
+      // Применяем защиту от дубликатов для всех пользователей (только для подписочных кейсов)
+      if (!userCase.is_paid) {
+        logger.info('Используем защиту от дубликатов для всех пользователей');
         // Получаем уже выпавшие предметы из этого кейса для данного пользователя
         const droppedItems = await db.CaseItemDrop.findAll({
           where: {
@@ -427,24 +383,22 @@ async function openCase(req, res) {
         item_type: 'item'
       }, { transaction: t });
 
-      // Записываем выпавший предмет для пользователей Статус++ (3 уровень подписки)
-      if (userSubscriptionTier === 3) {
-        try {
-          await db.CaseItemDrop.create({
-            user_id: userId,
-            case_template_id: userCase.template_id,
-            item_id: selectedItem.id,
-            case_id: userCase.id,
-            dropped_at: new Date()
-          }, {
-            transaction: t,
-            ignoreDuplicates: true // Игнорируем дубликаты на случай повторной записи
-          });
-          logger.info(`Записан выпавший предмет ${selectedItem.id} для пользователя Статус++ ${userId} из кейса ${userCase.template_id}`);
-        } catch (dropError) {
-          // Логируем ошибку, но не прерываем транзакцию
-          logger.error('Ошибка записи выпавшего предмета:', dropError);
-        }
+      // Записываем выпавший предмет для всех пользователей
+      try {
+        await db.CaseItemDrop.create({
+          user_id: userId,
+          case_template_id: userCase.template_id,
+          item_id: selectedItem.id,
+          case_id: userCase.id,
+          dropped_at: new Date()
+        }, {
+          transaction: t,
+          ignoreDuplicates: true // Игнорируем дубликаты на случай повторной записи
+        });
+        logger.info(`Записан выпавший предмет ${selectedItem.id} для пользователя ${userId} из кейса ${userCase.template_id}`);
+      } catch (dropError) {
+        // Логируем ошибку, но не прерываем транзакцию
+        logger.error('Ошибка записи выпавшего предмета:', dropError);
       }
 
       // Создание записи LiveDrop с проверкой на дубликаты
@@ -674,53 +628,44 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       // Передаем процент как число (например, 15.5 для 15.5%)
       const modifiedItems = calculateModifiedDropWeights(items, userDropBonus);
 
-      // Применяем защиту от дубликатов для 3 уровня подписки
-      if (userSubscriptionTier === 3) {
-        logger.info('Используем защиту от дубликатов для кейса из инвентаря (Статус++)');
-        // Получаем уже выпавшие предметы из этого кейса для данного пользователя
-        const droppedItems = await db.CaseItemDrop.findAll({
-          where: {
-            user_id: userId,
-            case_template_id: inventoryCase.case_template_id
-          },
-          attributes: ['item_id']
-        });
-        const droppedItemIds = droppedItems.map(drop => drop.item_id);
+      // Применяем защиту от дубликатов для всех пользователей
+      logger.info('Используем защиту от дубликатов для кейса из инвентаря');
+      // Получаем уже выпавшие предметы из этого кейса для данного пользователя
+      const droppedItems = await db.CaseItemDrop.findAll({
+        where: {
+          user_id: userId,
+          case_template_id: inventoryCase.case_template_id
+        },
+        attributes: ['item_id']
+      });
+      const droppedItemIds = droppedItems.map(drop => drop.item_id);
 
-        logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс)`);
+      logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс)`);
 
-        selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
-          modifiedItems,
-          droppedItemIds,
-          droppedItemIds.length
-        );
-      } else {
-        selectedItem = selectItemWithModifiedWeights(modifiedItems);
-      }
+      selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
+        modifiedItems,
+        droppedItemIds,
+        droppedItemIds.length
+      );
     } else {
-      // Стандартная система без бонусов, но с защитой от дубликатов если есть 3 уровень подписки
-      if (userSubscriptionTier === 3) {
-        // Получаем уже выпавшие предметы из этого кейса для данного пользователя
-        const droppedItems = await db.CaseItemDrop.findAll({
-          where: {
-            user_id: userId,
-            case_template_id: inventoryCase.case_template_id
-          },
-          attributes: ['item_id']
-        });
-        const droppedItemIds = droppedItems.map(drop => drop.item_id);
+      // Стандартная система без бонусов, но с защитой от дубликатов для всех пользователей
+      // Получаем уже выпавшие предметы из этого кейса для данного пользователя
+      const droppedItems = await db.CaseItemDrop.findAll({
+        where: {
+          user_id: userId,
+          case_template_id: inventoryCase.case_template_id
+        },
+        attributes: ['item_id']
+      });
+      const droppedItemIds = droppedItems.map(drop => drop.item_id);
 
-        logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
+      logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
 
-        selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
-          items,
-          droppedItemIds,
-          droppedItemIds.length
-        );
-      } else {
-        // Используем систему весов без бонусов, но с правильными весами на основе цены
-        selectedItem = selectItemWithCorrectWeights(items);
-      }
+      selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
+        items,
+        droppedItemIds,
+        droppedItemIds.length
+      );
     }
 
     // Проверяем, что предмет был выбран
@@ -763,24 +708,22 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
         item_type: 'item'
       }, { transaction: t });
 
-      // Записываем выпавший предмет для пользователей Статус++ (3 уровень подписки)
-      if (userSubscriptionTier === 3) {
-        try {
-          await db.CaseItemDrop.create({
-            user_id: userId,
-            case_template_id: inventoryCase.case_template_id,
-            item_id: selectedItem.id,
-            case_id: newCase.id,
-            dropped_at: new Date()
-          }, {
-            transaction: t,
-            ignoreDuplicates: true // Игнорируем дубликаты на случай повторной записи
-          });
-          logger.info(`Записан выпавший предмет ${selectedItem.id} для пользователя Статус++ ${userId} из инвентарного кейса ${inventoryCase.case_template_id}`);
-        } catch (dropError) {
-          // Логируем ошибку, но не прерываем транзакцию
-          logger.error('Ошибка записи выпавшего предмета (инвентарный кейс):', dropError);
-        }
+      // Записываем выпавший предмет для всех пользователей
+      try {
+        await db.CaseItemDrop.create({
+          user_id: userId,
+          case_template_id: inventoryCase.case_template_id,
+          item_id: selectedItem.id,
+          case_id: newCase.id,
+          dropped_at: new Date()
+        }, {
+          transaction: t,
+          ignoreDuplicates: true // Игнорируем дубликаты на случай повторной записи
+        });
+        logger.info(`Записан выпавший предмет ${selectedItem.id} для пользователя ${userId} из инвентарного кейса ${inventoryCase.case_template_id}`);
+      } catch (dropError) {
+        // Логируем ошибку, но не прерываем транзакцию
+        logger.error('Ошибка записи выпавшего предмета (инвентарный кейс):', dropError);
       }
 
       // Удаляем кейс из инвентаря (помечаем как использованный)

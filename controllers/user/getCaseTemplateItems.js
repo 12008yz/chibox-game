@@ -93,9 +93,9 @@ const getCaseTemplateItems = async (req, res) => {
           ]
         });
 
-        // Получаем уже выпавшие предметы для пользователей Статус++ (3 уровень подписки)
+        // Получаем уже выпавшие предметы для всех пользователей
         let droppedItemIds = [];
-        if (user && user.subscription_tier >= 3) {
+        if (user) {
           const droppedItems = await CaseItemDrop.findAll({
             where: {
               user_id: user.id,
@@ -104,7 +104,7 @@ const getCaseTemplateItems = async (req, res) => {
             attributes: ['item_id']
           });
           droppedItemIds = droppedItems.map(drop => drop.item_id);
-          logger.info(`Пользователь Статус++ ${user.id} уже получал из кейса ${caseTemplateId}: ${droppedItemIds.length} предметов`);
+          logger.info(`Пользователь ${user.id} уже получал из кейса ${caseTemplateId}: ${droppedItemIds.length} предметов`);
         }
 
         if (user && user.total_drop_bonus_percentage > 0) {
@@ -139,8 +139,8 @@ const getCaseTemplateItems = async (req, res) => {
               weight_multiplier: item.weightMultiplier,
               bonus_applied: item.bonusApplied,
               // Добавляем информацию о том, что предмет уже выпадал
-              is_already_dropped: isAlreadyDropped && user.subscription_tier >= 3,
-              is_excluded: isAlreadyDropped && user.subscription_tier >= 3
+              is_already_dropped: isAlreadyDropped,
+              is_excluded: isAlreadyDropped
             };
           });
 
@@ -230,8 +230,8 @@ const getCaseTemplateItems = async (req, res) => {
           bonus_applied: 0,
           correct_weight: weight, // Добавляем для отладки
           // Добавляем информацию о том, что предмет уже выпадал
-          is_already_dropped: item.isAlreadyDropped && item.userSubscriptionTier >= 3,
-          is_excluded: item.isAlreadyDropped && item.userSubscriptionTier >= 3
+          is_already_dropped: item.isAlreadyDropped,
+          is_excluded: item.isAlreadyDropped
         };
       });
     }
