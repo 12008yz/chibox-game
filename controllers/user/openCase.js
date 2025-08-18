@@ -301,7 +301,8 @@ async function openCase(req, res) {
         selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
           modifiedItems,
           droppedItemIds,
-          droppedItemIds.length
+          5, // duplicateProtectionCount
+          user.subscription_tier || 0 // userSubscriptionTier
         );
       } else {
         logger.info('Используем стандартный выбор с модифицированными весами');
@@ -314,7 +315,7 @@ async function openCase(req, res) {
           price: item.price
         })));
 
-        selectedItem = selectItemWithModifiedWeights(modifiedItems);
+        selectedItem = selectItemWithModifiedWeights(modifiedItems, user.subscription_tier || 0);
 
         logger.info(`Результат selectItemWithModifiedWeights: ${selectedItem ? selectedItem.id : 'undefined'}`);
       }
@@ -345,7 +346,7 @@ async function openCase(req, res) {
         );
       } else {
         // Используем систему весов без бонусов, но с правильными весами на основе цены
-        selectedItem = selectItemWithCorrectWeights(items);
+        selectedItem = selectItemWithCorrectWeights(items, user.subscription_tier || 0);
       }
     }
 
@@ -645,7 +646,8 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
         modifiedItems,
         droppedItemIds,
-        droppedItemIds.length
+        5, // duplicateProtectionCount
+        user.subscription_tier || 0 // userSubscriptionTier
       );
     } else {
       // Стандартная система без бонусов, но с защитой от дубликатов для всех пользователей

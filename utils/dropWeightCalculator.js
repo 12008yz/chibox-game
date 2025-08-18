@@ -1,6 +1,27 @@
 const { logger } = require('./logger');
 
 /**
+ * Фильтрует исключенные предметы для пользователей Статус++
+ * @param {Array} items - массив предметов
+ * @param {number} userSubscriptionTier - уровень подписки пользователя
+ * @returns {Array} отфильтрованный массив предметов
+ */
+function filterExcludedItems(items, userSubscriptionTier = 0) {
+  if (!items || items.length === 0) {
+    return items;
+  }
+
+  // Для пользователей Статус++ (tier >= 3) исключаем предметы с is_excluded = true
+  if (userSubscriptionTier >= 3) {
+    const filteredItems = items.filter(item => !item.is_excluded && !item.isExcluded);
+    console.log(`[filterExcludedItems] Отфильтровано для Статус++: ${items.length} -> ${filteredItems.length} предметов`);
+    return filteredItems;
+  }
+
+  return items;
+}
+
+/**
  * Рассчитать правильный вес предмета на основе его цены
  * @param {number} price - цена предмета
  * @returns {number} правильный вес предмета
@@ -26,9 +47,10 @@ function calculateCorrectWeightByPrice(price) {
 /**
  * Выбрать предмет с правильными весами на основе цены (игнорирует drop_weight из БД)
  * @param {Array} items - массив предметов
+ * @param {number} userSubscriptionTier - уровень подписки пользователя
  * @returns {Object|null} выбранный предмет
  */
-function selectItemWithCorrectWeights(items) {
+function selectItemWithCorrectWeights(items, userSubscriptionTier = 0) {
   console.log(`[selectItemWithCorrectWeights] Получено предметов: ${items ? items.length : 'null/undefined'}`);
 
   if (!items || items.length === 0) {
@@ -36,8 +58,16 @@ function selectItemWithCorrectWeights(items) {
     return null;
   }
 
+  // Фильтруем исключенные предметы для пользователей Статус++
+  const availableItems = filterExcludedItems(items, userSubscriptionTier);
+
+  if (availableItems.length === 0) {
+    console.log(`[selectItemWithCorrectWeights] Все предметы исключены для пользователя с подпиской ${userSubscriptionTier}`);
+    return null;
+  }
+
   // Рассчитываем правильные веса на основе цен
-  const itemsWithCorrectWeights = items.map(item => {
+  const itemsWithCorrectWeights = availableItems.map(item => {
     const price = parseFloat(item.price) || 0;
     const correctWeight = calculateCorrectWeightByPrice(price);
 
@@ -65,8 +95,8 @@ function selectItemWithCorrectWeights(items) {
   );
 
   if (totalWeight <= 0) {
-    // Если общий вес 0, выбираем случайный предмет
-    console.log(`[selectItemWithCorrectWeights] Общий вес 0, выбираем случайный предмет`);
+    // Если общий вес 0, выбираем случайный предмет из доступных
+    console.log(`[selectItemWithCorrectWeights] Общий вес 0, выбираем случайный предмет из доступных`);
     const randomItem = itemsWithCorrectWeights[Math.floor(Math.random() * itemsWithCorrectWeights.length)];
     console.log(`[selectItemWithCorrectWeights] Выбран случайный предмет: ${randomItem ? randomItem.id : 'undefined'}`);
     return randomItem;
@@ -89,7 +119,7 @@ function selectItemWithCorrectWeights(items) {
     }
   }
 
-  // Fallback - возвращаем последний предмет
+  // Fallback - возвращаем последний предмет из доступных
   const fallbackItem = itemsWithCorrectWeights[itemsWithCorrectWeights.length - 1];
   console.log(`[selectItemWithCorrectWeights] Fallback - выбран последний предмет: ${fallbackItem ? fallbackItem.id : 'undefined'}`);
   return fallbackItem;
@@ -202,7 +232,7 @@ function calculateModifiedDropWeights(items, userBonuses = {}) {
  * @param {Array} itemsWithWeights - предметы с модифицированными весами
  * @returns {Object|null} выбранный предмет
  */
-function selectItemWithModifiedWeights(itemsWithWeights) {
+function selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier = 0) {
   console.log(`[selectItemWithModifiedWeights] Получено предметов: ${itemsWithWeights ? itemsWithWeights.length : 'null/undefined'}`);
 
   if (!itemsWithWeights || itemsWithWeights.length === 0) {
@@ -210,8 +240,16 @@ function selectItemWithModifiedWeights(itemsWithWeights) {
     return null;
   }
 
+  // Фильтруем исключенные предметы для пользователей Статус++
+  const availableItems = filterExcludedItems(itemsWithWeights, userSubscriptionTier);
+
+  if (availableItems.length === 0) {
+    console.log(`[selectItemWithModifiedWeights] Все предметы исключены для пользователя с подпиской ${userSubscriptionTier}`);
+    return null;
+  }
+
   // Рассчитываем общий вес
-  const totalWeight = itemsWithWeights.reduce((sum, item) => {
+  const totalWeight = availableItems.reduce((sum, item) => {
     const weight = item.modifiedWeight || calculateCorrectWeightByPrice(parseFloat(item.price) || 0);
     return sum + weight;
   }, 0);
@@ -219,9 +257,9 @@ function selectItemWithModifiedWeights(itemsWithWeights) {
   console.log(`[selectItemWithModifiedWeights] Общий вес: ${totalWeight}`);
 
   if (totalWeight <= 0) {
-    // Если общий вес 0, выбираем случайный предмет
-    console.log(`[selectItemWithModifiedWeights] Общий вес 0, выбираем случайный предмет`);
-    const randomItem = itemsWithWeights[Math.floor(Math.random() * itemsWithWeights.length)];
+    // Если общий вес 0, выбираем случайный предмет из доступных
+    console.log(`[selectItemWithModifiedWeights] Общий вес 0, выбираем случайный предмет из доступных`);
+    const randomItem = availableItems[Math.floor(Math.random() * availableItems.length)];
     console.log(`[selectItemWithModifiedWeights] Выбран случайный предмет: ${randomItem ? randomItem.id : 'undefined'}`);
     return randomItem;
   }
@@ -233,7 +271,7 @@ function selectItemWithModifiedWeights(itemsWithWeights) {
   console.log(`[selectItemWithModifiedWeights] Случайное число: ${random}`);
 
   // Находим предмет, соответствующий случайному числу
-  for (const item of itemsWithWeights) {
+  for (const item of availableItems) {
     const itemWeight = item.modifiedWeight || calculateCorrectWeightByPrice(parseFloat(item.price) || 0);
     currentWeight += itemWeight;
     console.log(`[selectItemWithModifiedWeights] Предмет ${item.id}, вес: ${itemWeight}, текущий вес: ${currentWeight}`);
@@ -244,8 +282,8 @@ function selectItemWithModifiedWeights(itemsWithWeights) {
     }
   }
 
-  // Fallback - возвращаем последний предмет
-  const fallbackItem = itemsWithWeights[itemsWithWeights.length - 1];
+  // Fallback - возвращаем последний предмет из доступных
+  const fallbackItem = availableItems[availableItems.length - 1];
   console.log(`[selectItemWithModifiedWeights] Fallback - выбран последний предмет: ${fallbackItem ? fallbackItem.id : 'undefined'}`);
   return fallbackItem;
 }
@@ -260,7 +298,8 @@ function selectItemWithModifiedWeights(itemsWithWeights) {
 function selectItemWithModifiedWeightsAndDuplicateProtection(
   itemsWithWeights,
   recentItems = [],
-  duplicateProtectionCount = 5
+  duplicateProtectionCount = 5,
+  userSubscriptionTier = 0
 ) {
   if (!itemsWithWeights || itemsWithWeights.length === 0) {
     return null;
@@ -275,7 +314,7 @@ function selectItemWithModifiedWeightsAndDuplicateProtection(
   // Если все предметы в списке недавних, используем все
   const itemsToSelect = availableItems.length > 0 ? availableItems : itemsWithWeights;
 
-  return selectItemWithModifiedWeights(itemsToSelect);
+  return selectItemWithModifiedWeights(itemsToSelect, userSubscriptionTier);
 }
 
 /**
@@ -348,7 +387,7 @@ module.exports = {
   calculateModifiedDropWeights,
   selectItemWithModifiedWeights,
   selectItemWithModifiedWeightsAndDuplicateProtection,
-  getWeightDistributionStats,
-  calculateCorrectWeightByPrice,
-  selectItemWithCorrectWeights
+  selectItemWithCorrectWeights,
+  filterExcludedItems,
+  getWeightDistributionStats
 };

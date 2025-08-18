@@ -113,14 +113,20 @@ const getCaseTemplateItems = async (req, res) => {
           // Рассчитываем модифицированные веса
           const modifiedItems = calculateModifiedDropWeights(itemsWithChances, user.total_drop_bonus_percentage);
 
-          // Рассчитываем общий вес для расчета процентов
-          const totalWeight = modifiedItems.reduce((sum, item) => sum + (item.modifiedWeight || item.drop_weight || 0), 0);
+          // Для пользователей Статус++ исключаем дубликаты ПЕРЕД расчетом общего веса
+          const filteredItems = user.subscription_tier >= 3
+            ? modifiedItems.filter(item => !droppedItemIds.includes(item.id))
+            : modifiedItems;
+
+          // Рассчитываем общий вес для расчета процентов (только из неисключенных предметов)
+          const totalWeight = filteredItems.reduce((sum, item) => sum + (item.modifiedWeight || item.drop_weight || 0), 0);
 
           // Добавляем информацию о шансах к каждому предмету
           itemsWithChances = modifiedItems.map(item => {
             const isAlreadyDropped = droppedItemIds.includes(item.id);
-            const weight = isAlreadyDropped && user.subscription_tier >= 3 ? 0 : (item.modifiedWeight || item.drop_weight || 0);
-            const chance = totalWeight > 0 ? (weight / totalWeight * 100) : 0;
+            const isExcluded = isAlreadyDropped && user.subscription_tier >= 3;
+            const weight = isExcluded ? 0 : (item.modifiedWeight || item.drop_weight || 0);
+            const chance = totalWeight > 0 && !isExcluded ? (weight / totalWeight * 100) : 0;
 
             return {
               id: item.id,
@@ -134,13 +140,13 @@ const getCaseTemplateItems = async (req, res) => {
               is_tradable: item.is_tradable,
               in_stock: item.in_stock,
               // Добавляем информацию о модифицированных шансах
-              modified_weight: item.modifiedWeight,
+              modified_weight: weight,
               drop_chance_percent: Math.round(chance * 100) / 100, // Округляем до 2 знаков
               weight_multiplier: item.weightMultiplier,
               bonus_applied: item.bonusApplied,
               // Добавляем информацию о том, что предмет уже выпадал
               is_already_dropped: isAlreadyDropped,
-              is_excluded: isAlreadyDropped
+              is_excluded: isExcluded
             };
           });
 
@@ -198,20 +204,26 @@ const getCaseTemplateItems = async (req, res) => {
         const itemData = item.toJSON ? item.toJSON() : item;
         const price = parseFloat(itemData.price) || 0;
         const isAlreadyDropped = droppedItemIds.includes(itemData.id);
-        const correctWeight = isAlreadyDropped && userSubscriptionTier >= 3 ? 0 : calculateCorrectWeightByPrice(price);
+        const isExcluded = isAlreadyDropped && userSubscriptionTier >= 3;
+        const correctWeight = isExcluded ? 0 : calculateCorrectWeightByPrice(price);
 
         itemsWithCorrectWeights.push({
           ...itemData,
           correctWeight: correctWeight,
           isAlreadyDropped: isAlreadyDropped,
+          isExcluded: isExcluded,
           userSubscriptionTier: userSubscriptionTier
         });
-        totalWeight += correctWeight;
+
+        // Добавляем к общему весу только неисключенные предметы
+        if (!isExcluded) {
+          totalWeight += correctWeight;
+        }
       }
 
       itemsWithChances = itemsWithCorrectWeights.map(item => {
         const weight = item.correctWeight;
-        const chance = totalWeight > 0 ? (weight / totalWeight * 100) : 0;
+        const chance = totalWeight > 0 && !item.isExcluded ? (weight / totalWeight * 100) : 0;
 
         return {
           id: item.id,
@@ -231,7 +243,7 @@ const getCaseTemplateItems = async (req, res) => {
           correct_weight: weight, // Добавляем для отладки
           // Добавляем информацию о том, что предмет уже выпадал
           is_already_dropped: item.isAlreadyDropped,
-          is_excluded: item.isAlreadyDropped
+          is_excluded: item.isExcluded
         };
       });
     }
