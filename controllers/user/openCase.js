@@ -314,7 +314,7 @@ async function openCase(req, res) {
         );
       } else {
         logger.info('Используем стандартный выбор с модифицированными весами (покупной кейс)');
-        selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier);
+        selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, droppedItemIds);
       }
 
       // Логируем использование бонуса для статистики
@@ -374,7 +374,47 @@ async function openCase(req, res) {
       return res.status(500).json({ message: 'Ошибка выбора предмета из кейса' });
     }
 
-    logger.info(`Выбран предмет: ${selectedItem.id} (${selectedItem.name || 'N/A'}) для пользователя ${userId}`);
+    // КРИТИЧЕСКИ ВАЖНАЯ ПРОВЕРКА: убеждаемся, что выбранный предмет НЕ в списке исключенных
+    // Получаем АКТУАЛЬНЫЕ данные об исключенных предметах прямо перед проверкой
+    if (userSubscriptionTier >= 3) {
+      const actualDroppedItems = await db.CaseItemDrop.findAll({
+        where: {
+          user_id: userId,
+          case_template_id: userCase.template_id
+        },
+        attributes: ['item_id']
+      });
+      const actualDroppedItemIds = actualDroppedItems.map(drop => drop.item_id);
+
+      if (actualDroppedItemIds.includes(selectedItem.id)) {
+        logger.error(`🚨 КРИТИЧЕСКАЯ ОШИБКА: Выбран исключенный предмет ${selectedItem.id} для пользователя Статус++ ${userId}!`);
+        logger.error(`Исключенные предметы (актуальные): ${JSON.stringify(actualDroppedItemIds)}`);
+        logger.error(`Исключенные предметы (кеш): ${JSON.stringify(droppedItemIds)}`);
+        logger.error(`Уровень подписки: ${userSubscriptionTier}`);
+        logger.error(`Выбранный предмет: ${JSON.stringify({ id: selectedItem.id, name: selectedItem.name, price: selectedItem.price })}`);
+        logger.error(`Функция выбора вернула исключенный предмет - это критический баг!`);
+
+        return res.status(500).json({
+          success: false,
+          message: 'Критическая ошибка: выбран уже полученный предмет. Обратитесь в поддержку.',
+          error_code: 'DUPLICATE_ITEM_SELECTED',
+          debug: {
+            selected_item_id: selectedItem.id,
+            excluded_count_cache: droppedItemIds?.length || 0,
+            excluded_count_actual: actualDroppedItemIds.length,
+            total_items: items.length,
+            user_tier: userSubscriptionTier
+          }
+        });
+      }
+    }
+
+    logger.info(`✅ Выбран предмет: ${selectedItem.id} (${selectedItem.name || 'N/A'}) для пользователя ${userId}`);
+
+    // Дополнительная проверка для Статус++
+    if (userSubscriptionTier >= 3 && droppedItemIds && droppedItemIds.length > 0) {
+      logger.info(`Статус++: выбранный предмет НЕ в списке исключенных (${droppedItemIds.length} исключенных)`);
+    }
 
     // Транзакция только для критических операций изменения данных
     const { sequelize } = require('../../models');

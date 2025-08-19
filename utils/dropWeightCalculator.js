@@ -237,9 +237,11 @@ function calculateModifiedDropWeights(items, userBonuses = {}) {
 /**
  * Выбрать предмет на основе модифицированных весов
  * @param {Array} itemsWithWeights - предметы с модифицированными весами
+ * @param {number} userSubscriptionTier - уровень подписки пользователя
+ * @param {Array} excludedItemIds - ID исключенных предметов (для Статус++)
  * @returns {Object|null} выбранный предмет
  */
-function selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier = 0) {
+function selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier = 0, excludedItemIds = []) {
   console.log(`[selectItemWithModifiedWeights] Получено предметов: ${itemsWithWeights ? itemsWithWeights.length : 'null/undefined'}`);
 
   if (!itemsWithWeights || itemsWithWeights.length === 0) {
@@ -248,7 +250,15 @@ function selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier = 
   }
 
   // Фильтруем исключенные предметы для пользователей Статус++
-  const availableItems = filterExcludedItems(itemsWithWeights, userSubscriptionTier);
+  let availableItems = itemsWithWeights;
+
+  if (userSubscriptionTier >= 3 && excludedItemIds.length > 0) {
+    availableItems = itemsWithWeights.filter(item => !excludedItemIds.includes(item.id));
+    console.log(`[selectItemWithModifiedWeights] Статус++: отфильтровано ${itemsWithWeights.length} -> ${availableItems.length} предметов (исключено ${excludedItemIds.length})`);
+  } else {
+    // Для обычных пользователей используем старую логику с полями is_excluded/isExcluded
+    availableItems = filterExcludedItems(itemsWithWeights, userSubscriptionTier);
+  }
 
   if (availableItems.length === 0) {
     console.log(`[selectItemWithModifiedWeights] Все предметы исключены для пользователя с подпиской ${userSubscriptionTier}`);
@@ -321,7 +331,7 @@ function selectItemWithModifiedWeightsAndDuplicateProtection(
   // Если все предметы в списке недавних, используем все
   const itemsToSelect = availableItems.length > 0 ? availableItems : itemsWithWeights;
 
-  return selectItemWithModifiedWeights(itemsToSelect, userSubscriptionTier);
+  return selectItemWithModifiedWeights(itemsToSelect, userSubscriptionTier, []);
 }
 
 /**
@@ -360,11 +370,11 @@ function selectItemWithFullDuplicateProtection(
       return null;
     }
 
-    return selectItemWithModifiedWeights(availableItems, userSubscriptionTier);
+    return selectItemWithModifiedWeights(availableItems, userSubscriptionTier, excludedItems);
   }
 
-  // Для обычных пользователей используем стандартную логику
-  return selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier);
+  // Для обычных пользователей используем стандартную логику (без исключений)
+  return selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier, []);
 }
 
 /**
