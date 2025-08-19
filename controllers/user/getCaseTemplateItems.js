@@ -96,14 +96,27 @@ const getCaseTemplateItems = async (req, res) => {
         // Получаем уже выпавшие предметы для всех пользователей
         let droppedItemIds = [];
         if (user) {
+          console.log(`DEBUG: Ищем выпавшие предметы для пользователя ${user.id} в кейсе ${caseTemplateId}`);
+
           const droppedItems = await CaseItemDrop.findAll({
             where: {
               user_id: user.id,
               case_template_id: caseTemplateId
             },
-            attributes: ['item_id']
+            attributes: ['item_id', 'dropped_at', 'case_id']
           });
+
           droppedItemIds = droppedItems.map(drop => drop.item_id);
+
+          console.log(`DEBUG: Найдено выпавших предметов: ${droppedItems.length}`);
+          if (droppedItems.length > 0) {
+            console.log(`DEBUG: Детали выпавших предметов:`, droppedItems.map(drop => ({
+              item_id: drop.item_id,
+              dropped_at: drop.dropped_at,
+              case_id: drop.case_id
+            })));
+          }
+
           logger.info(`Пользователь ${user.id} уже получал из кейса ${caseTemplateId}: ${droppedItemIds.length} предметов`);
         }
 
@@ -180,14 +193,27 @@ const getCaseTemplateItems = async (req, res) => {
 
             // Получаем уже выпавшие предметы для пользователей Статус++ (3 уровень подписки)
             if (userSubscriptionTier >= 3) {
+              console.log(`DEBUG (базовые шансы): Ищем выпавшие предметы для пользователя Статус++ ${user.id} в кейсе ${caseTemplateId}`);
+
               const droppedItems = await CaseItemDrop.findAll({
                 where: {
                   user_id: user.id,
                   case_template_id: caseTemplateId
                 },
-                attributes: ['item_id']
+                attributes: ['item_id', 'dropped_at', 'case_id']
               });
+
               droppedItemIds = droppedItems.map(drop => drop.item_id);
+
+              console.log(`DEBUG (базовые шансы): Найдено выпавших предметов: ${droppedItems.length}`);
+              if (droppedItems.length > 0) {
+                console.log(`DEBUG (базовые шансы): Детали выпавших предметов:`, droppedItems.map(drop => ({
+                  item_id: drop.item_id,
+                  dropped_at: drop.dropped_at,
+                  case_id: drop.case_id
+                })));
+              }
+
               logger.info(`Пользователь Статус++ ${user.id} уже получал из кейса ${caseTemplateId}: ${droppedItemIds.length} предметов (базовые шансы)`);
             }
           }

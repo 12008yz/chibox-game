@@ -386,7 +386,9 @@ async function openCase(req, res) {
 
       // Записываем выпавший предмет для всех пользователей
       try {
-        await db.CaseItemDrop.create({
+        console.log(`DEBUG: Создаем запись CaseItemDrop для пользователя ${userId}, кейса ${userCase.template_id}, предмета ${selectedItem.id}`);
+
+        const dropRecord = await db.CaseItemDrop.create({
           user_id: userId,
           case_template_id: userCase.template_id,
           item_id: selectedItem.id,
@@ -396,9 +398,19 @@ async function openCase(req, res) {
           transaction: t,
           ignoreDuplicates: true // Игнорируем дубликаты на случай повторной записи
         });
+
+        console.log(`DEBUG: Запись CaseItemDrop создана успешно:`, {
+          id: dropRecord?.id || 'unknown',
+          user_id: userId,
+          case_template_id: userCase.template_id,
+          item_id: selectedItem.id,
+          case_id: userCase.id
+        });
+
         logger.info(`Записан выпавший предмет ${selectedItem.id} для пользователя ${userId} из кейса ${userCase.template_id}`);
       } catch (dropError) {
         // Логируем ошибку, но не прерываем транзакцию
+        console.error('DEBUG: Ошибка записи выпавшего предмета:', dropError);
         logger.error('Ошибка записи выпавшего предмета:', dropError);
       }
 
