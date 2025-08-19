@@ -1,5 +1,4 @@
 const jwt = require('jsonwebtoken');
-const { JWT_SECRET } = require('../config/secrets');
 
 /**
  * Middleware для опциональной аутентификации
@@ -15,9 +14,14 @@ const optionalAuthMiddleware = (req, res, next) => {
     const token = authHeader.substring(7);
 
     try {
-      const decoded = jwt.verify(token, JWT_SECRET);
-      req.user = decoded; // Добавляем информацию о пользователе
-      return next();
+      if (!process.env.JWT_SECRET) {
+        console.log('JWT_SECRET не настроен');
+        // Продолжаем к проверке сессии
+      } else {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = decoded; // Добавляем информацию о пользователе
+        return next();
+      }
     } catch (error) {
       // Невалидный токен - продолжаем к проверке сессии
       console.log('Невалидный токен в опциональной аутентификации:', error.message);
