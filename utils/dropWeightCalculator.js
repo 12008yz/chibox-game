@@ -48,18 +48,25 @@ function calculateCorrectWeightByPrice(price) {
  * Выбрать предмет с правильными весами на основе цены (игнорирует drop_weight из БД)
  * @param {Array} items - массив предметов
  * @param {number} userSubscriptionTier - уровень подписки пользователя
+ * @param {Array} excludedItemIds - ID исключенных предметов (для Статус++)
  * @returns {Object|null} выбранный предмет
  */
-function selectItemWithCorrectWeights(items, userSubscriptionTier = 0) {
+function selectItemWithCorrectWeights(items, userSubscriptionTier = 0, excludedItemIds = []) {
   console.log(`[selectItemWithCorrectWeights] Получено предметов: ${items ? items.length : 'null/undefined'}`);
+  console.log(`[selectItemWithCorrectWeights] Исключенных предметов: ${excludedItemIds.length}`);
+  console.log(`[selectItemWithCorrectWeights] Уровень подписки: ${userSubscriptionTier}`);
 
   if (!items || items.length === 0) {
     console.log(`[selectItemWithCorrectWeights] Массив предметов пуст или не существует`);
     return null;
   }
 
-  // Фильтруем исключенные предметы для пользователей Статус++
-  const availableItems = filterExcludedItems(items, userSubscriptionTier);
+  // Для пользователей Статус++ исключаем уже выпавшие предметы
+  let availableItems = items;
+  if (userSubscriptionTier >= 3 && excludedItemIds.length > 0) {
+    availableItems = items.filter(item => !excludedItemIds.includes(item.id));
+    console.log(`[selectItemWithCorrectWeights] Статус++: после исключения осталось ${availableItems.length} предметов`);
+  }
 
   if (availableItems.length === 0) {
     console.log(`[selectItemWithCorrectWeights] Все предметы исключены для пользователя с подпиской ${userSubscriptionTier}`);
@@ -318,6 +325,49 @@ function selectItemWithModifiedWeightsAndDuplicateProtection(
 }
 
 /**
+ * Выбрать предмет с полным исключением уже выпавших предметов для пользователей Статус++
+ * @param {Array} itemsWithWeights - предметы с модифицированными весами
+ * @param {Array} excludedItems - все уже выпавшие предметы (ID)
+ * @param {number} userSubscriptionTier - уровень подписки пользователя
+ * @returns {Object|null} выбранный предмет
+ */
+function selectItemWithFullDuplicateProtection(
+  itemsWithWeights,
+  excludedItems = [],
+  userSubscriptionTier = 0
+) {
+  console.log(`[selectItemWithFullDuplicateProtection] Получено предметов: ${itemsWithWeights ? itemsWithWeights.length : 'null'}`);
+  console.log(`[selectItemWithFullDuplicateProtection] Исключено предметов: ${excludedItems.length}`);
+  console.log(`[selectItemWithFullDuplicateProtection] Уровень подписки: ${userSubscriptionTier}`);
+
+  if (!itemsWithWeights || itemsWithWeights.length === 0) {
+    return null;
+  }
+
+  // Для пользователей Статус++ (tier >= 3) полностью исключаем уже выпавшие предметы
+  if (userSubscriptionTier >= 3 && excludedItems.length > 0) {
+    const availableItems = itemsWithWeights.filter(item => {
+      return !excludedItems.includes(item.id);
+    });
+
+    console.log(`[selectItemWithFullDuplicateProtection] Статус++: после исключения осталось ${availableItems.length} предметов`);
+
+    if (availableItems.length === 0) {
+      console.log(`[selectItemWithFullDuplicateProtection] ВНИМАНИЕ: Все предметы исключены для пользователя Статус++!`);
+      console.log(`[selectItemWithFullDuplicateProtection] Исходно было предметов: ${itemsWithWeights.length}`);
+      console.log(`[selectItemWithFullDuplicateProtection] Исключенных ID: ${excludedItems}`);
+      // В этом случае пользователь получил все возможные предметы из кейса
+      return null;
+    }
+
+    return selectItemWithModifiedWeights(availableItems, userSubscriptionTier);
+  }
+
+  // Для обычных пользователей используем стандартную логику
+  return selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier);
+}
+
+/**
  * Получить статистику распределения весов
  * @param {Array} items - предметы с весами
  * @returns {Object} статистика
@@ -387,6 +437,7 @@ module.exports = {
   calculateModifiedDropWeights,
   selectItemWithModifiedWeights,
   selectItemWithModifiedWeightsAndDuplicateProtection,
+  selectItemWithFullDuplicateProtection,
   selectItemWithCorrectWeights,
   filterExcludedItems,
   getWeightDistributionStats

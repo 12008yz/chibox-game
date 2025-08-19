@@ -2,7 +2,7 @@ const db = require('../../models');
 const { Op } = require('sequelize');
 const { logger } = require('../../utils/logger');
 const { addJob } = require('../../services/queueService');
-const { calculateModifiedDropWeights, selectItemWithModifiedWeights, selectItemWithModifiedWeightsAndDuplicateProtection, selectItemWithCorrectWeights } = require('../../utils/dropWeightCalculator');
+const { calculateModifiedDropWeights, selectItemWithModifiedWeights, selectItemWithModifiedWeightsAndDuplicateProtection, selectItemWithFullDuplicateProtection, selectItemWithCorrectWeights } = require('../../utils/dropWeightCalculator');
 const { broadcastDrop } = require('../../services/liveDropService');
 
 async function openCase(req, res) {
@@ -283,50 +283,48 @@ async function openCase(req, res) {
 
       logger.info(`Модифицированных предметов: ${modifiedItems.length}`);
 
-      // Применяем защиту от дубликатов для всех пользователей (только для подписочных кейсов)
-      if (!userCase.is_paid) {
-        logger.info('Используем защиту от дубликатов для всех пользователей');
-        // Получаем уже выпавшие предметы из этого кейса для данного пользователя
-        const droppedItems = await db.CaseItemDrop.findAll({
-          where: {
-            user_id: userId,
-            case_template_id: userCase.template_id
-          },
-          attributes: ['item_id']
-        });
-        const droppedItemIds = droppedItems.map(drop => drop.item_id);
+      // Получаем уже выпавшие предметы из этого кейса для данного пользователя (для всех типов кейсов)
+      const droppedItems = await db.CaseItemDrop.findAll({
+        where: {
+          user_id: userId,
+          case_template_id: userCase.template_id
+        },
+        attributes: ['item_id']
+      });
+      const droppedItemIds = droppedItems.map(drop => drop.item_id);
 
-        logger.info(`Пользователь ${userId} уже получал из кейса ${userCase.template_id}: ${droppedItemIds.length} предметов`);
+      logger.info(`Пользователь ${userId} уже получал из кейса ${userCase.template_id}: ${droppedItemIds.length} предметов`);
 
+      // Для пользователей Статус++ используем полную защиту от дубликатов
+      if (userSubscriptionTier >= 3) {
+        logger.info('Используем ПОЛНУЮ защиту от дубликатов для пользователя Статус++');
+        selectedItem = selectItemWithFullDuplicateProtection(
+          modifiedItems,
+          droppedItemIds,
+          userSubscriptionTier
+        );
+      } else if (!userCase.is_paid) {
+        // Применяем обычную защиту от дубликатов только для подписочных кейсов обычных пользователей
+        logger.info('Используем обычную защиту от дубликатов для подписочного кейса');
         selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
           modifiedItems,
           droppedItemIds,
           5, // duplicateProtectionCount
-          user.subscription_tier || 0 // userSubscriptionTier
+          userSubscriptionTier
         );
       } else {
-        logger.info('Используем стандартный выбор с модифицированными весами');
-        logger.info(`Передаем в selectItemWithModifiedWeights ${modifiedItems.length} предметов`);
-        logger.info(`Первые 3 модифицированных предмета:`, modifiedItems.slice(0, 3).map(item => ({
-          id: item.id,
-          name: item.name,
-          originalWeight: item.originalWeight || item.drop_weight,
-          modifiedWeight: item.modifiedWeight,
-          price: item.price
-        })));
-
-        selectedItem = selectItemWithModifiedWeights(modifiedItems, user.subscription_tier || 0);
-
-        logger.info(`Результат selectItemWithModifiedWeights: ${selectedItem ? selectedItem.id : 'undefined'}`);
+        logger.info('Используем стандартный выбор с модифицированными весами (покупной кейс)');
+        selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier);
       }
 
       // Логируем использование бонуса для статистики
       const caseType = userCase.is_paid ? 'покупной' : 'подписочный';
-      const duplicateProtection = (!userCase.is_paid && userSubscriptionTier === 3) ? ' и защитой от дубликатов' : '';
+      const duplicateProtection = userSubscriptionTier >= 3 ? ' и ПОЛНОЙ защитой от дубликатов' : '';
       logger.info(`Пользователь ${userId} открывает ${caseType} кейс с бонусом ${userDropBonus.toFixed(2)}%${duplicateProtection}`);
     } else {
-      // Стандартная система без бонусов, но с защитой от дубликатов если есть 3 уровень подписки (только для подписочных кейсов)
-      if (!userCase.is_paid && userSubscriptionTier === 3) {
+      // Стандартная система без бонусов
+      // Для пользователей Статус++ всегда применяем полную защиту от дубликатов
+      if (userSubscriptionTier >= 3) {
         // Получаем уже выпавшие предметы из этого кейса для данного пользователя
         const droppedItems = await db.CaseItemDrop.findAll({
           where: {
@@ -337,21 +335,41 @@ async function openCase(req, res) {
         });
         const droppedItemIds = droppedItems.map(drop => drop.item_id);
 
-        logger.info(`Пользователь ${userId} уже получал из кейса ${userCase.template_id}: ${droppedItemIds.length} предметов (без бонусов)`);
+        logger.info(`Пользователь Статус++ ${userId} уже получал из кейса ${userCase.template_id}: ${droppedItemIds.length} предметов (без бонусов)`);
 
-        selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
+        selectedItem = selectItemWithFullDuplicateProtection(
           items,
           droppedItemIds,
-          droppedItemIds.length
+          userSubscriptionTier
         );
       } else {
         // Используем систему весов без бонусов, но с правильными весами на основе цены
-        selectedItem = selectItemWithCorrectWeights(items, user.subscription_tier || 0);
+        // Для обычных пользователей получаем исключенные предметы тоже (но не применяем фильтрацию)
+        const droppedItems = await db.CaseItemDrop.findAll({
+          where: {
+            user_id: userId,
+            case_template_id: userCase.template_id
+          },
+          attributes: ['item_id']
+        });
+        const droppedItemIds = droppedItems.map(drop => drop.item_id);
+
+        selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, droppedItemIds);
       }
     }
 
     // Проверяем, что предмет был выбран
     if (!selectedItem) {
+      // Специальная обработка для пользователей Статус++, которые получили все предметы из кейса
+      if (userSubscriptionTier >= 3) {
+        logger.info(`Пользователь Статус++ ${userId} получил все возможные предметы из кейса ${userCase.template_id}`);
+        return res.status(400).json({
+          success: false,
+          message: 'Поздравляем! Вы получили все возможные предметы из этого кейса. Попробуйте другие кейсы!',
+          error_code: 'ALL_ITEMS_COLLECTED'
+        });
+      }
+
       logger.error(`Не удалось выбрать предмет из кейса ${caseId}. Предметы в кейсе:`, items.map(item => ({ id: item.id, name: item.name, drop_weight: item.drop_weight, price: item.price })));
       return res.status(500).json({ message: 'Ошибка выбора предмета из кейса' });
     }
@@ -636,54 +654,71 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
     logger.info(`Открытие кейса из инвентаря. Предметов в кейсе: ${items.length}, userDropBonus: ${userDropBonus}%, userSubscriptionTier: ${userSubscriptionTier}`);
     logger.info(`Бонусы пользователя для инвентарного кейса: итого=${user.total_drop_bonus_percentage || 0}%`);
 
+    // Получаем уже выпавшие предметы из этого кейса для данного пользователя
+    const droppedItems = await db.CaseItemDrop.findAll({
+      where: {
+        user_id: userId,
+        case_template_id: inventoryCase.case_template_id
+      },
+      attributes: ['item_id']
+    });
+    const droppedItemIds = droppedItems.map(drop => drop.item_id);
+
+    logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс)`);
+
     if (userDropBonus > 0) {
       // Используем модифицированную систему весов
-      // Передаем процент как число (например, 15.5 для 15.5%)
       const modifiedItems = calculateModifiedDropWeights(items, userDropBonus);
 
-      // Применяем защиту от дубликатов для всех пользователей
-      logger.info('Используем защиту от дубликатов для кейса из инвентаря');
-      // Получаем уже выпавшие предметы из этого кейса для данного пользователя
-      const droppedItems = await db.CaseItemDrop.findAll({
-        where: {
-          user_id: userId,
-          case_template_id: inventoryCase.case_template_id
-        },
-        attributes: ['item_id']
-      });
-      const droppedItemIds = droppedItems.map(drop => drop.item_id);
-
-      logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс)`);
-
-      selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
-        modifiedItems,
-        droppedItemIds,
-        5, // duplicateProtectionCount
-        user.subscription_tier || 0 // userSubscriptionTier
-      );
+      // Для пользователей Статус++ используем полную защиту от дубликатов
+      if (userSubscriptionTier >= 3) {
+        logger.info('Используем ПОЛНУЮ защиту от дубликатов для пользователя Статус++ (инвентарный кейс)');
+        selectedItem = selectItemWithFullDuplicateProtection(
+          modifiedItems,
+          droppedItemIds,
+          userSubscriptionTier
+        );
+      } else {
+        logger.info('Используем обычную защиту от дубликатов для кейса из инвентаря');
+        selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
+          modifiedItems,
+          droppedItemIds,
+          5, // duplicateProtectionCount
+          userSubscriptionTier
+        );
+      }
     } else {
-      // Стандартная система без бонусов, но с защитой от дубликатов для всех пользователей
-      // Получаем уже выпавшие предметы из этого кейса для данного пользователя
-      const droppedItems = await db.CaseItemDrop.findAll({
-        where: {
-          user_id: userId,
-          case_template_id: inventoryCase.case_template_id
-        },
-        attributes: ['item_id']
-      });
-      const droppedItemIds = droppedItems.map(drop => drop.item_id);
-
-      logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
-
-      selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
-        items,
-        droppedItemIds,
-        droppedItemIds.length
-      );
+      // Стандартная система без бонусов
+      // Для пользователей Статус++ всегда применяем полную защиту от дубликатов
+      if (userSubscriptionTier >= 3) {
+        logger.info(`Пользователь Статус++ ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
+        selectedItem = selectItemWithFullDuplicateProtection(
+          items,
+          droppedItemIds,
+          userSubscriptionTier
+        );
+      } else {
+        logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
+        selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
+          items,
+          droppedItemIds,
+          droppedItemIds.length
+        );
+      }
     }
 
     // Проверяем, что предмет был выбран
     if (!selectedItem) {
+      // Специальная обработка для пользователей Статус++, которые получили все предметы из кейса
+      if (userSubscriptionTier >= 3) {
+        logger.info(`Пользователь Статус++ ${userId} получил все возможные предметы из кейса ${inventoryCase.case_template_id} (инвентарный)`);
+        return res.status(400).json({
+          success: false,
+          message: 'Поздравляем! Вы получили все возможные предметы из этого кейса. Попробуйте другие кейсы!',
+          error_code: 'ALL_ITEMS_COLLECTED'
+        });
+      }
+
       logger.error(`Не удалось выбрать предмет из кейса ${inventoryItemId}`);
       return res.status(500).json({ message: 'Ошибка выбора предмета из кейса' });
     }
