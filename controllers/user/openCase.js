@@ -276,87 +276,96 @@ async function openCase(req, res) {
       drop_weight: item.drop_weight
     })));
 
-    if (userDropBonus > 0) {
-      // Используем модифицированную систему весов
-      // Передаем процент как число (например, 15.5 для 15.5%)
-      const modifiedItems = calculateModifiedDropWeights(items, userDropBonus);
+    // Транзакция только для критических операций изменения данных
+    const { sequelize } = require('../../models');
+    const t = await sequelize.transaction();
 
-      logger.info(`Модифицированных предметов: ${modifiedItems.length}`);
+    try {
+      if (userDropBonus > 0) {
+        // Используем модифицированную систему весов
+        // Передаем процент как число (например, 15.5 для 15.5%)
+        const modifiedItems = calculateModifiedDropWeights(items, userDropBonus);
 
-      // Получаем уже выпавшие предметы из этого кейса для данного пользователя (для всех типов кейсов)
-      const droppedItems = await db.CaseItemDrop.findAll({
-        where: {
-          user_id: userId,
-          case_template_id: userCase.template_id
-        },
-        attributes: ['item_id']
-      });
-      const droppedItemIds = droppedItems.map(drop => drop.item_id);
+        logger.info(`Модифицированных предметов: ${modifiedItems.length}`);
 
-      logger.info(`Пользователь ${userId} уже получал из кейса ${userCase.template_id}: ${droppedItemIds.length} предметов`);
-
-      // Для пользователей Статус++ используем полную защиту от дубликатов
-      if (userSubscriptionTier >= 3) {
-        logger.info('Используем ПОЛНУЮ защиту от дубликатов для пользователя Статус++');
-        selectedItem = selectItemWithFullDuplicateProtection(
-          modifiedItems,
-          droppedItemIds,
-          userSubscriptionTier
-        );
-      } else if (!userCase.is_paid) {
-        // Применяем обычную защиту от дубликатов только для подписочных кейсов обычных пользователей
-        logger.info('Используем обычную защиту от дубликатов для подписочного кейса');
-        selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
-          modifiedItems,
-          droppedItemIds,
-          5, // duplicateProtectionCount
-          userSubscriptionTier
-        );
-      } else {
-        logger.info('Используем стандартный выбор с модифицированными весами (покупной кейс)');
-        selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, droppedItemIds);
-      }
-
-      // Логируем использование бонуса для статистики
-      const caseType = userCase.is_paid ? 'покупной' : 'подписочный';
-      const duplicateProtection = userSubscriptionTier >= 3 ? ' и ПОЛНОЙ защитой от дубликатов' : '';
-      logger.info(`Пользователь ${userId} открывает ${caseType} кейс с бонусом ${userDropBonus.toFixed(2)}%${duplicateProtection}`);
-    } else {
-      // Стандартная система без бонусов
-      // Для пользователей Статус++ всегда применяем полную защиту от дубликатов
-      if (userSubscriptionTier >= 3) {
-        // Получаем уже выпавшие предметы из этого кейса для данного пользователя
+        // Получаем уже выпавшие предметы из этого кейса для данного пользователя (для всех типов кейсов)
+        // ВАЖНО: получаем в рамках транзакции для избежания race condition
         const droppedItems = await db.CaseItemDrop.findAll({
           where: {
             user_id: userId,
             case_template_id: userCase.template_id
           },
-          attributes: ['item_id']
+          attributes: ['item_id'],
+          transaction: t
         });
         const droppedItemIds = droppedItems.map(drop => drop.item_id);
 
-        logger.info(`Пользователь Статус++ ${userId} уже получал из кейса ${userCase.template_id}: ${droppedItemIds.length} предметов (без бонусов)`);
+        logger.info(`Пользователь ${userId} уже получал из кейса ${userCase.template_id}: ${droppedItemIds.length} предметов`);
 
-        selectedItem = selectItemWithFullDuplicateProtection(
-          items,
-          droppedItemIds,
-          userSubscriptionTier
-        );
+        // Для пользователей Статус++ используем полную защиту от дубликатов
+        if (userSubscriptionTier >= 3) {
+          logger.info('Используем ПОЛНУЮ защиту от дубликатов для пользователя Статус++');
+          selectedItem = selectItemWithFullDuplicateProtection(
+            modifiedItems,
+            droppedItemIds,
+            userSubscriptionTier
+          );
+        } else if (!userCase.is_paid) {
+          // Применяем обычную защиту от дубликатов только для подписочных кейсов обычных пользователей
+          logger.info('Используем обычную защиту от дубликатов для подписочного кейса');
+          selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
+            modifiedItems,
+            droppedItemIds,
+            5, // duplicateProtectionCount
+            userSubscriptionTier
+          );
+        } else {
+          logger.info('Используем стандартный выбор с модифицированными весами (покупной кейс)');
+          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, droppedItemIds);
+        }
+
+        // Логируем использование бонуса для статистики
+        const caseType = userCase.is_paid ? 'покупной' : 'подписочный';
+        const duplicateProtection = userSubscriptionTier >= 3 ? ' и ПОЛНОЙ защитой от дубликатов' : '';
+        logger.info(`Пользователь ${userId} открывает ${caseType} кейс с бонусом ${userDropBonus.toFixed(2)}%${duplicateProtection}`);
       } else {
-        // Используем систему весов без бонусов, но с правильными весами на основе цены
-        // Для обычных пользователей получаем исключенные предметы тоже (но не применяем фильтрацию)
-        const droppedItems = await db.CaseItemDrop.findAll({
-          where: {
-            user_id: userId,
-            case_template_id: userCase.template_id
-          },
-          attributes: ['item_id']
-        });
-        const droppedItemIds = droppedItems.map(drop => drop.item_id);
+        // Стандартная система без бонусов
+        // Для пользователей Статус++ всегда применяем полную защиту от дубликатов
+        if (userSubscriptionTier >= 3) {
+          // Получаем уже выпавшие предметы из этого кейса для данного пользователя
+          const droppedItems = await db.CaseItemDrop.findAll({
+            where: {
+              user_id: userId,
+              case_template_id: userCase.template_id
+            },
+            attributes: ['item_id'],
+            transaction: t
+          });
+          const droppedItemIds = droppedItems.map(drop => drop.item_id);
 
-        selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, droppedItemIds);
+          logger.info(`Пользователь Статус++ ${userId} уже получал из кейса ${userCase.template_id}: ${droppedItemIds.length} предметов (без бонусов)`);
+
+          selectedItem = selectItemWithFullDuplicateProtection(
+            items,
+            droppedItemIds,
+            userSubscriptionTier
+          );
+        } else {
+          // Используем систему весов без бонусов, но с правильными весами на основе цены
+          // Для обычных пользователей получаем исключенные предметы тоже (но не применяем фильтрацию)
+          const droppedItems = await db.CaseItemDrop.findAll({
+            where: {
+              user_id: userId,
+              case_template_id: userCase.template_id
+            },
+            attributes: ['item_id'],
+            transaction: t
+          });
+          const droppedItemIds = droppedItems.map(drop => drop.item_id);
+
+          selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, droppedItemIds);
+        }
       }
-    }
 
     // Проверяем, что предмет был выбран
     if (!selectedItem) {
@@ -409,18 +418,12 @@ async function openCase(req, res) {
       }
     }
 
-    logger.info(`✅ Выбран предмет: ${selectedItem.id} (${selectedItem.name || 'N/A'}) для пользователя ${userId}`);
+      logger.info(`✅ Выбран предмет: ${selectedItem.id} (${selectedItem.name || 'N/A'}) для пользователя ${userId}`);
 
-    // Дополнительная проверка для Статус++
-    if (userSubscriptionTier >= 3 && droppedItemIds && droppedItemIds.length > 0) {
-      logger.info(`Статус++: выбранный предмет НЕ в списке исключенных (${droppedItemIds.length} исключенных)`);
-    }
-
-    // Транзакция только для критических операций изменения данных
-    const { sequelize } = require('../../models');
-    const t = await sequelize.transaction();
-
-    try {
+      // Дополнительная проверка для Статус++
+      if (userSubscriptionTier >= 3 && droppedItemIds && droppedItemIds.length > 0) {
+        logger.info(`Статус++: выбранный предмет НЕ в списке исключенных (${droppedItemIds.length} исключенных)`);
+      }
       // Логируем состояние до обновления
       logger.info(`Кейс ${caseId} до обновления: is_opened=${userCase.is_opened}, opened_date=${userCase.opened_date}, result_item_id=${userCase.result_item_id}`);
 
@@ -694,58 +697,65 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
     logger.info(`Открытие кейса из инвентаря. Предметов в кейсе: ${items.length}, userDropBonus: ${userDropBonus}%, userSubscriptionTier: ${userSubscriptionTier}`);
     logger.info(`Бонусы пользователя для инвентарного кейса: итого=${user.total_drop_bonus_percentage || 0}%`);
 
-    // Получаем уже выпавшие предметы из этого кейса для данного пользователя
-    const droppedItems = await db.CaseItemDrop.findAll({
-      where: {
-        user_id: userId,
-        case_template_id: inventoryCase.case_template_id
-      },
-      attributes: ['item_id']
-    });
-    const droppedItemIds = droppedItems.map(drop => drop.item_id);
+    // Транзакция для изменения данных
+    const { sequelize } = require('../../models');
+    const t = await sequelize.transaction();
 
-    logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс)`);
+    try {
+      // Получаем уже выпавшие предметы из этого кейса для данного пользователя
+      // ВАЖНО: получаем в рамках транзакции для избежания race condition
+      const droppedItems = await db.CaseItemDrop.findAll({
+        where: {
+          user_id: userId,
+          case_template_id: inventoryCase.case_template_id
+        },
+        attributes: ['item_id'],
+        transaction: t
+      });
+      const droppedItemIds = droppedItems.map(drop => drop.item_id);
 
-    if (userDropBonus > 0) {
-      // Используем модифицированную систему весов
-      const modifiedItems = calculateModifiedDropWeights(items, userDropBonus);
+      logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс)`);
 
-      // Для пользователей Статус++ используем полную защиту от дубликатов
-      if (userSubscriptionTier >= 3) {
-        logger.info('Используем ПОЛНУЮ защиту от дубликатов для пользователя Статус++ (инвентарный кейс)');
-        selectedItem = selectItemWithFullDuplicateProtection(
-          modifiedItems,
-          droppedItemIds,
-          userSubscriptionTier
-        );
+      if (userDropBonus > 0) {
+        // Используем модифицированную систему весов
+        const modifiedItems = calculateModifiedDropWeights(items, userDropBonus);
+
+        // Для пользователей Статус++ используем полную защиту от дубликатов
+        if (userSubscriptionTier >= 3) {
+          logger.info('Используем ПОЛНУЮ защиту от дубликатов для пользователя Статус++ (инвентарный кейс)');
+          selectedItem = selectItemWithFullDuplicateProtection(
+            modifiedItems,
+            droppedItemIds,
+            userSubscriptionTier
+          );
+        } else {
+          logger.info('Используем обычную защиту от дубликатов для кейса из инвентаря');
+          selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
+            modifiedItems,
+            droppedItemIds,
+            5, // duplicateProtectionCount
+            userSubscriptionTier
+          );
+        }
       } else {
-        logger.info('Используем обычную защиту от дубликатов для кейса из инвентаря');
-        selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
-          modifiedItems,
-          droppedItemIds,
-          5, // duplicateProtectionCount
-          userSubscriptionTier
-        );
+        // Стандартная система без бонусов
+        // Для пользователей Статус++ всегда применяем полную защиту от дубликатов
+        if (userSubscriptionTier >= 3) {
+          logger.info(`Пользователь Статус++ ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
+          selectedItem = selectItemWithFullDuplicateProtection(
+            items,
+            droppedItemIds,
+            userSubscriptionTier
+          );
+        } else {
+          logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
+          selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
+            items,
+            droppedItemIds,
+            droppedItemIds.length
+          );
+        }
       }
-    } else {
-      // Стандартная система без бонусов
-      // Для пользователей Статус++ всегда применяем полную защиту от дубликатов
-      if (userSubscriptionTier >= 3) {
-        logger.info(`Пользователь Статус++ ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
-        selectedItem = selectItemWithFullDuplicateProtection(
-          items,
-          droppedItemIds,
-          userSubscriptionTier
-        );
-      } else {
-        logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
-        selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
-          items,
-          droppedItemIds,
-          droppedItemIds.length
-        );
-      }
-    }
 
     // Проверяем, что предмет был выбран
     if (!selectedItem) {
@@ -763,13 +773,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       return res.status(500).json({ message: 'Ошибка выбора предмета из кейса' });
     }
 
-    logger.info(`Выбран предмет: ${selectedItem.id} (${selectedItem.name || 'N/A'}) из кейса в инвентаре для пользователя ${userId}`);
-
-    // Транзакция для изменения данных
-    const { sequelize } = require('../../models');
-    const t = await sequelize.transaction();
-
-    try {
+      logger.info(`Выбран предмет: ${selectedItem.id} (${selectedItem.name || 'N/A'}) из кейса в инвентаре для пользователя ${userId}`);
       // Создаем случайный Case для совместимости с существующей системой
       const newCase = await db.Case.create({
         name: inventoryCase.case_template.name,

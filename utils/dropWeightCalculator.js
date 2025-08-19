@@ -357,10 +357,20 @@ function selectItemWithFullDuplicateProtection(
   // Для пользователей Статус++ (tier >= 3) полностью исключаем уже выпавшие предметы
   if (userSubscriptionTier >= 3 && excludedItems.length > 0) {
     const availableItems = itemsWithWeights.filter(item => {
-      return !excludedItems.includes(item.id);
+      const isExcluded = excludedItems.includes(item.id);
+      if (isExcluded) {
+        console.log(`[selectItemWithFullDuplicateProtection] Исключаем предмет: ${item.id} (${item.name})`);
+      }
+      return !isExcluded;
     });
 
     console.log(`[selectItemWithFullDuplicateProtection] Статус++: после исключения осталось ${availableItems.length} предметов`);
+
+    // Логируем первые несколько доступных предметов
+    if (availableItems.length > 0) {
+      console.log(`[selectItemWithFullDuplicateProtection] Первые 3 доступных предмета:`,
+        availableItems.slice(0, 3).map(item => ({ id: item.id, name: item.name, price: item.price })));
+    }
 
     if (availableItems.length === 0) {
       console.log(`[selectItemWithFullDuplicateProtection] ВНИМАНИЕ: Все предметы исключены для пользователя Статус++!`);
@@ -370,7 +380,7 @@ function selectItemWithFullDuplicateProtection(
       return null;
     }
 
-    return selectItemWithModifiedWeights(availableItems, userSubscriptionTier, excludedItems);
+    return selectItemWithModifiedWeights(availableItems, userSubscriptionTier, []);
   }
 
   // Для обычных пользователей используем стандартную логику (без исключений)
