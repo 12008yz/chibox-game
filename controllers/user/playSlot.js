@@ -44,7 +44,8 @@ async function selectRandomItemFromRarity(rarity) {
       rarity: rarity,
       in_stock: true
     },
-    order: sequelize.random()
+    order: sequelize.random(),
+    limit: 1
   });
 
   if (items.length === 0) {
@@ -57,6 +58,31 @@ async function selectRandomItemFromRarity(rarity) {
       order: sequelize.random(),
       limit: 1
     });
+
+    if (fallbackItems.length === 0) {
+      // Если даже consumer предметов нет, берём любой доступный предмет
+      const anyItems = await Item.findAll({
+        where: {
+          in_stock: true
+        },
+        order: sequelize.random(),
+        limit: 1
+      });
+
+      if (anyItems.length === 0) {
+        // Если вообще нет предметов, создаём заглушку
+        return {
+          id: 'placeholder',
+          name: 'Placeholder Item',
+          image_url: '/placeholder-item.jpg',
+          rarity: 'consumer',
+          price: 1.00
+        };
+      }
+
+      return anyItems[0];
+    }
+
     return fallbackItems[0];
   }
 
@@ -76,16 +102,36 @@ async function generateSlotResult() {
     // Выигрыш: 3 одинаковых предмета
     const rarity = selectRandomRarity();
     const item = await selectRandomItemFromRarity(rarity);
+
+    // Проверяем что предмет валиден
+    if (!item || !item.id) {
+      logger.error('Invalid item generated for slot win');
+      throw new Error('Failed to generate valid winning item');
+    }
+
     result.push(item, item, item);
   } else {
     // Проигрыш: 3 разных предмета или 2 одинаковых
     for (let i = 0; i < 3; i++) {
       const rarity = selectRandomRarity();
       const item = await selectRandomItemFromRarity(rarity);
+
+      // Проверяем что предмет валиден
+      if (!item || !item.id) {
+        logger.error(`Invalid item generated for slot position ${i}`);
+        throw new Error(`Failed to generate valid item for slot position ${i}`);
+      }
+
       result.push(item);
     }
 
-    // Убеждаемся что нет 3 одинаковых
+    // Убеждаемся что все предметы валидны и нет 3 одинаковых
+    const validItems = result.filter(item => item && item.id);
+    if (validItems.length !== 3) {
+      logger.error('Invalid slot result: some items are undefined');
+      throw new Error('Failed to generate valid slot result');
+    }
+
     const itemIds = result.map(item => item.id);
     const uniqueIds = [...new Set(itemIds)];
 
@@ -93,6 +139,13 @@ async function generateSlotResult() {
       // Если все одинаковые, заменяем последний на другой
       const rarity = selectRandomRarity();
       const newItem = await selectRandomItemFromRarity(rarity);
+
+      // Проверяем что новый предмет валиден
+      if (!newItem || !newItem.id) {
+        logger.error('Invalid replacement item generated for slot');
+        throw new Error('Failed to generate valid replacement item');
+      }
+
       result[2] = newItem;
     }
   }
@@ -142,9 +195,13 @@ const playSlot = async (req, res) => {
     const uniqueIds = [...new Set(itemIds)];
     const isWin = uniqueIds.length === 1;
 
+    // Сохраняем начальный баланс
+    const balanceBefore = user.balance;
+    const balanceAfter = user.balance - SLOT_COST;
+
     // Списываем стоимость игры
     await user.update({
-      balance: user.balance - SLOT_COST
+      balance: balanceAfter
     }, { transaction });
 
     // Создаём транзакцию списания
@@ -152,6 +209,8 @@ const playSlot = async (req, res) => {
       user_id: userId,
       type: 'slot_play',
       amount: -SLOT_COST,
+      balance_before: balanceBefore,
+      balance_after: balanceAfter,
       description: 'Игра в слот',
       status: 'completed'
     }, { transaction });
@@ -193,7 +252,7 @@ const playSlot = async (req, res) => {
           price: wonItem.price
         } : null,
         cost: SLOT_COST,
-        newBalance: user.balance - SLOT_COST
+        newBalance: balanceAfter
       }
     });
 
