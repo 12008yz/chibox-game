@@ -207,7 +207,7 @@ const playSlot = async (req, res) => {
     // Создаём транзакцию списания
     await Transaction.create({
       user_id: userId,
-      type: 'slot_play',
+      type: 'balance_subtract',
       amount: -SLOT_COST,
       balance_before: balanceBefore,
       balance_after: balanceAfter,
