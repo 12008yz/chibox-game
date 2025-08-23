@@ -5,17 +5,143 @@ const { Op } = require('sequelize');
 // Стоимость одного спина в рублях
 const SLOT_COST = 10.00;
 
-// Конфигурация весов для раритетностей
+// Конфигурация весов для раритетностей (для выбора предметов)
 const RARITY_WEIGHTS = {
-  'consumer': 50,      // 50% шанс
+  'consumer': 40,      // 40% шанс
   'industrial': 25,    // 25% шанс
   'milspec': 15,       // 15% шанс
-  'restricted': 6,     // 6% шанс
-  'classified': 3,     // 3% шанс
-  'covert': 1,         // 1% шанс
-  'contraband': 0.1,   // 0.1% шанс
-  'exotic': 0.05       // 0.05% шанс
+  'restricted': 10,    // 10% шанс
+  'classified': 6,     // 6% шанс
+  'covert': 3,         // 3% шанс
+  'contraband': 1,     // 1% шанс
+  'exotic': 0.5        // 0.5% шанс
 };
+
+/**
+ * Кэш предметов для слота
+ */
+let slotItemsCache = null;
+let cacheExpiry = null;
+const CACHE_DURATION = 300000; // 5 минут
+
+/**
+ * Получает предметы для слота из базы данных с кэшированием
+ */
+async function getSlotItems() {
+  // Проверяем кэш
+  if (slotItemsCache && cacheExpiry && Date.now() < cacheExpiry) {
+    return slotItemsCache;
+  }
+
+  try {
+    // Получаем предметы всех редкостей
+    const items = await Item.findAll({
+      where: {
+        is_available: true,
+        in_stock: true,
+        price: {
+          [Op.gt]: 0
+        }
+      },
+      attributes: [
+        'id',
+        'name',
+        'image_url',
+        'price',
+        'rarity',
+        'weapon_type',
+        'skin_name'
+      ],
+      order: [
+        ['rarity', 'DESC'],
+        ['price', 'DESC']
+      ],
+      limit: 200
+    });
+
+    if (items.length === 0) {
+      logger.warn('No items found for slot game');
+      // Возвращаем заглушечные предметы если в базе ничего нет
+      return [{
+        id: 'fallback-1',
+        name: 'AK-47 | Redline',
+        image_url: null,
+        rarity: 'classified',
+        price: 45.50
+      }];
+    }
+
+    // Группируем предметы по редкости
+    const itemsByRarity = {
+      consumer: [],
+      industrial: [],
+      milspec: [],
+      restricted: [],
+      classified: [],
+      covert: [],
+      contraband: [],
+      exotic: []
+    };
+
+    items.forEach(item => {
+      const rarity = item.rarity || 'consumer';
+      if (itemsByRarity[rarity]) {
+        itemsByRarity[rarity].push({
+          id: item.id,
+          name: item.name,
+          image_url: item.image_url,
+          price: parseFloat(item.price) || 0,
+          rarity: item.rarity,
+          weapon_type: item.weapon_type,
+          skin_name: item.skin_name
+        });
+      }
+    });
+
+    // Создаем сбалансированный набор для слота
+    const slotItems = [];
+    const rarityLimits = {
+      consumer: 30,
+      industrial: 25,
+      milspec: 20,
+      restricted: 15,
+      classified: 10,
+      covert: 8,
+      contraband: 5,
+      exotic: 3
+    };
+
+    Object.entries(rarityLimits).forEach(([rarity, limit]) => {
+      const rarityItems = itemsByRarity[rarity] || [];
+      const itemsToAdd = rarityItems.slice(0, limit);
+      slotItems.push(...itemsToAdd);
+    });
+
+    // Если предметов мало, добавляем больше дешевых
+    if (slotItems.length < 50) {
+      const additionalConsumer = itemsByRarity.consumer.slice(30, 80);
+      slotItems.push(...additionalConsumer);
+    }
+
+    // Обновляем кэш
+    slotItemsCache = slotItems;
+    cacheExpiry = Date.now() + CACHE_DURATION;
+
+    logger.info(`Loaded ${slotItems.length} items for slot game`);
+    return slotItems;
+
+  } catch (error) {
+    logger.error('Error loading slot items:', error);
+    // Возвращаем заглушку при ошибке
+    return [{
+      id: 'fallback-1',
+      name: 'Default Item',
+      image_url: null,
+      rarity: 'consumer',
+      price: 1.00
+    }];
+  }
+}
 
 /**
  * Выбирает случайную раритетность на основе весов
@@ -36,72 +162,47 @@ function selectRandomRarity() {
 }
 
 /**
- * Выбирает случайный предмет из заданной раритетности
+ * Выбирает случайный предмет из заданной раритетности из предметов слота
  */
-async function selectRandomItemFromRarity(rarity) {
-  const items = await Item.findAll({
-    where: {
-      rarity: rarity,
-      in_stock: true
-    },
-    order: sequelize.random(),
-    limit: 1
-  });
+function selectRandomItemFromRarity(rarity, slotItems) {
+  const itemsOfRarity = slotItems.filter(item => item.rarity === rarity);
 
-  if (items.length === 0) {
+  if (itemsOfRarity.length === 0) {
     // Если нет предметов этой раритетности, берём consumer
-    const fallbackItems = await Item.findAll({
-      where: {
-        rarity: 'consumer',
-        in_stock: true
-      },
-      order: sequelize.random(),
-      limit: 1
-    });
-
-    if (fallbackItems.length === 0) {
-      // Если даже consumer предметов нет, берём любой доступный предмет
-      const anyItems = await Item.findAll({
-        where: {
-          in_stock: true
-        },
-        order: sequelize.random(),
-        limit: 1
-      });
-
-      if (anyItems.length === 0) {
-        // Если вообще нет предметов, создаём заглушку
+    const consumerItems = slotItems.filter(item => item.rarity === 'consumer');
+    if (consumerItems.length === 0) {
+      // Если даже consumer предметов нет, берём любой
+      if (slotItems.length === 0) {
         return {
-          id: 'placeholder',
-          name: 'Placeholder Item',
-          image_url: '/placeholder-item.jpg',
+          id: 'fallback',
+          name: 'Default Item',
+          image_url: null,
           rarity: 'consumer',
           price: 1.00
         };
       }
-
-      return anyItems[0];
+      return slotItems[Math.floor(Math.random() * slotItems.length)];
     }
-
-    return fallbackItems[0];
+    return consumerItems[Math.floor(Math.random() * consumerItems.length)];
   }
 
-  return items[0];
+  return itemsOfRarity[Math.floor(Math.random() * itemsOfRarity.length)];
 }
 
 /**
  * Генерирует результат слота (3 предмета)
  */
 async function generateSlotResult() {
+  const slotItems = await getSlotItems();
   const result = [];
 
-  // Определяем, будет ли это выигрыш (5% шанс)
-  const isWin = Math.random() < 0.05;
+  // Определяем, будет ли это выигрыш (8% шанс для более честной игры)
+  const isWin = Math.random() < 0.08;
 
   if (isWin) {
     // Выигрыш: 3 одинаковых предмета
     const rarity = selectRandomRarity();
-    const item = await selectRandomItemFromRarity(rarity);
+    const item = selectRandomItemFromRarity(rarity, slotItems);
 
     // Проверяем что предмет валиден
     if (!item || !item.id) {
@@ -111,10 +212,19 @@ async function generateSlotResult() {
 
     result.push(item, item, item);
   } else {
-    // Проигрыш: 3 разных предмета или 2 одинаковых
+    // Проигрыш: 3 разных предмета
+    const usedIds = new Set();
+
     for (let i = 0; i < 3; i++) {
-      const rarity = selectRandomRarity();
-      const item = await selectRandomItemFromRarity(rarity);
+      let attempts = 0;
+      let item;
+
+      // Пытаемся найти уникальный предмет (до 10 попыток)
+      do {
+        const rarity = selectRandomRarity();
+        item = selectRandomItemFromRarity(rarity, slotItems);
+        attempts++;
+      } while (usedIds.has(item.id) && attempts < 10);
 
       // Проверяем что предмет валиден
       if (!item || !item.id) {
@@ -122,31 +232,28 @@ async function generateSlotResult() {
         throw new Error(`Failed to generate valid item for slot position ${i}`);
       }
 
+      usedIds.add(item.id);
       result.push(item);
     }
 
-    // Убеждаемся что все предметы валидны и нет 3 одинаковых
-    const validItems = result.filter(item => item && item.id);
-    if (validItems.length !== 3) {
-      logger.error('Invalid slot result: some items are undefined');
-      throw new Error('Failed to generate valid slot result');
-    }
-
+    // Проверяем что не получилось 3 одинаковых случайно
     const itemIds = result.map(item => item.id);
     const uniqueIds = [...new Set(itemIds)];
 
     if (uniqueIds.length === 1) {
       // Если все одинаковые, заменяем последний на другой
-      const rarity = selectRandomRarity();
-      const newItem = await selectRandomItemFromRarity(rarity);
+      let newItem;
+      let attempts = 0;
 
-      // Проверяем что новый предмет валиден
-      if (!newItem || !newItem.id) {
-        logger.error('Invalid replacement item generated for slot');
-        throw new Error('Failed to generate valid replacement item');
+      do {
+        const rarity = selectRandomRarity();
+        newItem = selectRandomItemFromRarity(rarity, slotItems);
+        attempts++;
+      } while (newItem.id === result[0].id && attempts < 10);
+
+      if (newItem && newItem.id !== result[0].id) {
+        result[2] = newItem;
       }
-
-      result[2] = newItem;
     }
   }
 
@@ -221,14 +328,22 @@ const playSlot = async (req, res) => {
       // Добавляем выигранный предмет в инвентарь
       wonItem = slotResult[0];
 
-      await UserInventory.create({
-        user_id: userId,
-        item_id: wonItem.id,
-        status: 'won',
-        source: 'slot_game'
-      }, { transaction });
+      // Проверяем что предмет существует в базе данных
+      const itemExists = await Item.findByPk(wonItem.id);
 
-      logger.info(`User ${userId} won item ${wonItem.id} in slot game`);
+      if (itemExists) {
+        await UserInventory.create({
+          user_id: userId,
+          item_id: wonItem.id,
+          status: 'won',
+          source: 'slot_game'
+        }, { transaction });
+
+        logger.info(`User ${userId} won item ${wonItem.id} (${wonItem.name}) in slot game`);
+      } else {
+        logger.warn(`Won item ${wonItem.id} does not exist in database, skipping inventory addition`);
+        // Не добавляем предмет в инвентарь если его нет в базе (fallback предмет)
+      }
     }
 
     await transaction.commit();
