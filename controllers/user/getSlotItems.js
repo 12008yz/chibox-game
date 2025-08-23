@@ -4,17 +4,22 @@ const { Op } = require('sequelize');
 
 /**
  * Получение предметов для слот-игры
- * Возвращает ассортимент предметов всех редкостей для отображения в слоте
+ * Возвращает только специальные предметы слота с изображениями
  */
 const getSlotItems = async (req, res) => {
   try {
-    // Получаем предметы всех редкостей для разнообразия в слоте
+    // Получаем только предметы слота с origin = 'slot_machine'
     const items = await Item.findAll({
       where: {
+        origin: 'slot_machine', // только предметы слота
         is_available: true,
         in_stock: true,
+        image_url: {
+          [Op.not]: null,
+          [Op.ne]: ''
+        },
         price: {
-          [Op.gt]: 0 // Только предметы с ценой больше 0
+          [Op.gt]: 0
         }
       },
       attributes: [
@@ -24,23 +29,35 @@ const getSlotItems = async (req, res) => {
         'price',
         'rarity',
         'weapon_type',
-        'skin_name'
+        'skin_name',
+        'steam_market_hash_name'
       ],
       order: [
-        ['rarity', 'DESC'], // Сначала редкие
-        ['price', 'DESC']   // Потом по цене
-      ],
-      limit: 200 // Достаточно для разнообразия в слоте
+        ['rarity', 'ASC'], // сначала дешевые
+        ['price', 'ASC']   // потом по цене
+      ]
     });
 
     if (items.length === 0) {
       return res.status(404).json({
         success: false,
-        message: 'Предметы для слота не найдены'
+        message: 'Предметы для слота не найдены. Запустите скрипт add-slot-items.js'
       });
     }
 
-    // Группируем предметы по редкости для баланса
+    // Преобразуем в нужный формат
+    const slotItems = items.map(item => ({
+      id: item.id,
+      name: item.name,
+      image_url: item.image_url,
+      price: parseFloat(item.price) || 0,
+      rarity: item.rarity,
+      weapon_type: item.weapon_type,
+      skin_name: item.skin_name,
+      steam_market_hash_name: item.steam_market_hash_name
+    }));
+
+    // Группируем предметы по редкости для статистики
     const itemsByRarity = {
       consumer: [],
       industrial: [],
@@ -52,47 +69,12 @@ const getSlotItems = async (req, res) => {
       exotic: []
     };
 
-    items.forEach(item => {
+    slotItems.forEach(item => {
       const rarity = item.rarity || 'consumer';
       if (itemsByRarity[rarity]) {
-        itemsByRarity[rarity].push({
-          id: item.id,
-          name: item.name,
-          image_url: item.image_url,
-          price: parseFloat(item.price) || 0,
-          rarity: item.rarity,
-          weapon_type: item.weapon_type,
-          skin_name: item.skin_name
-        });
+        itemsByRarity[rarity].push(item);
       }
     });
-
-    // Создаем сбалансированный набор для слота
-    const slotItems = [];
-
-    // Добавляем предметы каждой редкости в нужном количестве
-    const rarityLimits = {
-      consumer: 30,     // 30 дешевых предметов
-      industrial: 25,   // 25 промышленных
-      milspec: 20,      // 20 армейских
-      restricted: 15,   // 15 запрещенных
-      classified: 10,   // 10 засекреченных
-      covert: 8,        // 8 секретных
-      contraband: 5,    // 5 контрабанды
-      exotic: 3         // 3 экзотических
-    };
-
-    Object.entries(rarityLimits).forEach(([rarity, limit]) => {
-      const rarityItems = itemsByRarity[rarity] || [];
-      const itemsToAdd = rarityItems.slice(0, limit);
-      slotItems.push(...itemsToAdd);
-    });
-
-    // Если предметов все еще мало, добавляем больше дешевых
-    if (slotItems.length < 50) {
-      const additionalConsumer = itemsByRarity.consumer.slice(30, 80);
-      slotItems.push(...additionalConsumer);
-    }
 
     logger.info(`Получено ${slotItems.length} предметов для слота`);
 
@@ -103,7 +85,8 @@ const getSlotItems = async (req, res) => {
         total_count: slotItems.length,
         rarity_distribution: Object.fromEntries(
           Object.entries(itemsByRarity).map(([rarity, items]) => [rarity, items.length])
-        )
+        ),
+        message: 'Предметы слота загружены успешно'
       }
     });
 
