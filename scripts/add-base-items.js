@@ -5,7 +5,7 @@ const db = require('../models');
 // Импортируем новые сервисы
 const SteamPriceService = require('../services/steamPriceService');
 const FixDropWeights = require('./fix-drop-weights');
-const { parseImageFromSteamPage, isValidSteamImageUrl } = require('./parse-item-images');
+// Убираем импорт функций парсинга изображений, так как теперь используем ссылки на страницы
 
 // Импортируем полный список URLs
 const COMPLETE_ITEMS_URLS = require('../utils/linkItems-complete');
@@ -144,42 +144,22 @@ function extractMarketHashNameFromUrl(url) {
   }
 }
 
-// Функция для валидации URL изображения
-function isValidImageUrl(url) {
+// Функция для валидации URL страницы Steam Market
+function isValidMarketPageUrl(url) {
   if (!url || typeof url !== 'string') return false;
 
-  // Проверяем, что это действительно URL изображения Steam
-  const steamImageRegex = /^https?:\/\/.*steamstatic\.com\/economy\/image\//;
+  // Проверяем, что это ссылка на страницу Steam Market
+  const steamMarketRegex = /^https?:\/\/steamcommunity\.com\/market\/listings\/730\//;
 
-  // Исключаем страницы Steam Market
-  const steamPageRegex = /steamcommunity\.com\/market\/listings/;
-
-  // Исключаем hash-ссылки или placeholder'ы
-  const invalidPatterns = [
-    /^#/,                    // hash ссылки
-    /placeholder/i,          // placeholder изображения
-    /default/i,              // дефолтные изображения
-    /\/market\/listings\//   // ссылки на страницы
-  ];
-
-  if (steamPageRegex.test(url)) return false;
-
-  for (const pattern of invalidPatterns) {
-    if (pattern.test(url)) return false;
-  }
-
-  return steamImageRegex.test(url) || url.includes('steamstatic.com/economy/image/');
+  return steamMarketRegex.test(url);
 }
 
-// Функция для генерации стандартного URL изображения Steam или null
-function generateSteamImageUrl(marketHashName) {
-  // Вместо создания некорректного URL, возвращаем null
-  // Это позволит фронтенду отображать placeholder или дефолтное изображение
-  console.log(`⚠️  Не удалось получить изображение для: ${marketHashName}, будет использован placeholder`);
-  return null;
-
-  // Альтернативно, можно вернуть URL стандартного placeholder'а:
-  // return 'https://community.fastly.steamstatic.com/economy/image/placeholder.png';
+// Функция для генерации URL страницы Steam Market
+function generateSteamMarketUrl(marketHashName) {
+  // Создаем ссылку на страницу Steam Market
+  const marketUrl = `https://steamcommunity.com/market/listings/730/${encodeURIComponent(marketHashName)}`;
+  console.log(`🔄 Сгенерирована ссылка на страницу: ${marketUrl}`);
+  return marketUrl;
 }
 
 // Функция для обработки одного предмета с актуальными ценами
@@ -228,17 +208,17 @@ async function processItem(url, originalRarity, caseType) {
     // Создаем ссылку на Steam Market
     const steamMarketUrl = `https://steamcommunity.com/market/listings/730/${encodeURIComponent(marketHashName)}`;
 
-    // Парсим изображение предмета со страницы Steam Market
-    console.log(`🖼️  Парсим изображение для: ${marketHashName}`);
-    let imageUrl = await parseImageFromSteamPage(url);
+    // Используем URL страницы Steam Market из linkItems-complete.js как image_url
+    console.log(`🖼️  Используем ссылку на страницу Steam Market: ${url}`);
+    let imageUrl = url; // Сохраняем оригинальный URL из linkItems-complete.js
 
-    // Валидируем полученный URL изображения
-    if (!imageUrl || !isValidImageUrl(imageUrl)) {
-      // Пытаемся построить стандартный URL Steam изображения
-      imageUrl = generateSteamImageUrl(marketHashName);
-      console.log(`🔄 Используем сгенерированный URL: ${imageUrl}`);
+    // Валидируем что это корректная ссылка на Steam Market
+    if (!isValidMarketPageUrl(imageUrl)) {
+      // Если URL некорректный, генерируем новый
+      imageUrl = generateSteamMarketUrl(marketHashName);
+      console.log(`🔄 Используем сгенерированный URL страницы: ${imageUrl}`);
     } else {
-      console.log(`✅ Получен корректный URL изображения: ${imageUrl}`);
+      console.log(`✅ Используем URL страницы: ${imageUrl}`);
     }
 
     // Извлекаем детали предмета

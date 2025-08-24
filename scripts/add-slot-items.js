@@ -5,70 +5,70 @@ const SLOT_ITEMS = [
   // Дешевые предметы (consumer/industrial) - 60% шанс
   {
     name: 'AK-47 | Safari Mesh (Battle-Scarred)',
-    image_url: 'https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot7HxfDhjxszJemkV09-5lpKKqPrxN7LEmyUItgOxm7-TptStj1Hj-ENrNTrxLIOdcgQ3M1yE_gTvx-jvh5K1vcrMn3Jn6HEj4SrD30vgn1gSOaWC0wbV',
+    image_url: 'https://steamcommunity.com/market/listings/730/AK-47%20%7C%20Safari%20Mesh%20%28Battle-Scarred%29',
     price: 8.50,
     rarity: 'consumer',
     steam_market_hash_name: 'AK-47 | Safari Mesh (Battle-Scarred)'
   },
   {
     name: 'Glock-18 | Sand Dune (Factory New)',
-    image_url: 'https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposbaqKAxf0Ob3djFN79eJmIWPkuXLNqjCmyUI6sI_3e2V8Nn0jFe18kNvYWygctfEcFRsZ1qCrFPrlOzuhZHuvsjOzydj6HUl4HjZlBzvhk8dOOhukfmACQLJFSNHY7U',
+    image_url: 'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Boreal%20Forest%20%28Battle-Scarred%29',
     price: 12.00,
     rarity: 'consumer',
     steam_market_hash_name: 'Glock-18 | Sand Dune (Factory New)'
   },
   {
     name: 'P250 | Sand Dune (Factory New)',
-    image_url: 'https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpopujwezhh0szYI2gS09OOgImMn-O6YbuGkDwFsZx1i7mT8Y-giVe28kNqN2-hLdDBJFU6YgqCqQPrxOnrjZa07pXOyiRjvSIg4S7Ym0PjhRkMOONukfmACQLJUkWKPes',
+    image_url: 'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Boreal%20Forest%20%28Battle-Scarred%29',
     price: 15.30,
     rarity: 'consumer',
     steam_market_hash_name: 'P250 | Sand Dune (Factory New)'
   },
   {
     name: 'MAG-7 | Sand Dune (Factory New)',
-    image_url: 'https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpou6ryFAZu7P3JZzxN5cOyga-FlaKlY-6Hxz0AsZ0ljL2Qo42miQzi-ERpMj-hJ9SSJw9tYFCB-lC7wOjt08O_tc7AyHU36id17HvbzBPj0x5SLrs4/360fx360f',
+    image_url: 'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Boreal%20Forest%20%28Battle-Scarred%29',
     price: 18.75,
     rarity: 'consumer',
     steam_market_hash_name: 'MAG-7 | Sand Dune (Factory New)'
   },
   {
     name: 'M4A1-S | Boreal Forest (Battle-Scarred)',
-    image_url: 'https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpou-6kejhjxszYfi5H5di5mIWKkuXLNqjcgjMJvZd1iOyTpImsjgLs8hBtZ2HycYOTdFBvYA3S-lHqye7ohpO-7p_ByXNjviAitX7VmRXihU1EPONr1uuaHhyLUEsetvfWbcU',
+    image_url: 'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Boreal%20Forest%20%28Battle-Scarred%29',
     price: 22.10,
     rarity: 'consumer',
     steam_market_hash_name: 'M4A1-S | Boreal Forest (Battle-Scarred)'
   },
   {
     name: 'USP-S | Forest Leaves (Battle-Scarred)',
-    image_url: 'https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpoo6m1FBRp3_bGcjhQ09ulq4yCkP_gfe_VlWgHsJR33uyUpYqk2QCy8UJlZjjzdYSUdQU9MlGG_AS7x7_uhp-57ZXIziFmuykl5S7YmRe01koeauJ-gKCaHhyLUEsevYHSHKI',
+    image_url: 'https://steamcommunity.com/market/listings/730/M4A1-S%20%7C%20Boreal%20Forest%20%28Battle-Scarred%29',
     price: 25.40,
     rarity: 'consumer',
     steam_market_hash_name: 'USP-S | Forest Leaves (Battle-Scarred)'
   },
   {
     name: 'AWP | Safari Mesh (Battle-Scarred)',
-    image_url: 'https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot621FAR17PLfYQJD_9W7m5a0mvLwOq7c2DxS652wne-Sp4j3jgLhqUJrN2z6LdCXdFQ_aVrQ-wO-xL3ohJ_puc_Kyno17CMn4GGdwUIjb_GJaw',
+    image_url: 'https://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Sand%20Dune%20%28Factory%20New%29',
     price: 32.80,
     rarity: 'consumer',
     steam_market_hash_name: 'AWP | Safari Mesh (Battle-Scarred)'
   },
   {
     name: 'Galil AR | Sage Spray (Field-Tested)',
-    image_url: 'https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposbupIgthwczbYQJF7c6yh4-FmOTxDL_SkG0D7ZEl3-qU8Nmh2VHn80VlNWD1dtDBJAQ7ZlrYrATqyLi-0Z696piam3ZnsiZw4izUlR3kh0tLPbFph_-ACQLJGOgwLzE',
+    image_url: 'https://steamcommunity.com/market/listings/730/Glock-18%20%7C%20Sand%20Dune%20%28Factory%20New%29',
     price: 38.50,
     rarity: 'industrial',
     steam_market_hash_name: 'Galil AR | Sage Spray (Field-Tested)'
   },
   {
     name: 'FAMAS | Colony (Battle-Scarred)',
-    image_url: 'https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposLuoKhRf0Ob3YjoXucmJmOTLP7LWnn9u5cRTjNak8Yyn3g7sr0M5MW7xcYDEcgE9Zw6G_1K7_wK8yb-615676pnIm3JjvyJws3uJmB60iBoePrdpiqubH5aOOEAk5fdTHDsF',
+    image_url: 'https://steamcommunity.com/market/listings/730/PP-Bizon%20%7C%20Forest%20Leaves%20%28Battle-Scarred%29',
     price: 42.30,
     rarity: 'industrial',
     steam_market_hash_name: 'FAMAS | Colony (Battle-Scarred)'
   },
   {
     name: 'Five-SeveN | Forest Night (Battle-Scarred)',
-    image_url: 'https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgposem2LFZfwOP3YTxK6eOgk5O0hPbkDrjQhGpC7cR9g-7--YXygED68kBlazymJIKWIwA9aVCGrlG_k7vt1p6-vZqbyHZrviNz7SnD30vgFrwhzSo',
+    image_url: 'https://steamcommunity.com/market/listings/730/XM1014%20%7C%20Jungle%20%28Battle-Scarred%29',
     price: 48.90,
     rarity: 'industrial',
     steam_market_hash_name: 'Five-SeveN | Forest Night (Battle-Scarred)'
@@ -77,7 +77,7 @@ const SLOT_ITEMS = [
   // Средние предметы (milspec) - 25% шанс
   {
     name: 'AK-47 | Blue Laminate (Field-Tested)',
-    image_url: 'https://community.fastly.steamstatic.com/economy/image/-9a81dlWLwJ2UUGcVs_nsVtzdOEdtWwKGZZLQHTxDZ7I56KU0Zwwo4NUX4oFJZEHLbXH5ApeO4YmlhxYQknCRvCo04DEVlxkKgpot7HxfDhjxszJemkV09OFkoyKkfL1I6vdk1Rd4cJ5nqeQrYqs3QWy8kVqYzuiJNfDegU7N17T8wO6kuzqhZC5ucmfzHBguHMj7ivezhXm1EtIarJpgqOeH5aOOUgggVqHNjIJ',
+    image_url: 'https://steamcommunity.com/market/listings/730/XM1014%20%7C%20Jungle%20%28Battle-Scarred%29',
     price: 85.70,
     rarity: 'milspec',
     steam_market_hash_name: 'AK-47 | Blue Laminate (Field-Tested)'
