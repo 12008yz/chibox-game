@@ -1,144 +1,171 @@
 const db = require('../models');
+const { parseImageFromSteamPage, isValidSteamImageUrl } = require('./parse-item-images');
 
-// Функция для создания URL страницы Steam Market из market_hash_name
-function createMarketPageUrl(marketHashName) {
-  return `https://steamcommunity.com/market/listings/730/${encodeURIComponent(marketHashName)}`;
+// Функция для проверки, является ли URL ссылкой на страницу Steam Market
+function isSteamMarketPageUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  return url.includes('steamcommunity.com/market/listings/730/');
 }
 
-// Основная функция для исправления URL изображений
-async function fixImageUrls() {
-  console.log('🔧 Начинаем исправление URL изображений...\n');
+// Функция для исправления изображений всех предметов
+async function fixAllItemImages() {
+  console.log('🚀 Начинаем исправление изображений предметов...');
 
   try {
-    // Находим все предметы с прямыми ссылками на изображения Steam
-    const items = await db.Item.findAll({
+    // Находим все предметы с некорректными изображениями
+    const itemsWithBadImages = await db.Item.findAll({
       where: {
         image_url: {
-          [db.Sequelize.Op.like]: '%steamstatic.com%'
-        },
-        steam_market_hash_name: {
-          [db.Sequelize.Op.not]: null
+          [db.Sequelize.Op.like]: '%steamcommunity.com/market/listings/730/%'
         }
       }
     });
 
-    console.log(`🔍 Найдено ${items.length} предметов для обновления`);
+    console.log(`🔍 Найдено ${itemsWithBadImages.length} предметов с некорректными изображениями`);
 
-    let updated = 0;
+    if (itemsWithBadImages.length === 0) {
+      console.log('✅ Все изображения уже исправлены!');
+      return;
+    }
+
+    let processed = 0;
+    let fixed = 0;
     let errors = 0;
 
-    for (const item of items) {
+    for (const item of itemsWithBadImages) {
+      processed++;
+
+      console.log(`\n🔄 [${processed}/${itemsWithBadImages.length}] Обрабатываем: ${item.name}`);
+
       try {
-        // Создаем новый URL страницы Steam Market
-        const newImageUrl = createMarketPageUrl(item.steam_market_hash_name);
+        // Проверяем, действительно ли это ссылка на страницу
+        if (!isSteamMarketPageUrl(item.image_url)) {
+          console.log(`⏭️  Пропускаем, не является ссылкой на страницу: ${item.image_url}`);
+          continue;
+        }
 
-        // Обновляем запись
-        await item.update({ image_url: newImageUrl });
+        // Парсим правильное изображение
+        console.log(`🖼️  Получаем изображение для: ${item.steam_market_hash_name || item.name}`);
+        const correctImageUrl = await parseImageFromSteamPage(item.image_url);
 
-        updated++;
-        console.log(`✅ ${updated}/${items.length} Обновлен: ${item.name}`);
-        console.log(`   Старый URL: ${item.image_url}`);
-        console.log(`   Новый URL: ${newImageUrl}\n`);
+        if (correctImageUrl && isValidSteamImageUrl(correctImageUrl)) {
+          // Обновляем запись в БД
+          await item.update({ image_url: correctImageUrl });
+          console.log(`✅ Исправлено: ${item.name}`);
+          console.log(`   Старое: ${item.image_url}`);
+          console.log(`   Новое:  ${correctImageUrl}`);
+          fixed++;
+        } else {
+          // Используем дефолтное изображение
+          const defaultImage = 'https://community.fastly.steamstatic.com/economy/image/6TMcQ7eX6E0EZl2byXi7vaVtMyCbg7JT9Nj26yLB0uiTHKECVqCQJYPQOiKc1A9hdeGdqRmPbEbD8Q_VfQ/256fx256f';
+          await item.update({ image_url: defaultImage });
+          console.log(`⚠️  Использовано дефолтное изображение для: ${item.name}`);
+          fixed++;
+        }
+
+        // Добавляем небольшую задержку чтобы не перегружать Steam
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
       } catch (error) {
+        console.error(`❌ Ошибка при обработке ${item.name}:`, error.message);
         errors++;
-        console.error(`❌ Ошибка для ${item.name}:`, error.message);
+
+        // В случае ошибки используем дефолтное изображение
+        try {
+          const defaultImage = 'https://community.fastly.steamstatic.com/economy/image/6TMcQ7eX6E0EZl2byXi7vaVtMyCbg7JT9Nj26yLB0uiTHKECVqCQJYPQOiKc1A9hdeGdqRmPbEbD8Q_VfQ/256fx256f';
+          await item.update({ image_url: defaultImage });
+          console.log(`🔧 Установлено дефолтное изображение для: ${item.name}`);
+        } catch (updateError) {
+          console.error(`❌ Критическая ошибка обновления ${item.name}:`, updateError.message);
+        }
+      }
+
+      // Показываем прогресс каждые 10 предметов
+      if (processed % 10 === 0) {
+        console.log(`\n📊 Прогресс: ${processed}/${itemsWithBadImages.length} | Исправлено: ${fixed} | Ошибок: ${errors}`);
       }
     }
 
-    console.log('\n🎉 Исправление завершено!');
+    console.log(`\n🎉 Исправление завершено!`);
     console.log(`📊 Статистика:`);
-    console.log(`   ✅ Успешно обновлено: ${updated}`);
-    console.log(`   ❌ Ошибок: ${errors}`);
-    console.log(`   📋 Всего обработано: ${items.length}`);
+    console.log(`   - Обработано: ${processed}`);
+    console.log(`   - Исправлено: ${fixed}`);
+    console.log(`   - Ошибок: ${errors}`);
 
   } catch (error) {
     console.error('❌ Критическая ошибка:', error.message);
+    throw error;
   }
 }
 
-// Функция для проверки текущего состояния
-async function checkCurrentState() {
-  console.log('🔍 Проверяем текущее состояние базы данных...\n');
+// Функция для исправления конкретного предмета
+async function fixSpecificItemImage(itemName) {
+  console.log(`🔍 Ищем предмет: ${itemName}`);
 
   try {
-    const totalItems = await db.Item.count();
-
-    const steamImageItems = await db.Item.count({
-      where: {
-        image_url: {
-          [db.Sequelize.Op.like]: '%steamstatic.com%'
-        }
-      }
-    });
-
-    const marketPageItems = await db.Item.count({
-      where: {
-        image_url: {
-          [db.Sequelize.Op.like]: '%steamcommunity.com/market/listings%'
-        }
-      }
-    });
-
-    const nullImageItems = await db.Item.count({
+    const item = await db.Item.findOne({
       where: {
         [db.Sequelize.Op.or]: [
-          { image_url: null },
-          { image_url: '' }
+          { name: { [db.Sequelize.Op.iLike]: `%${itemName}%` } },
+          { steam_market_hash_name: { [db.Sequelize.Op.iLike]: `%${itemName}%` } }
         ]
       }
     });
 
-    console.log('📊 Статистика изображений:');
-    console.log(`   Всего предметов: ${totalItems}`);
-    console.log(`   Прямые ссылки на изображения: ${steamImageItems}`);
-    console.log(`   Ссылки на страницы Steam Market: ${marketPageItems}`);
-    console.log(`   Без изображений: ${nullImageItems}`);
-    console.log(`   Другие: ${totalItems - steamImageItems - marketPageItems - nullImageItems}`);
+    if (!item) {
+      console.log(`❌ Предмет не найден: ${itemName}`);
+      return;
+    }
 
-    // Показываем примеры
-    console.log('\n📋 Примеры текущих URL:');
+    console.log(`✅ Найден предмет: ${item.name}`);
+    console.log(`   Текущее изображение: ${item.image_url}`);
 
-    const examples = await db.Item.findAll({
-      limit: 5,
-      attributes: ['name', 'image_url'],
-      order: [['createdAt', 'DESC']]
-    });
+    if (!isSteamMarketPageUrl(item.image_url)) {
+      console.log(`ℹ️  Изображение уже корректное или не является ссылкой на Steam Market`);
+      return;
+    }
 
-    examples.forEach((item, index) => {
-      console.log(`${index + 1}. ${item.name}`);
-      console.log(`   URL: ${item.image_url || 'НЕТ'}\n`);
-    });
+    console.log(`🔄 Парсим корректное изображение...`);
+    const correctImageUrl = await parseImageFromSteamPage(item.image_url);
+
+    if (correctImageUrl && isValidSteamImageUrl(correctImageUrl)) {
+      await item.update({ image_url: correctImageUrl });
+      console.log(`✅ Изображение исправлено!`);
+      console.log(`   Новое изображение: ${correctImageUrl}`);
+    } else {
+      const defaultImage = 'https://community.fastly.steamstatic.com/economy/image/6TMcQ7eX6E0EZl2byXi7vaVtMyCbg7JT9Nj26yLB0uiTHKECVqCQJYPQOiKc1A9hdeGdqRmPbEbD8Q_VfQ/256fx256f';
+      await item.update({ image_url: defaultImage });
+      console.log(`⚠️  Использовано дефолтное изображение`);
+    }
 
   } catch (error) {
-    console.error('❌ Ошибка проверки:', error.message);
+    console.error(`❌ Ошибка при исправлении изображения для ${itemName}:`, error.message);
   }
 }
 
-// Экспорт функций
+// Экспортируем функции
 module.exports = {
-  fixImageUrls,
-  checkCurrentState,
-  createMarketPageUrl
+  fixAllItemImages,
+  fixSpecificItemImage
 };
 
-// Запуск если вызван напрямую
+// Если скрипт запущен напрямую
 if (require.main === module) {
-  const action = process.argv[2];
+  (async () => {
+    try {
+      const itemName = process.argv[2];
 
-  if (action === 'fix') {
-    fixImageUrls()
-      .then(() => process.exit(0))
-      .catch(error => {
-        console.error('❌ Ошибка:', error);
-        process.exit(1);
-      });
-  } else {
-    checkCurrentState()
-      .then(() => process.exit(0))
-      .catch(error => {
-        console.error('❌ Ошибка:', error);
-        process.exit(1);
-      });
-  }
+      if (itemName) {
+        // Исправляем конкретный предмет
+        await fixSpecificItemImage(itemName);
+      } else {
+        // Исправляем все предметы
+        await fixAllItemImages();
+      }
+    } catch (error) {
+      console.error('❌ Общая ошибка:', error.message);
+    } finally {
+      process.exit(0);
+    }
+  })();
 }

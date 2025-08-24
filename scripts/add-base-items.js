@@ -5,7 +5,8 @@ const db = require('../models');
 // Импортируем новые сервисы
 const SteamPriceService = require('../services/steamPriceService');
 const FixDropWeights = require('./fix-drop-weights');
-// Убираем импорт функций парсинга изображений, так как теперь используем ссылки на страницы
+// Импортируем функции парсинга изображений
+const { parseImageFromSteamPage, isValidSteamImageUrl } = require('./parse-item-images');
 
 // Импортируем полный список URLs
 const COMPLETE_ITEMS_URLS = require('../utils/linkItems-complete');
@@ -208,17 +209,25 @@ async function processItem(url, originalRarity, caseType) {
     // Создаем ссылку на Steam Market
     const steamMarketUrl = `https://steamcommunity.com/market/listings/730/${encodeURIComponent(marketHashName)}`;
 
-    // Используем URL страницы Steam Market из linkItems-complete.js как image_url
-    console.log(`🖼️  Используем ссылку на страницу Steam Market: ${url}`);
-    let imageUrl = url; // Сохраняем оригинальный URL из linkItems-complete.js
+    // Получаем правильную ссылку на изображение предмета
+    console.log(`🖼️  Получаем изображение предмета: ${marketHashName}`);
+    let imageUrl = null;
 
-    // Валидируем что это корректная ссылка на Steam Market
-    if (!isValidMarketPageUrl(imageUrl)) {
-      // Если URL некорректный, генерируем новый
-      imageUrl = generateSteamMarketUrl(marketHashName);
-      console.log(`🔄 Используем сгенерированный URL страницы: ${imageUrl}`);
-    } else {
-      console.log(`✅ Используем URL страницы: ${imageUrl}`);
+    try {
+      // Парсим изображение со страницы Steam Market
+      imageUrl = await parseImageFromSteamPage(url);
+
+      if (imageUrl && isValidSteamImageUrl(imageUrl)) {
+        console.log(`✅ Получено изображение: ${imageUrl}`);
+      } else {
+        console.log(`⚠️  Не удалось получить изображение, используем placeholder`);
+        // Используем дефолтное изображение CS2 предмета
+        imageUrl = 'https://community.fastly.steamstatic.com/economy/image/6TMcQ7eX6E0EZl2byXi7vaVtMyCbg7JT9Nj26yLB0uiTHKECVqCQJYPQOiKc1A9hdeGdqRmPbEbD8Q_VfQ/256fx256f';
+      }
+    } catch (error) {
+      console.error(`❌ Ошибка получения изображения для ${marketHashName}:`, error.message);
+      // Используем дефолтное изображение CS2 предмета
+      imageUrl = 'https://community.fastly.steamstatic.com/economy/image/6TMcQ7eX6E0EZl2byXi7vaVtMyCbg7JT9Nj26yLB0uiTHKECVqCQJYPQOiKc1A9hdeGdqRmPbEbD8Q_VfQ/256fx256f';
     }
 
     // Извлекаем детали предмета
