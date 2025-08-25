@@ -135,13 +135,22 @@ async function parseImageFromSteamPage(url) {
       }
     }
 
-    // 3. Ищем в скриптах или data-атрибутах
+    // 3. Ищем в скриптах или data-атрибутах (приоритет длинным хешам)
     if (!imageUrl) {
       const scriptContent = $('script').text();
-      const imageMatch = scriptContent.match(/https:\/\/community\.[^"']*steamstatic\.com\/economy\/image\/[^"'\s]+/);
-      if (imageMatch) {
-        imageUrl = imageMatch[0];
-        console.log(`🎯 Найдено в скриптах: ${imageUrl}`);
+      // Ищем изображения с длинными хешами (правильные)
+      const longHashMatches = scriptContent.match(/https:\/\/community\.[^"']*steamstatic\.com\/economy\/image\/[A-Za-z0-9_-]{100,}(?:\/\d+fx\d+f)?/g);
+      if (longHashMatches && longHashMatches.length > 0) {
+        // Берем самый длинный хеш
+        imageUrl = longHashMatches.sort((a, b) => b.length - a.length)[0];
+        console.log(`🎯 Найдено изображение с длинным хешем в скриптах: ${imageUrl}`);
+      } else {
+        // Fallback на любые изображения
+        const anyImageMatch = scriptContent.match(/https:\/\/community\.[^"']*steamstatic\.com\/economy\/image\/[^"'\s]+/);
+        if (anyImageMatch) {
+          imageUrl = anyImageMatch[0];
+          console.log(`🎯 Найдено изображение в скриптах: ${imageUrl}`);
+        }
       }
     }
 

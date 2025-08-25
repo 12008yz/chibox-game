@@ -220,14 +220,14 @@ async function processItem(url, originalRarity, caseType) {
       if (imageUrl && isValidSteamImageUrl(imageUrl)) {
         console.log(`✅ Получено изображение: ${imageUrl}`);
       } else {
-        console.log(`⚠️  Не удалось получить изображение, используем placeholder`);
-        // Используем дефолтное изображение CS2 предмета
-        imageUrl = 'https://community.fastly.steamstatic.com/economy/image/6TMcQ7eX6E0EZl2byXi7vaVtMyCbg7JT9Nj26yLB0uiTHKECVqCQJYPQOiKc1A9hdeGdqRmPbEbD8Q_VfQ/256fx256f';
+        console.log(`⚠️  Не удалось получить изображение, попробуем позже`);
+        // Не устанавливаем сломанный URL, оставляем null для последующего исправления
+        imageUrl = null;
       }
     } catch (error) {
       console.error(`❌ Ошибка получения изображения для ${marketHashName}:`, error.message);
-      // Используем дефолтное изображение CS2 предмета
-      imageUrl = 'https://community.fastly.steamstatic.com/economy/image/6TMcQ7eX6E0EZl2byXi7vaVtMyCbg7JT9Nj26yLB0uiTHKECVqCQJYPQOiKc1A9hdeGdqRmPbEbD8Q_VfQ/256fx256f';
+      // Не устанавливаем сломанный URL, оставляем null для последующего исправления
+      imageUrl = null;
     }
 
     // Извлекаем детали предмета
