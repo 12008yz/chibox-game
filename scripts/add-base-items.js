@@ -6,7 +6,7 @@ const db = require('../models');
 const SteamPriceService = require('../services/steamPriceService');
 const FixDropWeights = require('./fix-drop-weights');
 // Импортируем функции парсинга изображений
-const { parseImageFromSteamPage, isValidSteamImageUrl } = require('./parse-item-images');
+const { parseImageFromSteamPage, isValidSteamImageUrl, getSteamItemImageFromAPI } = require('./parse-item-images');
 
 // Импортируем полный список URLs
 const COMPLETE_ITEMS_URLS = require('../utils/linkItems-complete');
@@ -214,20 +214,29 @@ async function processItem(url, originalRarity, caseType) {
     let imageUrl = null;
 
     try {
-      // Парсим изображение со страницы Steam Market
-      imageUrl = await parseImageFromSteamPage(url);
+      // Сначала пробуем новый API метод (более надёжный)
+      imageUrl = await getSteamItemImageFromAPI(marketHashName);
 
       if (imageUrl && isValidSteamImageUrl(imageUrl)) {
-        console.log(`✅ Получено изображение: ${imageUrl}`);
+        console.log(`✅ Получено изображение через API: ${imageUrl}`);
       } else {
-        console.log(`⚠️  Не удалось получить изображение, попробуем позже`);
-        // Не устанавливаем сломанный URL, оставляем null для последующего исправления
-        imageUrl = null;
+        // Fallback на парсинг страницы Steam Market (если API не сработал)
+        console.log(`🔄 API не сработал, пробуем парсинг страницы...`);
+        imageUrl = await parseImageFromSteamPage(url);
+
+        if (imageUrl && isValidSteamImageUrl(imageUrl)) {
+          console.log(`✅ Получено изображение через парсинг: ${imageUrl}`);
+        } else {
+          console.log(`⚠️  Не удалось получить оригинальное изображение, оставляем null`);
+          // НЕ используем placeholder - только оригинальные изображения
+          imageUrl = null;
+        }
       }
     } catch (error) {
       console.error(`❌ Ошибка получения изображения для ${marketHashName}:`, error.message);
-      // Не устанавливаем сломанный URL, оставляем null для последующего исправления
+      // НЕ используем placeholder - только оригинальные изображения
       imageUrl = null;
+      console.log(`⚠️  Изображение не получено, оставляем null`);
     }
 
     // Извлекаем детали предмета
@@ -422,6 +431,10 @@ async function populateDatabase(limitPerCategory = 1000) {
           successfulItems++;
           itemsByCategory[caseType][rarity].push(result);
         }
+
+        // Задержка 15 секунд между обработкой предметов для получения оригинальных изображений
+        console.log(`⏳ Ждём 15 секунд перед обработкой следующего предмета...`);
+        await new Promise(resolve => setTimeout(resolve, 15000));
       }
     }
   }
