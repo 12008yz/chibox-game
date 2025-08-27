@@ -1,261 +1,97 @@
 const db = require('../models');
 
-// 20 предметов CS2 с прямыми ссылками на изображения Steam CDN
-const SLOT_ITEMS = [
-  // Дешевые предметы (consumer/industrial) - 60% шанс
-  {
-    name: 'AK-47 | Safari Mesh (Battle-Scarred)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f", // Будет получено автоматически
-    price: 8.50,
-    rarity: 'consumer',
-    steam_market_hash_name: 'AK-47 | Safari Mesh (Battle-Scarred)'
-  },
-  {
-    name: 'Glock-18 | Sand Dune (Factory New)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f", // Будет получено автоматически
-    price: 12.00,
-    rarity: 'consumer',
-    steam_market_hash_name: 'Glock-18 | Sand Dune (Factory New)'
-  },
-  {
-    name: 'P250 | Sand Dune (Factory New)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f", // Будет получено автоматически
-    price: 15.30,
-    rarity: 'consumer',
-    steam_market_hash_name: 'P250 | Sand Dune (Factory New)'
-  },
-  {
-    name: 'MAG-7 | Sand Dune (Factory New)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f", // Будет получено автоматически
-    price: 18.75,
-    rarity: 'consumer',
-    steam_market_hash_name: 'MAG-7 | Sand Dune (Factory New)'
-  },
-  {
-    name: 'M4A1-S | Boreal Forest (Battle-Scarred)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f", // Будет получено автоматически
-    price: 22.10,
-    rarity: 'consumer',
-    steam_market_hash_name: 'M4A1-S | Boreal Forest (Battle-Scarred)'
-  },
-  {
-    name: 'USP-S | Forest Leaves (Battle-Scarred)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f", // Будет получено автоматически
-    price: 25.40,
-    rarity: 'consumer',
-    steam_market_hash_name: 'USP-S | Forest Leaves (Battle-Scarred)'
-  },
-  {
-    name: 'AWP | Safari Mesh (Battle-Scarred)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f", // Будет получено автоматически
-    price: 32.80,
-    rarity: 'consumer',
-    steam_market_hash_name: 'AWP | Safari Mesh (Battle-Scarred)'
-  },
-  {
-    name: 'Galil AR | Sage Spray (Field-Tested)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f", // Будет получено автоматически
-    price: 38.50,
-    rarity: 'industrial',
-    steam_market_hash_name: 'Galil AR | Sage Spray (Field-Tested)'
-  },
-  {
-    name: 'FAMAS | Colony (Battle-Scarred)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f", // Будет получено автоматически
-    price: 42.30,
-    rarity: 'industrial',
-    steam_market_hash_name: 'FAMAS | Colony (Battle-Scarred)'
-  },
-  {
-    name: 'Five-SeveN | Forest Night (Battle-Scarred)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f", // Будет получено автоматически
-    price: 48.90,
-    rarity: 'industrial',
-    steam_market_hash_name: 'Five-SeveN | Forest Night (Battle-Scarred)'
-  },
+// 🎯 ПРОСТО ДОБАВЬТЕ ID ПРЕДМЕТОВ СЮДА:
+const ITEM_IDS = [
+  '0198440f-c62e-47e9-b46e-667f43ae0447', // P250 | Metallic DDPAT (Battle-Scarred)
+  '0371d92c-47d7-48e7-86f4-630c23b63020', // M4A1-S | Boreal Forest (Battle-Scarred)
+  '0898d950-f239-4315-9e57-68a64b980cc1', // USP-S | Forest Leaves (Battle-Scarred)
+  '0a24418b-6436-4299-845a-ce964efd3507', // P250 | Sand Dune (Factory New)
+  '0a77f300-ba19-4599-b6a2-7769e7813390', // AWP | Forest DDPAT (Battle-Scarred)
+  '0bca855c-bf19-46bb-b829-8fba672d9813', // FAMAS | Blue Spraypaint (Factory New)
+  '0c597eaf-b385-4501-a793-d87d1121e0e2', // Sawed-Off | Blue Spraypaint (Factory New)
+  '0e5c997f-b699-43cc-b8c3-62ad3f04e1f7', // Sawed-Off | Blue Spraypaint (Factory New)
+  '1157a376-bacf-43fb-b28b-abaeb57b443f', // Sawed-Off | Blue Spraypaint (Factory New)
+  '12d81534-ab8a-49ad-a431-604ca46ffee2', // Sawed-Off | Blue Spraypaint (Factory New)
+  '164c3dc2-8e6c-47cd-a6b5-46559e009738', // Sawed-Off | Blue Spraypaint (Factory New)
+  '21c2d046-757b-4ac6-a902-ee10a063d06d',
+  '28bee93e-c7f3-4bfd-9b5e-be465a201f62', // Sawed-Off | Blue Spraypaint (Factory New)
+  '2a7026b3-ef66-4f56-9b5e-73c1bcb8e321', // Sawed-Off | Blue Spraypaint (Factory New)
+  '33b1b049-bab1-449f-9b8d-302410d93e9d', // Sawed-Off | Blue Spraypaint (Factory New)
+  '393b7673-a989-4a63-82e1-33137e9957ca', // Sawed-Off | Blue Spraypaint (Factory New)
+  '39e86152-5210-4276-9d83-fb6cafced65b', // Sawed-Off | Blue Spraypaint (Factory New)
+  '3c47cc31-27dc-4c73-826b-80c87b5fcba2', // Sawed-Off | Blue Spraypaint (Factory New)
+  '341a7a25-6aa3-4cb4-a97f-69bed4fe33eb', // Sawed-Off | Blue Spraypaint (Factory New)
 
-  // Средние предметы (milspec) - 25% шанс
-  {
-    name: 'AK-47 | Blue Laminate (Field-Tested)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f", // Будет получено автоматически
-    price: 85.70,
-    rarity: 'milspec',
-    steam_market_hash_name: 'AK-47 | Blue Laminate (Field-Tested)'
-  },
-  {
-    name: 'M4A1-S | Dark Water (Field-Tested)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f",
-    price: 120.50,
-    rarity: 'milspec',
-    steam_market_hash_name: 'M4A1-S | Dark Water (Field-Tested)'
-  },
-  {
-    name: 'AWP | Worm God (Factory New)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f",
-    price: 180.25,
-    rarity: 'milspec',
-    steam_market_hash_name: 'AWP | Worm God (Factory New)'
-  },
-  {
-    name: 'P250 | Hive (Factory New)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f",
-    price: 215.80,
-    rarity: 'milspec',
-    steam_market_hash_name: 'P250 | Hive (Factory New)'
-  },
-  {
-    name: 'Galil AR | Eco (Factory New)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f",
-    price: 280.40,
-    rarity: 'milspec',
-    steam_market_hash_name: 'Galil AR | Eco (Factory New)'
-  },
+  // 👇 ДОБАВЛЯЙТЕ НОВЫЕ ID ЗДЕСЬ:
 
-  // Дорогие предметы (restricted/classified) - 12% шанс
-  {
-    name: 'AK-47 | Redline (Field-Tested)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f",
-    price: 950.75,
-    rarity: 'restricted',
-    steam_market_hash_name: 'AK-47 | Redline (Field-Tested)'
-  },
-  {
-    name: 'M4A4 | Asiimov (Field-Tested)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f",
-    price: 1250.90,
-    rarity: 'restricted',
-    steam_market_hash_name: 'M4A4 | Asiimov (Field-Tested)'
-  },
-  {
-    name: 'AWP | Asiimov (Field-Tested)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f",
-    price: 1850.35,
-    rarity: 'restricted',
-    steam_market_hash_name: 'AWP | Asiimov (Field-Tested)'
-  },
-
-  // Очень дорогие предметы (covert) - 3% шанс
-  {
-    name: 'AK-47 | Fire Serpent (Field-Tested)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f",
-    price: 12500.00,
-    rarity: 'covert',
-    steam_market_hash_name: 'AK-47 | Fire Serpent (Field-Tested)'
-  },
-  {
-    name: 'AWP | Dragon Lore (Field-Tested)',
-    image_url: "https://community.fastly.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4M29eKVuJc-eD3WZz-tJuORoWTD9wxkmtW_Tyon7dHLBa1UjDZZ1ELUK5hPrltDmMezi5FDdi94UnyWtjTQJsHgh0aPD_A/360fx360f",
-    price: 35000.00,
-    rarity: 'covert',
-    steam_market_hash_name: 'AWP | Dragon Lore (Field-Tested)'
-  }
 ];
 
-async function addSlotItems() {
+/**
+ * Определяет вес выпадения на основе цены предмета
+ */
+function getDropWeight(price) {
+  if (price < 10) return 10.0;     // Очень дешевые - высокий вес
+  if (price < 50) return 8.0;      // Дешевые - высокий вес
+  if (price < 200) return 5.0;     // Средние - средний вес
+  if (price < 500) return 3.0;     // Дорогие - низкий вес
+  if (price < 1500) return 1.0;    // Очень дорогие - очень низкий вес
+  return 0.5;                      // Ультра-дорогие - минимальный вес
+}
+
+/**
+ * Добавляет все предметы из списка в слот-игру
+ */
+async function addItemsToSlot() {
   try {
-    console.log('🎰 Добавляем предметы для слот-машины...\n');
+    console.log('🎰 Добавляем предметы в слот-игру...\n');
 
-    let createdCount = 0;
-    let updatedCount = 0;
+    let successCount = 0;
     let errorCount = 0;
+    let notFoundCount = 0;
 
-    // Обрабатываем каждый предмет индивидуально
-    for (const itemData of SLOT_ITEMS) {
+    for (const itemId of ITEM_IDS) {
       try {
-        console.log(`🔄 Обрабатываем: ${itemData.name}`);
+        console.log(`🔍 Обрабатываем: ${itemId}`);
 
-        // Проверяем, существует ли предмет
-        const existingItem = await db.Item.findOne({
-          where: {
-            steam_market_hash_name: itemData.steam_market_hash_name
-          }
-        });
+        // Найти предмет в базе данных
+        const item = await db.Item.findByPk(itemId);
 
-        if (existingItem) {
-          // Обновляем существующий предмет
-          await existingItem.update({
-            name: itemData.name,
-            image_url: itemData.image_url,
-            price: itemData.price,
-            rarity: itemData.rarity,
-            steam_market_url: `https://steamcommunity.com/market/listings/730/${encodeURIComponent(itemData.steam_market_hash_name)}`,
-            is_available: true,
-            in_stock: true,
-            origin: 'slot_machine', // специальная метка для предметов слота
-            weapon_type: itemData.name.includes('AK-47') ? 'Rifle' :
-                        itemData.name.includes('AWP') ? 'Sniper Rifle' :
-                        itemData.name.includes('M4A') ? 'Rifle' :
-                        itemData.name.includes('Glock') || itemData.name.includes('P250') || itemData.name.includes('USP') || itemData.name.includes('Five-SeveN') ? 'Pistol' :
-                        itemData.name.includes('Galil') || itemData.name.includes('FAMAS') ? 'Rifle' :
-                        itemData.name.includes('MAG-7') ? 'Shotgun' : 'Other'
-          });
-
-          console.log(`✅ Обновлен: ${existingItem.name} (${existingItem.rarity}) - ${existingItem.price}₽`);
-          updatedCount++;
-        } else {
-          // Создаем новый предмет
-          const newItem = await db.Item.create({
-            name: itemData.name,
-            image_url: itemData.image_url,
-            price: itemData.price,
-            rarity: itemData.rarity,
-            steam_market_hash_name: itemData.steam_market_hash_name,
-            steam_market_url: `https://steamcommunity.com/market/listings/730/${encodeURIComponent(itemData.steam_market_hash_name)}`,
-            is_available: true,
-            in_stock: true,
-            origin: 'slot_machine', // специальная метка для предметов слота
-            weapon_type: itemData.name.includes('AK-47') ? 'Rifle' :
-                        itemData.name.includes('AWP') ? 'Sniper Rifle' :
-                        itemData.name.includes('M4A') ? 'Rifle' :
-                        itemData.name.includes('Glock') || itemData.name.includes('P250') || itemData.name.includes('USP') || itemData.name.includes('Five-SeveN') ? 'Pistol' :
-                        itemData.name.includes('Galil') || itemData.name.includes('FAMAS') ? 'Rifle' :
-                        itemData.name.includes('MAG-7') ? 'Shotgun' : 'Other'
-          });
-
-          console.log(`✅ Создан: ${newItem.name} (${newItem.rarity}) - ${newItem.price}₽`);
-          createdCount++;
+        if (!item) {
+          console.log(`❌ Предмет не найден: ${itemId}`);
+          notFoundCount++;
+          continue;
         }
 
+        // Определить вес выпадения
+        const price = parseFloat(item.price) || 0;
+        const dropWeight = getDropWeight(price);
+
+        // Обновить предмет для слота
+        await item.update({
+          origin: 'slot_machine',
+          drop_weight: dropWeight,
+          is_available: true,
+          in_stock: true
+        });
+
+        console.log(`✅ ${item.name} (${price}₽) - вес: ${dropWeight}`);
+        successCount++;
+
       } catch (error) {
-        console.error(`❌ Ошибка при обработке ${itemData.name}:`, error.message);
+        console.error(`❌ Ошибка с ${itemId}:`, error.message);
         errorCount++;
       }
     }
 
-    console.log(`\n🎉 Обработка завершена:`);
-    console.log(`  ✅ Создано новых: ${createdCount}`);
-    console.log(`  🔄 Обновлено: ${updatedCount}`);
+    console.log(`\n🎉 Результат:`);
+    console.log(`  ✅ Успешно добавлено: ${successCount}`);
     console.log(`  ❌ Ошибок: ${errorCount}`);
-    console.log(`  📊 Всего предметов: ${createdCount + updatedCount}`);
+    console.log(`  🔍 Не найдено: ${notFoundCount}`);
+    console.log(`  📊 Всего обработано: ${ITEM_IDS.length}`);
 
-    // Проверяем что все изображения доступны
-    console.log('\n🔍 Проверяем готовые предметы слота...');
-    const slotItems = await db.Item.findAll({
-      where: { origin: 'slot_machine' },
-      attributes: ['name', 'image_url', 'rarity', 'price'],
-      order: [['rarity', 'ASC'], ['price', 'ASC']]
-    });
-
-    console.log(`📊 Найдено ${slotItems.length} предметов слота с изображениями`);
-
-    // Группируем по редкости
-    const rarityStats = {};
-    slotItems.forEach(item => {
-      if (!rarityStats[item.rarity]) {
-        rarityStats[item.rarity] = { count: 0, minPrice: Infinity, maxPrice: 0 };
-      }
-      rarityStats[item.rarity].count++;
-      rarityStats[item.rarity].minPrice = Math.min(rarityStats[item.rarity].minPrice, parseFloat(item.price));
-      rarityStats[item.rarity].maxPrice = Math.max(rarityStats[item.rarity].maxPrice, parseFloat(item.price));
-    });
-
-    console.log('\n📋 Распределение по редкости:');
-    Object.entries(rarityStats).forEach(([rarity, stats]) => {
-      console.log(`  ${rarity}: ${stats.count} предметов (${stats.minPrice}₽ - ${stats.maxPrice}₽)`);
-    });
-
-    console.log('\n✅ Предметы для слота готовы к использованию!');
-    console.log('🎮 Теперь можно запускать слот-машину');
+    // Показать итоговую статистику
+    console.log('\n📋 Статистика предметов в слоте:');
+    await showSlotStats();
 
   } catch (error) {
     console.error('❌ Критическая ошибка:', error);
@@ -264,9 +100,46 @@ async function addSlotItems() {
   }
 }
 
-// Запуск если файл выполняется напрямую
-if (require.main === module) {
-  addSlotItems();
+/**
+ * Показывает статистику предметов в слоте
+ */
+async function showSlotStats() {
+  try {
+    const slotItems = await db.Item.findAll({
+      where: {
+        origin: 'slot_machine',
+        is_available: true
+      },
+      attributes: ['name', 'price', 'rarity', 'drop_weight'],
+      order: [['price', 'ASC']]
+    });
+
+    const cheapItems = slotItems.filter(item => item.price <= 50);
+    const mediumItems = slotItems.filter(item => item.price > 50 && item.price <= 500);
+    const expensiveItems = slotItems.filter(item => item.price > 500);
+
+    console.log(`💰 Дешевые (до 50₽): ${cheapItems.length} предметов`);
+    console.log(`💎 Средние (51-500₽): ${mediumItems.length} предметов`);
+    console.log(`🏆 Дорогие (500₽+): ${expensiveItems.length} предметов`);
+    console.log(`📈 Общий вес: ${slotItems.reduce((sum, item) => sum + parseFloat(item.drop_weight || 0), 0)}`);
+
+    // Топ-5 самых дорогих предметов
+    const topExpensive = slotItems.slice(-5).reverse();
+    console.log('\n🏆 Самые дорогие предметы в слоте:');
+    topExpensive.forEach((item, index) => {
+      console.log(`  ${index + 1}. ${item.name} - ${item.price}₽ (вес: ${item.drop_weight})`);
+    });
+
+  } catch (error) {
+    console.error('❌ Ошибка при получении статистики:', error.message);
+  }
 }
 
-module.exports = { addSlotItems, SLOT_ITEMS };
+// Запуск скрипта
+if (require.main === module) {
+  console.log('🚀 Начинаем добавление предметов в слот...');
+  console.log(`📝 Предметов к обработке: ${ITEM_IDS.length}\n`);
+  addItemsToSlot();
+}
+
+module.exports = { addItemsToSlot, ITEM_IDS };

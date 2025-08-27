@@ -6,10 +6,11 @@ const { Op } = require('sequelize');
 const SLOT_COST = 10.00;
 
 // Новая конфигурация весов для слота (согласно требованиям)
+// Из 10 спинов: 6 дешевых выигрышей, 3 проигрыша, 1 дорогой выигрыш
 const SLOT_OUTCOME_WEIGHTS = {
-  'cheap_items': 60,    // 60% шанс - дешевые предметы (1-12₽)
-  'nothing': 30,        // 30% шанс - ничего не выпадает
-  'expensive_items': 10 // 10% шанс - дорогие предметы (100-5000₽)
+  'cheap_win': 60,      // 60% шанс - выигрыш дешевого предмета (1-12₽)
+  'lose': 30,           // 30% шанс - проигрыш (предметы не совпадают)
+  'expensive_win': 10   // 10% шанс - выигрыш дорогого предмета (12-5000₽)
 };
 
 /**
@@ -79,7 +80,7 @@ async function getSlotItems() {
 
     // Разделяем на категории по цене
     const cheapItems = allItems.filter(item => item.price >= 1 && item.price <= 12);
-    const expensiveItems = allItems.filter(item => item.price >= 100 && item.price <= 5000);
+    const expensiveItems = allItems.filter(item => item.price >= 12 && item.price <= 5000);
 
     // Обновляем кэш
     slotItemsCache = {
@@ -89,7 +90,7 @@ async function getSlotItems() {
     };
     cacheExpiry = Date.now() + CACHE_DURATION;
 
-    logger.info(`Loaded slot items: ${cheapItems.length} cheap (1-12₽), ${expensiveItems.length} expensive (100-5000₽)`);
+    logger.info(`Loaded slot items: ${cheapItems.length} cheap (1-12₽), ${expensiveItems.length} expensive (12-5000₽)`);
 
     return slotItemsCache;
 
@@ -114,7 +115,7 @@ function selectSlotOutcome() {
     }
   }
 
-  return 'nothing'; // Fallback
+  return 'lose'; // Fallback
 }
 
 /**
@@ -165,49 +166,111 @@ function createEmptyItem() {
 
 /**
  * Генерирует результат слота (3 предмета) с новой логикой
+ * Сначала определяем исход, затем создаем соответствующую комбинацию
  */
 async function generateSlotResult() {
   const slotItems = await getSlotItems();
+  const outcome = selectSlotOutcome();
   const result = [];
 
-  // Определяем исход для каждого из 3 слотов
-  for (let i = 0; i < 3; i++) {
-    const outcome = selectSlotOutcome();
+  switch (outcome) {
+    case 'cheap_win':
+      // Выигрыш дешевого предмета - 3 одинаковых дешевых предмета
+      const cheapItem = selectRandomItemWithWeight(slotItems.cheap);
+      if (cheapItem) {
+        result.push(cheapItem, cheapItem, cheapItem);
+      } else {
+        // Если нет дешевых предметов, делаем проигрыш
+        result.push(...generateLoseResult(slotItems));
+      }
+      break;
 
-    let item;
-    switch (outcome) {
-      case 'cheap_items':
-        item = selectRandomItemWithWeight(slotItems.cheap);
-        if (!item) {
-          // Если нет дешевых предметов, создаем пустой
-          item = createEmptyItem();
+    case 'expensive_win':
+      // Выигрыш дорогого предмета - 3 одинаковых дорогих предмета
+      const expensiveItem = selectRandomItemWithWeight(slotItems.expensive);
+      if (expensiveItem) {
+        result.push(expensiveItem, expensiveItem, expensiveItem);
+      } else {
+        // Если нет дорогих предметов, берем дешевый выигрыш
+        const fallbackItem = selectRandomItemWithWeight(slotItems.cheap);
+        if (fallbackItem) {
+          result.push(fallbackItem, fallbackItem, fallbackItem);
+        } else {
+          result.push(...generateLoseResult(slotItems));
         }
-        break;
+      }
+      break;
 
-      case 'expensive_items':
-        item = selectRandomItemWithWeight(slotItems.expensive);
-        if (!item) {
-          // Если нет дорогих предметов, берем дешевый
-          item = selectRandomItemWithWeight(slotItems.cheap) || createEmptyItem();
-        }
-        break;
-
-      case 'nothing':
-      default:
-        item = createEmptyItem();
-        break;
-    }
-
-    result.push(item);
+    case 'lose':
+    default:
+      // Проигрыш - предметы не совпадают
+      result.push(...generateLoseResult(slotItems));
+      break;
   }
 
   // Проверяем выигрыш (3 одинаковых НЕ пустых предмета)
-  const nonEmptyItems = result.filter(item => item.id !== 'empty');
-  const isWin = nonEmptyItems.length === 3 &&
-               nonEmptyItems[0].id === nonEmptyItems[1].id &&
-               nonEmptyItems[1].id === nonEmptyItems[2].id;
+  const isWin = result.length === 3 &&
+               result[0].id !== 'empty' &&
+               result[0].id === result[1].id &&
+               result[1].id === result[2].id;
 
-  logger.info(`Generated slot result: [${result.map(item => `${item.name} (${item.price}₽)`).join(', ')}] - ${isWin ? 'WIN' : 'LOSE'}`);
+  logger.info(`Generated slot result: [${result.map(item => `${item.name} (${item.price}₽)`).join(', ')}] - ${isWin ? 'WIN' : 'LOSE'} - Outcome: ${outcome}`);
+
+  return result;
+}
+
+/**
+ * Генерирует проигрышную комбинацию (3 разных предмета)
+ */
+function generateLoseResult(slotItems) {
+  const result = [];
+  const allItems = [...slotItems.cheap, ...slotItems.expensive];
+
+  if (allItems.length === 0) {
+    // Если нет предметов, возвращаем 3 пустых слота
+    return [createEmptyItem(), createEmptyItem(), createEmptyItem()];
+  }
+
+  // Выбираем 3 разных предмета для проигрыша
+  const usedItems = new Set();
+
+  for (let i = 0; i < 3; i++) {
+    let attempts = 0;
+    let selectedItem;
+
+    do {
+      // Случайно выбираем между предметом и пустым слотом (70% предмет, 30% пустой)
+      if (Math.random() < 0.7 && allItems.length > 0) {
+        selectedItem = allItems[Math.floor(Math.random() * allItems.length)];
+      } else {
+        selectedItem = createEmptyItem();
+      }
+      attempts++;
+    } while (usedItems.has(selectedItem.id) && attempts < 10);
+
+    // Если не смогли найти уникальный предмет, берем случайный
+    if (usedItems.has(selectedItem.id)) {
+      if (allItems.length > 0) {
+        selectedItem = allItems[Math.floor(Math.random() * allItems.length)];
+      } else {
+        selectedItem = createEmptyItem();
+      }
+    }
+
+    usedItems.add(selectedItem.id);
+    result.push(selectedItem);
+  }
+
+  // Убеждаемся, что это точно проигрыш (не все предметы одинаковые)
+  if (result[0].id === result[1].id && result[1].id === result[2].id && result[0].id !== 'empty') {
+    // Если случайно получились 3 одинаковых, заменяем последний
+    if (allItems.length > 1) {
+      const differentItem = allItems.find(item => item.id !== result[0].id) || createEmptyItem();
+      result[2] = differentItem;
+    } else {
+      result[2] = createEmptyItem();
+    }
+  }
 
   return result;
 }
@@ -250,10 +313,10 @@ const playSlot = async (req, res) => {
     const slotResult = await generateSlotResult();
 
     // Проверяем выигрыш (3 одинаковых НЕ пустых предмета)
-    const nonEmptyItems = slotResult.filter(item => item.id !== 'empty');
-    const isWin = nonEmptyItems.length === 3 &&
-                 nonEmptyItems[0].id === nonEmptyItems[1].id &&
-                 nonEmptyItems[1].id === nonEmptyItems[2].id;
+    const isWin = slotResult.length === 3 &&
+                 slotResult[0].id !== 'empty' &&
+                 slotResult[0].id === slotResult[1].id &&
+                 slotResult[1].id === slotResult[2].id;
 
     // Сохраняем начальный баланс
     const balanceBefore = user.balance;
@@ -277,9 +340,9 @@ const playSlot = async (req, res) => {
 
     let wonItem = null;
 
-    if (isWin && nonEmptyItems[0].id !== 'empty') {
+    if (isWin && slotResult[0].id !== 'empty') {
       // Добавляем выигранный предмет в инвентарь
-      wonItem = nonEmptyItems[0];
+      wonItem = slotResult[0];
 
       // Проверяем что предмет существует в базе данных (не пустой)
       if (wonItem.id !== 'empty') {
@@ -289,8 +352,8 @@ const playSlot = async (req, res) => {
           await UserInventory.create({
             user_id: userId,
             item_id: wonItem.id,
-            status: 'available', // предмет доступен для продажи/вывода
-            source: 'slot_game'
+            status: 'inventory', // предмет в инвентаре
+            source: 'bonus' // слот как бонусная игра
           }, { transaction });
 
           logger.info(`User ${userId} won item ${wonItem.id} (${wonItem.name}) in slot game`);
