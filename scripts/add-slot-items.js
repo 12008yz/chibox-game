@@ -2,12 +2,12 @@ const db = require('../models');
 
 // 🎯 ПРОСТО ДОБАВЬТЕ ID ПРЕДМЕТОВ СЮДА:
 const ITEM_IDS = [
-  '0198440f-c62e-47e9-b46e-667f43ae0447', // P250 | Metallic DDPAT (Battle-Scarred)
-  '0371d92c-47d7-48e7-86f4-630c23b63020', // M4A1-S | Boreal Forest (Battle-Scarred)
-  '0898d950-f239-4315-9e57-68a64b980cc1', // USP-S | Forest Leaves (Battle-Scarred)
-  '0a24418b-6436-4299-845a-ce964efd3507', // P250 | Sand Dune (Factory New)
-  '0a77f300-ba19-4599-b6a2-7769e7813390', // AWP | Forest DDPAT (Battle-Scarred)
-  '0bca855c-bf19-46bb-b829-8fba672d9813', // FAMAS | Blue Spraypaint (Factory New)
+  '00d3ddfb-314e-4b09-a71b-51912945611f', // P250 | Metallic DDPAT (Battle-Scarred)
+  '024447d7-095f-4e2f-b1b1-e3790e04ded8', // M4A1-S | Boreal Forest (Battle-Scarred)
+  '050c98f4-aee6-47de-bfb0-cce4b4305923', // USP-S | Forest Leaves (Battle-Scarred)
+  '14988199-8997-4b9b-a609-cf6ccdae9e40', // P250 | Sand Dune (Factory New)
+  '1924d3d1-3fcf-4d36-8035-e4e9a43fc018', // AWP | Forest DDPAT (Battle-Scarred)
+  '1b38d9da-aec6-487b-9747-261d4ac51588', // FAMAS | Blue Spraypaint (Factory New)
   '0c597eaf-b385-4501-a793-d87d1121e0e2', // Sawed-Off | Blue Spraypaint (Factory New)
   '0e5c997f-b699-43cc-b8c3-62ad3f04e1f7', // Sawed-Off | Blue Spraypaint (Factory New)
   '1157a376-bacf-43fb-b28b-abaeb57b443f', // Sawed-Off | Blue Spraypaint (Factory New)

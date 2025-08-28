@@ -1678,5 +1678,1475 @@
     },
     "priceTimestamp": 1756397859016,
     "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLyhMG1_B1I_82-aahgH_6aCW-E_uNztOh8QmfrkUQjtWmDm977dH_CaVRxCMR1Q7FeukO6xNO1ML-0sVbYiokRznr-kGoXuZfHQeDo/360fx360f"
+  },
+  "PP-Bizon | Candy Apple (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 21.71,
+      "price_usd": 0.23,
+      "volume": 1099,
+      "category": "industrial",
+      "market_hash_name": "PP-Bizon | Candy Apple (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:17:44.801Z"
+    },
+    "priceTimestamp": 1756397864801,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLzl4zv8x1I4M28baBSLPmUBnPemO105rI6SirhzRwi6zjWzd2uJCmfaFByApMiRbNcuxC_k9TgZb_qthue1dzUHyay4A/360fx360f"
+  },
+  "MAC-10 | Candy Apple (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 34.88,
+      "price_usd": 0.37,
+      "volume": 414,
+      "category": "industrial",
+      "market_hash_name": "MAC-10 | Candy Apple (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:17:50.598Z"
+    },
+    "priceTimestamp": 1756397870598,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8n5WxrR1I4M28baBSLPmUBnPemLZw4rk6Gi3gxkp_5W3Qmdv_cnrDPwZ1Asd2FOcM5BO4k4KxMe7h7xue1dzcbAPD_Q/360fx360f"
+  },
+  "P2000 | Coral Halftone (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 14.92,
+      "price_usd": 0.16,
+      "volume": 367,
+      "category": "consumer",
+      "market_hash_name": "P2000 | Coral Halftone (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:17:56.491Z"
+    },
+    "priceTimestamp": 1756397876491,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL5lYayrXIL0Pq6V6JsI_WHMXfCkb4mj-xsSyCmmFN25W-HmI2rJC6UbVUgD5QhFLUKsUHpxtG0Mby25QCNi4NDzXn83XhB8G81tKwKDLUF/360fx360f"
+  },
+  "G3SG1 | Green Apple (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 34.06,
+      "price_usd": 0.36,
+      "volume": 187,
+      "category": "industrial",
+      "market_hash_name": "G3SG1 | Green Apple (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:18:02.257Z"
+    },
+    "priceTimestamp": 1756397882257,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL2zYXnrB1I4M2peqFoLs-fB2CY1aBzs7g4SXC2zRgjsWuBmdmtdiifagMhWZUlEeEP5BG9ktG2Pu-w4QSMlcsbmpnYc5LS/360fx360f"
+  },
+  "MP5-SD | Savannah Halftone (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 10.74,
+      "price_usd": 0.11,
+      "volume": 743,
+      "category": "consumer",
+      "market_hash_name": "MP5-SD | Savannah Halftone (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:18:08.026Z"
+    },
+    "priceTimestamp": 1756397888026,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8jsPz-R1T-82sZLF_H_OSA2ivzP4jo-VWQiy3nAgq_TjTyN6qICqTPVRzCZN4Q7EKsES6xtDlMb7gsQXb3oxHzHj32HtJ73p1o7FV_MEGTHA/360fx360f"
+  },
+  "USP-S | Forest Leaves (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 20.5,
+      "price_usd": 0.22,
+      "volume": 454,
+      "category": "industrial",
+      "market_hash_name": "USP-S | Forest Leaves (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:18:14.196Z"
+    },
+    "priceTimestamp": 1756397894196,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLkjYbf7itX6vytbbZSM-CsAmKR1-tlj-1gSCGn2xgh5W3Rwo2gcH6eP1IhWcYmTeYO4xTsw9TmY-mx5Q3a3ogQmSqsiCtXrnE8utrnVdI/360fx360f"
+  },
+  "Galil AR | Cold Fusion (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 9.44,
+      "price_usd": 0.1,
+      "volume": 878,
+      "category": "consumer",
+      "market_hash_name": "Galil AR | Cold Fusion (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:18:20.338Z"
+    },
+    "priceTimestamp": 1756397900338,
+    "image": null
+  },
+  "Souvenir P90 | Verdant Growth (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 1.29,
+      "price_usd": 0.01,
+      "volume": 304,
+      "category": "consumer",
+      "market_hash_name": "Souvenir P90 | Verdant Growth (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:18:26.095Z"
+    },
+    "priceTimestamp": 1756397906095,
+    "image": null
+  },
+  "FAMAS | Halftone Wash (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 39.58,
+      "price_usd": 0.42,
+      "volume": 99,
+      "category": "industrial",
+      "market_hash_name": "FAMAS | Halftone Wash (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:21:40.061Z"
+    },
+    "priceTimestamp": 1756398100063,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL3n5vh7h1T-829eKhsM_isCGadwP1JvOhuRz39wxt14WuBy9qpJX-TPFdyDJFxRLRc5BK-wIXlNu3htleP3Y5Bynmt3zQJsHgxqrWZvw/360fx360f"
+  },
+  "M4A1-S | Wash me plz (Battle-Scarred)": {
+    "price": {
+      "success": true,
+      "price_rub": 11.23,
+      "price_usd": 0.12,
+      "volume": 202,
+      "category": "consumer",
+      "market_hash_name": "M4A1-S | Wash me plz (Battle-Scarred)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:21:48.759Z"
+    },
+    "priceTimestamp": 1756398108759,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8ypexwjFS4_ega6F_H_iKMWiGxPxmsfJ6cC28mhkrtgKIzo6oMhTPO1dmQ4whEbVc4Ea_xNTlYr7jsgKM2dgUmyn3j3kd6n1jt-sCB_J2_vKF3l6VL_Rjtq37oH9A/360fx360f"
+  },
+  "Dual Berettas | Polished Malachite (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 111.01,
+      "price_usd": 1.17,
+      "volume": 113,
+      "category": "milspec",
+      "market_hash_name": "Dual Berettas | Polished Malachite (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:21:57.985Z"
+    },
+    "priceTimestamp": 1756398117985,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL0kp_0-B1I4PGmV6lsMvKfC1iX0-dmo95lRi67gVN_5GWHz46sInLGPwAmX8F2E7MNsxPsld21Zerr5AyI34hCzHqrjShB8G81tPVumS8Z/360fx360f"
+  },
+  "Desert Eagle | Mudder (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 119.26,
+      "price_usd": 1.26,
+      "volume": 22,
+      "category": "milspec",
+      "market_hash_name": "Desert Eagle | Mudder (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:22:06.830Z"
+    },
+    "priceTimestamp": 1756398126830,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL1m5fn8Sdk5-uRZat5NPyWCliDwOByj-1gSCGn20gj4WrVyNiuJ3OfPVAjCpEmE7MKuxbqmtDmPuu0slDW3Y5GyS-tintXrnE8PKHjtHI/360fx360f"
+  },
+  "FAMAS | Cyanospatter (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 91.31,
+      "price_usd": 0.96,
+      "volume": 9,
+      "category": "milspec",
+      "market_hash_name": "FAMAS | Cyanospatter (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:22:15.545Z"
+    },
+    "priceTimestamp": 1756398135545,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL3n5vh7h1T9s28baFrH_yaCW-Ej7olsbNsG3rmzEoj5m6Hz9atJC2WOg8iDJchR7JeuhfuwIbnZO3k4FHAy9USioZeSPo/360fx360f"
+  },
+  "Souvenir M4A4 | Mainframe (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 97.98,
+      "price_usd": 1.03,
+      "volume": 18,
+      "category": "milspec",
+      "market_hash_name": "Souvenir M4A4 | Mainframe (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:22:24.403Z"
+    },
+    "priceTimestamp": 1756398144403,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8ypexwiNW0PGneqd4KeSRAWaCxdFlue1_SjuMmRQguynLmIyoI3KROlcgX5RxQrQMt0O6lIfkPuPi5AKKi9pEzX773XsYuHlj4_FCD_Ts_y5QsA/360fx360f"
+  },
+  "Souvenir Negev | Bulkhead (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 36.04,
+      "price_usd": 0.38,
+      "volume": 10,
+      "category": "industrial",
+      "market_hash_name": "Souvenir Negev | Bulkhead (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:22:33.226Z"
+    },
+    "priceTimestamp": 1756398153226,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL_m5Hl6x1T9s2qfad5M8-KC2uczvlJveRtRjy-204ktz7cmY2qd3qfOwN1DJYhQ-cOtRW-x9OyZLnltlDYiIIUyC2t3S9XrnE8gZahRS4/360fx360f"
+  },
+  "Souvenir MP7 | Tall Grass (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 33.28,
+      "price_usd": 0.35,
+      "volume": 12,
+      "category": "industrial",
+      "market_hash_name": "Souvenir MP7 | Tall Grass (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:22:42.352Z"
+    },
+    "priceTimestamp": 1756398162352,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8jsHf9Ttk6-C3f6tiJM-UHGKVz9F6ueZhW2frxxlx4jnQw4yuJ3yfPQ4hDpd5QOVZsUa5l9XiNb6w5laPjosWyC6qkGoXuWq2Rgm4/360fx360f"
+  },
+  "Souvenir SG 553 | Fallout Warning (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 130.77,
+      "price_usd": 1.38,
+      "volume": 6,
+      "category": "milspec",
+      "market_hash_name": "Souvenir SG 553 | Fallout Warning (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:22:51.172Z"
+    },
+    "priceTimestamp": 1756398171172,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLimcO1qx1I_82gfa9oM-SBB3eV_uN3ou5mQRagkkhy4AKIn4vwNCaJOgF2CZN0QuEJtxDslIe2Zevhs1TY2IxEnHr6ii1O5yc64O9TWfJw_rqX0V_svf0Ewg/360fx360f"
+  },
+  "CZ75-Auto | Green Plaid (Battle-Scarred)": {
+    "price": {
+      "success": true,
+      "price_rub": 346.54,
+      "price_usd": 3.65,
+      "volume": 0,
+      "category": "milspec",
+      "market_hash_name": "CZ75-Auto | Green Plaid (Battle-Scarred)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:23:00.166Z"
+    },
+    "priceTimestamp": 1756398180166,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLyhMG1_B1T9s2-ZKVkJKKsBmKR1_c4s7M-GX61xx525z7Wyo36dX_CPw5yWJdyQ7IOskbtlNTuPr6w4ACMjJUFk3ucKmdrew/360fx360f"
+  },
+  "AK-47 | Phantom Disruptor (Battle-Scarred)": {
+    "price": {
+      "success": true,
+      "price_rub": 316.01,
+      "price_usd": 3.33,
+      "volume": 64,
+      "category": "milspec",
+      "market_hash_name": "AK-47 | Phantom Disruptor (Battle-Scarred)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:23:09.065Z"
+    },
+    "priceTimestamp": 1756398189065,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLwlcK3wiFO0POlJfA6H-CbD2mEzuNJtOh6XTyjgRI1jDWAm5ngb3uTbwV0DMRyROMJtRK5x4HjPuzr4gDf2o5AxC7_3H4bvy9vt-YCUfc7uvqAgij_Te4/360fx360f"
+  },
+  "M249 | Impact Drill (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 246.76,
+      "price_usd": 2.6,
+      "volume": 5,
+      "category": "milspec",
+      "market_hash_name": "M249 | Impact Drill (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:23:18.026Z"
+    },
+    "priceTimestamp": 1756398198026,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8zMK5wjFU0PmrcadiLP-BHVidxOp_pewnHH_hxEh35zjTzI2vdijCbld2CJMlR-cPtBC9wYDkNOmz5gKPj9hHzTK-0H3fKcx2IQ/360fx360f"
+  },
+  "AK-47 | Slate (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 407.51,
+      "price_usd": 4.29,
+      "volume": 579,
+      "category": "restricted",
+      "market_hash_name": "AK-47 | Slate (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:23:26.953Z"
+    },
+    "priceTimestamp": 1756398206953,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLwlcK3wiVI0POlPPNSMOKcCGKD0ud5vuBlcCS2kRQyvnOGw4r_d3OWZ1MnCpBwR-Rc5hbumtCzP-Kw7wSIiYsRnHr2i35MvS1s_a9cBkIkkRA2/360fx360f"
+  },
+  "Chroma 2 Case": {
+    "price": {
+      "success": true,
+      "price_rub": 424.74,
+      "price_usd": 4.47,
+      "volume": 1780,
+      "category": "restricted",
+      "market_hash_name": "Chroma 2 Case",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:23:36.237Z"
+    },
+    "priceTimestamp": 1756398216237,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGJKz2lu_XsnXwtmkJjSU91dh8bj35VTqVBP4io_fqmwOuKD2PqI6caDBWDeUkO8uteM9SnDglklw6miEn9j6IHKfblNxA5pxW6dU5UH4LtBe/360fx360f"
+  },
+  "P2000 | Coral Halftone (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 35.56,
+      "price_usd": 0.37,
+      "volume": 88,
+      "category": "industrial",
+      "market_hash_name": "P2000 | Coral Halftone (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:55:02.418Z"
+    },
+    "priceTimestamp": 1756400102419,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL5lYayrXIL0Pq6V6JsI_WHMXfCkb4mj-1gSCGn2xsj5mrWm4v_c37EaAV1CMR2Ru8P4RO7m4fjY7_rsgDZjYMQzHiriyNXrnE8hd3eC64/360fx360f"
+  },
+  "M4A1-S | Wash me plz (Well-Worn)": {
+    "price": {
+      "success": true,
+      "price_rub": 14.47,
+      "price_usd": 0.15,
+      "volume": 115,
+      "category": "consumer",
+      "market_hash_name": "M4A1-S | Wash me plz (Well-Worn)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:55:11.361Z"
+    },
+    "priceTimestamp": 1756400111361,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8ypexwjFS4_ega6F_H_iKMWiGxPxmsfJ6cC28mhkrtgKIzo6oMhTKO1J5T89uQ-9bsBS6m4fnN7m24w3c2YhBxCz62Hwb5y1t5OcHUfEmqaHeiAzHY6p9v8c3vPiYgQ/360fx360f"
+  },
+  "Five-SeveN | Midnight Paintover (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 27.27,
+      "price_usd": 0.29,
+      "volume": 273,
+      "category": "industrial",
+      "market_hash_name": "Five-SeveN | Midnight Paintover (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:55:20.688Z"
+    },
+    "priceTimestamp": 1756400120688,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL3l4Dl7idN6vyRYL1SL-aWHHeR0v1JoOBgQT28gxg1jCmAm4PGLSLANkI-X5YmF-QN4EK8wdXgNenrsgDejYNAmS33jHtB6Ctj5esBBKItqKXQhhaBb-MJGErI3w/360fx360f"
+  },
+  "Desert Eagle | Tilted (Well-Worn)": {
+    "price": {
+      "success": true,
+      "price_rub": 37.53,
+      "price_usd": 0.4,
+      "volume": 233,
+      "category": "industrial",
+      "market_hash_name": "Desert Eagle | Tilted (Well-Worn)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:55:33.090Z"
+    },
+    "priceTimestamp": 1756400133090,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL1m5fn8Sdk7OeRZ7JoMuCSHXSvwP9jsd5tSii0mRgYvjiBk5r0bynEOAMhXptzQLRc5kPrkdSxNOrltlPWiIkQnyX-iiwf7i054bwBA_U7uvqApLDyUkE/360fx360f"
+  },
+  "Souvenir Five-SeveN | Coolant (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 18.87,
+      "price_usd": 0.2,
+      "volume": 31,
+      "category": "industrial",
+      "market_hash_name": "Souvenir Five-SeveN | Coolant (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:55:42.020Z"
+    },
+    "priceTimestamp": 1756400142020,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL3l4Dl7idN6vyRYL1SJOWQGnSvxvxzte9WQyC0nQlp5m_cmNqueH7EbQAiXpN0FO5YtBK_x4XgMrjmswON2osQzn77iipJ6zErvbgVYFr6QQ/360fx360f"
+  },
+  "Souvenir XM1014 | Blue Tire (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 17.26,
+      "price_usd": 0.18,
+      "volume": 14,
+      "category": "industrial",
+      "market_hash_name": "Souvenir XM1014 | Blue Tire (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:55:51.193Z"
+    },
+    "priceTimestamp": 1756400151193,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLpk8ewrHZk_OKRfK1_Jc-HHGKRxdF0vPRscCW6khUz_T7Vydn7dS6UZ1ciD8YhE7Je4Rm-l4bjN-mxtVaPi9lMxSqqjy9B7Xx1o7FVHG_KYuo/360fx360f"
+  },
+  "Souvenir AUG | Sweeper (Well-Worn)": {
+    "price": {
+      "success": true,
+      "price_rub": 9.36,
+      "price_usd": 0.1,
+      "volume": 8,
+      "category": "consumer",
+      "market_hash_name": "Souvenir AUG | Sweeper (Well-Worn)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:56:00.339Z"
+    },
+    "priceTimestamp": 1756400160339,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLwi5Hf7jJk4ve9YJt-IfaWGn6Sze91u95kSi26gBBptW-AyIr9JXrCPVJxAsByFuALsUW6mofgZO3n5VbY34hAySn_iS0cvzErvbizNLnxUw/360fx360f"
+  },
+  "Souvenir MAG-7 | Storm (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 27.58,
+      "price_usd": 0.29,
+      "volume": 17,
+      "category": "industrial",
+      "market_hash_name": "Souvenir MAG-7 | Storm (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:56:09.149Z"
+    },
+    "priceTimestamp": 1756400169149,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8n5G3wjFU0OG6Z7ZgJuKcAHOvzedxuPUnS3_iwk926m6EnIyvIn3DbQF0X5UjRbJfthewktK2MLzq4ATcgoJCxTK-0H2wBd1PlQ/360fx360f"
+  },
+  "Souvenir SSG 08 | Prey (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 0.84,
+      "price_usd": 0.01,
+      "volume": 947,
+      "category": "consumer",
+      "market_hash_name": "Souvenir SSG 08 | Prey (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:56:18.082Z"
+    },
+    "priceTimestamp": 1756400178082,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLijZGwpR1I_820baZ_IfOSA1iCxOpJveRtRjy-205w5mWGwtyrdHKVZwYoX8Z0QuZZ5xGwx9K1ZOzg4QPa3d5HnH7-hy1XrnE8iXd2AK8/360fx360f"
+  },
+  "MP7 | Short Ochre (Battle-Scarred)": {
+    "price": {
+      "success": true,
+      "price_rub": 1.44,
+      "price_usd": 0.02,
+      "volume": 205,
+      "category": "consumer",
+      "market_hash_name": "MP7 | Short Ochre (Battle-Scarred)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:56:36.518Z"
+    },
+    "priceTimestamp": 1756400196519,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8jsHf7i1k4ue9fKV_JM-bC2aG2KAh47MxSnDkzE524G6BnIn7I3OfawAiWMd2QOACtEKxxILkMLnltVPYlcsbmg9oUj0u/360fx360f"
+  },
+  "SCAR-20 | Short Ochre (Battle-Scarred)": {
+    "price": {
+      "success": true,
+      "price_rub": 1.51,
+      "price_usd": 0.02,
+      "volume": 187,
+      "category": "consumer",
+      "market_hash_name": "SCAR-20 | Short Ochre (Battle-Scarred)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:56:46.089Z"
+    },
+    "priceTimestamp": 1756400206089,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLinZfyr3Jk_P2RZbF-NPGBCliDwu9k4rFWRyyygwRp5TiDy92oJHKQPwUkXpp4QrYJsBfum92yZruztVCM3d4Tyymvi3gfuzErvbiFhiwXEQ/360fx360f"
+  },
+  "R8 Revolver | Cobalt Grip (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 4.24,
+      "price_usd": 0.04,
+      "volume": 685,
+      "category": "consumer",
+      "market_hash_name": "R8 Revolver | Cobalt Grip (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:56:55.293Z"
+    },
+    "priceTimestamp": 1756400215293,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLjm4Dv8TRe_c29Z6dlH_mdCm6XztFxouh5XBa_nBovp3ODyI2scn3BO1J2WJJ0F-MLsha6wNTgY7_m4VePid9AzSv4iC9LuiY5_a9cBmU4DDcB/360fx360f"
+  },
+  "Zeus x27 | Swamp DDPAT (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 6.48,
+      "price_usd": 0.07,
+      "volume": 472,
+      "category": "consumer",
+      "market_hash_name": "Zeus x27 | Swamp DDPAT (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:57:06.231Z"
+    },
+    "priceTimestamp": 1756400226231,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLln4Xl7x1T9s2qYaNkI_GeMWGf0-tlpN5lRi67gVNzsDuHyNyueHmQZgUoC5AkQuEKtkHum4fjN-jjtlfXio8UzHis2igb8G81tBqfncax/360fx360f"
+  },
+  "P90 | Blue Tac (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 3.93,
+      "price_usd": 0.04,
+      "volume": 616,
+      "category": "consumer",
+      "market_hash_name": "P90 | Blue Tac (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:57:15.015Z"
+    },
+    "priceTimestamp": 1756400235015,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLhx8bf9Ttk-uGvbpt_L-WdClicyOl-pK9rS3DjwEgjtziHyNioJ3rDaFdxXpR4TbUK4xbtx9K2ZbjltQPei91G02yg2byPK7vI/360fx360f"
+  },
+  "G3SG1 | Red Jasper (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 5.6,
+      "price_usd": 0.06,
+      "volume": 322,
+      "category": "consumer",
+      "market_hash_name": "G3SG1 | Red Jasper (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:57:23.905Z"
+    },
+    "priceTimestamp": 1756400243905,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL2zYXnrB1I4P2Rb_d-J6GsGmidwPp5j-1gSCGn20Ql62_Tztz8dymWPwYoXpYjQ-8Ds0TpmoHnYbzh51aKjYhBzXn23CpXrnE8L3fMNjQ/360fx360f"
+  },
+  "Souvenir SSG 08 | Jungle Dashed (Battle-Scarred)": {
+    "price": {
+      "success": true,
+      "price_rub": 0.74,
+      "price_usd": 0.01,
+      "volume": 21,
+      "category": "consumer",
+      "market_hash_name": "Souvenir SSG 08 | Jungle Dashed (Battle-Scarred)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:57:32.748Z"
+    },
+    "priceTimestamp": 1756400252748,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLijZGwpR1I_826abRoH-ObAXWE_uRjvuZlSha7kBwxqnPSwtmgeS-eagEmA5JwRONZsRm5m9K0P7nn71CKjIJCxH7_inhMuyY__a9cBigcIFvP/360fx360f"
+  },
+  "UMP-45 | Green Swirl (Battle-Scarred)": {
+    "price": {
+      "success": true,
+      "price_rub": 1.93,
+      "price_usd": 0.02,
+      "volume": 179,
+      "category": "consumer",
+      "market_hash_name": "UMP-45 | Green Swirl (Battle-Scarred)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:57:41.615Z"
+    },
+    "priceTimestamp": 1756400261615,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLkk4a0qB1I4PGmV6x4JeObB2GE_upzo-B9cCG2lAs-_TjdnIv8cH2XZ1AnDpIlQuNc4BDslte1P--24ADeiItFmyuq3S9Bu3l1o7FVxa3S8yI/360fx360f"
+  },
+  "Souvenir XM1014 | Hieroglyph (Well-Worn)": {
+    "price": {
+      "success": true,
+      "price_rub": 1.54,
+      "price_usd": 0.02,
+      "volume": 67,
+      "category": "consumer",
+      "market_hash_name": "Souvenir XM1014 | Hieroglyph (Well-Worn)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:57:51.099Z"
+    },
+    "priceTimestamp": 1756400271099,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLpk8ewrHZk7OeRcKk8cKHHMXeYwPx3v-lWQiy3nAgq_WvSy934c3jCa1dyXJByQOcNtUW4ldC0P77m5wDb349AziX_iC9N6SZ1o7FVWVgG-s4/360fx360f"
+  },
+  "Souvenir SG 553 | Bleached (Well-Worn)": {
+    "price": {
+      "success": true,
+      "price_rub": 1.02,
+      "price_usd": 0.01,
+      "volume": 47,
+      "category": "consumer",
+      "market_hash_name": "Souvenir SG 553 | Bleached (Well-Worn)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:57:59.965Z"
+    },
+    "priceTimestamp": 1756400279965,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLimcO1qx1I_82qbbdoMuSsHWyFzeJlj-xsSyCmmFMk627cn9ysIy_DPQMhDcd0RuZetBCxmtXmP7jm4VCI3YxAziz8iHhL8G81tK8yUWLX/360fx360f"
+  },
+  "Five-SeveN | Autumn Thicket (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 4.18,
+      "price_usd": 0.04,
+      "volume": 329,
+      "category": "consumer",
+      "market_hash_name": "Five-SeveN | Autumn Thicket (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:58:08.865Z"
+    },
+    "priceTimestamp": 1756400288865,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL3l4Dl7idN6vyRe6tiH_KBD2mTyetlj-1gSCGn2xsl5Tvdm9itJy_DaFUoDJYhRuVZsBm9lobiNeiz71HcgoNGyHr4jypXrnE8g0nYtGk/360fx360f"
+  },
+  "MP9 | Pine (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 5.67,
+      "price_usd": 0.06,
+      "volume": 645,
+      "category": "consumer",
+      "market_hash_name": "MP9 | Pine (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:58:17.814Z"
+    },
+    "priceTimestamp": 1756400297814,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8js_f7i1e0POieK1jJc-UHGKVz9F6ueZhW2fixUtwtm6Hy9urd33CbQUhDsFzF7RetxS_ldzgY7ywsVbdidkWyi6tkGoXuWJp7z88/360fx360f"
+  },
+  "Souvenir FAMAS | Faulty Wiring (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 8.04,
+      "price_usd": 0.08,
+      "volume": 43,
+      "category": "consumer",
+      "market_hash_name": "Souvenir FAMAS | Faulty Wiring (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:58:26.668Z"
+    },
+    "priceTimestamp": 1756400306668,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL3n5vh7h1a7s25YbZkLvesF2KczeFhj-xsSyCmmFN-4T7SzI74Jy-QbQUgXpN5QeRb4EO4xNLnMuvh71aMit5My3j6iihK8G81tIg75QKG/360fx360f"
+  },
+  "StatTrak™ USP-S | PC-GRN (Well-Worn)": {
+    "price": {
+      "success": true,
+      "price_rub": 39,
+      "price_usd": 0.41,
+      "volume": 211,
+      "category": "industrial",
+      "market_hash_name": "StatTrak™ USP-S | PC-GRN (Well-Worn)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:58:35.936Z"
+    },
+    "priceTimestamp": 1756400315937,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLkjYbf7itX6vytbbZSNeODHViS0_titedmXSq2qho1tjiLpYL8JSLSMxghCMAkTecOsRXsxNHuY-7g7gLXit5GxXn6jylK5i865L4AV6Ai__HfkUifZqpkp3m6/360fx360f"
+  },
+  "Glock-18 | Teal Graf (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 46.59,
+      "price_usd": 0.49,
+      "volume": 122,
+      "category": "industrial",
+      "market_hash_name": "Glock-18 | Teal Graf (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:58:44.735Z"
+    },
+    "priceTimestamp": 1756400324735,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL2kpnj9h1T9s2hfqF_MPGAHViEwOlxteVWWyyymSIqtjmMj4K3dnueaQV1CpJ1EeMO4EHuloeyZOPi4lHWjYxBmH-thy8d6n5jtr1XVb1lpPPsvuHcEA/360fx360f"
+  },
+  "StatTrak™ M4A4 | Choppa (Well-Worn)": {
+    "price": {
+      "success": true,
+      "price_rub": 12.86,
+      "price_usd": 0.14,
+      "volume": 249,
+      "category": "consumer",
+      "market_hash_name": "StatTrak™ M4A4 | Choppa (Well-Worn)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:59:02.063Z"
+    },
+    "priceTimestamp": 1756400342063,
+    "image": null
+  },
+  "StatTrak™ Tec-9 | Rebel (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 25.8,
+      "price_usd": 0.27,
+      "volume": 84,
+      "category": "industrial",
+      "market_hash_name": "StatTrak™ Tec-9 | Rebel (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:59:10.649Z"
+    },
+    "priceTimestamp": 1756400350649,
+    "image": null
+  },
+  "StatTrak™ M4A4 | Magnesium (Well-Worn)": {
+    "price": {
+      "success": true,
+      "price_rub": 73.19,
+      "price_usd": 0.77,
+      "volume": 103,
+      "category": "industrial",
+      "market_hash_name": "StatTrak™ M4A4 | Magnesium (Well-Worn)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:59:19.216Z"
+    },
+    "priceTimestamp": 1756400359216,
+    "image": null
+  },
+  "StatTrak™ MP5-SD | Liquidation (Battle-Scarred)": {
+    "price": {
+      "success": true,
+      "price_rub": 7.4,
+      "price_usd": 0.08,
+      "volume": 55,
+      "category": "consumer",
+      "market_hash_name": "StatTrak™ MP5-SD | Liquidation (Battle-Scarred)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:59:27.895Z"
+    },
+    "priceTimestamp": 1756400367895,
+    "image": null
+  },
+  "StatTrak™ SSG 08 | Memorial (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 15.84,
+      "price_usd": 0.17,
+      "volume": 261,
+      "category": "industrial",
+      "market_hash_name": "StatTrak™ SSG 08 | Memorial (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:59:36.609Z"
+    },
+    "priceTimestamp": 1756400376609,
+    "image": null
+  },
+  "Glock-18 | Clear Polymer (Battle-Scarred)": {
+    "price": {
+      "success": true,
+      "price_rub": 16.88,
+      "price_usd": 0.18,
+      "volume": 96,
+      "category": "industrial",
+      "market_hash_name": "Glock-18 | Clear Polymer (Battle-Scarred)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:59:45.263Z"
+    },
+    "priceTimestamp": 1756400385263,
+    "image": null
+  },
+  "StatTrak™ Tec-9 | Rebel (Well-Worn)": {
+    "price": {
+      "success": true,
+      "price_rub": 10.82,
+      "price_usd": 0.11,
+      "volume": 102,
+      "category": "consumer",
+      "market_hash_name": "StatTrak™ Tec-9 | Rebel (Well-Worn)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T16:59:53.899Z"
+    },
+    "priceTimestamp": 1756400393899,
+    "image": null
+  },
+  "StatTrak™ AK-47 | Uncharted (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 262.02,
+      "price_usd": 2.76,
+      "volume": 170,
+      "category": "milspec",
+      "market_hash_name": "StatTrak™ AK-47 | Uncharted (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:00:02.566Z"
+    },
+    "priceTimestamp": 1756400402566,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLwlcK3wiFO0POlPPNSIeqHC2SvzOtyufRkAXrlwkwj5m3dyt-scX2SZw8kDJN5EONbsUPtkYfnYbvmtlCMi4MQyiTgznQeFZeHgOE/360fx360f"
+  },
+  "StatTrak™ MP5-SD | Liquidation (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 11.07,
+      "price_usd": 0.12,
+      "volume": 118,
+      "category": "consumer",
+      "market_hash_name": "StatTrak™ MP5-SD | Liquidation (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:00:11.468Z"
+    },
+    "priceTimestamp": 1756400411468,
+    "image": null
+  },
+  "StatTrak™ Desert Eagle | Calligraffiti (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 66.99,
+      "price_usd": 0.71,
+      "volume": 112,
+      "category": "industrial",
+      "market_hash_name": "StatTrak™ Desert Eagle | Calligraffiti (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:00:30.344Z"
+    },
+    "priceTimestamp": 1756400430344,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL1m5fn8Sdk6_evb6hoH_OSAmuZxvx3tudWQiy3nAgq_WqByImrI3vCbwN2WMd1QeMPtxO9koHuMOzis1TW3tpFyHr8hn9Iuih1o7FViWQ7ORQ/360fx360f"
+  },
+  "StatTrak™ Glock-18 | Winterized (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 28.97,
+      "price_usd": 0.3,
+      "volume": 160,
+      "category": "industrial",
+      "market_hash_name": "StatTrak™ Glock-18 | Winterized (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:00:39.198Z"
+    },
+    "priceTimestamp": 1756400439198,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL2kpnj9h1c_M2pZKtuK8-WAm6ExNF1sexmcCW6khUz_W6Azdn6eCrBalcjXJpzE7EO5xa_l4DuNu6ws1Hb2IgUn32si39B5y11o7FVC5qcAFg/360fx360f"
+  },
+  "StatTrak™ USP-S | PC-GRN (Battle-Scarred)": {
+    "price": {
+      "success": true,
+      "price_rub": 34.01,
+      "price_usd": 0.36,
+      "volume": 282,
+      "category": "industrial",
+      "market_hash_name": "StatTrak™ USP-S | PC-GRN (Battle-Scarred)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:00:47.877Z"
+    },
+    "priceTimestamp": 1756400447877,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLkjYbf7itX6vytbbZSNeODHViS0_titedmXSq2qho1tjiLpYf8ID3ecFciWZslRLEPshi8xIfiMb-2tgyNiYxHzHqt3yIbu31jsrwDUqImrvLJz1aWTfRvAE0/360fx360f"
+  },
+  "StatTrak™ USP-S | 27 (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 49.43,
+      "price_usd": 0.52,
+      "volume": 95,
+      "category": "industrial",
+      "market_hash_name": "StatTrak™ USP-S | 27 (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:00:56.568Z"
+    },
+    "priceTimestamp": 1756400456568,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLkjYbf7itX6vytbbZSNeODMWGZxOJyj_JnTiK2qhAitzSQl8Gvcn_Ebg9xApB5RO8O4Ra-moDmY7nr7gDYjYxMyHis3yhO6Htv5OYAT-N7rT8xDMmb/360fx360f"
+  },
+  "AK-47 | Phantom Disruptor (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 388.22,
+      "price_usd": 4.09,
+      "volume": 322,
+      "category": "milspec",
+      "market_hash_name": "AK-47 | Phantom Disruptor (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:01:06.493Z"
+    },
+    "priceTimestamp": 1756400466493,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLwlcK3wiFO0POlJfA6H-CbD2mEzuNJtOh6XTyjgRI1jDCAnobsLGXBPQ8mDMZyFucN4BLrw9HhMLiw51Ddi45ExX_9jXtN7S0-tekFAqYj5OSJ2LJWXMuH/360fx360f"
+  },
+  "StatTrak™ Five-SeveN | Copper Galaxy (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 2302.5,
+      "price_usd": 24.24,
+      "volume": 0,
+      "category": "classified",
+      "market_hash_name": "StatTrak™ Five-SeveN | Copper Galaxy (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:01:17.672Z"
+    },
+    "priceTimestamp": 1756400477672,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL3l4Dl7idN6vyRaalSI_-DHmKC_uh6teJiXBa_nBovp3OAnN_6cXvEOwFzDcFzQ7Vc4BPuwNy0M7jk5gWL39pCnC35jShN6S1p_a9cBt8cUyQh/360fx360f"
+  },
+  "AK-47 | Head Shot (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 1527.97,
+      "price_usd": 16.08,
+      "volume": 99,
+      "category": "classified",
+      "market_hash_name": "AK-47 | Head Shot (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:01:26.617Z"
+    },
+    "priceTimestamp": 1756400486617,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLwlcK3wiFO0POlV6xoIfSsHW-f1dF-v-1mcCW6khUz_TzRnNigd3-SOg4lAsF1QOQN4xS4wdHnMu-0swaMjIxExSSoiyof6ih1o7FVGHIdVhw/360fx360f"
+  },
+  "Glock-18 | Brass (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 2170.83,
+      "price_usd": 22.85,
+      "volume": 5,
+      "category": "classified",
+      "market_hash_name": "Glock-18 | Brass (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:01:35.425Z"
+    },
+    "priceTimestamp": 1756400495425,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL2kpnj9h1a_s2seqV-M8-eC2OZ1OM45bhqFn6ylkt05mTVmdarIHOWP1JxXpN2Q7EIt0PtkoXjY-vlslbfj5UFk3umdsAkcA/360fx360f"
+  },
+  "USP-S | Bleeding Edge (Well-Worn)": {
+    "price": {
+      "success": true,
+      "price_rub": 711.34,
+      "price_usd": 7.49,
+      "volume": 11,
+      "category": "restricted",
+      "market_hash_name": "USP-S | Bleeding Edge (Well-Worn)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:01:44.269Z"
+    },
+    "priceTimestamp": 1756400504270,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLkjYbf7itX6vytbbZSKOSsHGKU_utyt-R6cCS2kRQyvnOGzoz_J3uVaAQkA5p3TeReu0KxlIfuMr6x41TYjdkXni6o2ygduCdj_a9cBj19DRV-/360fx360f"
+  },
+  "Soldier | Phoenix": {
+    "price": {
+      "success": true,
+      "price_rub": 1282.01,
+      "price_usd": 13.49,
+      "volume": 168,
+      "category": "classified",
+      "market_hash_name": "Soldier | Phoenix",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:01:53.106Z"
+    },
+    "priceTimestamp": 1756400513106,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIa-2lmxU-LR0dnuNm6E8Vl45Iv181z1fgn8oYbo8idV5uqRfqV_KfGdGm_elrd05uUwSn-wxB5_52zRyd39cHuWOgEmW5R3QbQM5xi4mtayMunq5hue1dxmxRjA3w/360fx360f"
+  },
+  "StatTrak™ MP7 | Impire (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 721.13,
+      "price_usd": 7.59,
+      "volume": 2,
+      "category": "restricted",
+      "market_hash_name": "StatTrak™ MP7 | Impire (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:02:02.166Z"
+    },
+    "priceTimestamp": 1756400522166,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8jsHf7jJk4uL5V61gMPmBC1icyOl-pK8xGiq2kUV24j6Gn9b4eXmWPwIoApJxRbRbtRW5wdfjYbi0sVfW2tkQ02yg2fafAb5i/360fx360f"
+  },
+  "StatTrak™ Five-SeveN | Boost Protocol (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 767.08,
+      "price_usd": 8.07,
+      "volume": 6,
+      "category": "restricted",
+      "market_hash_name": "StatTrak™ Five-SeveN | Boost Protocol (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:02:11.140Z"
+    },
+    "priceTimestamp": 1756400531140,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL3l4Dl7idN6vyRb7dSJvmFC1iDxPhzvt5sSTygnBIpjDGMnYftby7FalV1D5QhE-EDthW8xtCyPu63tFPciYhBynn_jykfuCttte4CA6E7uvqAn_5lxU8/360fx360f"
+  },
+  "StatTrak™ PP-Bizon | Antique (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 1982.28,
+      "price_usd": 20.87,
+      "volume": 0,
+      "category": "classified",
+      "market_hash_name": "StatTrak™ PP-Bizon | Antique (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:02:19.922Z"
+    },
+    "priceTimestamp": 1756400539923,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLzl4zv8x1Y-s2sYb5iLs-SAHOZ0Ptzj-1gSCGn20sj4DnTyN2pdyjFOg4oXJV5Qu5c5xS9w4bjNL7q7gHd2INGxCn_iyxXrnE83Efvvd0/360fx360f"
+  },
+  "Enforcer | Phoenix": {
+    "price": {
+      "success": true,
+      "price_rub": 1205.65,
+      "price_usd": 12.69,
+      "volume": 186,
+      "category": "classified",
+      "market_hash_name": "Enforcer | Phoenix",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:02:28.634Z"
+    },
+    "priceTimestamp": 1756400548634,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIa-2lmxU-LR0dnuNm6E8Vl45Iv181z1fgn8oYbo8idV5uqRfqV_KfGdGmHexbZ3tLM9G3jhzRt-5WqEydaqdS-QPAMjX8NxFLRY5hftx9XkNOm35xue1dyPr1iSWw/360fx360f"
+  },
+  "USP-S | Serum (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 5589.37,
+      "price_usd": 58.84,
+      "volume": 3,
+      "category": "classified",
+      "market_hash_name": "USP-S | Serum (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:02:37.448Z"
+    },
+    "priceTimestamp": 1756400557448,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLkjYbf7itX6vytbbZSIf2sC2uVwvpkueJWXSy3qhEutDWR1I34J3uXOwFyCsF4TeAJt0bpw9OxNrzh7gyI3t1DmHiq3y5M6HxqsrwcEf1yfEp4lzc/360fx360f"
+  },
+  "MAC-10 | Propaganda (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 8851.13,
+      "price_usd": 93.17,
+      "volume": 0,
+      "category": "covert",
+      "market_hash_name": "MAC-10 | Propaganda (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:02:46.288Z"
+    },
+    "priceTimestamp": 1756400566288,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8n5WxrR1Y-s2jaac8cM-DHGiAwOl3vuVocCW6khUz_T_WzN6hcHOQaQIgCZIlFrEPtUS7wdW0Ne6wtFTYj9pAzyr-3SxP6n11o7FVcf1yckU/360fx360f"
+  },
+  "M4A4 | 龍王 (Dragon King) (Well-Worn)": {
+    "price": {
+      "success": true,
+      "price_rub": 1094.73,
+      "price_usd": 11.52,
+      "volume": 6,
+      "category": "restricted",
+      "market_hash_name": "M4A4 | 龍王 (Dragon King) (Well-Worn)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:02:55.362Z"
+    },
+    "priceTimestamp": 1756400575362,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8ypexwiFO0P_6afBSIf6QC3SE0-96j-xsSyCmmFNytmrRmNz8JXzCbwUmXJN4R7YNskLuwdexNO3k5lfago5DmXn4hiwc8G81tMXFlsCz/360fx360f"
+  },
+  "StatTrak™ UMP-45 | K.O. Factory (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 3081.63,
+      "price_usd": 32.44,
+      "volume": 3,
+      "category": "classified",
+      "market_hash_name": "StatTrak™ UMP-45 | K.O. Factory (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:03:04.191Z"
+    },
+    "priceTimestamp": 1756400584191,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLkk4a0qB1O4uL6PZtiLPSsDWaC1eF5vt5lRi67gVN2tWXTzI6tc3rGPQ4kWJUiQrJf4RPskIW2ZO3r4VaKi9hFyX-qhy0a8G81tA_18T9p/360fx360f"
+  },
+  "StatTrak™ AK-47 | Redline (Battle-Scarred)": {
+    "price": {
+      "success": true,
+      "price_rub": 5968.75,
+      "price_usd": 62.83,
+      "volume": 4,
+      "category": "classified",
+      "market_hash_name": "StatTrak™ AK-47 | Redline (Battle-Scarred)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:03:12.958Z"
+    },
+    "priceTimestamp": 1756400592958,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLwlcK3wiFO0POlPPNSI_-RHGavyet3pvgnTnuylk5-5m2EzI6peC_FbwN0XsN5R7Fet0HqltbgMLy0tQfe34hHxTK-0H2H-GppPg/360fx360f"
+  },
+  "StatTrak™ M4A4 | Desolate Space (Battle-Scarred)": {
+    "price": {
+      "success": true,
+      "price_rub": 1836.6,
+      "price_usd": 19.33,
+      "volume": 5,
+      "category": "classified",
+      "market_hash_name": "StatTrak™ M4A4 | Desolate Space (Battle-Scarred)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:03:21.817Z"
+    },
+    "priceTimestamp": 1756400601817,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8ypexwiFO0P_6afBSJPWAAWuR1etJo_FoTCyMnRgmpSTLwtb8dSqQP1UhDJMhRLFcuhDux9bhY-zk5FGPi4tBnHn5jSxKun4-t_FCD_S4Z5pizg/360fx360f"
+  },
+  "StatTrak™ AWP | Elite Build (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 3810.02,
+      "price_usd": 40.11,
+      "volume": 0,
+      "category": "classified",
+      "market_hash_name": "StatTrak™ AWP | Elite Build (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:03:30.608Z"
+    },
+    "priceTimestamp": 1756400610608,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLwiYbf_jdk7uW-V6lsM-SWHH6vzOtyufRkAXnjzRx15WrWmd37JC7FZgEoCsFzFOQM4UHqm4a0YrnrtAXWg4IUmyTgznQe9p8sU8k/360fx360f"
+  },
+  "XM1014 | Tranquility (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 2892.87,
+      "price_usd": 30.45,
+      "volume": 0,
+      "category": "classified",
+      "market_hash_name": "XM1014 | Tranquility (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:03:39.726Z"
+    },
+    "priceTimestamp": 1756400619726,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLpk8ewrHZk7OeRcKk8cKHHMWSR0-disfJWQyC0nQlp5zjWnNigIC-falMlWMN2F-cP5Ba-xoXlMri0swTZg41EyX34jS1LuDErvbgNI5zBZg/360fx360f"
+  },
+  "M4A4 | Hellish (Well-Worn)": {
+    "price": {
+      "success": true,
+      "price_rub": 1714.3,
+      "price_usd": 18.05,
+      "volume": 13,
+      "category": "classified",
+      "market_hash_name": "M4A4 | Hellish (Well-Worn)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:03:48.844Z"
+    },
+    "priceTimestamp": 1756400628844,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8ypexwiFO0P_6afBSNOKSB2mvyet6vN5kSi26gBBp5GrVz92vc3iQaQ4kWMZ0R-ADtxa4xtblZr7q7lbfjIsUyir7iXtIvTErvbh1q_vGrg/360fx360f"
+  },
+  "'The Doctor' Romanov | Sabre": {
+    "price": {
+      "success": true,
+      "price_rub": 2357.44,
+      "price_usd": 24.82,
+      "volume": 142,
+      "category": "classified",
+      "market_hash_name": "'The Doctor' Romanov | Sabre",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:03:57.807Z"
+    },
+    "priceTimestamp": 1756400637807,
+    "image": null
+  },
+  "The Elite Mr. Muhlik | Elite Crew": {
+    "price": {
+      "success": true,
+      "price_rub": 1973.24,
+      "price_usd": 20.77,
+      "volume": 129,
+      "category": "classified",
+      "market_hash_name": "The Elite Mr. Muhlik | Elite Crew",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:04:06.411Z"
+    },
+    "priceTimestamp": 1756400646411,
+    "image": null
+  },
+  "★ Navaja Knife | Safari Mesh (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 7849.55,
+      "price_usd": 82.63,
+      "volume": 1,
+      "category": "classified",
+      "market_hash_name": "★ Navaja Knife | Safari Mesh (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:04:15.123Z"
+    },
+    "priceTimestamp": 1756400655123,
+    "image": null
+  },
+  "★ Paracord Knife | Urban Masked (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 11689.93,
+      "price_usd": 123.05,
+      "volume": 3,
+      "category": "covert",
+      "market_hash_name": "★ Paracord Knife | Urban Masked (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:04:23.750Z"
+    },
+    "priceTimestamp": 1756400663750,
+    "image": null
+  },
+  "★ Kukri Knife | Night Stripe (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 15610.36,
+      "price_usd": 164.32,
+      "volume": 2,
+      "category": "covert",
+      "market_hash_name": "★ Kukri Knife | Night Stripe (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:04:32.372Z"
+    },
+    "priceTimestamp": 1756400672372,
+    "image": null
+  },
+  "StatTrak™ AK-47 | Asiimov (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 18486.55,
+      "price_usd": 194.6,
+      "volume": 2,
+      "category": "covert",
+      "market_hash_name": "StatTrak™ AK-47 | Asiimov (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:04:40.956Z"
+    },
+    "priceTimestamp": 1756400680956,
+    "image": null
+  },
+  "★ Shadow Daggers | Lore (Well-Worn)": {
+    "price": {
+      "success": true,
+      "price_rub": 9007.78,
+      "price_usd": 94.82,
+      "volume": 2,
+      "category": "covert",
+      "market_hash_name": "★ Shadow Daggers | Lore (Well-Worn)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:04:49.846Z"
+    },
+    "priceTimestamp": 1756400689846,
+    "image": null
+  },
+  "★ Ursus Knife | Rust Coat (Battle-Scarred)": {
+    "price": {
+      "success": true,
+      "price_rub": 13917.96,
+      "price_usd": 146.5,
+      "volume": 1,
+      "category": "covert",
+      "market_hash_name": "★ Ursus Knife | Rust Coat (Battle-Scarred)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:04:58.609Z"
+    },
+    "priceTimestamp": 1756400698609,
+    "image": null
+  },
+  "USP-S | Kill Confirmed (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 12032.34,
+      "price_usd": 126.66,
+      "volume": 7,
+      "category": "covert",
+      "market_hash_name": "USP-S | Kill Confirmed (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:05:07.236Z"
+    },
+    "priceTimestamp": 1756400707236,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLkjYbf7itX6vytbbZSI-WsG3SA_uV_vO1WTCa9kxQ1vjiBpYPwJiPTcFB2Xpp5TO5cskG9lYCxZu_jsVCL3o4Xnij23ClO5ik9tegFA_It8qHJz1aWe-uc160/360fx360f"
+  },
+  "M4A4 | In Living Color (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 11540.03,
+      "price_usd": 121.47,
+      "volume": 11,
+      "category": "covert",
+      "market_hash_name": "M4A4 | In Living Color (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:05:16.059Z"
+    },
+    "priceTimestamp": 1756400716059,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL8ypexwiFO0P_6afBSLP-FC1icyOl-pK84GH2wxhty4DjcyNuhdHyXbAVxW8QjTbEMthC8kNa0MLmzs1Hbj95E02yg2bbWGcKW/360fx360f"
+  },
+  "★ Kukri Knife | Blue Steel (Well-Worn)": {
+    "price": {
+      "success": true,
+      "price_rub": 18311.31,
+      "price_usd": 192.75,
+      "volume": 1,
+      "category": "covert",
+      "market_hash_name": "★ Kukri Knife | Blue Steel (Well-Worn)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:05:24.882Z"
+    },
+    "priceTimestamp": 1756400724882,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL6kJ_m-B1Q-vm8YZtsMc-RAnKVxdF7teVgWiT9w01xsGnUm9-vdXqTbAIiDcAlR-cIt0G_wdC0YbmxsVON2I5CzSmo2DQJsHgQhvYiDw/360fx360f"
+  },
+  "★ Kukri Knife | Scorched (Battle-Scarred)": {
+    "price": {
+      "success": true,
+      "price_rub": 12000.09,
+      "price_usd": 126.32,
+      "volume": 4,
+      "category": "covert",
+      "market_hash_name": "★ Kukri Knife | Scorched (Battle-Scarred)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:05:33.616Z"
+    },
+    "priceTimestamp": 1756400733616,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL6kJ_m-B1Q-vm8YZt-MM-XD3eAzetJuORoWTD9zUV24GndmdmgJXmRPFcmXJZzRrYLuhTsx9exYu63tg3X34hMnCv-jjQJsHijxqEOsg/360fx360f"
+  },
+  "★ Survival Knife | Safari Mesh (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 9642.93,
+      "price_usd": 101.5,
+      "volume": 2,
+      "category": "covert",
+      "market_hash_name": "★ Survival Knife | Safari Mesh (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:05:42.542Z"
+    },
+    "priceTimestamp": 1756400742542,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL6kJ_m-B1Y7vyne5t-MM-eC3SY_vp3vt5kSi26gBBpt2_TnIz4di-ePVIlCJV0ELRZ5hPul9DiZOuxsQbXi4oUyn6oiCwduzErvbjSIiNorA/360fx360f"
+  },
+  "StatTrak™ AK-47 | Neon Rider (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 10712.87,
+      "price_usd": 112.77,
+      "volume": 0,
+      "category": "covert",
+      "market_hash_name": "StatTrak™ AK-47 | Neon Rider (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:05:51.380Z"
+    },
+    "priceTimestamp": 1756400751380,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLwlcK3wiFO0POlV6poL_6sHG6UxPxJveRtRjy-2x9_5GiBmYn4JHiVa1NyXMMkRuNe5ka5k9eyM-q2sQHc2NpCmyWvin5XrnE89iGyCXM/360fx360f"
+  },
+  "★ Survival Knife | Scorched (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 10999.25,
+      "price_usd": 115.78,
+      "volume": 5,
+      "category": "covert",
+      "market_hash_name": "★ Survival Knife | Scorched (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:06:00.288Z"
+    },
+    "priceTimestamp": 1756400760288,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL6kJ_m-B1Y7vyne5t-MM-XD3eAzetJveRtRjy-2xtw42mHwoz9cnzBblUjA5N5EOEOsBHsw9K1Zr_l7waPi49AmSWsjC9XrnE8pLhHytk/360fx360f"
+  },
+  "★ Bowie Knife | Lore (Minimal Wear)": {
+    "price": {
+      "success": true,
+      "price_rub": 0,
+      "price_usd": 0,
+      "volume": 0,
+      "category": "consumer",
+      "market_hash_name": "★ Bowie Knife | Lore (Minimal Wear)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:06:09.276Z"
+    },
+    "priceTimestamp": 1756400769276,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyL6kJ_m-B1I-uC4YbJsLM-RAXCZxNF1pd5rQD66kCIrvC-ApYPwJiPTcAJyAsZ3FrINuhK-l9O2Yei35wTago9NyCj4iHtP5n5itbsGA6FwqaTJz1aWiYxmw3g/360fx360f"
+  },
+  "★ Bayonet | Rust Coat (Battle-Scarred)": {
+    "price": {
+      "success": true,
+      "price_rub": 24841.99,
+      "price_usd": 261.49,
+      "volume": 2,
+      "category": "covert",
+      "market_hash_name": "★ Bayonet | Rust Coat (Battle-Scarred)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:06:18.365Z"
+    },
+    "priceTimestamp": 1756400778365,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Dx60noTyLzn4_v8ydP0PO_V7d5JfWfMWyeyOhzj-lsTj-q205y6zmBw42vcCqQbg50Dpt2TOMPsxK9ktWzNrzr4gaMiYhEzn2ojy9XrnE8rAbtyVI/360fx360f"
+  },
+  "★ Hydra Gloves | Rattler (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 6393.09,
+      "price_usd": 67.3,
+      "volume": 24,
+      "category": "classified",
+      "market_hash_name": "★ Hydra Gloves | Rattler (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:06:27.127Z"
+    },
+    "priceTimestamp": 1756400787127,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Tg_13jRBnOlo_k7yNk6P6hfqF-H_KfAWiUyeFjvuVWRzC3hxwYoDOEkYrqKiLJAVRiW9EzKrpf5kn9z8qyYu_g4QfYjI5GmCmqh39N6SZpt-dUWfEg-vLW2wHCOOI9s5cDdv_yU13QDy9z4v09/360fx360f"
+  },
+  "★ Specialist Gloves | Buckshot (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 12000.19,
+      "price_usd": 126.32,
+      "volume": 8,
+      "category": "covert",
+      "market_hash_name": "★ Specialist Gloves | Buckshot (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:06:36.186Z"
+    },
+    "priceTimestamp": 1756400796186,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Tk71ruQBH4jYLf-i5U-fe9V7d9JfOaD2uZ0vpJtu57Sjqnqh81vCqLpYL8JSLSMxgiC5t4R-ML5kW7xILmMezlsVbb2Y0TzimqjnsY5n1t4e4CA_chrqyBkUifZtH5pbEc/360fx360f"
+  },
+  "★ Driver Gloves | Rezan the Red (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 19100.63,
+      "price_usd": 201.06,
+      "volume": 5,
+      "category": "covert",
+      "market_hash_name": "★ Driver Gloves | Rezan the Red (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:06:45.023Z"
+    },
+    "priceTimestamp": 1756400805023,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5T441rsfhr9kYDl7h1I4_utY5t_JeqSAFidxOp_pewnGH7lwE5x52zRyIugcSjGawZ2ApZ3E-8LtxWxktyyPu_m5QTdjoxGyzK-0H1sRh_Xhg/360fx360f"
+  },
+  "★ Broken Fang Gloves | Jade (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 18975.01,
+      "price_usd": 199.74,
+      "volume": 5,
+      "category": "covert",
+      "market_hash_name": "★ Broken Fang Gloves | Jade (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:07:00.032Z"
+    },
+    "priceTimestamp": 1756400820032,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Tg_13jRBnOnITv9idV6fOgb5tqLP-FC3Svzv5zouB9Ria9xE0YvjiRm4PwIhTALFN1VP0tELNT902mxNaxMruw5ACMiNkUn375j3lMuHxisLoAU6ckrPHf2g2XOOc05ZEGLeHnE0pBEAoAZw/360fx360f"
+  },
+  "★ Driver Gloves | Queen Jaguar (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 11600.05,
+      "price_usd": 122.11,
+      "volume": 8,
+      "category": "covert",
+      "market_hash_name": "★ Driver Gloves | Queen Jaguar (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:07:08.911Z"
+    },
+    "priceTimestamp": 1756400828911,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5T441rsfhr9kYDl7h1I4_utY5tnIfeGD3Wv2Ot6vO5-cCS2kRQyvnPWzdusInuWbVVzD8R1TOAI5kbum4DgZu-z5wLc2oxFnHmv3CpOvHw4_a9cBj1Jd7OG/360fx360f"
+  },
+  "★ Driver Gloves | King Snake (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 36169.34,
+      "price_usd": 380.73,
+      "volume": 3,
+      "category": "contraband",
+      "market_hash_name": "★ Driver Gloves | King Snake (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:07:17.930Z"
+    },
+    "priceTimestamp": 1756400837930,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5T441rsfhr9kYDl7h1I4_utY5t-LvGYC3SbyOBJp-lgWyyMmBgjuiiI1NateC6XawQlA5QhFrVftUPtwNbjYbvm7wOP34pFyS-viStPuyY64-0cEf1yLcEL41M/360fx360f"
+  },
+  "★ Specialist Gloves | Fade (Field-Tested)": {
+    "price": {
+      "success": true,
+      "price_rub": 0,
+      "price_usd": 0,
+      "volume": 0,
+      "category": "consumer",
+      "market_hash_name": "★ Specialist Gloves | Fade (Field-Tested)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:07:26.702Z"
+    },
+    "priceTimestamp": 1756400846702,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Tk71ruQBH4jYLf-i5U-fe9V7d9JfOaD2uZ0vpJtuBtSha-kBkupjDLzNuqeXiTblJ1ApF0R-cNsBO7kIfiMrm25QWKgtpCxHn53y8f6iltsPFCD_TvMDm2oQ/360fx360f"
+  },
+  "★ Driver Gloves | Rezan the Red (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 118602.79,
+      "price_usd": 1248.45,
+      "volume": 0,
+      "category": "exotic",
+      "market_hash_name": "★ Driver Gloves | Rezan the Red (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:07:35.452Z"
+    },
+    "priceTimestamp": 1756400855452,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5T441rsfhr9kYDl7h1I4_utY5t_JeqSAFicyOl-pK87Gn3hwhl_tWiHwoz4I3yRbFMjA8B2ROQLsRKxmte0ZuuxswLX2YlA02yg2QKAS7rM/360fx360f"
+  },
+  "★ Specialist Gloves | Forest DDPAT (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 92432.72,
+      "price_usd": 972.98,
+      "volume": 0,
+      "category": "exotic",
+      "market_hash_name": "★ Specialist Gloves | Forest DDPAT (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:07:44.234Z"
+    },
+    "priceTimestamp": 1756400864234,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Tk71ruQBH4jYLf-i5U-fe9V7d9JfOaD2uZ0vpJtOV5Tj2Mkg8itjO6mY70LhTLN1F4Tox5ROcO4BW9kIGyZLvr4wWIgotEySyv235KvXo65e4BVKp3rvbfjAjCL_Rjtk6lU7Gx/360fx360f"
+  },
+  "★ Broken Fang Gloves | Yellow-banded (Factory New)": {
+    "price": {
+      "success": true,
+      "price_rub": 64702.92,
+      "price_usd": 681.08,
+      "volume": 0,
+      "category": "contraband",
+      "market_hash_name": "★ Broken Fang Gloves | Yellow-banded (Factory New)",
+      "source": "steam_market",
+      "updated_at": "2025-08-28T17:07:52.875Z"
+    },
+    "priceTimestamp": 1756400872875,
+    "image": "https://community.akamai.steamstatic.com/economy/image/i0CoZ81Ui0m-9KwlBY1L_18myuGuq1wfhWSaZgMttyVfPaERSR0Wqmu7LAocGIGz3UqlXOLrxM-vMGmW8VNxu5Tg_13jRBnOnITv9idV6fOgb5tqLP-FC3Svzv5zouB9Ria9xE0YozKMiYD3Hi3VMVFPWM4hFrxl-0XkzougWLa7sF2aldoWmHj6iyof6n0-tbsCVaMn86WGjwCVMb0-4MNVJ_ryRUiOUR8O7qF8BNe0Z1Hm6mc/360fx360f"
   }
 }

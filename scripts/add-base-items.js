@@ -59,7 +59,7 @@ async function processBatch(items, batchSize = 1) { // Делаем по 1 пр�
 
         // Задержка только для новых предметов (если result.isNew === true)
         if (result.isNew && i + 1 < items.length) {
-          const delay = 5000; // 5 секунд между новыми предметами
+          const delay = 8000; // 5 секунд между новыми предметами
           console.log(`⏳ Пауза ${delay/1000} секунд после импорта нового предмета...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
@@ -405,54 +405,54 @@ const BASE_CASE_CONFIGS = {
 // Предметы для разных типов кейсов
 const ITEMS_URLS = {
   subscription_tier1: {
-    consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 50),
-    industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 30),
-    milspec: COMPLETE_ITEMS_URLS.subscription.milspec.slice(0, 25),
-    restricted: COMPLETE_ITEMS_URLS.subscription.restricted.slice(0, 15),
-    classified: COMPLETE_ITEMS_URLS.subscription.classified.slice(0, 8),
-    covert: COMPLETE_ITEMS_URLS.subscription.covert.slice(0, 5),
-    contraband: COMPLETE_ITEMS_URLS.subscription.extraordinary.slice(0, 3),
-    exotic: COMPLETE_ITEMS_URLS.subscription.exotic.slice(0, 2)
+    consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 1000),
+    industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 1000),
+    milspec: COMPLETE_ITEMS_URLS.subscription.milspec.slice(0, 100),
+    restricted: COMPLETE_ITEMS_URLS.subscription.restricted.slice(0, 1000),
+    classified: COMPLETE_ITEMS_URLS.subscription.classified.slice(0, 1000),
+    covert: COMPLETE_ITEMS_URLS.subscription.covert.slice(0, 100),
+    contraband: COMPLETE_ITEMS_URLS.subscription.extraordinary.slice(0, 1000),
+    exotic: COMPLETE_ITEMS_URLS.subscription.exotic.slice(0, 100)
   },
   subscription_tier2: {
-    consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 50),
-    industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 30),
-    milspec: COMPLETE_ITEMS_URLS.subscription.milspec.slice(0, 25),
-    restricted: COMPLETE_ITEMS_URLS.subscription.restricted.slice(0, 15),
-    classified: COMPLETE_ITEMS_URLS.subscription.classified.slice(0, 8),
-    covert: COMPLETE_ITEMS_URLS.subscription.covert.slice(0, 5),
-    contraband: COMPLETE_ITEMS_URLS.subscription.extraordinary.slice(0, 3),
-    exotic: COMPLETE_ITEMS_URLS.subscription.exotic.slice(0, 2)
+    consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 1000),
+    industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 1000),
+    milspec: COMPLETE_ITEMS_URLS.subscription.milspec.slice(0, 1000),
+    restricted: COMPLETE_ITEMS_URLS.subscription.restricted.slice(0, 100),
+    classified: COMPLETE_ITEMS_URLS.subscription.classified.slice(0, 100),
+    covert: COMPLETE_ITEMS_URLS.subscription.covert.slice(0, 100),
+    contraband: COMPLETE_ITEMS_URLS.subscription.extraordinary.slice(0, 100),
+    exotic: COMPLETE_ITEMS_URLS.subscription.exotic.slice(0, 100)
   },
   subscription_tier3: {
-    consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 50),
-    industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 30),
-    milspec: COMPLETE_ITEMS_URLS.subscription.milspec.slice(0, 25),
-    restricted: COMPLETE_ITEMS_URLS.subscription.restricted.slice(0, 15),
-    classified: COMPLETE_ITEMS_URLS.subscription.classified.slice(0, 8),
+    consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 100),
+    industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 100),
+    milspec: COMPLETE_ITEMS_URLS.subscription.milspec.slice(0, 100),
+    restricted: COMPLETE_ITEMS_URLS.subscription.restricted.slice(0, 100),
+    classified: COMPLETE_ITEMS_URLS.subscription.classified.slice(0, 100),
     covert: COMPLETE_ITEMS_URLS.subscription.covert.slice(0, 5),
-    contraband: COMPLETE_ITEMS_URLS.subscription.extraordinary.slice(0, 3),
-    exotic: COMPLETE_ITEMS_URLS.subscription.exotic.slice(0, 2)
+    contraband: COMPLETE_ITEMS_URLS.subscription.extraordinary.slice(0, 100),
+    exotic: COMPLETE_ITEMS_URLS.subscription.exotic.slice(0, 100)
   },
   purchase: {
-    consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 50),
-    industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 30),
-    milspec: COMPLETE_ITEMS_URLS.subscription.milspec.slice(0, 25),
-    restricted: COMPLETE_ITEMS_URLS.subscription.restricted.slice(0, 15),
-    classified: COMPLETE_ITEMS_URLS.subscription.classified.slice(0, 10),
-    covert: COMPLETE_ITEMS_URLS.subscription.covert.slice(0, 6),
-    contraband: COMPLETE_ITEMS_URLS.subscription.extraordinary.slice(0, 4),
-    exotic: COMPLETE_ITEMS_URLS.subscription.exotic.slice(0, 3)
+    consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 100),
+    industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 100),
+    milspec: COMPLETE_ITEMS_URLS.subscription.milspec.slice(0, 100),
+    restricted: COMPLETE_ITEMS_URLS.subscription.restricted.slice(0, 100),
+    classified: COMPLETE_ITEMS_URLS.subscription.classified.slice(0, 100),
+    covert: COMPLETE_ITEMS_URLS.subscription.covert.slice(0, 100),
+    contraband: COMPLETE_ITEMS_URLS.subscription.extraordinary.slice(0, 100),
+    exotic: COMPLETE_ITEMS_URLS.subscription.exotic.slice(0, 100)
   },
   premium: {
-    consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 50),
-    industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 30),
-    milspec: COMPLETE_ITEMS_URLS.subscription.milspec.slice(0, 20),
-    restricted: COMPLETE_ITEMS_URLS.subscription.restricted.slice(0, 15),
-    classified: COMPLETE_ITEMS_URLS.subscription.classified.slice(0, 10),
-    covert: COMPLETE_ITEMS_URLS.subscription.covert.slice(0, 8),
-    contraband: COMPLETE_ITEMS_URLS.subscription.extraordinary.slice(0, 5),
-    exotic: COMPLETE_ITEMS_URLS.subscription.exotic.slice(0, 3)
+    consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 100),
+    industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 100),
+    milspec: COMPLETE_ITEMS_URLS.subscription.milspec.slice(0, 100),
+    restricted: COMPLETE_ITEMS_URLS.subscription.restricted.slice(0, 100),
+    classified: COMPLETE_ITEMS_URLS.subscription.classified.slice(0, 100),
+    covert: COMPLETE_ITEMS_URLS.subscription.covert.slice(0, 100),
+    contraband: COMPLETE_ITEMS_URLS.subscription.extraordinary.slice(0, 100),
+    exotic: COMPLETE_ITEMS_URLS.subscription.exotic.slice(0, 100)
   }
 };
 
