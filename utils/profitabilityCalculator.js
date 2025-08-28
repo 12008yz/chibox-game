@@ -1,9 +1,9 @@
 const { logger } = require('./logger');
 
 class ProfitabilityCalculator {
-  constructor(targetProfitMargin = 0.2) {
-    this.targetProfitMargin = targetProfitMargin; // 20% прибыль сайта
-    this.userReturnRate = 1 - targetProfitMargin; // 80% возврат пользователям
+  constructor(targetProfitMargin = 0.3) {
+    this.targetProfitMargin = targetProfitMargin; // 30% прибыль сайта
+    this.userReturnRate = 1 - targetProfitMargin; // 70% возврат пользователям
   }
 
   /**

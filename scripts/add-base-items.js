@@ -56,6 +56,13 @@ async function processBatch(items, batchSize = 1) { // Делаем по 1 пр�
       if (result) {
         results.push(result);
         console.log(`✅ Предмет ${i + 1}/${items.length} обработан успешно`);
+
+        // Задержка только для новых предметов (если result.isNew === true)
+        if (result.isNew && i + 1 < items.length) {
+          const delay = 5000; // 5 секунд между новыми предметами
+          console.log(`⏳ Пауза ${delay/1000} секунд после импорта нового предмета...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       } else {
         console.log(`❌ Предмет ${i + 1}/${items.length} не удалось обработать`);
       }
@@ -65,13 +72,6 @@ async function processBatch(items, batchSize = 1) { // Делаем по 1 пр�
 
     // Сохраняем кэш после каждого предмета
     saveCache();
-
-    // Задержка между предметами для предотвращения блокировки Steam
-    if (i + 1 < items.length) {
-      const delay = 5000; // 5 секунд между предметами
-      console.log(`⏳ Пауза ${delay/1000} секунд перед следующим предметом...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
   }
 
   return results;
@@ -93,7 +93,7 @@ async function processItemOptimized(url, originalRarity, caseType) {
 
     if (existingItem) {
       console.log(`⏭️ Предмет существует: ${marketHashName}`);
-      return existingItem;
+      return { ...existingItem.toJSON(), isNew: false };
     }
 
     // Проверяем кэш
@@ -142,7 +142,7 @@ async function processItemOptimized(url, originalRarity, caseType) {
     const newItem = await createItemInDatabase(marketHashName, imageUrl, priceRub, priceUsd, actualRarity, caseType);
 
     console.log(`✅ Добавлен: ${marketHashName} - ₽${priceRub}`);
-    return newItem;
+    return { ...newItem.toJSON(), isNew: true };
 
   } catch (error) {
     console.error(`❌ Ошибка обработки ${url}:`, error.message);
@@ -648,7 +648,7 @@ module.exports = {
 if (require.main === module) {
   console.log('🚀 Запуск оптимизированного импорта...');
 
-  populateDatabaseOptimized(20) // Тестовый запуск с 20 предметами на категорию
+  populateDatabaseOptimized(1000) // Загружаем все предметы (до 1000 на категорию)
     .then(() => {
       console.log('\n🎉 Оптимизированный импорт завершен успешно!');
       process.exit(0);

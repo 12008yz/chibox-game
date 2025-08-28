@@ -262,7 +262,7 @@ async function openCase(req, res) {
     if (userCase.is_paid) {
       // Покупной кейс: только достижения + уровень (без подписки)
       userDropBonus = (user.achievements_bonus_percentage || 0) + (user.level_bonus_percentage || 0);
-      userDropBonus = Math.min(userDropBonus, 15.0); // Общий лимит
+      userDropBonus = Math.min(userDropBonus, 12.0); // Общий лимит
     } else {
       // Подписочный кейс: все бонусы
       userDropBonus = user.total_drop_bonus_percentage || 0;
