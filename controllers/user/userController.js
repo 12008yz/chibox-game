@@ -10,7 +10,7 @@ const { getCases } = require('./getCases');
 const { getBalance } = require('./getBalance');
 const { applyPromo } = require('./applyPromo');
 const { getTransactions } = require('./getTransactions');
-const { deposit } = require('./deposit');
+
 const { withdrawBalance } = require('./withdrawBalance');
 const { getAchievements } = require('./getAchievements');
 const { getMissions } = require('./getMissions');
@@ -46,7 +46,6 @@ module.exports = {
   getBalance,
   applyPromo,
   getTransactions,
-  deposit,
   withdrawBalance,
   getAchievements,
   getMissions,

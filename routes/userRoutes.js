@@ -14,7 +14,6 @@ const {
   getBalance,
   applyPromo,
   getTransactions,
-  deposit,
   withdrawBalance,
   getAchievements,
   getMissions,
@@ -108,7 +107,7 @@ router.get('/cases', getCases); // Доступно всем для просмо
 router.get('/balance', authMiddleware, getBalance); //+
 router.post('/promo', authMiddleware, applyPromo);
 router.get('/transactions', authMiddleware, getTransactions);
-router.post('/deposit', authMiddleware, deposit);
+
 router.post('/withdraw-balance', authMiddleware, withdrawBalance);
 router.get('/achievements', authMiddleware, getAchievements); //+
 router.get('/missions', authMiddleware, getMissions);

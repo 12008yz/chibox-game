@@ -13,14 +13,14 @@ const ITEM_IDS = [
   '1157a376-bacf-43fb-b28b-abaeb57b443f', // Sawed-Off | Blue Spraypaint (Factory New)
   '12d81534-ab8a-49ad-a431-604ca46ffee2', // Sawed-Off | Blue Spraypaint (Factory New)
   '164c3dc2-8e6c-47cd-a6b5-46559e009738', // Sawed-Off | Blue Spraypaint (Factory New)
-  '21c2d046-757b-4ac6-a902-ee10a063d06d',
-  '28bee93e-c7f3-4bfd-9b5e-be465a201f62', // Sawed-Off | Blue Spraypaint (Factory New)
-  '2a7026b3-ef66-4f56-9b5e-73c1bcb8e321', // Sawed-Off | Blue Spraypaint (Factory New)
-  '33b1b049-bab1-449f-9b8d-302410d93e9d', // Sawed-Off | Blue Spraypaint (Factory New)
-  '393b7673-a989-4a63-82e1-33137e9957ca', // Sawed-Off | Blue Spraypaint (Factory New)
-  '39e86152-5210-4276-9d83-fb6cafced65b', // Sawed-Off | Blue Spraypaint (Factory New)
-  '3c47cc31-27dc-4c73-826b-80c87b5fcba2', // Sawed-Off | Blue Spraypaint (Factory New)
-  '341a7a25-6aa3-4cb4-a97f-69bed4fe33eb', // Sawed-Off | Blue Spraypaint (Factory New)
+  'ad9bd9c1-716d-4385-838f-3e08fe5c89ae',
+  'a1822ab8-0a6b-4bee-9fa2-72b662c7f842', // Sawed-Off | Blue Spraypaint (Factory New)
+  '91669f77-5d33-43a9-b5c4-3c390b237e16', // Sawed-Off | Blue Spraypaint (Factory New)
+  '6ac05c2f-f27b-4d69-af8a-71ac12e5d4c7', // Sawed-Off | Blue Spraypaint (Factory New)
+  '66aa0434-53b1-47c7-9a63-1b15a2ae52e0', // Sawed-Off | Blue Spraypaint (Factory New)
+  '4a7c1dfa-0655-487f-bf86-4c1e6e74d5a8', // Sawed-Off | Blue Spraypaint (Factory New)
+  '57628e51-7d6a-4264-ace5-4b6e3ba8ba81', // Sawed-Off | Blue Spraypaint (Factory New)
+  '5024c167-3bb2-4989-9f9a-50c7fff04859', // Sawed-Off | Blue Spraypaint (Factory New)
 
   // 👇 ДОБАВЛЯЙТЕ НОВЫЕ ID ЗДЕСЬ:
 
