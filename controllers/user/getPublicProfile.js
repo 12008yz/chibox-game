@@ -107,7 +107,7 @@ async function getPublicProfile(req, res) {
 
         if (foundItem) {
           // Если найден предмет с точной ценой, используем его
-          bestWeapon = foundItem.item;
+          bestWeapon = foundItem.item.toJSON();
         } else {
           // Если предмет с рекордной ценой не найден (продан/обменен),
           // создаем "виртуальный" предмет для отображения рекорда
@@ -119,9 +119,8 @@ async function getPublicProfile(req, res) {
 
           // Создаем виртуальный предмет с рекордной ценой
           bestWeapon = {
-            ...mostExpensive.item,
+            ...mostExpensive.item.toJSON(),
             price: bestItemValue.toString(), // ВАЖНО: Показываем рекордную цену!
-            name: mostExpensive.item.name + " (рекорд)", // Помечаем как рекорд
             isRecord: true // Флаг для фронтенда
           };
         }
@@ -130,12 +129,12 @@ async function getPublicProfile(req, res) {
       // Если есть рекорд, но нет предметов в базе, создаем виртуальный предмет
       bestWeapon = {
         id: 'virtual',
-        name: 'Рекордный предмет (удален)',
+        name: 'Рекордный предмет',
         rarity: 'covert',
         price: user.best_item_value.toString(),
         weapon_type: 'Неизвестно',
         skin_name: '',
-        image_url: null,
+        image_url: 'https://community.fastly.steamstatic.com/economy/image/6TMcQ7eX6E0EZl2byXi7vaVtMyCbg7JT9Nj26yLB0uiTHKECVqCQJYPQOiKc1A9hdeGdqRmPbEbD8Q_VfQ/256fx256f',
         isRecord: true
       };
     } else if (allUserItems && allUserItems.length > 0) {
@@ -148,7 +147,7 @@ async function getPublicProfile(req, res) {
           const currentPrice = parseFloat(current.item.price) || 0;
           return (prevPrice > currentPrice) ? prev : current;
         });
-        bestWeapon = foundItem.item;
+        bestWeapon = foundItem.item.toJSON();
       }
     }
 

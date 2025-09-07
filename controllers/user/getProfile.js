@@ -17,6 +17,18 @@ async function getProfile(req, res) {
   try {
     const userId = req.user.id;
 
+    // Получаем ВСЕ предметы пользователя (включая проданные, обмененные и т.д.) для вычисления общей стоимости
+    const allUserItems = await db.UserInventory.findAll({
+      where: { user_id: userId },
+      include: [
+        {
+          model: db.Item,
+          as: 'item',
+          attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
+        }
+      ]
+    });
+
     const user = await db.User.findByPk(userId, {
       attributes: [
         'id', 'email', 'username', 'createdAt', 'updatedAt', 'role', 'is_email_verified',
@@ -57,9 +69,26 @@ async function getProfile(req, res) {
       return res.status(404).json({ message: 'Пользователь не найден' });
     }
 
+    // Вычисляем общую стоимость всех когда-либо полученных предметов
+    let totalItemsValue = 0;
+    if (allUserItems && allUserItems.length > 0) {
+      totalItemsValue = allUserItems.reduce((total, inventoryItem) => {
+        if (inventoryItem.item) {
+          return total + (parseFloat(inventoryItem.item.price) || 0);
+        }
+        return total;
+      }, 0);
+    }
+
+    // Добавляем вычисленное поле к объекту пользователя
+    const userWithTotalValue = {
+      ...user.toJSON(),
+      total_items_value: totalItemsValue
+    };
+
     return res.json({
       success: true,
-      user
+      user: userWithTotalValue
     });
 
   } catch (error) {
