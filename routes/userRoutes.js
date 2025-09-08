@@ -53,6 +53,7 @@ const { getLiveDrops } = require('../controllers/user/getLiveDrops');
 const { fetchSteamTradeUrl, getTradeUrlStatus } = require('../controllers/user/fetchSteamTradeUrl');
 const { claimSubscriptionCase, getSubscriptionCaseStatus } = require('../controllers/user/claimSubscriptionCase');
 const { createGame: createTicTacToeGame, getCurrentGame: getCurrentTicTacToeGame, makeMove: makeTicTacToeMove } = require('../controllers/user/ticTacToeController');
+const { getUpgradeableItems, getUpgradeOptions, performUpgrade } = require('../controllers/user/upgradeItem');
 const authMiddleware = require('../middleware/auth');
 const optionalAuthMiddleware = require('../middleware/optionalAuth');
 const { requireEmailVerification } = require('../middleware/emailVerification');
@@ -156,5 +157,10 @@ router.get('/subscription/case-status', authMiddleware, getSubscriptionCaseStatu
 router.post('/tic-tac-toe/new-game', authMiddleware, createTicTacToeGame); // Создание новой игры крестики-нолики
 router.get('/tic-tac-toe/current-game', authMiddleware, getCurrentTicTacToeGame); // Получение текущей игры
 router.post('/tic-tac-toe/move', authMiddleware, makeTicTacToeMove); // Совершение хода
+
+// Upgrade routes
+router.get('/upgrade/items', authMiddleware, getUpgradeableItems); // Получение предметов для апгрейда
+router.get('/upgrade/options/:itemId', authMiddleware, getUpgradeOptions); // Получение вариантов апгрейда
+router.post('/upgrade/perform', authMiddleware, performUpgrade); // Выполнение апгрейда
 
 module.exports = router;
