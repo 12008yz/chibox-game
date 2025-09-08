@@ -160,7 +160,7 @@ router.post('/tic-tac-toe/move', authMiddleware, makeTicTacToeMove); // Сове
 
 // Upgrade routes
 router.get('/upgrade/items', authMiddleware, getUpgradeableItems); // Получение предметов для апгрейда
-router.get('/upgrade/options/:itemId', authMiddleware, getUpgradeOptions); // Получение вариантов апгрейда
+router.get('/upgrade/options', authMiddleware, getUpgradeOptions); // Получение вариантов апгрейда
 router.post('/upgrade/perform', authMiddleware, performUpgrade); // Выполнение апгрейда
 
 module.exports = router;

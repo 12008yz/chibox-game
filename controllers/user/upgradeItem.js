@@ -69,19 +69,54 @@ async function getUpgradeableItems(req, res) {
 // Получить возможные варианты апгрейда для предмета
 async function getUpgradeOptions(req, res) {
   try {
-    const { itemId } = req.params;
+    const { itemIds } = req.query; // Теперь получаем массив ID предметов
+    const userId = req.user.id;
 
-    // Получаем исходный предмет
-    const sourceItem = await db.Item.findByPk(itemId);
-    if (!sourceItem) {
-      return res.status(404).json({ message: 'Предмет не найден' });
+    if (!itemIds) {
+      return res.status(400).json({ message: 'itemIds обязательны' });
     }
 
-    const sourcePrice = parseFloat(sourceItem.price);
+    // Парсим ID предметов из строки или массива
+    let itemIdArray;
+    if (typeof itemIds === 'string') {
+      itemIdArray = itemIds.split(',').map(id => id.trim());
+    } else {
+      itemIdArray = Array.isArray(itemIds) ? itemIds : [itemIds];
+    }
 
-    // Ищем предметы для апгрейда (на 20-500% дороже исходного)
-    const minPrice = sourcePrice * 1.2; // Минимум на 20% дороже
-    const maxPrice = sourcePrice * 5; // Максимум в 5 раз дороже
+    if (itemIdArray.length === 0) {
+      return res.status(400).json({ message: 'Нужно выбрать хотя бы один предмет' });
+    }
+
+    // Получаем выбранные предметы пользователя из инвентаря
+    const selectedItems = await db.UserInventory.findAll({
+      where: {
+        user_id: userId,
+        status: 'inventory'
+      },
+      include: [{
+        model: db.Item,
+        as: 'item',
+        where: {
+          id: itemIdArray
+        },
+        attributes: ['id', 'name', 'image_url', 'price', 'rarity', 'weapon_type'],
+        required: true
+      }]
+    });
+
+    if (selectedItems.length === 0) {
+      return res.status(404).json({ message: 'Выбранные предметы не найдены в инвентаре' });
+    }
+
+    // Вычисляем общую стоимость выбранных предметов
+    const totalSourcePrice = selectedItems.reduce((sum, invItem) => {
+      return sum + parseFloat(invItem.item.price);
+    }, 0);
+
+    // Ищем предметы для апгрейда (на 10-800% дороже общей стоимости)
+    const minPrice = totalSourcePrice * 1.1; // Минимум на 10% дороже
+    const maxPrice = totalSourcePrice * 8; // Максимум в 8 раз дороже
 
     const upgradeOptions = await db.Item.findAll({
       where: {
@@ -90,27 +125,31 @@ async function getUpgradeOptions(req, res) {
         },
         is_available: true,
         id: {
-          [db.Sequelize.Op.ne]: itemId // Исключаем исходный предмет
+          [db.Sequelize.Op.notIn]: itemIdArray // Исключаем выбранные предметы
         }
       },
       attributes: ['id', 'name', 'image_url', 'price', 'rarity', 'weapon_type'],
       order: [['price', 'ASC']],
-      limit: 20
+      limit: 30
     });
 
     // Вычисляем шансы для каждого варианта
     const optionsWithChances = upgradeOptions.map(item => {
       const targetPrice = parseFloat(item.price);
-      const priceRatio = targetPrice / sourcePrice;
+      const priceRatio = targetPrice / totalSourcePrice;
 
-      // Формула шанса: базовый шанс 50% для предметов на 20% дороже,
-      // уменьшается экспоненциально с ростом цены
-      let chance = Math.max(5, Math.min(50, 50 / Math.pow(priceRatio - 1, 0.8)));
-      chance = Math.round(chance * 10) / 10; // Округляем до 1 знака после запятой
+      // Базовый шанс
+      let baseChance = Math.max(5, Math.min(60, 60 / Math.pow(priceRatio - 1, 0.6)));
+
+      // Бонус за количество предметов
+      const quantityBonus = Math.min(18, (selectedItems.length - 1) * 2);
+      const finalChance = Math.min(75, baseChance + quantityBonus);
 
       return {
         ...item.toJSON(),
-        upgrade_chance: chance,
+        upgrade_chance: Math.round(finalChance * 10) / 10,
+        base_chance: Math.round(baseChance * 10) / 10,
+        quantity_bonus: quantityBonus,
         price_ratio: Math.round(priceRatio * 100) / 100
       };
     });
@@ -118,7 +157,8 @@ async function getUpgradeOptions(req, res) {
     return res.json({
       success: true,
       data: {
-        source_item: sourceItem,
+        source_items: selectedItems.map(item => item.item),
+        total_source_price: Math.round(totalSourcePrice * 100) / 100,
         upgrade_options: optionsWithChances
       }
     });
@@ -134,38 +174,46 @@ async function performUpgrade(req, res) {
 
   try {
     const userId = req.user.id;
-    const { sourceInventoryId, targetItemId } = req.body;
+    const { sourceInventoryIds, targetItemId } = req.body;
 
-    if (!sourceInventoryId || !targetItemId) {
+    // Проверяем, что sourceInventoryIds это массив и содержит хотя бы один элемент
+    if (!Array.isArray(sourceInventoryIds) || sourceInventoryIds.length === 0 || !targetItemId) {
       await transaction.rollback();
-      return res.status(400).json({ message: 'sourceInventoryId и targetItemId обязательны' });
+      return res.status(400).json({ message: 'sourceInventoryIds (массив) и targetItemId обязательны. Нужно выбрать минимум 1 предмет.' });
     }
 
-    // Проверяем исходный предмет в инвентаре пользователя
-    const sourceInventoryItem = await db.UserInventory.findOne({
+    // Ограничиваем количество предметов для улучшения (максимум 10)
+    if (sourceInventoryIds.length > 10) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Максимум 10 предметов можно использовать для улучшения одновременно' });
+    }
+
+    // Получаем все исходные предметы в инвентаре пользователя
+    const sourceInventoryItems = await db.UserInventory.findAll({
       where: {
-        id: sourceInventoryId,
+        id: sourceInventoryIds,
         user_id: userId,
         status: 'inventory'
       },
+      include: [{
+        model: db.Item,
+        as: 'item',
+        attributes: ['id', 'name', 'image_url', 'price', 'rarity', 'weapon_type'],
+        required: true
+      }],
       transaction,
       lock: transaction.LOCK.UPDATE
     });
 
-    if (!sourceInventoryItem) {
+    if (sourceInventoryItems.length !== sourceInventoryIds.length) {
       await transaction.rollback();
-      return res.status(404).json({ message: 'Исходный предмет не найден в инвентаре' });
+      return res.status(404).json({ message: 'Некоторые предметы не найдены в инвентаре или уже использованы' });
     }
 
-    // Получаем данные о предмете отдельно
-    const sourceItem = await db.Item.findByPk(sourceInventoryItem.item_id, { transaction });
-    if (!sourceItem) {
-      await transaction.rollback();
-      return res.status(404).json({ message: 'Данные о предмете не найдены' });
-    }
-
-    // Добавляем предмет к объекту инвентаря для совместимости с остальным кодом
-    sourceInventoryItem.item = sourceItem;
+    // Вычисляем общую стоимость исходных предметов
+    const totalSourcePrice = sourceInventoryItems.reduce((sum, invItem) => {
+      return sum + parseFloat(invItem.item.price);
+    }, 0);
 
     // Проверяем целевой предмет
     const targetItem = await db.Item.findByPk(targetItemId, { transaction });
@@ -174,27 +222,36 @@ async function performUpgrade(req, res) {
       return res.status(404).json({ message: 'Целевой предмет не найден' });
     }
 
-    const sourcePrice = parseFloat(sourceInventoryItem.item.price);
     const targetPrice = parseFloat(targetItem.price);
 
-    // Проверяем, что целевой предмет дороже исходного
-    if (targetPrice <= sourcePrice * 1.2) {
+    // Проверяем, что целевой предмет дороже общей стоимости исходных предметов (хотя бы на 10%)
+    if (targetPrice <= totalSourcePrice * 1.1) {
       await transaction.rollback();
-      return res.status(400).json({ message: 'Целевой предмет должен быть минимум на 20% дороже исходного' });
+      return res.status(400).json({
+        message: `Целевой предмет должен быть минимум на 10% дороже общей стоимости выбранных предметов. Общая стоимость: ${totalSourcePrice.toFixed(2)}, целевая: ${targetPrice.toFixed(2)}`
+      });
     }
 
-    // Вычисляем шанс успеха
-    const priceRatio = targetPrice / sourcePrice;
-    let successChance = Math.max(5, Math.min(50, 50 / Math.pow(priceRatio - 1, 0.8)));
+    // Вычисляем шанс успеха на основе соотношения цен
+    const priceRatio = targetPrice / totalSourcePrice;
+
+    // Базовый шанс зависит от количества предметов и соотношения цен
+    let baseSuccessChance = Math.max(5, Math.min(60, 60 / Math.pow(priceRatio - 1, 0.6)));
+
+    // Бонус за количество предметов (каждый дополнительный предмет дает +2% шанса, максимум +18%)
+    const quantityBonus = Math.min(18, (sourceInventoryItems.length - 1) * 2);
+    const finalSuccessChance = Math.min(75, baseSuccessChance + quantityBonus);
 
     // Генерируем случайное число для определения успеха
     const randomValue = Math.random() * 100;
-    const isSuccess = randomValue < successChance;
+    const isSuccess = randomValue < finalSuccessChance;
 
-    // Удаляем исходный предмет
-    sourceInventoryItem.status = 'used';
-    sourceInventoryItem.transaction_date = new Date();
-    await sourceInventoryItem.save({ transaction });
+    // Помечаем все исходные предметы как использованные
+    await Promise.all(sourceInventoryItems.map(async (invItem) => {
+      invItem.status = 'used';
+      invItem.transaction_date = new Date();
+      await invItem.save({ transaction });
+    }));
 
     let resultItem = null;
 
@@ -210,37 +267,46 @@ async function performUpgrade(req, res) {
       // Обновляем достижения
       await transaction.commit();
       await updateUserAchievementProgress(userId, 'upgrade_item', 1);
-      await addExperience(userId, 25, 'upgrade_success', null, 'Успешный апгрейд предмета');
 
-      logger.info(`Пользователь ${userId} успешно улучшил предмет ${sourceInventoryItem.item?.name || 'Unknown'} до ${targetItem.name}`);
+      // Больше опыта за успешный апгрейд с несколькими предметами
+      const expReward = 25 + (sourceInventoryItems.length * 5);
+      await addExperience(userId, expReward, 'upgrade_success', null, `Успешный апгрейд ${sourceInventoryItems.length} предметов`);
+
+      const sourceItemNames = sourceInventoryItems.map(item => item.item?.name || 'Unknown').join(', ');
+      logger.info(`Пользователь ${userId} успешно улучшил предметы [${sourceItemNames}] до ${targetItem.name}`);
 
       return res.json({
         success: true,
         upgrade_success: true,
         message: 'Апгрейд успешен!',
         data: {
-          source_item: sourceInventoryItem.item,
+          source_items: sourceInventoryItems.map(item => item.item),
           result_item: targetItem,
-          success_chance: Math.round(successChance * 10) / 10,
-          rolled_value: Math.round(randomValue * 10) / 10
+          success_chance: Math.round(finalSuccessChance * 10) / 10,
+          rolled_value: Math.round(randomValue * 10) / 10,
+          total_source_price: Math.round(totalSourcePrice * 100) / 100,
+          quantity_bonus: quantityBonus
         }
       });
     } else {
-      // Неудачный апгрейд - предмет потерян
+      // Неудачный апгрейд - предметы потеряны
       await transaction.commit();
-      await addExperience(userId, 5, 'upgrade_fail', null, 'Неудачный апгрейд предмета');
+      await addExperience(userId, 5 + sourceInventoryItems.length, 'upgrade_fail', null, `Неудачный апгрейд ${sourceInventoryItems.length} предметов`);
 
-      logger.info(`Пользователь ${userId} неудачно попытался улучшить предмет ${sourceInventoryItem.item?.name || 'Unknown'} до ${targetItem.name}`);
+      const sourceItemNames = sourceInventoryItems.map(item => item.item?.name || 'Unknown').join(', ');
+      logger.info(`Пользователь ${userId} неудачно попытался улучшить предметы [${sourceItemNames}] до ${targetItem.name}`);
 
       return res.json({
         success: true,
         upgrade_success: false,
-        message: 'Апгрейд не удался, предмет потерян',
+        message: 'Апгрейд не удался, предметы потеряны',
         data: {
-          source_item: sourceInventoryItem.item,
+          source_items: sourceInventoryItems.map(item => item.item),
           target_item: targetItem,
-          success_chance: Math.round(successChance * 10) / 10,
-          rolled_value: Math.round(randomValue * 10) / 10
+          success_chance: Math.round(finalSuccessChance * 10) / 10,
+          rolled_value: Math.round(randomValue * 10) / 10,
+          total_source_price: Math.round(totalSourcePrice * 100) / 100,
+          quantity_bonus: quantityBonus
         }
       });
     }
