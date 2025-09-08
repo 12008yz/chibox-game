@@ -28,7 +28,8 @@ async function getUpgradeableItems(req, res) {
       include: [{
         model: db.Item,
         as: 'item',
-        attributes: ['id', 'name', 'image_url', 'price', 'rarity', 'weapon_type']
+        attributes: ['id', 'name', 'image_url', 'price', 'rarity', 'weapon_type'],
+        required: true // Это заставляет использовать INNER JOIN
       }],
       order: [['item', 'price', 'DESC']]
     });
@@ -147,10 +148,6 @@ async function performUpgrade(req, res) {
         user_id: userId,
         status: 'inventory'
       },
-      include: [{
-        model: db.Item,
-        as: 'item'
-      }],
       transaction,
       lock: transaction.LOCK.UPDATE
     });
@@ -159,6 +156,16 @@ async function performUpgrade(req, res) {
       await transaction.rollback();
       return res.status(404).json({ message: 'Исходный предмет не найден в инвентаре' });
     }
+
+    // Получаем данные о предмете отдельно
+    const sourceItem = await db.Item.findByPk(sourceInventoryItem.item_id, { transaction });
+    if (!sourceItem) {
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Данные о предмете не найдены' });
+    }
+
+    // Добавляем предмет к объекту инвентаря для совместимости с остальным кодом
+    sourceInventoryItem.item = sourceItem;
 
     // Проверяем целевой предмет
     const targetItem = await db.Item.findByPk(targetItemId, { transaction });
@@ -185,7 +192,7 @@ async function performUpgrade(req, res) {
     const isSuccess = randomValue < successChance;
 
     // Удаляем исходный предмет
-    sourceInventoryItem.status = 'upgraded';
+    sourceInventoryItem.status = 'used';
     sourceInventoryItem.transaction_date = new Date();
     await sourceInventoryItem.save({ transaction });
 
@@ -205,7 +212,7 @@ async function performUpgrade(req, res) {
       await updateUserAchievementProgress(userId, 'upgrade_item', 1);
       await addExperience(userId, 25, 'upgrade_success', null, 'Успешный апгрейд предмета');
 
-      logger.info(`Пользователь ${userId} успешно улучшил предмет ${sourceInventoryItem.item.name} до ${targetItem.name}`);
+      logger.info(`Пользователь ${userId} успешно улучшил предмет ${sourceInventoryItem.item?.name || 'Unknown'} до ${targetItem.name}`);
 
       return res.json({
         success: true,
@@ -223,7 +230,7 @@ async function performUpgrade(req, res) {
       await transaction.commit();
       await addExperience(userId, 5, 'upgrade_fail', null, 'Неудачный апгрейд предмета');
 
-      logger.info(`Пользователь ${userId} неудачно попытался улучшить предмет ${sourceInventoryItem.item.name} до ${targetItem.name}`);
+      logger.info(`Пользователь ${userId} неудачно попытался улучшить предмет ${sourceInventoryItem.item?.name || 'Unknown'} до ${targetItem.name}`);
 
       return res.json({
         success: true,
