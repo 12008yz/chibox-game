@@ -160,7 +160,12 @@ router.post('/tic-tac-toe/move', authMiddleware, makeTicTacToeMove); // Сове
 
 // Upgrade routes
 router.get('/upgrade/items', authMiddleware, getUpgradeableItems); // Получение предметов для апгрейда
-router.get('/upgrade/options', authMiddleware, getUpgradeOptions); // Получение вариантов апгрейда
+router.get('/upgrade/options/:itemIds', authMiddleware, (req, res) => {
+  // Преобразуем параметры из URL path в query string для совместимости с существующим контроллером
+  req.query.itemIds = req.params.itemIds;
+  getUpgradeOptions(req, res);
+}); // Получение вариантов апгрейда (с параметрами в URL) - ДОЛЖЕН БЫТЬ ПЕРВЫМ
+router.get('/upgrade/options', authMiddleware, getUpgradeOptions); // Получение вариантов апгрейда (с query параметрами)
 router.post('/upgrade/perform', authMiddleware, performUpgrade); // Выполнение апгрейда
 
 module.exports = router;
