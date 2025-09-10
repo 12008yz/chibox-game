@@ -170,9 +170,10 @@ async function getUpgradeOptions(req, res) {
 
 // Выполнить апгрейд предмета
 async function performUpgrade(req, res) {
-  const transaction = await db.sequelize.transaction();
+  let transaction;
 
   try {
+    transaction = await db.sequelize.transaction();
     const userId = req.user.id;
     const { sourceInventoryIds, targetItemId } = req.body;
 
@@ -246,6 +247,9 @@ async function performUpgrade(req, res) {
     const randomValue = Math.random() * 100;
     const isSuccess = randomValue < finalSuccessChance;
 
+    // Логируем детали для отладки
+    logger.info(`Апгрейд: пользователь ${userId}, общая цена исходных: ${totalSourcePrice.toFixed(2)}, цена цели: ${targetPrice.toFixed(2)}, соотношение: ${priceRatio.toFixed(2)}, базовый шанс: ${baseSuccessChance.toFixed(1)}%, бонус: ${quantityBonus}%, финальный шанс: ${finalSuccessChance.toFixed(1)}%, выпало: ${randomValue.toFixed(1)}, результат: ${isSuccess ? 'УСПЕХ' : 'НЕУДАЧА'}`);
+
     // Помечаем все исходные предметы как использованные
     await Promise.all(sourceInventoryItems.map(async (invItem) => {
       invItem.status = 'used';
@@ -261,16 +265,26 @@ async function performUpgrade(req, res) {
         user_id: userId,
         item_id: targetItemId,
         status: 'inventory',
-        acquired_date: new Date()
+        acquisition_date: new Date(),
+        source: 'upgrade',
+        item_type: 'item'
       }, { transaction });
 
-      // Обновляем достижения
+      // Коммитим транзакцию перед обновлением достижений
       await transaction.commit();
-      await updateUserAchievementProgress(userId, 'upgrade_item', 1);
+      transaction = null; // Помечаем что транзакция завершена
 
-      // Больше опыта за успешный апгрейд с несколькими предметами
-      const expReward = 25 + (sourceInventoryItems.length * 5);
-      await addExperience(userId, expReward, 'upgrade_success', null, `Успешный апгрейд ${sourceInventoryItems.length} предметов`);
+      // Обновляем достижения и опыт асинхронно после коммита
+      try {
+        await updateUserAchievementProgress(userId, 'upgrade_item', 1);
+
+        // Больше опыта за успешный апгрейд с несколькими предметами
+        const expReward = 25 + (sourceInventoryItems.length * 5);
+        await addExperience(userId, expReward, 'upgrade_success', null, `Успешный апгрейд ${sourceInventoryItems.length} предметов`);
+      } catch (achievementError) {
+        logger.error('Ошибка при обновлении достижений/опыта:', achievementError);
+        // Не возвращаем ошибку пользователю, так как основная операция прошла успешно
+      }
 
       const sourceItemNames = sourceInventoryItems.map(item => item.item?.name || 'Unknown').join(', ');
       logger.info(`Пользователь ${userId} успешно улучшил предметы [${sourceItemNames}] до ${targetItem.name}`);
@@ -289,9 +303,17 @@ async function performUpgrade(req, res) {
         }
       });
     } else {
-      // Неудачный апгрейд - предметы потеряны
+      // Неудачный апгрейд - предметы потеряны, коммитим транзакцию
       await transaction.commit();
-      await addExperience(userId, 5 + sourceInventoryItems.length, 'upgrade_fail', null, `Неудачный апгрейд ${sourceInventoryItems.length} предметов`);
+      transaction = null; // Помечаем что транзакция завершена
+
+      // Добавляем опыт за попытку асинхронно после коммита
+      try {
+        await addExperience(userId, 5 + sourceInventoryItems.length, 'upgrade_fail', null, `Неудачный апгрейд ${sourceInventoryItems.length} предметов`);
+      } catch (expError) {
+        logger.error('Ошибка при добавлении опыта:', expError);
+        // Не возвращаем ошибку пользователю
+      }
 
       const sourceItemNames = sourceInventoryItems.map(item => item.item?.name || 'Unknown').join(', ');
       logger.info(`Пользователь ${userId} неудачно попытался улучшить предметы [${sourceItemNames}] до ${targetItem.name}`);
@@ -311,7 +333,14 @@ async function performUpgrade(req, res) {
       });
     }
   } catch (error) {
-    await transaction.rollback();
+    // Откатываем транзакцию только если она еще не завершена
+    if (transaction && !transaction.finished) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackError) {
+        logger.error('Ошибка при откате транзакции:', rollbackError);
+      }
+    }
     logger.error('Ошибка при выполнении апгрейда:', error);
     return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
   }
