@@ -138,12 +138,12 @@ async function getUpgradeOptions(req, res) {
       const targetPrice = parseFloat(item.price);
       const priceRatio = targetPrice / totalSourcePrice;
 
-      // Базовый шанс
-      let baseChance = Math.max(5, Math.min(60, 60 / Math.pow(priceRatio - 1, 0.6)));
+      // Базовый шанс (усложненная формула)
+      let baseChance = Math.max(3, Math.min(45, 45 / Math.pow(priceRatio - 1, 0.7)));
 
-      // Бонус за количество предметов
-      const quantityBonus = Math.min(18, (selectedItems.length - 1) * 2);
-      const finalChance = Math.min(75, baseChance + quantityBonus);
+      // Убираем бонус за количество предметов
+      const quantityBonus = 0;
+      const finalChance = Math.min(50, baseChance);
 
       return {
         ...item.toJSON(),
@@ -236,12 +236,12 @@ async function performUpgrade(req, res) {
     // Вычисляем шанс успеха на основе соотношения цен
     const priceRatio = targetPrice / totalSourcePrice;
 
-    // Базовый шанс зависит от количества предметов и соотношения цен
-    let baseSuccessChance = Math.max(5, Math.min(60, 60 / Math.pow(priceRatio - 1, 0.6)));
+    // Базовый шанс зависит от соотношения цен (усложненная формула)
+    let baseSuccessChance = Math.max(3, Math.min(45, 45 / Math.pow(priceRatio - 1, 0.7)));
 
-    // Бонус за количество предметов (каждый дополнительный предмет дает +2% шанса, максимум +18%)
-    const quantityBonus = Math.min(18, (sourceInventoryItems.length - 1) * 2);
-    const finalSuccessChance = Math.min(75, baseSuccessChance + quantityBonus);
+    // Убираем бонус за количество предметов
+    const quantityBonus = 0;
+    const finalSuccessChance = Math.min(50, baseSuccessChance);
 
     // Генерируем случайное число для определения успеха
     const randomValue = Math.random() * 100;
