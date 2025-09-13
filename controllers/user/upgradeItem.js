@@ -141,6 +141,11 @@ async function getUpgradeOptions(req, res) {
       // Базовый шанс (усложненная формула)
       let baseChance = Math.max(3, Math.min(45, 45 / Math.pow(priceRatio - 1, 0.7)));
 
+      // Бонус для недорогих целевых предметов (до 100 рублей)
+      if (targetPrice < 100) {
+        baseChance += 5; // Увеличиваем шанс на 5% для дешевых целевых предметов
+      }
+
       // Убираем бонус за количество предметов
       const quantityBonus = 0;
       const finalChance = Math.min(50, baseChance);
@@ -238,6 +243,11 @@ async function performUpgrade(req, res) {
 
     // Базовый шанс зависит от соотношения цен (усложненная формула)
     let baseSuccessChance = Math.max(3, Math.min(45, 45 / Math.pow(priceRatio - 1, 0.7)));
+
+    // Бонус для недорогих целевых предметов (до 100 рублей)
+    if (targetPrice < 100) {
+      baseSuccessChance += 5; // Увеличиваем шанс на 5% для дешевых целевых предметов
+    }
 
     // Убираем бонус за количество предметов
     const quantityBonus = 0;
