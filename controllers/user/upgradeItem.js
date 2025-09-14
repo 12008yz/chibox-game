@@ -138,8 +138,22 @@ async function getUpgradeOptions(req, res) {
       const targetPrice = parseFloat(item.price);
       const priceRatio = targetPrice / totalSourcePrice;
 
-      // Базовый шанс (усложненная формула)
-      let baseChance = Math.max(3, Math.min(45, 45 / Math.pow(priceRatio - 1, 0.7)));
+      // Новая сбалансированная формула для расчета шанса
+      // Чем больше соотношение цен, тем меньше шанс
+      let baseChance;
+      if (priceRatio <= 1.5) {
+        // Для небольших улучшений (до 50% дороже) - высокий шанс 30-45%
+        baseChance = 45 - ((priceRatio - 1.1) / 0.4) * 15; // от 45% до 30%
+      } else if (priceRatio <= 3.0) {
+        // Для средних улучшений (от 50% до 200% дороже) - средний шанс 15-30%
+        baseChance = 30 - ((priceRatio - 1.5) / 1.5) * 15; // от 30% до 15%
+      } else {
+        // Для больших улучшений (более 200% дороже) - низкий шанс 3-15%
+        baseChance = 15 - ((priceRatio - 3.0) / 5.0) * 12; // от 15% до 3%
+      }
+
+      // Ограничиваем шанс в разумных пределах
+      baseChance = Math.max(3, Math.min(45, baseChance));
 
       // Бонус для недорогих целевых предметов (до 100 рублей)
       if (targetPrice < 100) {
@@ -241,8 +255,22 @@ async function performUpgrade(req, res) {
     // Вычисляем шанс успеха на основе соотношения цен
     const priceRatio = targetPrice / totalSourcePrice;
 
-    // Базовый шанс зависит от соотношения цен (усложненная формула)
-    let baseSuccessChance = Math.max(3, Math.min(45, 45 / Math.pow(priceRatio - 1, 0.7)));
+    // Новая сбалансированная формула для расчета шанса
+    // Чем больше соотношение цен, тем меньше шанс
+    let baseSuccessChance;
+    if (priceRatio <= 1.5) {
+      // Для небольших улучшений (до 50% дороже) - высокий шанс 30-45%
+      baseSuccessChance = 45 - ((priceRatio - 1.1) / 0.4) * 15; // от 45% до 30%
+    } else if (priceRatio <= 3.0) {
+      // Для средних улучшений (от 50% до 200% дороже) - средний шанс 15-30%
+      baseSuccessChance = 30 - ((priceRatio - 1.5) / 1.5) * 15; // от 30% до 15%
+    } else {
+      // Для больших улучшений (более 200% дороже) - низкий шанс 3-15%
+      baseSuccessChance = 15 - ((priceRatio - 3.0) / 5.0) * 12; // от 15% до 3%
+    }
+
+    // Ограничиваем шанс в разумных пределах
+    baseSuccessChance = Math.max(3, Math.min(45, baseSuccessChance));
 
     // Бонус для недорогих целевых предметов (до 100 рублей)
     if (targetPrice < 100) {
