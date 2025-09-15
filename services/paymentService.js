@@ -6,8 +6,10 @@ const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID;
 const YOOKASSA_CLIENT_SECRET = process.env.YOOKASSA_CLIENT_SECRET;
 const YOOKASSA_API_URL = 'https://api.yookassa.ru/v3/payments';
 
-async function createPayment(amount, userId, purpose = 'deposit', extraData = {}) {
+async function createPayment({ amount, description, userId, purpose = 'deposit', metadata = {} }) {
   try {
+    console.log('createPayment called with:', { amount, description, userId, purpose, metadata });
+
     const idempotenceKey = crypto.randomUUID();
 
     const paymentData = {
@@ -20,16 +22,18 @@ async function createPayment(amount, userId, purpose = 'deposit', extraData = {}
         return_url: process.env.YOOKASSA_RETURN_URL || 'https://your-return-url.example.com'
       },
       capture: true,
-      description: `Payment for ${purpose} by user ${userId}`,
+      description: description || `Payment for ${purpose} by user ${userId}`,
       metadata: {
         userId,
         purpose,
-        ...extraData
+        ...metadata
       },
       payment_method_data: {
         type: 'bank_card'
       }
     };
+
+    console.log('Sending payment data to YooKassa:', JSON.stringify(paymentData, null, 2));
 
     const response = await axios.post(YOOKASSA_API_URL, paymentData, {
       auth: {
@@ -43,6 +47,7 @@ async function createPayment(amount, userId, purpose = 'deposit', extraData = {}
     });
 
     const payment = response.data;
+    console.log('YooKassa response:', JSON.stringify(payment, null, 2));
 
     // Сохраняем платеж в БД
     const paymentRecord = await Payment.create({
@@ -59,15 +64,26 @@ async function createPayment(amount, userId, purpose = 'deposit', extraData = {}
       currency: payment.amount.currency,
       payment_method: payment.payment_method_data ? payment.payment_method_data.type : null,
       payment_details: payment,
-      metadata: {
-        ...extraData
-      }
+      metadata: metadata
     });
 
-    return paymentRecord.payment_url;
+    console.log('Payment record created:', paymentRecord.id);
+
+    return {
+      success: true,
+      paymentUrl: payment.confirmation ? payment.confirmation.confirmation_url : null,
+      paymentId: payment.id
+    };
   } catch (error) {
     console.error('Ошибка создания платежа в YooKassa:', error.response ? error.response.data : error.message);
-    throw new Error('Ошибка создания платежа в YooKassa');
+    if (error.response) {
+      console.error('Response status:', error.response.status);
+      console.error('Response headers:', error.response.headers);
+    }
+    return {
+      success: false,
+      error: error.response ? error.response.data : error.message
+    };
   }
 }
 
