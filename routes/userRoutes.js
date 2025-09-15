@@ -54,6 +54,7 @@ const { fetchSteamTradeUrl, getTradeUrlStatus } = require('../controllers/user/f
 const { claimSubscriptionCase, getSubscriptionCaseStatus } = require('../controllers/user/claimSubscriptionCase');
 const { createGame: createTicTacToeGame, getCurrentGame: getCurrentTicTacToeGame, makeMove: makeTicTacToeMove } = require('../controllers/user/ticTacToeController');
 const { getUpgradeableItems, getUpgradeOptions, performUpgrade } = require('../controllers/user/upgradeItem');
+const { topUpBalance } = require('../controllers/user/topUpBalance');
 const authMiddleware = require('../middleware/auth');
 const optionalAuthMiddleware = require('../middleware/optionalAuth');
 const { requireEmailVerification } = require('../middleware/emailVerification');
@@ -106,6 +107,7 @@ router.post('/withdraw-item', authMiddleware, /* requireEmailVerification, */ wi
 router.get('/withdraw-item/:withdrawalId', authMiddleware, getWithdrawalStatus);
 router.get('/cases', getCases); // Доступно всем для просмотра кейсов
 router.get('/balance', authMiddleware, getBalance); //+
+router.post('/balance/top-up', authMiddleware, topUpBalance); //+
 router.post('/promo', authMiddleware, applyPromo);
 router.get('/transactions', authMiddleware, getTransactions);
 
