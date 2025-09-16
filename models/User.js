@@ -218,6 +218,18 @@ module.exports = (sequelize) => {
       comment: "Время последней игры в рулетку"
     },
 
+    // Слот-машина (ограничения по подписке)
+    slots_played_today: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      comment: "Количество спинов в слот-машине за сегодня"
+    },
+    last_slot_reset_date: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Дата последнего сброса счетчика спинов слот-машины (в 16:00 МСК)"
+    },
+
     // Достижения и модификатор выпадения предметов
     drop_rate_modifier: {
       type: DataTypes.FLOAT,

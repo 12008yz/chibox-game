@@ -5,6 +5,14 @@ const { Op } = require('sequelize');
 // Стоимость одного спина в рублях
 const SLOT_COST = 10.00;
 
+// Лимиты спинов по уровню подписки
+const SLOT_LIMITS = {
+  0: 0, // Без подписки - запрещено
+  1: 1, // Статус - 1 спин в день
+  2: 2, // Статус+ - 2 спина в день
+  3: 3  // Статус++ - 3 спина в день
+};
+
 // Новая конфигурация весов для слота (согласно требованиям)
 // Из 10 спинов: 6 дешевых выигрышей, 3 проигрыша, 1 дорогой выигрыш
 const SLOT_OUTCOME_WEIGHTS = {
@@ -276,6 +284,89 @@ function generateLoseResult(slotItems) {
 }
 
 /**
+ * Проверяет, нужно ли сбросить счетчик спинов (каждый день в 16:00 МСК)
+ */
+function shouldResetSlotCounter(lastResetDate) {
+  if (!lastResetDate) {
+    return true;
+  }
+
+  const now = new Date();
+  const moscowOffset = 3 * 60; // МСК = UTC+3
+  const moscowTime = new Date(now.getTime() + (moscowOffset * 60 * 1000));
+
+  const today = new Date(moscowTime);
+  today.setHours(16, 0, 0, 0); // 16:00 МСК сегодня
+
+  const lastReset = new Date(lastResetDate);
+
+  // Если сегодняшний сброс еще не был, и время уже прошло 16:00
+  if (moscowTime >= today && lastReset < today) {
+    return true;
+  }
+
+  // Если прошло больше суток с последнего сброса
+  if (moscowTime.getTime() - lastReset.getTime() >= 24 * 60 * 60 * 1000) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Получает максимальное количество спинов для уровня подписки
+ */
+function getSlotLimit(subscriptionTier) {
+  return SLOT_LIMITS[subscriptionTier] || 0;
+}
+
+/**
+ * Проверяет доступность игры в слот для пользователя
+ */
+async function checkSlotAvailability(user, transaction) {
+  // Проверяем подписку
+  const slotLimit = getSlotLimit(user.subscription_tier);
+
+  if (slotLimit === 0) {
+    return {
+      available: false,
+      reason: 'subscription_required',
+      message: 'Для игры в слот необходима подписка'
+    };
+  }
+
+  // Проверяем, нужно ли сбросить счетчик
+  if (shouldResetSlotCounter(user.last_slot_reset_date)) {
+    await user.update({
+      slots_played_today: 0,
+      last_slot_reset_date: new Date()
+    }, { transaction });
+
+    // Обновляем данные в объекте
+    user.slots_played_today = 0;
+    user.last_slot_reset_date = new Date();
+  }
+
+  // Проверяем лимит
+  if (user.slots_played_today >= slotLimit) {
+    return {
+      available: false,
+      reason: 'daily_limit_reached',
+      message: `Достигнут дневной лимит спинов (${slotLimit}). Следующая возможность в 16:00 МСК.`,
+      limit: slotLimit,
+      used: user.slots_played_today
+    };
+  }
+
+  return {
+    available: true,
+    limit: slotLimit,
+    used: user.slots_played_today,
+    remaining: slotLimit - user.slots_played_today
+  };
+}
+
+/**
  * Основная функция игры в слот
  */
 const playSlot = async (req, res) => {
@@ -309,6 +400,20 @@ const playSlot = async (req, res) => {
       });
     }
 
+    // Проверяем доступность слота (подписка и лимиты)
+    const slotAvailability = await checkSlotAvailability(user, transaction);
+
+    if (!slotAvailability.available) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: slotAvailability.message,
+        reason: slotAvailability.reason,
+        limit: slotAvailability.limit,
+        used: slotAvailability.used
+      });
+    }
+
     // Генерируем результат слота
     const slotResult = await generateSlotResult();
 
@@ -322,9 +427,10 @@ const playSlot = async (req, res) => {
     const balanceBefore = user.balance;
     const balanceAfter = user.balance - SLOT_COST;
 
-    // Списываем стоимость игры
+    // Списываем стоимость игры и увеличиваем счетчик спинов
     await user.update({
-      balance: balanceAfter
+      balance: balanceAfter,
+      slots_played_today: user.slots_played_today + 1
     }, { transaction });
 
     // Создаём транзакцию списания
@@ -389,7 +495,12 @@ const playSlot = async (req, res) => {
           weapon_type: wonItem.weapon_type
         } : null,
         cost: SLOT_COST,
-        newBalance: balanceAfter
+        newBalance: balanceAfter,
+        slotInfo: {
+          limit: getSlotLimit(user.subscription_tier),
+          used: user.slots_played_today + 1,
+          remaining: getSlotLimit(user.subscription_tier) - (user.slots_played_today + 1)
+        }
       }
     });
 
