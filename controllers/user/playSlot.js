@@ -3,7 +3,7 @@ const { logger } = require('../../utils/logger');
 const { Op } = require('sequelize');
 
 // Стоимость одного спина в рублях
-const SLOT_COST = 10.00;
+const SLOT_COST = 0.00;
 
 // Лимиты спинов по уровню подписки
 const SLOT_LIMITS = {
@@ -389,16 +389,7 @@ const playSlot = async (req, res) => {
       });
     }
 
-    // Проверяем баланс
-    if (user.balance < SLOT_COST) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: 'Недостаточно средств для игры в слот',
-        required: SLOT_COST,
-        current: user.balance
-      });
-    }
+    // Игра теперь бесплатная - проверка баланса не нужна
 
     // Проверяем доступность слота (подписка и лимиты)
     const slotAvailability = await checkSlotAvailability(user, transaction);
@@ -423,24 +414,23 @@ const playSlot = async (req, res) => {
                  slotResult[0].id === slotResult[1].id &&
                  slotResult[1].id === slotResult[2].id;
 
-    // Сохраняем начальный баланс
+    // Сохраняем начальный баланс (игра бесплатная)
     const balanceBefore = user.balance;
-    const balanceAfter = user.balance - SLOT_COST;
+    const balanceAfter = user.balance; // Баланс не изменяется
 
-    // Списываем стоимость игры и увеличиваем счетчик спинов
+    // Увеличиваем только счетчик спинов (средства не списываем)
     await user.update({
-      balance: balanceAfter,
       slots_played_today: user.slots_played_today + 1
     }, { transaction });
 
-    // Создаём транзакцию списания
+    // Создаём транзакцию для истории (бесплатная игра)
     await Transaction.create({
       user_id: userId,
-      type: 'balance_subtract',
-      amount: -SLOT_COST,
+      type: 'bonus',
+      amount: 0,
       balance_before: balanceBefore,
       balance_after: balanceAfter,
-      description: 'Игра в слот',
+      description: 'Бесплатная игра в слот',
       status: 'completed'
     }, { transaction });
 
