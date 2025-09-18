@@ -288,28 +288,35 @@ function generateLoseResult(slotItems) {
  */
 function shouldResetSlotCounter(lastResetDate) {
   if (!lastResetDate) {
+    logger.info(`[SLOT RESET DEBUG] No lastResetDate -> RESET NEEDED`);
     return true;
   }
 
   const now = new Date();
-  const moscowOffset = 3 * 60; // МСК = UTC+3
-  const moscowTime = new Date(now.getTime() + (moscowOffset * 60 * 1000));
-
-  const today = new Date(moscowTime);
-  today.setHours(16, 0, 0, 0); // 16:00 МСК сегодня
-
   const lastReset = new Date(lastResetDate);
 
-  // Если сегодняшний сброс еще не был, и время уже прошло 16:00
-  if (moscowTime >= today && lastReset < today) {
+  // Сегодняшний сброс в 16:00 МСК (в UTC это 13:00)
+  const todayReset = new Date(now);
+  todayReset.setUTCHours(13, 0, 0, 0); // 16:00 МСК = 13:00 UTC
+
+  // Если сегодня ещё не наступило время сброса (до 16:00), то используем вчерашний сброс
+  if (now < todayReset) {
+    todayReset.setDate(todayReset.getDate() - 1);
+  }
+
+  logger.info(`[SLOT RESET DEBUG] Times:`);
+  logger.info(`[SLOT RESET DEBUG] - Current UTC time: ${now.toISOString()}`);
+  logger.info(`[SLOT RESET DEBUG] - Target reset time: ${todayReset.toISOString()}`);
+  logger.info(`[SLOT RESET DEBUG] - Last reset: ${lastReset.toISOString()}`);
+
+  // ПРОСТАЯ И ПРАВИЛЬНАЯ ЛОГИКА:
+  // Нужен сброс, если последний сброс был ДО текущего планового времени сброса
+  if (lastReset < todayReset) {
+    logger.info(`[SLOT RESET DEBUG] Last reset before target reset time -> RESET NEEDED`);
     return true;
   }
 
-  // Если прошло больше суток с последнего сброса
-  if (moscowTime.getTime() - lastReset.getTime() >= 24 * 60 * 60 * 1000) {
-    return true;
-  }
-
+  logger.info(`[SLOT RESET DEBUG] Last reset after target reset time -> NO RESET NEEDED`);
   return false;
 }
 
@@ -324,10 +331,18 @@ function getSlotLimit(subscriptionTier) {
  * Проверяет доступность игры в слот для пользователя
  */
 async function checkSlotAvailability(user, transaction) {
+  // ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ
+  logger.info(`[SLOT DEBUG] Checking slot availability for user ${user.id}:`);
+  logger.info(`[SLOT DEBUG] - subscription_tier: ${user.subscription_tier}`);
+  logger.info(`[SLOT DEBUG] - slots_played_today: ${user.slots_played_today}`);
+  logger.info(`[SLOT DEBUG] - last_slot_reset_date: ${user.last_slot_reset_date}`);
+
   // Проверяем подписку
   const slotLimit = getSlotLimit(user.subscription_tier);
+  logger.info(`[SLOT DEBUG] - slot limit for tier ${user.subscription_tier}: ${slotLimit}`);
 
   if (slotLimit === 0) {
+    logger.info(`[SLOT DEBUG] - BLOCKED: No subscription (tier: ${user.subscription_tier})`);
     return {
       available: false,
       reason: 'subscription_required',
@@ -336,7 +351,11 @@ async function checkSlotAvailability(user, transaction) {
   }
 
   // Проверяем, нужно ли сбросить счетчик
-  if (shouldResetSlotCounter(user.last_slot_reset_date)) {
+  const needsReset = shouldResetSlotCounter(user.last_slot_reset_date);
+  logger.info(`[SLOT DEBUG] - needs reset: ${needsReset}`);
+
+  if (needsReset) {
+    logger.info(`[SLOT DEBUG] Resetting slot counter for user ${user.id}: ${user.slots_played_today} -> 0`);
     await user.update({
       slots_played_today: 0,
       last_slot_reset_date: new Date()
@@ -345,10 +364,13 @@ async function checkSlotAvailability(user, transaction) {
     // Обновляем данные в объекте
     user.slots_played_today = 0;
     user.last_slot_reset_date = new Date();
+    logger.info(`[SLOT DEBUG] - AFTER RESET: slots_played_today = ${user.slots_played_today}`);
   }
 
   // Проверяем лимит
+  logger.info(`[SLOT DEBUG] - Checking limit: ${user.slots_played_today} >= ${slotLimit}?`);
   if (user.slots_played_today >= slotLimit) {
+    logger.info(`[SLOT DEBUG] - BLOCKED: Daily limit reached (${user.slots_played_today}/${slotLimit})`);
     return {
       available: false,
       reason: 'daily_limit_reached',
@@ -358,11 +380,14 @@ async function checkSlotAvailability(user, transaction) {
     };
   }
 
+  const remaining = slotLimit - user.slots_played_today;
+  logger.info(`[SLOT DEBUG] - ALLOWED: ${user.slots_played_today}/${slotLimit} used, ${remaining} remaining`);
+
   return {
     available: true,
     limit: slotLimit,
     used: user.slots_played_today,
-    remaining: slotLimit - user.slots_played_today
+    remaining: remaining
   };
 }
 
@@ -419,8 +444,11 @@ const playSlot = async (req, res) => {
     const balanceAfter = user.balance; // Баланс не изменяется
 
     // Увеличиваем только счетчик спинов (средства не списываем)
+    const newSlotsCount = user.slots_played_today + 1;
+    logger.info(`[SLOT DEBUG] Incrementing slot counter for user ${userId}: ${user.slots_played_today} -> ${newSlotsCount}`);
+
     await user.update({
-      slots_played_today: user.slots_played_today + 1
+      slots_played_today: newSlotsCount
     }, { transaction });
 
     // Создаём транзакцию для истории (бесплатная игра)
