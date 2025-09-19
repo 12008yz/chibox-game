@@ -142,7 +142,7 @@ async function getUpgradeOptions(req, res) {
         ...item.toJSON(),
         upgrade_chance: chanceData.finalChance,
         base_chance: chanceData.baseChance,
-        quantity_bonus: chanceData.quantityBonus,
+        cheap_target_bonus: chanceData.cheapTargetBonus,
         price_ratio: chanceData.priceRatio
       };
     });
@@ -222,21 +222,21 @@ async function performUpgrade(req, res) {
     if (!isValidUpgradeTarget(totalSourcePrice, targetPrice)) {
       await transaction.rollback();
       return res.status(400).json({
-        message: `Целевой предмет должен быть минимум на 10% дороже общей стоимости выбранных предметов. Общая стоимость: ${totalSourcePrice.toFixed(2)}, целевая: ${targetPrice.toFixed(2)}`
+        message: `Целевой предмет должен быть минимум на 5% дороже общей стоимости выбранных предметов. Общая стоимость: ${totalSourcePrice.toFixed(2)}, целевая: ${targetPrice.toFixed(2)}`
       });
     }
 
     // Вычисляем шанс успеха используя единую утилиту
     const chanceData = calculateUpgradeChance(totalSourcePrice, targetPrice);
     const finalSuccessChance = chanceData.finalChance;
-    const quantityBonus = chanceData.quantityBonus;
+    const cheapTargetBonus = chanceData.cheapTargetBonus;
 
     // Генерируем случайное число для определения успеха
     const randomValue = Math.random() * 100;
     const isSuccess = randomValue < finalSuccessChance;
 
     // Логируем детали для отладки
-    logger.info(`Апгрейд: пользователь ${userId}, общая цена исходных: ${totalSourcePrice.toFixed(2)}, цена цели: ${targetPrice.toFixed(2)}, соотношение: ${chanceData.priceRatio}, базовый шанс: ${chanceData.baseChance}%, бонус: ${quantityBonus}%, финальный шанс: ${finalSuccessChance.toFixed(1)}%, выпало: ${randomValue.toFixed(1)}, результат: ${isSuccess ? 'УСПЕХ' : 'НЕУДАЧА'}`);
+    logger.info(`Апгрейд: пользователь ${userId}, общая цена исходных: ${totalSourcePrice.toFixed(2)}${chanceData.isLowValueSource ? ' (дешевые предметы)' : ''}, цена цели: ${targetPrice.toFixed(2)}, соотношение: ${chanceData.priceRatio}, базовый шанс: ${chanceData.baseChance}%, бонус дешевого предмета: ${cheapTargetBonus}%, финальный шанс: ${finalSuccessChance.toFixed(1)}%, выпало: ${randomValue.toFixed(1)}, результат: ${isSuccess ? 'УСПЕХ' : 'НЕУДАЧА'}`);
 
     // Помечаем все исходные предметы как использованные
     await Promise.all(sourceInventoryItems.map(async (invItem) => {
@@ -287,7 +287,7 @@ async function performUpgrade(req, res) {
           success_chance: Math.round(finalSuccessChance * 10) / 10,
           rolled_value: Math.round(randomValue * 10) / 10,
           total_source_price: Math.round(totalSourcePrice * 100) / 100,
-          quantity_bonus: quantityBonus
+          cheap_target_bonus: cheapTargetBonus
         }
       });
     } else {
@@ -316,7 +316,7 @@ async function performUpgrade(req, res) {
           success_chance: Math.round(finalSuccessChance * 10) / 10,
           rolled_value: Math.round(randomValue * 10) / 10,
           total_source_price: Math.round(totalSourcePrice * 100) / 100,
-          quantity_bonus: quantityBonus
+          cheap_target_bonus: cheapTargetBonus
         }
       });
     }
