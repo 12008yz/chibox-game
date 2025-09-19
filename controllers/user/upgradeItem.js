@@ -236,7 +236,7 @@ async function performUpgrade(req, res) {
     const isSuccess = randomValue < finalSuccessChance;
 
     // Логируем детали для отладки
-    logger.info(`Апгрейд: пользователь ${userId}, общая цена исходных: ${totalSourcePrice.toFixed(2)}${chanceData.isLowValueSource ? ' (дешевые предметы)' : ''}, цена цели: ${targetPrice.toFixed(2)}, соотношение: ${chanceData.priceRatio}, базовый шанс: ${chanceData.baseChance}%, бонус дешевого предмета: ${cheapTargetBonus}%, финальный шанс: ${finalSuccessChance.toFixed(1)}%, выпало: ${randomValue.toFixed(1)}, результат: ${isSuccess ? 'УСПЕХ' : 'НЕУДАЧА'}`);
+    logger.info(`Апгрейд: пользователь ${userId}, общая цена исходных: ${totalSourcePrice.toFixed(2)}${chanceData.isLowValueSource ? ' (дешевые предметы)' : ''}, цена цели: ${targetPrice.toFixed(2)}, соотношение: ${chanceData.priceRatio}, базовый шанс: ${chanceData.baseChance}%, бонус: ${cheapTargetBonus}%, финальный шанс: ${finalSuccessChance.toFixed(1)}%, мат. ожидание: ${chanceData.expectedValue.toFixed(2)}КР, выпало: ${randomValue.toFixed(1)}, результат: ${isSuccess ? 'УСПЕХ' : 'НЕУДАЧА'}`);
 
     // Помечаем все исходные предметы как использованные
     await Promise.all(sourceInventoryItems.map(async (invItem) => {
