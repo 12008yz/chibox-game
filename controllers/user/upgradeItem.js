@@ -2,6 +2,7 @@ const db = require('../../models');
 const winston = require('winston');
 const { updateUserAchievementProgress } = require('../../services/achievementService');
 const { addExperience } = require('../../services/xpService');
+const { calculateUpgradeChance, isValidUpgradeTarget, getUpgradePriceRange } = require('../../utils/upgradeCalculator');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -114,9 +115,8 @@ async function getUpgradeOptions(req, res) {
       return sum + parseFloat(invItem.item.price);
     }, 0);
 
-    // Ищем предметы для апгрейда (на 10-800% дороже общей стоимости)
-    const minPrice = totalSourcePrice * 1.1; // Минимум на 10% дороже
-    const maxPrice = totalSourcePrice * 8; // Максимум в 8 раз дороже
+    // Получаем диапазон цен для поиска предметов улучшения
+    const { minPrice, maxPrice } = getUpgradePriceRange(totalSourcePrice);
 
     const upgradeOptions = await db.Item.findAll({
       where: {
@@ -133,43 +133,17 @@ async function getUpgradeOptions(req, res) {
       limit: 30
     });
 
-    // Вычисляем шансы для каждого варианта
+    // Вычисляем шансы для каждого варианта используя единую утилиту
     const optionsWithChances = upgradeOptions.map(item => {
       const targetPrice = parseFloat(item.price);
-      const priceRatio = targetPrice / totalSourcePrice;
-
-      // Новая сбалансированная формула для расчета шанса
-      // Чем больше соотношение цен, тем меньше шанс
-      let baseChance;
-      if (priceRatio <= 1.5) {
-        // Для небольших улучшений (до 50% дороже) - высокий шанс 30-45%
-        baseChance = 45 - ((priceRatio - 1.1) / 0.4) * 15; // от 45% до 30%
-      } else if (priceRatio <= 3.0) {
-        // Для средних улучшений (от 50% до 200% дороже) - средний шанс 15-30%
-        baseChance = 30 - ((priceRatio - 1.5) / 1.5) * 15; // от 30% до 15%
-      } else {
-        // Для больших улучшений (более 200% дороже) - низкий шанс 3-15%
-        baseChance = 15 - ((priceRatio - 3.0) / 5.0) * 12; // от 15% до 3%
-      }
-
-      // Ограничиваем шанс в разумных пределах
-      baseChance = Math.max(3, Math.min(45, baseChance));
-
-      // Бонус для недорогих целевых предметов (до 100 рублей)
-      if (targetPrice < 100) {
-        baseChance += 5; // Увеличиваем шанс на 5% для дешевых целевых предметов
-      }
-
-      // Убираем бонус за количество предметов
-      const quantityBonus = 0;
-      const finalChance = Math.min(50, baseChance);
+      const chanceData = calculateUpgradeChance(totalSourcePrice, targetPrice);
 
       return {
         ...item.toJSON(),
-        upgrade_chance: Math.round(finalChance * 10) / 10,
-        base_chance: Math.round(baseChance * 10) / 10,
-        quantity_bonus: quantityBonus,
-        price_ratio: Math.round(priceRatio * 100) / 100
+        upgrade_chance: chanceData.finalChance,
+        base_chance: chanceData.baseChance,
+        quantity_bonus: chanceData.quantityBonus,
+        price_ratio: chanceData.priceRatio
       };
     });
 
@@ -244,49 +218,25 @@ async function performUpgrade(req, res) {
 
     const targetPrice = parseFloat(targetItem.price);
 
-    // Проверяем, что целевой предмет дороже общей стоимости исходных предметов (хотя бы на 10%)
-    if (targetPrice <= totalSourcePrice * 1.1) {
+    // Проверяем, что целевой предмет подходит для улучшения
+    if (!isValidUpgradeTarget(totalSourcePrice, targetPrice)) {
       await transaction.rollback();
       return res.status(400).json({
         message: `Целевой предмет должен быть минимум на 10% дороже общей стоимости выбранных предметов. Общая стоимость: ${totalSourcePrice.toFixed(2)}, целевая: ${targetPrice.toFixed(2)}`
       });
     }
 
-    // Вычисляем шанс успеха на основе соотношения цен
-    const priceRatio = targetPrice / totalSourcePrice;
-
-    // Новая сбалансированная формула для расчета шанса
-    // Чем больше соотношение цен, тем меньше шанс
-    let baseSuccessChance;
-    if (priceRatio <= 1.5) {
-      // Для небольших улучшений (до 50% дороже) - высокий шанс 30-45%
-      baseSuccessChance = 45 - ((priceRatio - 1.1) / 0.4) * 15; // от 45% до 30%
-    } else if (priceRatio <= 3.0) {
-      // Для средних улучшений (от 50% до 200% дороже) - средний шанс 15-30%
-      baseSuccessChance = 30 - ((priceRatio - 1.5) / 1.5) * 15; // от 30% до 15%
-    } else {
-      // Для больших улучшений (более 200% дороже) - низкий шанс 3-15%
-      baseSuccessChance = 15 - ((priceRatio - 3.0) / 5.0) * 12; // от 15% до 3%
-    }
-
-    // Ограничиваем шанс в разумных пределах
-    baseSuccessChance = Math.max(3, Math.min(45, baseSuccessChance));
-
-    // Бонус для недорогих целевых предметов (до 100 рублей)
-    if (targetPrice < 100) {
-      baseSuccessChance += 5; // Увеличиваем шанс на 5% для дешевых целевых предметов
-    }
-
-    // Убираем бонус за количество предметов
-    const quantityBonus = 0;
-    const finalSuccessChance = Math.min(50, baseSuccessChance);
+    // Вычисляем шанс успеха используя единую утилиту
+    const chanceData = calculateUpgradeChance(totalSourcePrice, targetPrice);
+    const finalSuccessChance = chanceData.finalChance;
+    const quantityBonus = chanceData.quantityBonus;
 
     // Генерируем случайное число для определения успеха
     const randomValue = Math.random() * 100;
     const isSuccess = randomValue < finalSuccessChance;
 
     // Логируем детали для отладки
-    logger.info(`Апгрейд: пользователь ${userId}, общая цена исходных: ${totalSourcePrice.toFixed(2)}, цена цели: ${targetPrice.toFixed(2)}, соотношение: ${priceRatio.toFixed(2)}, базовый шанс: ${baseSuccessChance.toFixed(1)}%, бонус: ${quantityBonus}%, финальный шанс: ${finalSuccessChance.toFixed(1)}%, выпало: ${randomValue.toFixed(1)}, результат: ${isSuccess ? 'УСПЕХ' : 'НЕУДАЧА'}`);
+    logger.info(`Апгрейд: пользователь ${userId}, общая цена исходных: ${totalSourcePrice.toFixed(2)}, цена цели: ${targetPrice.toFixed(2)}, соотношение: ${chanceData.priceRatio}, базовый шанс: ${chanceData.baseChance}%, бонус: ${quantityBonus}%, финальный шанс: ${finalSuccessChance.toFixed(1)}%, выпало: ${randomValue.toFixed(1)}, результат: ${isSuccess ? 'УСПЕХ' : 'НЕУДАЧА'}`);
 
     // Помечаем все исходные предметы как использованные
     await Promise.all(sourceInventoryItems.map(async (invItem) => {
