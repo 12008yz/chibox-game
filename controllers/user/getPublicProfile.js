@@ -55,6 +55,22 @@ async function getPublicProfile(req, res) {
       ]
     });
 
+    // Получаем ВСЕ предметы полученные из кейсов (включая проданные, выведенные и т.д.)
+    const allCaseItems = await db.UserInventory.findAll({
+      where: {
+        user_id: id,
+        source: 'case'
+      },
+      include: [
+        {
+          model: db.Item,
+          as: 'item',
+          attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
+        }
+      ],
+      order: [['acquisition_date', 'DESC']]
+    });
+
     if (!user) {
       return res.status(404).json({ message: 'Пользователь не найден' });
     }
@@ -88,6 +104,12 @@ async function getPublicProfile(req, res) {
     if (user.inventory && user.inventory.length > 0) {
       // Фильтруем только предметы, которые действительно существуют
       filteredInventory = user.inventory.filter(inventoryItem => inventoryItem.item !== null);
+    }
+
+    // Фильтруем предметы из кейсов, удаляя записи с отсутствующими предметами
+    let filteredCaseItems = [];
+    if (allCaseItems && allCaseItems.length > 0) {
+      filteredCaseItems = allCaseItems.filter(inventoryItem => inventoryItem.item !== null);
     }
 
     // Определяем лучшее оружие за ВСЁ ВРЕМЯ на основе сохраненного значения best_item_value
@@ -195,6 +217,7 @@ async function getPublicProfile(req, res) {
         subscriptionStatus: getSubscriptionStatus(user.subscription_tier),
         totalCasesOpened: totalCasesOpened,
         inventory: filteredInventory,
+        caseItems: filteredCaseItems, // Все предметы из кейсов (включая проданные/выведенные)
         bestWeapon: bestWeapon,
         bestItemValue: user.best_item_value || 0, // Всегда используем сохранённое значение из базы
         totalItemsValue: totalItemsValue, // Используем вычисленное значение
