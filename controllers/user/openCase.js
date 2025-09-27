@@ -532,25 +532,37 @@ async function openCase(req, res) {
 
       // Обновляем общую стоимость предметов и лучший предмет
       const itemPrice = parseFloat(selectedItem.price) || 0;
-      user.total_items_value = (parseFloat(user.total_items_value) || 0) + itemPrice;
 
       // Обновляем лучший предмет, если текущий дороже (атомарно)
       const currentBestValue = parseFloat(user.best_item_value) || 0;
+      console.log(`DEBUG: Обновление лучшего предмета. Текущий: ${currentBestValue}, Новый: ${itemPrice}, Предмет: ${selectedItem.name}`);
+
       if (itemPrice > currentBestValue) {
-        // Используем атомарное обновление для предотвращения race condition
-        await db.User.update(
+        console.log(`DEBUG: Новый рекорд! Обновляем best_item_value с ${currentBestValue} на ${itemPrice}`);
+
+        // Используем прямое обновление для надежности
+        const updateResult = await db.User.update(
           {
-            best_item_value: db.Sequelize.fn('GREATEST',
-              db.Sequelize.col('best_item_value'),
-              itemPrice
-            )
+            best_item_value: itemPrice,
+            total_items_value: db.Sequelize.literal(`COALESCE(total_items_value, 0) + ${itemPrice}`)
           },
           {
             where: { id: userId },
             transaction: t
           }
         );
-        user.best_item_value = Math.max(currentBestValue, itemPrice);
+
+        console.log(`DEBUG: Результат обновления базы данных:`, updateResult);
+
+        // Обновляем локальную копию пользователя
+        user.best_item_value = itemPrice;
+
+        // Перечитываем пользователя из базы для подтверждения
+        await user.reload({ transaction: t });
+        console.log(`DEBUG: Подтверждение обновления - best_item_value после reload: ${user.best_item_value}`);
+      } else {
+        // Все равно обновляем общую стоимость
+        user.total_items_value = (parseFloat(user.total_items_value) || 0) + itemPrice;
       }
 
       // Обновляем next_case_available_time для бесплатных кейсов
@@ -898,6 +910,39 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       // Обновляем статистику пользователя
       user.cases_opened_today = (user.cases_opened_today || 0) + 1;
       user.total_cases_opened = (user.total_cases_opened || 0) + 1;
+
+      // Обновляем общую стоимость предметов и лучший предмет
+      const itemPrice = parseFloat(selectedItem.price) || 0;
+      const currentBestValue = parseFloat(user.best_item_value) || 0;
+      console.log(`DEBUG: Инвентарный кейс - Обновление лучшего предмета. Текущий: ${currentBestValue}, Новый: ${itemPrice}, Предмет: ${selectedItem.name}`);
+
+      if (itemPrice > currentBestValue) {
+        console.log(`DEBUG: Инвентарный кейс - Новый рекорд! Обновляем best_item_value с ${currentBestValue} на ${itemPrice}`);
+
+        // Используем прямое обновление для надежности
+        const updateResult = await db.User.update(
+          {
+            best_item_value: itemPrice,
+            total_items_value: db.Sequelize.literal(`COALESCE(total_items_value, 0) + ${itemPrice}`)
+          },
+          {
+            where: { id: userId },
+            transaction: t
+          }
+        );
+
+        console.log(`DEBUG: Инвентарный кейс - Результат обновления базы данных:`, updateResult);
+
+        // Обновляем локальную копию пользователя
+        user.best_item_value = itemPrice;
+
+        // Перечитываем пользователя из базы для подтверждения
+        await user.reload({ transaction: t });
+        console.log(`DEBUG: Инвентарный кейс - Подтверждение обновления - best_item_value после reload: ${user.best_item_value}`);
+      } else {
+        // Все равно обновляем общую стоимость
+        user.total_items_value = (parseFloat(user.total_items_value) || 0) + itemPrice;
+      }
 
       // Обновляем next_case_available_time для бесплатных кейсов из инвентаря
       // Если кейс был получен через подписку или автовыдачу (не покупной)
