@@ -534,10 +534,23 @@ async function openCase(req, res) {
       const itemPrice = parseFloat(selectedItem.price) || 0;
       user.total_items_value = (parseFloat(user.total_items_value) || 0) + itemPrice;
 
-      // Обновляем лучший предмет, если текущий дороже
+      // Обновляем лучший предмет, если текущий дороже (атомарно)
       const currentBestValue = parseFloat(user.best_item_value) || 0;
       if (itemPrice > currentBestValue) {
-        user.best_item_value = itemPrice;
+        // Используем атомарное обновление для предотвращения race condition
+        await db.User.update(
+          {
+            best_item_value: db.Sequelize.fn('GREATEST',
+              db.Sequelize.col('best_item_value'),
+              itemPrice
+            )
+          },
+          {
+            where: { id: userId },
+            transaction: t
+          }
+        );
+        user.best_item_value = Math.max(currentBestValue, itemPrice);
       }
 
       // Обновляем next_case_available_time для бесплатных кейсов

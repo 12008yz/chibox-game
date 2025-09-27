@@ -70,6 +70,25 @@ async function getProfile(req, res) {
       return res.status(404).json({ message: 'Пользователь не найден' });
     }
 
+    // DEBUG: Серверная отладка
+    console.log('=== SERVER DEBUG for user', userId, '===');
+    console.log('user.best_item_value:', user.best_item_value);
+    console.log('Total allUserItems:', allUserItems.length);
+
+    const validItems = allUserItems.filter(inventoryItem => inventoryItem.item !== null);
+    console.log('Valid items with item data:', validItems.length);
+
+    if (validItems.length > 0) {
+      const topItems = validItems
+        .sort((a, b) => parseFloat(b.item.price) - parseFloat(a.item.price))
+        .slice(0, 5);
+      console.log('Top 5 items by price:');
+      topItems.forEach((item, index) => {
+        console.log(`${index + 1}. ${item.item.name} - ${item.item.price} КР (${item.item.rarity})`);
+      });
+    }
+    console.log('=== END SERVER DEBUG ===');
+
     // Определяем лучшее оружие за ВСЁ ВРЕМЯ на основе сохраненного значения best_item_value
     let bestWeapon = null;
     if (user.best_item_value && allUserItems && allUserItems.length > 0) {
