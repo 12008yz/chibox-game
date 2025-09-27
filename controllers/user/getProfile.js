@@ -38,7 +38,8 @@ async function getProfile(req, res) {
         'next_bonus_available_time', 'last_bonus_date', 'lifetime_bonuses_claimed', 'successful_bonus_claims',
         'drop_rate_modifier', 'achievements_bonus_percentage', 'subscription_bonus_percentage', 'total_drop_bonus_percentage',
         'balance',
-        'steam_id', 'steam_profile', 'steam_avatar', 'steam_profile_url', 'steam_trade_url', 'auth_provider'
+        'steam_id', 'steam_profile', 'steam_avatar', 'steam_profile_url', 'steam_trade_url', 'auth_provider',
+        'best_item_value' // Добавляем поле лучшего предмета
       ],
       include: [
         {
@@ -69,6 +70,67 @@ async function getProfile(req, res) {
       return res.status(404).json({ message: 'Пользователь не найден' });
     }
 
+    // Определяем лучшее оружие за ВСЁ ВРЕМЯ на основе сохраненного значения best_item_value
+    let bestWeapon = null;
+    if (user.best_item_value && allUserItems && allUserItems.length > 0) {
+      // Ищем предмет с ценой равной или максимально близкой к best_item_value
+      const validItems = allUserItems.filter(inventoryItem => inventoryItem.item !== null);
+
+      if (validItems.length > 0) {
+        const bestItemValue = parseFloat(user.best_item_value);
+
+        // Ищем предмет с точной ценой
+        let foundItem = validItems.find(inventoryItem => {
+          const itemPrice = parseFloat(inventoryItem.item.price);
+          return Math.abs(itemPrice - bestItemValue) < 0.01; // Допускаем погрешность в 0.01
+        });
+
+        if (foundItem) {
+          // Если найден предмет с точной ценой, используем его
+          bestWeapon = foundItem.item.toJSON();
+        } else {
+          // Если предмет с рекордной ценой не найден (продан/обменен),
+          // создаем "виртуальный" предмет для отображения рекорда
+          const mostExpensive = validItems.reduce((prev, current) => {
+            const prevPrice = parseFloat(prev.item.price) || 0;
+            const currentPrice = parseFloat(current.item.price) || 0;
+            return (prevPrice > currentPrice) ? prev : current;
+          });
+
+          // Создаем виртуальный предмет с рекордной ценой
+          bestWeapon = {
+            ...mostExpensive.item.toJSON(),
+            price: bestItemValue.toString(), // ВАЖНО: Показываем рекордную цену!
+            isRecord: true // Флаг для фронтенда
+          };
+        }
+      }
+    } else if (user.best_item_value && (!allUserItems || allUserItems.length === 0)) {
+      // Если есть рекорд, но нет предметов в базе, создаем виртуальный предмет
+      bestWeapon = {
+        id: 'virtual',
+        name: 'Рекордный предмет',
+        rarity: 'covert',
+        price: user.best_item_value.toString(),
+        weapon_type: 'Неизвестно',
+        skin_name: '',
+        image_url: 'https://community.fastly.steamstatic.com/economy/image/6TMcQ7eX6E0EZl2byXi7vaVtMyCbg7JT9Nj26yLB0uiTHKECVqCQJYPQOiKc1A9hdeGdqRmPbEbD8Q_VfQ/256fx256f',
+        isRecord: true
+      };
+    } else if (allUserItems && allUserItems.length > 0) {
+      // Если best_item_value не установлено, находим самый дорогой предмет
+      const validItems = allUserItems.filter(inventoryItem => inventoryItem.item !== null);
+
+      if (validItems.length > 0) {
+        const foundItem = validItems.reduce((prev, current) => {
+          const prevPrice = parseFloat(prev.item.price) || 0;
+          const currentPrice = parseFloat(current.item.price) || 0;
+          return (prevPrice > currentPrice) ? prev : current;
+        });
+        bestWeapon = foundItem.item.toJSON();
+      }
+    }
+
     // Вычисляем общую стоимость всех когда-либо полученных предметов
     let totalItemsValue = 0;
     if (allUserItems && allUserItems.length > 0) {
@@ -80,10 +142,12 @@ async function getProfile(req, res) {
       }, 0);
     }
 
-    // Добавляем вычисленное поле к объекту пользователя
+    // Добавляем вычисленные поля к объекту пользователя
     const userWithTotalValue = {
       ...user.toJSON(),
-      total_items_value: totalItemsValue
+      total_items_value: totalItemsValue,
+      bestWeapon: bestWeapon,
+      bestItemValue: user.best_item_value || 0
     };
 
     return res.json({

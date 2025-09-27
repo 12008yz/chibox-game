@@ -36,7 +36,9 @@ async function updateAllPrices() {
       const batch = items.slice(i, i + batchSize);
       console.log(`\n📦 Обрабатываем batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(items.length / batchSize)}`);
 
-      const promises = batch.map(async (item) => {
+      // Обрабатываем предметы последовательно с задержкой 1.5 секунды
+      for (let j = 0; j < batch.length; j++) {
+        const item = batch[j];
         try {
           const priceData = await steamPriceService.getItemPrice(item.steam_market_hash_name);
 
@@ -52,6 +54,7 @@ async function updateAllPrices() {
             const priceDiff = Math.abs(item.price - priceData.price_rub) / item.price;
             if (priceDiff > 0.1) { // Если изменение больше 10%
               updates.price = priceData.price_rub;
+              console.log(`💰 ${item.steam_market_hash_name}: цена изменена ${item.price} → ${priceData.price_rub} КР`);
             }
 
             // Обновляем категорию если изменилась
@@ -73,9 +76,12 @@ async function updateAllPrices() {
           errorCount++;
           console.error(`❌ ${item.steam_market_hash_name}: ${error.message}`);
         }
-      });
 
-      await Promise.all(promises);
+        // Задержка 1.5 секунды между запросами (кроме последнего в батче)
+        if (j < batch.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      }
 
       // Пауза между батчами
       if (i + batchSize < items.length) {
@@ -93,11 +99,21 @@ async function updateAllPrices() {
     console.log('\n⚖️ Пересчитываем веса кейсов...');
     await recalculateCaseWeights();
 
+    // Пересчитываем лучшие предметы пользователей после обновления цен
+    console.log('\n🏆 Пересчитываем лучшие предметы пользователей...');
+    const bestItemsResult = await recalculateUserBestItems();
+    console.log(`✅ Обновлено лучших предметов: ${bestItemsResult.updated} пользователей`);
+
     // Очищаем кэш
     steamPriceService.cleanExpiredCache();
 
     console.log('\n🎉 Обновление цен завершено!');
-    return { updated: updatedCount, errors: errorCount, total: items.length };
+    return {
+      updated: updatedCount,
+      errors: errorCount,
+      total: items.length,
+      bestItemsUpdated: bestItemsResult.updated
+    };
 
   } catch (error) {
     console.error('❌ Критическая ошибка обновления цен:', error);
@@ -223,7 +239,8 @@ async function updateSpecificItems(items) {
   let updatedCount = 0;
   let errorCount = 0;
 
-  for (const item of items) {
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
     try {
       const priceData = await steamPriceService.getItemPrice(item.steam_market_hash_name);
 
@@ -238,11 +255,13 @@ async function updateSpecificItems(items) {
         const priceDiff = Math.abs(item.price - priceData.price_rub) / item.price;
         if (priceDiff > 0.1) {
           updates.price = priceData.price_rub;
+          console.log(`💰 ${item.steam_market_hash_name}: цена изменена ${item.price} → ${priceData.price_rub} КР`);
         }
 
         // Обновляем категорию если изменилась
         if (item.rarity !== priceData.category) {
           updates.rarity = priceData.category;
+          console.log(`📝 ${item.steam_market_hash_name}: категория изменена ${item.rarity} → ${priceData.category}`);
         }
 
         await db.Item.update(updates, {
@@ -259,9 +278,91 @@ async function updateSpecificItems(items) {
       errorCount++;
       console.error(`❌ ${item.steam_market_hash_name}: ${error.message}`);
     }
+
+    // Задержка 1.5 секунды между запросами (кроме последнего предмета)
+    if (i < items.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
   }
 
   return { updated: updatedCount, errors: errorCount, total: items.length };
+}
+
+/**
+ * Пересчет лучших предметов всех пользователей
+ */
+async function recalculateUserBestItems() {
+  try {
+    console.log('🔄 Начинаем пересчет лучших предметов пользователей...');
+
+    // Получаем всех пользователей, у которых есть предметы
+    const usersWithItems = await db.sequelize.query(`
+      SELECT DISTINCT ui.user_id
+      FROM user_inventory ui
+      INNER JOIN items i ON ui.item_id = i.id
+      WHERE i.price IS NOT NULL
+    `, { type: db.Sequelize.QueryTypes.SELECT });
+
+    console.log(`👥 Найдено ${usersWithItems.length} пользователей с предметами`);
+
+    let updatedCount = 0;
+
+    for (const userRow of usersWithItems) {
+      const userId = userRow.user_id;
+
+      try {
+        // Получаем все предметы пользователя
+        const userItems = await db.UserInventory.findAll({
+          where: { user_id: userId },
+          include: [{
+            model: db.Item,
+            as: 'item',
+            attributes: ['price']
+          }]
+        });
+
+        // Находим максимальную цену
+        let maxPrice = 0;
+        let totalValue = 0;
+
+        userItems.forEach(inventoryItem => {
+          if (inventoryItem.item && inventoryItem.item.price) {
+            const price = parseFloat(inventoryItem.item.price);
+            totalValue += price;
+            if (price > maxPrice) {
+              maxPrice = price;
+            }
+          }
+        });
+
+        // Обновляем данные пользователя
+        if (maxPrice > 0) {
+          await db.User.update({
+            best_item_value: maxPrice,
+            total_items_value: totalValue
+          }, {
+            where: { id: userId }
+          });
+
+          updatedCount++;
+
+          if (updatedCount % 10 === 0) {
+            console.log(`📊 Обработано: ${updatedCount}/${usersWithItems.length} пользователей`);
+          }
+        }
+
+      } catch (userError) {
+        console.error(`❌ Ошибка обработки пользователя ${userId}:`, userError.message);
+      }
+    }
+
+    console.log(`✅ Пересчет завершен! Обновлено ${updatedCount} пользователей`);
+    return { updated: updatedCount, total: usersWithItems.length };
+
+  } catch (error) {
+    console.error('❌ Ошибка пересчета лучших предметов:', error);
+    return { updated: 0, total: 0 };
+  }
 }
 
 /**
@@ -301,6 +402,7 @@ module.exports = {
   updateAllPrices,
   updateOutdatedPrices,
   recalculateCaseWeights,
+  recalculateUserBestItems,
   getPriceStatistics,
   steamPriceService,
   profitabilityCalculator
