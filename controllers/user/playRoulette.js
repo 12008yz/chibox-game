@@ -54,10 +54,20 @@ function calculateRotationAngle(segmentId) {
   // Каждая секция занимает 40 градусов (360 / 9)
   const segmentAngle = 360 / 9;
 
-  // Базовый угол для секции (центр секции)
-  const baseAngle = segmentId * segmentAngle + (segmentAngle / 2);
+  // Рассчитываем угол так, чтобы указатель сверху указывал на нужную секцию
+  // Указатель находится в позиции 0 градусов (сверху)
+  // Секция 0 должна быть в позиции 0-40 градусов
+  // Но нам нужно, чтобы колесо повернулось так, чтобы указатель указывал на центр секции
 
-  // Добавляем случайное отклонение в пределах секции
+  // Центр секции находится в позиции: segmentId * segmentAngle + segmentAngle/2
+  const sectionCenter = segmentId * segmentAngle + (segmentAngle / 2);
+
+  // Чтобы указатель (0 градусов) указывал на центр секции,
+  // нужно повернуть колесо на угол, который приведет центр секции к позиции указателя
+  // Это означает поворот на (360 - sectionCenter) градусов
+  const baseAngle = 360 - sectionCenter;
+
+  // Добавляем случайное отклонение в пределах секции (±16 градусов, 80% от половины секции)
   const randomOffset = (Math.random() - 0.5) * (segmentAngle * 0.8);
 
   // Добавляем несколько полных оборотов для эффектности (3-5 оборотов)
@@ -65,7 +75,7 @@ function calculateRotationAngle(segmentId) {
 
   const finalAngle = fullRotations + baseAngle + randomOffset;
 
-  logger.info(`Рулетка: расчет угла для секции ${segmentId}: базовый угол=${baseAngle}, смещение=${randomOffset}, полные обороты=${fullRotations}, финальный угол=${finalAngle}`);
+  logger.info(`Рулетка: расчет угла для секции ${segmentId}: центр секции=${sectionCenter}, базовый угол=${baseAngle}, смещение=${randomOffset}, полные обороты=${fullRotations}, финальный угол=${finalAngle}`);
 
   return finalAngle;
 }
