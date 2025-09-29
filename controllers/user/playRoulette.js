@@ -28,14 +28,20 @@ function selectRandomSegment() {
   const random = Math.random() * TOTAL_WEIGHT;
   let currentWeight = 0;
 
+  logger.info(`Рулетка: генерируется случайное число ${random} из общего веса ${TOTAL_WEIGHT}`);
+
   for (const segment of ROULETTE_SEGMENTS) {
     currentWeight += segment.weight;
+    logger.info(`Рулетка: проверяем секцию ${segment.id} (${segment.type}), текущий вес: ${currentWeight}, случайное число: ${random}`);
+
     if (random <= currentWeight) {
+      logger.info(`Рулетка: выбрана секция ${segment.id} (${segment.type}), значение: ${segment.value}`);
       return segment;
     }
   }
 
   // Fallback на последнюю секцию (не должно происходить)
+  logger.warn(`Рулетка: FALLBACK! Используется последняя секция`);
   return ROULETTE_SEGMENTS[ROULETTE_SEGMENTS.length - 1];
 }
 
@@ -57,7 +63,11 @@ function calculateRotationAngle(segmentId) {
   // Добавляем несколько полных оборотов для эффектности (3-5 оборотов)
   const fullRotations = (Math.floor(Math.random() * 3) + 3) * 360;
 
-  return fullRotations + baseAngle + randomOffset;
+  const finalAngle = fullRotations + baseAngle + randomOffset;
+
+  logger.info(`Рулетка: расчет угла для секции ${segmentId}: базовый угол=${baseAngle}, смещение=${randomOffset}, полные обороты=${fullRotations}, финальный угол=${finalAngle}`);
+
+  return finalAngle;
 }
 
 /**
@@ -95,8 +105,14 @@ const playRoulette = async (req, res) => {
     // Выбираем случайную секцию
     const selectedSegment = selectRandomSegment();
 
+    // Логируем результат выбора секции
+    logger.info(`Рулетка - пользователь ${user.username}: выбрана секция ${selectedSegment.id}, тип: ${selectedSegment.type}, значение: ${selectedSegment.value}`);
+
     // Вычисляем угол поворота
     const rotationAngle = calculateRotationAngle(selectedSegment.id);
+
+    // Логируем угол поворота
+    logger.info(`Рулетка - пользователь ${user.username}: рассчитан угол поворота=${rotationAngle} градусов для секции ${selectedSegment.id}`);
 
     // Обновляем время последней игры
     user.last_roulette_play = now;
@@ -104,9 +120,13 @@ const playRoulette = async (req, res) => {
     // Применяем приз, если есть
     if (selectedSegment.type === 'sub_1_day' || selectedSegment.type === 'sub_2_days') {
       const currentSubscriptionDays = user.subscription_days_left || 0;
-      user.subscription_days_left = currentSubscriptionDays + selectedSegment.value;
+      const newSubscriptionDays = currentSubscriptionDays + selectedSegment.value;
 
-      logger.info(`Пользователь ${user.username} выиграл ${selectedSegment.value} дней подписки в рулетке`);
+      logger.info(`Пользователь ${user.username} выиграл ${selectedSegment.value} дней подписки в рулетке. Было: ${currentSubscriptionDays}, станет: ${newSubscriptionDays}`);
+
+      user.subscription_days_left = newSubscriptionDays;
+    } else {
+      logger.info(`Пользователь ${user.username} попал в пустую секцию ${selectedSegment.id} в рулетке`);
     }
 
     await user.save();
