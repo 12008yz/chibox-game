@@ -17,8 +17,8 @@ const ROULETTE_SEGMENTS = [
 // Общий вес всех секций
 const TOTAL_WEIGHT = ROULETTE_SEGMENTS.reduce((sum, segment) => sum + segment.weight, 0);
 
-// Кулдаун между играми в миллисекундах (30 игр в день = 24 часа / 30 = 48 минут)
-const ROULETTE_COOLDOWN = 1 * 6 * 1000;
+// Кулдаун между играми в миллисекундах (6 минут)
+const ROULETTE_COOLDOWN = 6 * 60 * 1000;
 
 /**
  * Выбирает случайную секцию на основе весов
@@ -43,41 +43,6 @@ function selectRandomSegment() {
   // Fallback на последнюю секцию (не должно происходить)
   logger.warn(`Рулетка: FALLBACK! Используется последняя секция`);
   return ROULETTE_SEGMENTS[ROULETTE_SEGMENTS.length - 1];
-}
-
-/**
- * Вычисляет угол поворота для конкретной секции
- * @param {number} segmentId - ID секции (0-8)
- * @returns {number} Угол поворота в градусах
- */
-function calculateRotationAngle(segmentId) {
-  // Каждая секция занимает 40 градусов (360 / 9)
-  const segmentAngle = 360 / 9;
-
-  // Рассчитываем угол так, чтобы указатель сверху указывал на нужную секцию
-  // Указатель находится в позиции 0 градусов (сверху)
-  // Секция 0 должна быть в позиции 0-40 градусов
-  // Но нам нужно, чтобы колесо повернулось так, чтобы указатель указывал на центр секции
-
-  // Центр секции находится в позиции: segmentId * segmentAngle + segmentAngle/2
-  const sectionCenter = segmentId * segmentAngle + (segmentAngle / 2);
-
-  // Чтобы указатель (0 градусов) указывал на центр секции,
-  // нужно повернуть колесо на угол, который приведет центр секции к позиции указателя
-  // Это означает поворот на (360 - sectionCenter) градусов
-  const baseAngle = 360 - sectionCenter;
-
-  // Добавляем случайное отклонение в пределах секции (±16 градусов, 80% от половины секции)
-  const randomOffset = (Math.random() - 0.5) * (segmentAngle * 0.8);
-
-  // Добавляем несколько полных оборотов для эффектности (3-5 оборотов)
-  const fullRotations = (Math.floor(Math.random() * 3) + 3) * 360;
-
-  const finalAngle = fullRotations + baseAngle + randomOffset;
-
-  logger.info(`Рулетка: расчет угла для секции ${segmentId}: центр секции=${sectionCenter}, базовый угол=${baseAngle}, смещение=${randomOffset}, полные обороты=${fullRotations}, финальный угол=${finalAngle}`);
-
-  return finalAngle;
 }
 
 /**
@@ -118,12 +83,6 @@ const playRoulette = async (req, res) => {
     // Логируем результат выбора секции
     logger.info(`Рулетка - пользователь ${user.username}: выбрана секция ${selectedSegment.id}, тип: ${selectedSegment.type}, значение: ${selectedSegment.value}`);
 
-    // Вычисляем угол поворота
-    const rotationAngle = calculateRotationAngle(selectedSegment.id);
-
-    // Логируем угол поворота
-    logger.info(`Рулетка - пользователь ${user.username}: рассчитан угол поворота=${rotationAngle} градусов для секции ${selectedSegment.id}`);
-
     // Обновляем время последней игры
     user.last_roulette_play = now;
 
@@ -153,9 +112,10 @@ const playRoulette = async (req, res) => {
       winner_index: selectedSegment.id,
       prize_type: selectedSegment.type,
       prize_value: selectedSegment.value,
-      rotation_angle: rotationAngle,
       next_time: nextPlayTime.toISOString()
     };
+
+    logger.info(`Рулетка - ответ пользователю ${user.username}:`, response);
 
     res.json(response);
 
