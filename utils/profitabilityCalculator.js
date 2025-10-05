@@ -1,14 +1,437 @@
 const { logger } = require('./logger');
 
 class ProfitabilityCalculator {
-  constructor(targetProfitMargin = 0.3) {
-    this.targetProfitMargin = targetProfitMargin; // 30% прибыль сайта
-    this.userReturnRate = 1 - targetProfitMargin; // 70% возврат пользователям
+  constructor(targetProfitMargin = 0.225) {
+    this.targetProfitMargin = targetProfitMargin; // 22.5% прибыль сайта
+    this.userReturnRate = 1 - targetProfitMargin; // 77.5% возврат пользователям
   }
 
   /**
-   * Рассчитать оптимальные веса для кейса на основе актуальных цен
+   * АНАЛИЗ ТЕКУЩЕЙ ЭКОНОМИКИ ИГРЫ
    */
+  analyzeCurrentEconomy() {
+    const analysis = {
+      subscriptions: this.analyzeSubscriptions(),
+      cases: this.analyzeCases(),
+      freeActivities: this.analyzeFreeActivities(),
+      trading: this.analyzeTradingSystem(),
+      overall: {}
+    };
+
+    // Общий анализ
+    analysis.overall = this.calculateOverallProfitability(analysis);
+
+    return analysis;
+  }
+
+  /**
+   * Анализ системы подписок
+   */
+  analyzeSubscriptions() {
+    const subscriptions = {
+      tier1: { price: 1210, bonus: 3, dailyCases: 1 },
+      tier2: { price: 2890, bonus: 5, dailyCases: 1 },
+      tier3: { price: 6819, bonus: 8, dailyCases: 1 }
+    };
+
+    const analysis = {};
+
+    for (const [tier, data] of Object.entries(subscriptions)) {
+      // Рассчитываем стоимость предоставляемых услуг
+      const dailyCaseCost = this.estimateDailyCaseCost(tier);
+      const bonusValue = this.estimateBonusValue(data.bonus);
+      const freeActivitiesCost = this.estimateFreeActivitiesCost(tier);
+
+      const monthlyCosts = (dailyCaseCost * 30) + bonusValue + freeActivitiesCost;
+      const profit = data.price - monthlyCosts;
+      const profitMargin = profit / data.price;
+
+      analysis[tier] = {
+        monthlyPrice: data.price,
+        monthlyCosts: monthlyCosts,
+        dailyCaseCost: dailyCaseCost,
+        bonusValue: bonusValue,
+        freeActivitiesCost: freeActivitiesCost,
+        profit: profit,
+        profitMargin: profitMargin,
+        isOptimal: profitMargin >= 0.20 && profitMargin <= 0.30,
+        recommendation: this.getSubscriptionRecommendation(profitMargin, tier)
+      };
+    }
+
+    return analysis;
+  }
+
+  /**
+   * Анализ системы кейсов
+   */
+  analyzeCases() {
+    const cases = {
+      standard: { price: 99, expectedValue: 79.20 },
+      premium: { price: 499, expectedValue: 399.20 }
+    };
+
+    const analysis = {};
+
+    for (const [type, data] of Object.entries(cases)) {
+      const profit = data.price - data.expectedValue;
+      const profitMargin = profit / data.price;
+
+      analysis[type] = {
+        price: data.price,
+        expectedValue: data.expectedValue,
+        profit: profit,
+        profitMargin: profitMargin,
+        isOptimal: profitMargin >= 0.20 && profitMargin <= 0.30,
+        recommendation: this.getCaseRecommendation(profitMargin, type)
+      };
+    }
+
+    return analysis;
+  }
+
+  /**
+   * Анализ бесплатных активностей
+   */
+  analyzeFreeActivities() {
+    return {
+      roulette: {
+        frequency: "1 раз в день",
+        maxReward: "2 дня подписки",
+        dailyCost: this.estimateRouletteCost(),
+        recommendation: "Уменьшить награды или увеличить кулдаун"
+      },
+      ticTacToe: {
+        frequency: "1-3 раза в день по тарифам",
+        reward: "Бонусный кейс",
+        dailyCost: this.estimateTicTacToeCost(),
+        recommendation: "Ограничить стоимость бонусных кейсов"
+      },
+      slots: {
+        frequency: "1-3 раза в день по тарифам",
+        winRate: "60% дешевые + 10% дорогие",
+        dailyCost: this.estimateSlotsCost(),
+        recommendation: "Снизить вероятности дорогих выигрышей"
+      }
+    };
+  }
+
+  /**
+   * Анализ торговой системы
+   */
+  analyzeTradingSystem() {
+    return {
+      itemSales: {
+        sellRate: 0.70, // 70% от рыночной стоимости
+        profitMargin: 0.30, // 30% маржа
+        isOptimal: true,
+        recommendation: "Оптимально"
+      },
+      itemExchange: {
+        tier1_2: { pricePerDay: 150, isOptimal: false },
+        tier3: { pricePerDay: 300, isOptimal: true },
+        recommendation: "Увеличить стоимость дня для tier 1-2 до 200₽"
+      },
+      upgrades: {
+        averageSuccessRate: "20-75%",
+        profitMargin: "Зависит от шансов",
+        recommendation: "Проанализировать математическое ожидание"
+      }
+    };
+  }
+
+  /**
+   * Расчет общей рентабельности
+   */
+  calculateOverallProfitability(analysis) {
+    // Примерные веса доходов по источникам
+    const revenueWeights = {
+      subscriptions: 0.40,  // 40% дохода
+      cases: 0.35,          // 35% дохода
+      trading: 0.20,        // 20% дохода
+      other: 0.05           // 5% прочее
+    };
+
+    // Усредненная рентабельность по подпискам
+    const avgSubscriptionMargin = Object.values(analysis.subscriptions)
+      .reduce((sum, sub) => sum + sub.profitMargin, 0) / 3;
+
+    // Усредненная рентабельность по кейсам
+    const avgCaseMargin = Object.values(analysis.cases)
+      .reduce((sum, case_) => sum + case_.profitMargin, 0) / 2;
+
+    // Примерная рентабельность торговли (30% с продаж)
+    const tradingMargin = 0.30;
+
+    const weightedMargin =
+      (avgSubscriptionMargin * revenueWeights.subscriptions) +
+      (avgCaseMargin * revenueWeights.cases) +
+      (tradingMargin * revenueWeights.trading);
+
+    return {
+      currentProfitMargin: weightedMargin,
+      targetProfitMargin: this.targetProfitMargin,
+      isOptimal: Math.abs(weightedMargin - this.targetProfitMargin) < 0.05,
+      gap: this.targetProfitMargin - weightedMargin,
+      recommendation: this.getOverallRecommendation(weightedMargin)
+    };
+  }
+
+  /**
+   * ГЕНЕРАЦИЯ РЕКОМЕНДАЦИЙ ДЛЯ ДОСТИЖЕНИЯ 20-25% РЕНТАБЕЛЬНОСТИ
+   */
+  generateOptimizationPlan() {
+    const analysis = this.analyzeCurrentEconomy();
+
+    const plan = {
+      priority: "ВЫСОКИЙ",
+      estimatedImpact: "20-25% общая рентабельность",
+      changes: {
+        subscriptions: this.getSubscriptionOptimizations(analysis.subscriptions),
+        cases: this.getCaseOptimizations(analysis.cases),
+        freeActivities: this.getFreeActivitiesOptimizations(analysis.freeActivities),
+        trading: this.getTradingOptimizations(analysis.trading),
+        probabilities: this.getProbabilityOptimizations()
+      },
+      implementation: this.getImplementationSteps()
+    };
+
+    return plan;
+  }
+
+  /**
+   * Оптимизация подписок
+   */
+  getSubscriptionOptimizations(subscriptionAnalysis) {
+    return {
+      prices: {
+        tier1: {
+          current: 1210,
+          recommended: 1450, // +20%
+          reasoning: "Увеличить до достижения 25% маржи"
+        },
+        tier2: {
+          current: 2890,
+          recommended: 3200, // +11%
+          reasoning: "Небольшое увеличение для баланса"
+        },
+        tier3: {
+          current: 6819,
+          recommended: 6819, // без изменений
+          reasoning: "Уже близко к оптимальной марже"
+        }
+      },
+      bonuses: {
+        current: "3%, 5%, 8%",
+        recommended: "2%, 3%, 5%",
+        reasoning: "Снизить влияние бонусов на дроп-рейты"
+      }
+    };
+  }
+
+  /**
+   * Оптимизация кейсов
+   */
+  getCaseOptimizations(caseAnalysis) {
+    return {
+      expectedValues: {
+        standard: {
+          currentEV: 79.20,
+          recommendedEV: 74.25, // 25% маржа
+          priceChange: "99₽ → 99₽ (корректировать содержимое)"
+        },
+        premium: {
+          currentEV: 399.20,
+          recommendedEV: 374.25, // 25% маржа
+          priceChange: "499₽ → 499₽ (корректировать содержимое)"
+        }
+      },
+      dropWeights: {
+        expensive: "Снизить веса дорогих предметов на 20-30%",
+        cheap: "Увеличить веса дешевых предметов соответственно"
+      }
+    };
+  }
+
+  /**
+   * Оптимизация бесплатных активностей
+   */
+  getFreeActivitiesOptimizations(freeAnalysis) {
+    return {
+      roulette: {
+        current: "1-2 дня подписки раз в день",
+        recommended: "0-1 день подписки раз в 2 дня",
+        reasoning: "Сократить частоту и размер наград"
+      },
+      ticTacToe: {
+        current: "Бонусный кейс за победу",
+        recommended: "Ограничить стоимость содержимого до 50₽",
+        reasoning: "Контролировать потери от бесплатных кейсов"
+      },
+      slots: {
+        current: "60% дешевые, 10% дорогие выигрыши",
+        recommended: "70% дешевые, 5% дорогие выигрыши",
+        reasoning: "Снизить долю дорогих выигрышей"
+      }
+    };
+  }
+
+  /**
+   * Оптимизация торговой системы
+   */
+  getTradingOptimizations(tradingAnalysis) {
+    return {
+      sellRate: {
+        current: 0.70,
+        recommended: 0.65,
+        reasoning: "Снизить до 65% для увеличения маржи"
+      },
+      exchangeRates: {
+        tier1_2: {
+          current: 150,
+          recommended: 200,
+          reasoning: "Увеличить стоимость дня подписки"
+        },
+        tier3: {
+          current: 300,
+          recommended: 350,
+          reasoning: "Небольшое увеличение для премиум тира"
+        }
+      },
+      upgradeChances: {
+        current: "По текущей формуле",
+        recommended: "Снизить базовые шансы на 5-10%",
+        reasoning: "Увеличить прибыльность системы апгрейдов"
+      }
+    };
+  }
+
+  /**
+   * Оптимизация вероятностей
+   */
+  getProbabilityOptimizations() {
+    return {
+      dropWeights: {
+        consumer: { current: 1.0, recommended: 1.2 },
+        industrial: { current: 0.7, recommended: 0.8 },
+        milspec: { current: 0.35, recommended: 0.4 },
+        restricted: { current: 0.2, recommended: 0.15 },
+        classified: { current: 0.1, recommended: 0.08 },
+        covert: { current: 0.04, recommended: 0.03 },
+        contraband: { current: 0.015, recommended: 0.01 },
+        exotic: { current: 0.005, recommended: 0.003 }
+      },
+      bonusLimits: {
+        maxBonus: {
+          current: "30%",
+          recommended: "20%",
+          reasoning: "Ограничить максимальный бонус от всех источников"
+        }
+      }
+    };
+  }
+
+  /**
+   * Шаги внедрения
+   */
+  getImplementationSteps() {
+    return [
+      {
+        step: 1,
+        title: "Корректировка дроп-рейтов",
+        priority: "КРИТИЧНО",
+        effort: "Средний",
+        files: ["dropWeightCalculator.js", "openCase.js"],
+        impact: "5-7% увеличение рентабельности"
+      },
+      {
+        step: 2,
+        title: "Настройка цен подписок",
+        priority: "ВЫСОКИЙ",
+        effort: "Низкий",
+        files: ["buySubscription.js"],
+        impact: "3-5% увеличение рентабельности"
+      },
+      {
+        step: 3,
+        title: "Оптимизация бесплатных активностей",
+        priority: "ВЫСОКИЙ",
+        effort: "Средний",
+        files: ["playRoulette.js", "ticTacToeController.js", "playSlot.js"],
+        impact: "2-4% увеличение рентабельности"
+      },
+      {
+        step: 4,
+        title: "Корректировка торговой системы",
+        priority: "СРЕДНИЙ",
+        effort: "Низкий",
+        files: ["sellItem.js", "exchangeItemForSubscription.js", "upgradeCalculator.js"],
+        impact: "2-3% увеличение рентабельности"
+      },
+      {
+        step: 5,
+        title: "Тестирование и мониторинг",
+        priority: "ВЫСОКИЙ",
+        effort: "Высокий",
+        files: ["profitabilityCalculator.js"],
+        impact: "Контроль достижения целевой рентабельности"
+      }
+    ];
+  }
+
+  // Вспомогательные методы для оценки затрат
+  estimateDailyCaseCost(tier) {
+    const expectedValues = { tier1: 40, tier2: 80, tier3: 180 };
+    return expectedValues[tier] || 40;
+  }
+
+  estimateBonusValue(bonusPercent) {
+    // Примерное увеличение стоимости выигрышей от бонуса
+    return bonusPercent * 50; // 50₽ базовая стоимость × бонус
+  }
+
+  estimateFreeActivitiesCost(tier) {
+    const attempts = { tier1: 3, tier2: 4, tier3: 5 }; // рулетка + крестики + слоты
+    const avgCost = 25; // средняя стоимость награды
+    return (attempts[tier] || 3) * avgCost;
+  }
+
+  estimateRouletteCost() {
+    // 1 раз в день, 15% шанс на 1-2 дня подписки
+    return 0.15 * 1.5 * 50; // 15% шанс × 1.5 дня × 50₽ за день
+  }
+
+  estimateTicTacToeCost() {
+    // Зависит от тира, примерно 20% винрейт × стоимость кейса
+    return 0.20 * 50; // 20% винрейт × 50₽ стоимость бонусного кейса
+  }
+
+  estimateSlotsCost() {
+    // 70% выигрышей, средняя стоимость выигрыша
+    return 0.70 * 15; // 70% выигрышей × 15₽ средний выигрыш
+  }
+
+  getSubscriptionRecommendation(margin, tier) {
+    if (margin < 0.15) return "КРИТИЧНО: Увеличить цену или снизить затраты";
+    if (margin < 0.20) return "Увеличить цену на 10-15%";
+    if (margin > 0.30) return "Можно снизить цену для конкурентоспособности";
+    return "Оптимально";
+  }
+
+  getCaseRecommendation(margin, type) {
+    if (margin < 0.20) return "Снизить ожидаемую стоимость содержимого";
+    if (margin > 0.30) return "Можно улучшить содержимое";
+    return "Оптимально";
+  }
+
+  getOverallRecommendation(margin) {
+    if (margin < 0.15) return "КРИТИЧНО: Требуются срочные изменения";
+    if (margin < 0.20) return "Нужны корректировки для достижения цели";
+    if (margin > 0.30) return "Можно снизить цены для роста аудитории";
+    return "Близко к целевой рентабельности";
+  }
+
+  // Оригинальные методы для обратной совместимости
   calculateOptimalWeights(itemsByCategory, casePrice) {
     const targetExpectedValue = casePrice * this.userReturnRate;
 
@@ -210,7 +633,7 @@ class ProfitabilityCalculator {
    */
   getProfitabilityStatus(actualMargin) {
     const target = this.targetProfitMargin;
-    const tolerance = 0.02; // ±2%
+    const tolerance = 0.025; // ±2.5%
 
     if (Math.abs(actualMargin - target) <= tolerance) {
       return '✅ ОПТИМАЛЬНО';
@@ -230,7 +653,7 @@ class ProfitabilityCalculator {
     const target = this.targetProfitMargin;
     const diff = actualMargin - target;
 
-    if (Math.abs(diff) <= 0.02) {
+    if (Math.abs(diff) <= 0.025) {
       return 'Рентабельность в норме';
     } else if (diff < -0.05) {
       return 'Уменьшить веса дорогих предметов или увеличить цену кейса';
