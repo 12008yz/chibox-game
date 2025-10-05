@@ -45,16 +45,16 @@ async function exchangeItemForSubscription(req, res) {
     const currentTier = user.subscription_tier || 1; // По умолчанию тариф 1
 
     if (currentTier === 3) {
-      pricePerDay = 300; // 300₽ за день для тарифа "Статус++"
+      pricePerDay = 350; // 350₽ за день для тарифа "Статус++" (оптимизировано)
     } else {
-      pricePerDay = 150; // 150₽ за день для тарифов "Статус" и "Статус+"
+      pricePerDay = 200; // 200₽ за день для тарифов "Статус" и "Статус+" (оптимизировано)
     }
 
     console.log(`Using price per day: ${pricePerDay}₽ for tier ${currentTier}`);
 
-    // Вычисляем количество дней подписки с правильной логикой
-    // Для тарифа 3: 280-300₽ = 1 день, 580-600₽ = 2 дня и т.д.
-    // Для тарифов 1,2: 140-150₽ = 1 день, 290-300₽ = 2 дня и т.д.
+    // Вычисляем количество дней подписки с правильной логикой (оптимизировано)
+    // Для тарифа 3: 330-350₽ = 1 день, 680-700₽ = 2 дня и т.д.
+    // Для тарифов 1,2: 190-200₽ = 1 день, 390-400₽ = 2 дня и т.д.
     const subscriptionDays = Math.floor((itemPrice + pricePerDay * 0.067) / pricePerDay);
 
     console.log(`Calculated subscription days: ${subscriptionDays} for item price ${itemPrice} (formula: floor((${itemPrice} + ${pricePerDay * 0.067}) / ${pricePerDay})) for tier ${currentTier}`);

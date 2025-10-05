@@ -29,9 +29,9 @@ class ProfitabilityCalculator {
    */
   analyzeSubscriptions() {
     const subscriptions = {
-      tier1: { price: 1210, bonus: 3, dailyCases: 1 },
-      tier2: { price: 2890, bonus: 5, dailyCases: 1 },
-      tier3: { price: 6819, bonus: 8, dailyCases: 1 }
+      tier1: { price: 1450, bonus: 2, dailyCases: 1 },
+      tier2: { price: 3200, bonus: 3, dailyCases: 1 },
+      tier3: { price: 6819, bonus: 5, dailyCases: 1 }
     };
 
     const analysis = {};
@@ -122,7 +122,7 @@ class ProfitabilityCalculator {
   analyzeTradingSystem() {
     return {
       itemSales: {
-        sellRate: 0.70, // 70% от рыночной стоимости
+        sellRate: 0.65, // 65% от рыночной стоимости (оптимизировано)
         profitMargin: 0.30, // 30% маржа
         isOptimal: true,
         recommendation: "Оптимально"

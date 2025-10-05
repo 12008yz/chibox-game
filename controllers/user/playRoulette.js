@@ -1,24 +1,24 @@
 const { User } = require('../../models');
 const { logger } = require('../../utils/logger');
 
-// Конфигурация колеса рулетки (9 секций)
+// Конфигурация колеса рулетки (9 секций) - оптимизировано для экономики
 const ROULETTE_SEGMENTS = [
-  { id: 0, type: 'empty', value: 0, weight: 15 },      // Пустая секция
-  { id: 1, type: 'sub_1_day', value: 1, weight: 8 },   // 1 день подписки (менее вероятно)
-  { id: 2, type: 'empty', value: 0, weight: 15 },      // Пустая секция
-  { id: 3, type: 'empty', value: 0, weight: 15 },      // Пустая секция
-  { id: 4, type: 'sub_2_days', value: 2, weight: 4 },  // 2 дня подписки (редко)
-  { id: 5, type: 'empty', value: 0, weight: 15 },      // Пустая секция
-  { id: 6, type: 'empty', value: 0, weight: 15 },      // Пустая секция
-  { id: 7, type: 'empty', value: 0, weight: 15 },      // Пустая секция
-  { id: 8, type: 'empty', value: 0, weight: 15 }       // Пустая секция
+  { id: 0, type: 'empty', value: 0, weight: 20 },      // Пустая секция
+  { id: 1, type: 'sub_1_day', value: 1, weight: 3 },   // 1 день подписки (очень редко)
+  { id: 2, type: 'empty', value: 0, weight: 20 },      // Пустая секция
+  { id: 3, type: 'empty', value: 0, weight: 20 },      // Пустая секция
+  { id: 4, type: 'empty', value: 0, weight: 20 },      // Убрано 2 дня подписки
+  { id: 5, type: 'empty', value: 0, weight: 20 },      // Пустая секция
+  { id: 6, type: 'empty', value: 0, weight: 20 },      // Пустая секция
+  { id: 7, type: 'empty', value: 0, weight: 20 },      // Пустая секция
+  { id: 8, type: 'empty', value: 0, weight: 20 }       // Пустая секция
 ];
 
 // Общий вес всех секций
 const TOTAL_WEIGHT = ROULETTE_SEGMENTS.reduce((sum, segment) => sum + segment.weight, 0);
 
-// Кулдаун между играми в миллисекундах (6 минут)
-const ROULETTE_COOLDOWN = 6 * 60 * 1000;
+// Кулдаун между играми в миллисекундах (12 часов)
+const ROULETTE_COOLDOWN = 12 * 60 * 60 * 1000;
 
 /**
  * Выбирает случайную секцию на основе весов

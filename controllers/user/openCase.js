@@ -735,6 +735,21 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
     logger.info(`Открытие кейса из инвентаря. Предметов в кейсе: ${items.length}, userDropBonus: ${userDropBonus}%, userSubscriptionTier: ${userSubscriptionTier}`);
     logger.info(`Бонусы пользователя для инвентарного кейса: итого=${user.total_drop_bonus_percentage || 0}%`);
 
+    // Ограничиваем стоимость предметов для "Бонусного кейса" до 50₽ согласно анализу экономики
+    let filteredItems = items;
+    if (inventoryCase.case_template.name === 'Бонусный кейс') {
+      filteredItems = items.filter(item => {
+        const price = parseFloat(item.price) || 0;
+        return price <= 50;
+      });
+      logger.info(`Бонусный кейс: отфильтровано предметов по цене ≤50₽: ${items.length} -> ${filteredItems.length}`);
+
+      if (filteredItems.length === 0) {
+        logger.warn('Бонусный кейс: нет предметов стоимостью ≤50₽, используем все предметы');
+        filteredItems = items;
+      }
+    }
+
     // Транзакция для изменения данных
     const { sequelize } = require('../../models');
     const t = await sequelize.transaction();
@@ -756,7 +771,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
 
       if (userDropBonus > 0) {
         // Используем модифицированную систему весов
-        const modifiedItems = calculateModifiedDropWeights(items, userDropBonus);
+        const modifiedItems = calculateModifiedDropWeights(filteredItems, userDropBonus);
 
         // Для пользователей Статус++ используем полную защиту от дубликатов ТОЛЬКО для специального кейса
         if (userSubscriptionTier >= 3 && inventoryCase.case_template_id === '44444444-4444-4444-4444-444444444444') {
@@ -784,17 +799,17 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
         if (userSubscriptionTier >= 3 && inventoryCase.case_template_id === '44444444-4444-4444-4444-444444444444') {
           logger.info(`Пользователь Статус++ ${userId} уже получал из специального кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
           selectedItem = selectItemWithFullDuplicateProtection(
-            items,
+            filteredItems,
             droppedItemIds,
             userSubscriptionTier
           );
         } else if (userSubscriptionTier >= 3) {
           logger.info(`Пользователь Статус++ ${userId} открывает обычный инвентарный кейс ${inventoryCase.case_template_id} (без защиты от дубликатов)`);
-          selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, []);
+          selectedItem = selectItemWithCorrectWeights(filteredItems, userSubscriptionTier, []);
         } else {
           logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
           selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
-            items,
+            filteredItems,
             droppedItemIds,
             droppedItemIds.length
           );
