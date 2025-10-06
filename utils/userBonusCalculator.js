@@ -20,9 +20,9 @@ function calculateLevelBonus(level) {
 function calculateSubscriptionBonus(subscriptionTier) {
     const subscriptionBonuses = {
         0: 0,    // Нет подписки
-        1: 3.0,  // Статус: +3%
-        2: 5.0,  // Статус+: +5%
-        3: 8.0   // Статус++: +8% + защита от дубликатов
+        1: 2.0,  // Статус: +2% (снижено с 3%)
+        2: 3.0,  // Статус+: +3% (снижено с 5%)
+        3: 5.0   // Статус++: +5% (снижено с 8%) + защита от дубликатов
     };
 
     return subscriptionBonuses[subscriptionTier] || 0;
