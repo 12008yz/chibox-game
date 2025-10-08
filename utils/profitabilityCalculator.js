@@ -29,9 +29,9 @@ class ProfitabilityCalculator {
    */
   analyzeSubscriptions() {
     const subscriptions = {
-      tier1: { price: 1450, bonus: 2, dailyCases: 1 },
-      tier2: { price: 3200, bonus: 3, dailyCases: 1 },
-      tier3: { price: 6819, bonus: 5, dailyCases: 1 }
+      tier1: { price: 1800, bonus: 2, dailyCases: 1 },
+      tier2: { price: 3600, bonus: 3, dailyCases: 1 },
+      tier3: { price: 7500, bonus: 5, dailyCases: 1 }
     };
 
     const analysis = {};
@@ -91,41 +91,42 @@ class ProfitabilityCalculator {
   }
 
   /**
-   * Анализ бесплатных активностей
+   * Анализ бесплатных активностей (ОБНОВЛЕНО)
    */
   analyzeFreeActivities() {
     return {
       roulette: {
-        frequency: "1 раз в день",
-        maxReward: "2 дня подписки",
+        frequency: "1 раз в 12 часов",
+        maxReward: "1 день подписки",
+        winChance: "1.23% (2 из 162 веса)",
         dailyCost: this.estimateRouletteCost(),
-        recommendation: "Уменьшить награды или увеличить кулдаун"
+        recommendation: "Уже оптимизировано - кулдаун увеличен, награды снижены"
       },
       ticTacToe: {
         frequency: "1-3 раза в день по тарифам",
-        reward: "Бонусный кейс",
+        reward: "Бонусный кейс (оптимизированный)",
         dailyCost: this.estimateTicTacToeCost(),
-        recommendation: "Ограничить стоимость бонусных кейсов"
+        recommendation: "Стоимость бонусных кейсов уже снижена после оптимизации дропов"
       },
       slots: {
-        frequency: "1-3 раза в день по тарифам",
-        winRate: "60% дешевые + 10% дорогие",
+        frequency: "Ограничено по тарифам",
+        winRate: "60% дешевые + 5% дорогие (оптимизировано)",
         dailyCost: this.estimateSlotsCost(),
-        recommendation: "Снизить вероятности дорогих выигрышей"
+        recommendation: "Вероятности дорогих выигрышей уже снижены"
       }
     };
   }
 
   /**
-   * Анализ торговой системы
+   * Анализ торговой системы (ОБНОВЛЕНО)
    */
   analyzeTradingSystem() {
     return {
       itemSales: {
-        sellRate: 0.65, // 65% от рыночной стоимости (оптимизировано)
-        profitMargin: 0.30, // 30% маржа
+        sellRate: 0.65, // 65% от рыночной стоимости (АКТУАЛЬНО из sellItem.js)
+        profitMargin: 0.35, // 35% маржа для сайта
         isOptimal: true,
-        recommendation: "Оптимально"
+        recommendation: "Оптимально - коэффициент уже снижен до 65%"
       },
       itemExchange: {
         tier1_2: { pricePerDay: 150, isOptimal: false },
@@ -206,25 +207,25 @@ class ProfitabilityCalculator {
     return {
       prices: {
         tier1: {
-          current: 1210,
-          recommended: 1450, // +20%
-          reasoning: "Увеличить до достижения 25% маржи"
+          current: 1800,
+          recommended: 1800, // без изменений
+          reasoning: "Цена уже скорректирована до оптимального уровня"
         },
         tier2: {
-          current: 2890,
-          recommended: 3200, // +11%
-          reasoning: "Небольшое увеличение для баланса"
+          current: 3600,
+          recommended: 3600, // без изменений
+          reasoning: "Цена уже скорректирована до оптимального уровня"
         },
         tier3: {
-          current: 6819,
-          recommended: 6819, // без изменений
-          reasoning: "Уже близко к оптимальной марже"
+          current: 7500,
+          recommended: 7500, // без изменений
+          reasoning: "Цена уже скорректирована до оптимального уровня"
         }
       },
       bonuses: {
-        current: "3%, 5%, 8%",
+        current: "2%, 3%, 5%",
         recommended: "2%, 3%, 5%",
-        reasoning: "Снизить влияние бонусов на дроп-рейты"
+        reasoning: "Бонусы уже оптимизированы после корректировки дропов"
       }
     };
   }
@@ -254,161 +255,168 @@ class ProfitabilityCalculator {
   }
 
   /**
-   * Оптимизация бесплатных активностей
+   * Оптимизация бесплатных активностей (ОБНОВЛЕНО)
    */
   getFreeActivitiesOptimizations(freeAnalysis) {
     return {
       roulette: {
-        current: "1-2 дня подписки раз в день",
-        recommended: "0-1 день подписки раз в 2 дня",
-        reasoning: "Сократить частоту и размер наград"
+        current: "1 день подписки раз в 12 часов (1.23% шанс)",
+        recommended: "УЖЕ ОПТИМИЗИРОВАНО",
+        reasoning: "Кулдаун увеличен до 12 часов, максимальная награда снижена до 1 дня"
       },
       ticTacToe: {
-        current: "Бонусный кейс за победу",
-        recommended: "Ограничить стоимость содержимого до 50₽",
-        reasoning: "Контролировать потери от бесплатных кейсов"
+        current: "Бонусный кейс с оптимизированными дропами",
+        recommended: "УЖЕ ОПТИМИЗИРОВАНО",
+        reasoning: "Стоимость содержимого уже снижена через оптимизацию весов дропов"
       },
       slots: {
-        current: "60% дешевые, 10% дорогие выигрыши",
-        recommended: "70% дешевые, 5% дорогие выигрыши",
-        reasoning: "Снизить долю дорогих выигрышей"
+        current: "60% дешевые, 5% дорогие выигрыши",
+        recommended: "УЖЕ ОПТИМИЗИРОВАНО",
+        reasoning: "Доля дорогих выигрышей уже снижена в dropWeightCalculator"
       }
     };
   }
 
   /**
-   * Оптимизация торговой системы
+   * Оптимизация торговой системы (ОБНОВЛЕНО)
    */
   getTradingOptimizations(tradingAnalysis) {
     return {
       sellRate: {
-        current: 0.70,
+        current: 0.65,
         recommended: 0.65,
-        reasoning: "Снизить до 65% для увеличения маржи"
+        reasoning: "УЖЕ ОПТИМИЗИРОВАНО - коэффициент уже снижен до 65%"
       },
       exchangeRates: {
         tier1_2: {
-          current: 150,
-          recommended: 200,
-          reasoning: "Увеличить стоимость дня подписки"
+          current: "Проверить в exchangeItemForSubscription.js",
+          recommended: "Увеличить до 200₽ за день если не сделано",
+          reasoning: "Увеличить стоимость дня подписки при обмене"
         },
         tier3: {
-          current: 300,
-          recommended: 350,
+          current: "Проверить в exchangeItemForSubscription.js",
+          recommended: "Увеличить до 350₽ за день если не сделано",
           reasoning: "Небольшое увеличение для премиум тира"
         }
       },
       upgradeChances: {
-        current: "По текущей формуле",
-        recommended: "Снизить базовые шансы на 5-10%",
-        reasoning: "Увеличить прибыльность системы апгрейдов"
+        current: "По формуле в upgradeCalculator.js",
+        recommended: "Проанализировать текущие шансы успеха",
+        reasoning: "Убедиться что система апгрейдов прибыльна"
       }
     };
   }
 
   /**
-   * Оптимизация вероятностей
+   * Оптимизация вероятностей (ОБНОВЛЕНО - УЖЕ ПРИМЕНЕНО)
    */
   getProbabilityOptimizations() {
     return {
       dropWeights: {
-        consumer: { current: 1.0, recommended: 1.2 },
-        industrial: { current: 0.7, recommended: 0.8 },
-        milspec: { current: 0.35, recommended: 0.4 },
-        restricted: { current: 0.2, recommended: 0.15 },
-        classified: { current: 0.1, recommended: 0.08 },
-        covert: { current: 0.04, recommended: 0.03 },
-        contraband: { current: 0.015, recommended: 0.01 },
-        exotic: { current: 0.005, recommended: 0.003 }
+        "50000₽+": { current: 0.002, status: "✅ ОПТИМИЗИРОВАНО" },
+        "30000₽+": { current: 0.004, status: "✅ ОПТИМИЗИРОВАНО" },
+        "20000₽+": { current: 0.007, status: "✅ ОПТИМИЗИРОВАНО" },
+        "15000₽+": { current: 0.012, status: "✅ ОПТИМИЗИРОВАНО" },
+        "10000₽+": { current: 0.02, status: "✅ ОПТИМИЗИРОВАНО" },
+        "8000₽+": { current: 0.03, status: "✅ ОПТИМИЗИРОВАНО" },
+        "5000₽+": { current: 0.06, status: "✅ ОПТИМИЗИРОВАНО" },
+        "3000₽+": { current: 0.12, status: "✅ ОПТИМИЗИРОВАНО" },
+        "1000₽+": { current: 0.28, status: "✅ ОПТИМИЗИРОВАНО" },
+        "500₽+": { current: 0.45, status: "✅ ОПТИМИЗИРОВАНО" },
+        "100₽+": { current: 0.8, status: "✅ ОПТИМИЗИРОВАНО" },
+        "дешевые": { current: 1.2, status: "✅ ОПТИМИЗИРОВАНО" }
       },
+      note: "Агрессивная оптимизация весов уже применена в dropWeightCalculator.js",
       bonusLimits: {
         maxBonus: {
-          current: "30%",
-          recommended: "20%",
-          reasoning: "Ограничить максимальный бонус от всех источников"
+          current: "Нужно проверить в userBonusCalculator.js",
+          recommended: "Ограничить до 20% если превышает",
+          reasoning: "Ограничить максимальный совокупный бонус"
         }
       }
     };
   }
 
   /**
-   * Шаги внедрения
+   * Шаги внедрения (ОБНОВЛЕНО)
    */
   getImplementationSteps() {
     return [
       {
         step: 1,
         title: "Корректировка дроп-рейтов",
-        priority: "КРИТИЧНО",
+        priority: "✅ ВЫПОЛНЕНО",
         effort: "Средний",
-        files: ["dropWeightCalculator.js", "openCase.js"],
-        impact: "5-7% увеличение рентабельности"
+        files: ["dropWeightCalculator.js"],
+        impact: "5-7% увеличение рентабельности - ПРИМЕНЕНО"
       },
       {
         step: 2,
         title: "Настройка цен подписок",
-        priority: "ВЫСОКИЙ",
+        priority: "✅ ВЫПОЛНЕНО",
         effort: "Низкий",
         files: ["buySubscription.js"],
-        impact: "3-5% увеличение рентабельности"
+        impact: "3-5% увеличение рентабельности - ПРИМЕНЕНО"
       },
       {
         step: 3,
         title: "Оптимизация бесплатных активностей",
-        priority: "ВЫСОКИЙ",
+        priority: "✅ ВЫПОЛНЕНО",
         effort: "Средний",
-        files: ["playRoulette.js", "ticTacToeController.js", "playSlot.js"],
-        impact: "2-4% увеличение рентабельности"
+        files: ["playRoulette.js"],
+        impact: "2-4% увеличение рентабельности - ПРИМЕНЕНО"
       },
       {
         step: 4,
         title: "Корректировка торговой системы",
-        priority: "СРЕДНИЙ",
+        priority: "✅ ЧАСТИЧНО ВЫПОЛНЕНО",
         effort: "Низкий",
-        files: ["sellItem.js", "exchangeItemForSubscription.js", "upgradeCalculator.js"],
-        impact: "2-3% увеличение рентабельности"
+        files: ["sellItem.js", "exchangeItemForSubscription.js"],
+        impact: "Коэффициент продажи 65% применен, нужно проверить обменные курсы"
       },
       {
         step: 5,
-        title: "Тестирование и мониторинг",
-        priority: "ВЫСОКИЙ",
-        effort: "Высокий",
-        files: ["profitabilityCalculator.js"],
-        impact: "Контроль достижения целевой рентабельности"
+        title: "Проверка лимитов бонусов",
+        priority: "РЕКОМЕНДУЕТСЯ",
+        effort: "Низкий",
+        files: ["userBonusCalculator.js"],
+        impact: "Убедиться что максимальный бонус не превышает 20%"
       }
     ];
   }
 
-  // Вспомогательные методы для оценки затрат
+  // Вспомогательные методы для оценки затрат (ОБНОВЛЕНО с актуальными данными)
   estimateDailyCaseCost(tier) {
-    const expectedValues = { tier1: 40, tier2: 80, tier3: 180 };
-    return expectedValues[tier] || 40;
+    // Обновленные оценки стоимости ежедневных кейсов после оптимизации дропов
+    const expectedValues = { tier1: 25, tier2: 45, tier3: 90 };
+    return expectedValues[tier] || 25;
   }
 
   estimateBonusValue(bonusPercent) {
-    // Примерное увеличение стоимости выигрышей от бонуса
-    return bonusPercent * 50; // 50₽ базовая стоимость × бонус
+    // Примерное увеличение стоимости выигрышей от бонуса (снижено после агрессивной оптимизации)
+    return bonusPercent * 25; // 25₽ базовая стоимость × бонус (было 50₽)
   }
 
   estimateFreeActivitiesCost(tier) {
-    const attempts = { tier1: 3, tier2: 4, tier3: 5 }; // рулетка + крестики + слоты
-    const avgCost = 25; // средняя стоимость награды
-    return (attempts[tier] || 3) * avgCost;
+    // Обновлено согласно фактическому кулдауну рулетки (12 часов) и сниженным наградам
+    const baseCost = 8; // Рулетка: ~1.23% шанс × 1 день × 60₽ ÷ 2 игры в день
+    const tierMultiplier = { tier1: 1, tier2: 1.2, tier3: 1.5 };
+    return baseCost * (tierMultiplier[tier] || 1);
   }
 
   estimateRouletteCost() {
-    // 1 раз в день, 15% шанс на 1-2 дня подписки
-    return 0.15 * 1.5 * 50; // 15% шанс × 1.5 дня × 50₽ за день
+    // АКТУАЛЬНЫЕ ДАННЫЕ: 1.23% шанс на 1 день подписки, 12 часов кулдаун
+    return 0.0123 * 1 * 60; // 1.23% шанс × 1 день × 60₽ за день
   }
 
   estimateTicTacToeCost() {
-    // Зависит от тира, примерно 20% винрейт × стоимость кейса
-    return 0.20 * 50; // 20% винрейт × 50₽ стоимость бонусного кейса
+    // Обновлено: бонусный кейс со сниженной стоимостью после оптимизации дропов
+    return 0.30 * 25; // 30% винрейт × 25₽ стоимость бонусного кейса
   }
 
   estimateSlotsCost() {
-    // 70% выигрышей, средняя стоимость выигрыша
-    return 0.70 * 15; // 70% выигрышей × 15₽ средний выигрыш
+    // Обновлено согласно оптимизированным весам дропов
+    return 0.60 * 10; // 60% выигрышей × 10₽ средний выигрыш (снижено)
   }
 
   getSubscriptionRecommendation(margin, tier) {
