@@ -49,7 +49,7 @@ async function updateAllPrices() {
 
           if (priceData.success && priceData.price_rub > 0) {
             // Рассчитываем цены для всех стран на основе новой цены в рублях
-            const countryPrices = countryPriceCalculator.calculateAllPrices(priceData.price_rub);
+            const countryPrices = await countryPriceCalculator.calculateAllPrices(priceData.price_rub);
 
             // Обновляем цену и категорию если они изменились
             const updates = {
@@ -265,10 +265,15 @@ async function updateSpecificItems(items) {
       const priceData = await steamPriceService.getItemPrice(item.steam_market_hash_name);
 
       if (priceData.success && priceData.price_rub > 0) {
+        // Рассчитываем цены для всех стран на основе новой цены в рублях
+        const countryPrices = await countryPriceCalculator.calculateAllPrices(priceData.price_rub);
+
         const updates = {
           actual_price_rub: priceData.price_rub,
           price_last_updated: new Date(),
-          price_source: 'steam_api'
+          price_source: 'steam_api',
+          // Добавляем цены для всех стран
+          ...countryPrices
         };
 
         // Обновляем основную цену если изменилась значительно
@@ -276,6 +281,16 @@ async function updateSpecificItems(items) {
         if (priceDiff > 0.1) {
           updates.price = priceData.price_rub;
           console.log(`💰 ${item.steam_market_hash_name}: цена изменена ${item.price} → ${priceData.price_rub} КР`);
+
+          // Выводим цены для всех стран при значительном изменении
+          console.log(`🌍 Новые цены по странам:`, {
+            RUB: countryPrices.price_rub,
+            USD: countryPrices.price_usd,
+            EUR: countryPrices.price_eur,
+            JPY: countryPrices.price_jpy,
+            KRW: countryPrices.price_krw,
+            CNY: countryPrices.price_cny
+          });
         }
 
         // Обновляем категорию если изменилась

@@ -17,7 +17,7 @@ async function getCountryPrices(req, res) {
 
     // Получаем название поля цены для страны
     const priceField = countryPriceCalculator.getPriceFieldForCountry(userCountry);
-    const currencyInfo = countryPriceCalculator.getCurrencyInfo(userCountry);
+    const currencyInfo = await countryPriceCalculator.getCurrencyInfo(userCountry);
 
     let whereCondition = {
       is_available: true
@@ -26,8 +26,16 @@ async function getCountryPrices(req, res) {
     // Если указаны конкретные ID предметов
     if (item_ids) {
       const ids = Array.isArray(item_ids) ? item_ids : item_ids.split(',');
+      // Проверяем что все ID являются UUID
+      const validIds = ids.filter(id => /^[0-9a-f-]{36}$/i.test(id));
+      if (validIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Некорректные ID предметов'
+        });
+      }
       whereCondition.id = {
-        [db.Sequelize.Op.in]: ids
+        [db.Sequelize.Op.in]: validIds
       };
     }
 
@@ -53,7 +61,7 @@ async function getCountryPrices(req, res) {
     // Формируем ответ
     const itemsWithPrices = items.map(item => {
       const itemData = item.toJSON();
-      const countryPrice = itemData[priceField] || itemData.price || 0;
+      const countryPrice = itemData[priceField] || itemData.actual_price_rub || itemData.price || 0;
 
       return {
         id: itemData.id,
@@ -96,14 +104,15 @@ async function getSupportedCountries(req, res) {
   try {
     const supportedCountries = countryPriceCalculator.getSupportedCountries();
 
-    const countriesInfo = supportedCountries.map(countryCode => {
-      const currencyInfo = countryPriceCalculator.getCurrencyInfo(countryCode);
+    const countriesInfo = await Promise.all(supportedCountries.map(async (countryCode) => {
+      const currencyInfo = await countryPriceCalculator.getCurrencyInfo(countryCode);
       return {
         country_code: countryCode,
         currency: currencyInfo.currency,
-        coefficient: currencyInfo.coefficient
+        rate: currencyInfo.rate,
+        rate_description: currencyInfo.rateDescription
       };
-    });
+    }));
 
     res.json({
       success: true,
@@ -137,21 +146,22 @@ async function getPriceExamples(req, res) {
       });
     }
 
-    const countryPrices = countryPriceCalculator.calculateAllPrices(testPrice);
+    const countryPrices = await countryPriceCalculator.calculateAllPrices(testPrice);
     const supportedCountries = countryPriceCalculator.getSupportedCountries();
 
-    const examples = supportedCountries.map(countryCode => {
+    const examples = await Promise.all(supportedCountries.map(async (countryCode) => {
       const priceField = countryPriceCalculator.getPriceFieldForCountry(countryCode);
-      const currencyInfo = countryPriceCalculator.getCurrencyInfo(countryCode);
+      const currencyInfo = await countryPriceCalculator.getCurrencyInfo(countryCode);
       const price = countryPrices[priceField];
 
       return {
         country_code: countryCode,
         currency: currencyInfo.currency,
         price: price,
-        coefficient: currencyInfo.coefficient
+        rate: currencyInfo.rate,
+        rate_description: currencyInfo.rateDescription
       };
-    });
+    }));
 
     res.json({
       success: true,
