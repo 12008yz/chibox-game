@@ -119,6 +119,53 @@ const Item = sequelize.define('Item', {
       defaultValue: true,
       comment: "Можно ли сейчас передать предмет в трейде (учёт блокировки Steam)"
     },
+    // Поля для цен по странам
+    price_rub: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Цена в рублях (Россия)"
+    },
+    price_usd: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Цена в долларах США (международная)"
+    },
+    price_eur: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Цена в евро (Германия, Франция, Испания)"
+    },
+    price_jpy: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Цена в йенах (Япония)"
+    },
+    price_krw: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Цена в вонах (Корея)"
+    },
+    price_cny: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Цена в юанях (Китай)"
+    },
+    actual_price_rub: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: 'Актуальная цена из Steam Market в рублях'
+    },
+    price_last_updated: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Время последнего обновления цены'
+    },
+    price_source: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      defaultValue: 'static',
+      comment: 'Источник цены: steam_api, fallback, static'
+    },
   }, {
     timestamps: true,
     underscored: true,

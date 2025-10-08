@@ -1,17 +1,22 @@
 const db = require('../models');
 const SteamPriceService = require('../services/steamPriceService');
 const ProfitabilityCalculator = require('../utils/profitabilityCalculator');
+const CountryPriceCalculator = require('../utils/countryPriceCalculator');
 const logger = require('../utils/logger');
 
 // Инициализируем сервисы
 const steamPriceService = new SteamPriceService(process.env.STEAM_API_KEY);
 const profitabilityCalculator = new ProfitabilityCalculator(0.2);
+const countryPriceCalculator = new CountryPriceCalculator();
 
 /**
  * Обновление цен всех предметов из Steam Market
  */
 async function updateAllPrices() {
   console.log('🔄 Начинаем обновление цен всех предметов...\n');
+
+  // Выводим информацию о коэффициентах цен
+  countryPriceCalculator.printCountryInfo();
 
   try {
     // Получаем все предметы с их market_hash_name
@@ -43,11 +48,16 @@ async function updateAllPrices() {
           const priceData = await steamPriceService.getItemPrice(item.steam_market_hash_name);
 
           if (priceData.success && priceData.price_rub > 0) {
+            // Рассчитываем цены для всех стран на основе новой цены в рублях
+            const countryPrices = countryPriceCalculator.calculateAllPrices(priceData.price_rub);
+
             // Обновляем цену и категорию если они изменились
             const updates = {
               actual_price_rub: priceData.price_rub,
               price_last_updated: new Date(),
-              price_source: 'steam_api'
+              price_source: 'steam_api',
+              // Добавляем цены для всех стран
+              ...countryPrices
             };
 
             // Обновляем основную цену если изменилась значительно
@@ -55,6 +65,16 @@ async function updateAllPrices() {
             if (priceDiff > 0.1) { // Если изменение больше 10%
               updates.price = priceData.price_rub;
               console.log(`💰 ${item.steam_market_hash_name}: цена изменена ${item.price} → ${priceData.price_rub} КР`);
+
+              // Выводим цены для всех стран при значительном изменении
+              console.log(`🌍 Новые цены по странам:`, {
+                RUB: countryPrices.price_rub,
+                USD: countryPrices.price_usd,
+                EUR: countryPrices.price_eur,
+                JPY: countryPrices.price_jpy,
+                KRW: countryPrices.price_krw,
+                CNY: countryPrices.price_cny
+              });
             }
 
             // Обновляем категорию если изменилась

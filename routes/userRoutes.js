@@ -48,6 +48,7 @@ const { resendValidation, resendVerificationCode } = require('../controllers/use
 const { getWithdrawalStatus } = require('../controllers/user/withdrawItem');
 const playRoulette = require('../controllers/user/playRoulette');
 const playSlot = require('../controllers/user/playSlot');
+const { getCountryPrices, getSupportedCountries, getPriceExamples } = require('../controllers/user/getCountryPrices');
 const { getSlotItems } = require('../controllers/user/getSlotItems');
 const getSlotStatus = require('../controllers/user/getSlotStatus');
 const { getLiveDrops } = require('../controllers/user/getLiveDrops');
@@ -171,5 +172,10 @@ router.get('/upgrade/options/:itemIds', authMiddleware, (req, res) => {
 }); // Получение вариантов апгрейда (с параметрами в URL) - ДОЛЖЕН БЫТЬ ПЕРВЫМ
 router.get('/upgrade/options', authMiddleware, getUpgradeOptions); // Получение вариантов апгрейда (с query параметрами)
 router.post('/upgrade/perform', authMiddleware, performUpgrade); // Выполнение апгрейда
+
+// Country prices routes
+router.get('/prices/country', getCountryPrices); // Получение цен с учетом страны пользователя
+router.get('/prices/supported-countries', getSupportedCountries); // Получение списка поддерживаемых стран
+router.get('/prices/examples', getPriceExamples); // Получение примеров цен для тестирования
 
 module.exports = router;

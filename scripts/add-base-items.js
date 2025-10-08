@@ -9,9 +9,11 @@ const db = require('../models');
 const SteamPriceService = require('../services/steamPriceService');
 const FixDropWeights = require('./fix-drop-weights');
 const COMPLETE_ITEMS_URLS = require('../utils/linkItems-complete');
+const CountryPriceCalculator = require('../utils/countryPriceCalculator');
 
 // Инициализируем сервисы
 const steamPriceService = new SteamPriceService(process.env.STEAM_API_KEY);
+const countryPriceCalculator = new CountryPriceCalculator();
 
 // Кэш для изображений и цен
 const CACHE_FILE = path.join(__dirname, 'import-cache.json');
@@ -286,6 +288,18 @@ async function createItemInDatabase(marketHashName, imageUrl, priceRub, priceUsd
 
   const steamMarketUrl = `https://steamcommunity.com/market/listings/730/${encodeURIComponent(marketHashName)}`;
 
+  // Рассчитываем цены для всех стран на основе базовой цены в рублях
+  const countryPrices = countryPriceCalculator.calculateAllPrices(priceRub);
+
+  console.log(`💰 Цены для ${marketHashName}:`, {
+    RUB: countryPrices.price_rub,
+    USD: countryPrices.price_usd,
+    EUR: countryPrices.price_eur,
+    JPY: countryPrices.price_jpy,
+    KRW: countryPrices.price_krw,
+    CNY: countryPrices.price_cny
+  });
+
   return await db.Item.create({
     name: marketHashName,
     description: `CS2 ${actualRarity} skin ${marketHashName}`,
@@ -307,7 +321,9 @@ async function createItemInDatabase(marketHashName, imageUrl, priceRub, priceUsd
     origin: itemOrigin,
     actual_price_rub: priceRub,
     price_last_updated: new Date(),
-    price_source: 'steam_api'
+    price_source: 'steam_api',
+    // Добавляем цены для всех стран
+    ...countryPrices
   });
 }
 
