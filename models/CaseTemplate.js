@@ -69,6 +69,37 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: "Цена кейса в рублях (null - бесплатный)"
     },
+    // Поля для цен по странам
+    price_rub: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Цена в рублях (Россия)"
+    },
+    price_usd: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Цена в долларах США (международная)"
+    },
+    price_eur: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Цена в евро (Германия, Франция, Испания)"
+    },
+    price_jpy: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Цена в йенах (Япония)"
+    },
+    price_krw: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Цена в вонах (Корея)"
+    },
+    price_cny: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Цена в юанях (Китай)"
+    },
     item_pool_config: {
       type: DataTypes.JSONB,
       allowNull: false,

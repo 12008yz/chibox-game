@@ -23,7 +23,8 @@ async function getCases(req, res) {
       attributes: [
         'id', 'name', 'description', 'image_url', 'animation_url',
         'type', 'min_subscription_tier', 'price', 'color_scheme',
-        'guaranteed_min_value', 'cooldown_hours', 'max_opens_per_user'
+        'guaranteed_min_value', 'cooldown_hours', 'max_opens_per_user',
+        'price_rub', 'price_usd', 'price_eur', 'price_jpy', 'price_krw', 'price_cny'
       ]
     });
 
