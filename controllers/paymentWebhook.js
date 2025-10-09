@@ -161,14 +161,43 @@ async function yoomoneyWebhook(req, res) {
           logger.info(`✅ Subscription activated for user ${user.id}`);
         } else if (payment.purpose === 'deposit') {
           const oldBalance = user.balance;
-          user.balance = (user.balance || 0) + parseFloat(payment.amount);
+
+          // Получаем валюту из метаданных платежа или из самого платежа
+          const paymentCurrency = payment.metadata?.currency || payment.currency || paymentData.amount?.currency || 'RUB';
+          const paymentAmount = parseFloat(payment.amount);
+
+          logger.info(`Processing deposit with currency: ${paymentCurrency}, amount: ${paymentAmount}`);
+
+          // Конвертируем сумму платежа в КР
+          const { calculateCreditsForAmount } = require('../config/creditPackages');
+          const creditsToAdd = await calculateCreditsForAmount(paymentAmount, paymentCurrency);
+
+          user.balance = (user.balance || 0) + creditsToAdd;
           await user.save();
 
           logger.info(`✅ User balance updated:`, {
             user_id: user.id,
             old_balance: oldBalance,
             new_balance: user.balance,
-            added_amount: parseFloat(payment.amount)
+            payment_amount: paymentAmount,
+            payment_currency: paymentCurrency,
+            credits_added: creditsToAdd
+          });
+
+          // Создаем уведомление о пополнении
+          await require('../models').Notification.create({
+            user_id: user.id,
+            title: 'Баланс пополнен',
+            message: `Ваш баланс пополнен на ${creditsToAdd} КР`,
+            type: 'success',
+            category: 'transaction',
+            link: '/profile',
+            importance: 3,
+            data: {
+              payment_amount: paymentAmount,
+              payment_currency: paymentCurrency,
+              credits_added: creditsToAdd
+            }
           });
 
           // Добавление опыта за пополнение баланса

@@ -34,6 +34,95 @@ class CountryPriceCalculator {
    }
 
    /**
+    * Умное округление до "красивых" чисел для разных валют
+    * Примеры: 5.25$ → 4.99$, 1043¥ → 1000¥, 52₽ → 49₽
+    * @param {number} value - Исходная цена
+    * @param {string} currency - Код валюты (USD, EUR, JPY, etc.)
+    * @returns {number} Округлённая "красивая" цена
+    */
+   smartRound(value, currency) {
+     // Для очень маленьких сумм (меньше 0.5) - округляем до центов
+     if (value < 0.5) {
+       return Math.round(value * 100) / 100;
+     }
+
+     // Японские йены и корейские воны (валюты без дробной части)
+     if (currency === 'JPY' || currency === 'KRW') {
+       if (value < 100) {
+         // До 100: округляем до 10, 50, 90 (10, 50, 90)
+         if (value < 50) return Math.round(value / 10) * 10;
+         return 50;
+       }
+       if (value < 1000) {
+         // 100-1000: округляем до ..90, ..00 (190, 490, 990)
+         const base = Math.floor(value / 100) * 100;
+         const remainder = value - base;
+         if (remainder < 50) return base - 10; // 190, 290, 390
+         return base + 90; // 490, 590, 990
+       }
+       if (value < 10000) {
+         // 1000-10000: округляем до 1000, 2000, 5000, 9000
+         const thousands = value / 1000;
+         if (thousands < 2) return 1000;
+         if (thousands < 3) return 2000;
+         if (thousands < 6) return 5000;
+         return 9000;
+       }
+       // Больше 10000: округляем до тысяч
+       return Math.round(value / 1000) * 1000;
+     }
+
+     // Доллары, евро, юани, рубли (валюты с дробной частью)
+     if (currency === 'USD' || currency === 'EUR' || currency === 'CNY' || currency === 'RUB') {
+       if (value < 1) {
+         // Меньше 1: 0.49, 0.99
+         if (value < 0.5) return 0.49;
+         return 0.99;
+       }
+       if (value < 3) {
+         // 1-3: 1.49, 1.99, 2.49, 2.99
+         const base = Math.floor(value);
+         return base + 0.49 + (value - base > 0.75 ? 0.5 : 0);
+       }
+       if (value < 10) {
+         // 3-10: 3.99, 4.99, 5.99, ...
+         return Math.floor(value) + 0.99;
+       }
+       if (value < 20) {
+         // 10-20: 9.99, 14.99, 19.99
+         if (value < 15) return 9.99;
+         if (value < 20) return 14.99;
+         return 19.99;
+       }
+       if (value < 50) {
+         // 20-50: 24.99, 29.99, 39.99, 49.99
+         if (value < 30) return 24.99;
+         if (value < 40) return 29.99;
+         if (value < 50) return 39.99;
+         return 49.99;
+       }
+       if (value < 100) {
+         // 50-100: 49.99, 69.99, 99.99
+         if (value < 70) return 49.99;
+         if (value < 100) return 69.99;
+         return 99.99;
+       }
+       if (value < 200) {
+         // 100-200: 99.99, 149.99, 199.99
+         if (value < 150) return 99.99;
+         if (value < 200) return 149.99;
+         return 199.99;
+       }
+       // Больше 200: округляем до ..9.99
+       const hundreds = Math.floor(value / 100);
+       return hundreds * 100 - 0.01;
+     }
+
+     // Для остальных валют - стандартное округление до 2 знаков
+     return Math.round(value * 100) / 100;
+   }
+
+   /**
     * Рассчитать цены для всех стран на основе базовой цены в рублях
     * @param {number} baseRubPrice - Базовая цена в рублях
     * @returns {object} Объект с ценами для всех стран
@@ -50,8 +139,9 @@ class CountryPriceCalculator {
          const priceField = this.countryToPriceField[countryCode];
 
          if (currency === 'RUB') {
-           // Для рублей оставляем как есть
-           prices[priceField] = Number(baseRubPrice.toFixed(2));
+           // Для рублей применяем умное округление
+           const roundedPrice = this.smartRound(baseRubPrice, currency);
+           prices[priceField] = Number(roundedPrice.toFixed(2));
          } else {
            // Конвертируем в другую валюту
            const rate = exchangeRates[currency];
@@ -59,7 +149,9 @@ class CountryPriceCalculator {
              // rate = сколько RUB за 1 единицу валюты
              // Значит baseRubPrice RUB = baseRubPrice / rate единиц валюты
              const convertedPrice = baseRubPrice / rate;
-             prices[priceField] = Number(convertedPrice.toFixed(2));
+             // Применяем умное округление для красивых цен
+             const roundedPrice = this.smartRound(convertedPrice, currency);
+             prices[priceField] = Number(roundedPrice.toFixed(2));
            } else {
              console.warn(`⚠️ Курс для ${currency} не найден, используем 0`);
              prices[priceField] = 0;
@@ -96,11 +188,13 @@ class CountryPriceCalculator {
        const priceField = this.countryToPriceField[countryCode];
 
        if (currency === 'RUB') {
-         prices[priceField] = Number(baseRubPrice.toFixed(2));
+         const roundedPrice = this.smartRound(baseRubPrice, currency);
+         prices[priceField] = Number(roundedPrice.toFixed(2));
        } else {
          const rate = fallbackRates[currency] || 1;
          const convertedPrice = baseRubPrice / rate;
-         prices[priceField] = Number(convertedPrice.toFixed(2));
+         const roundedPrice = this.smartRound(convertedPrice, currency);
+         prices[priceField] = Number(roundedPrice.toFixed(2));
        }
      });
 

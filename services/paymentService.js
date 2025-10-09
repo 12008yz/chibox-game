@@ -6,16 +6,16 @@ const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID;
 const YOOKASSA_CLIENT_SECRET = process.env.YOOKASSA_CLIENT_SECRET;
 const YOOKASSA_API_URL = 'https://api.yookassa.ru/v3/payments';
 
-async function createPayment({ amount, description, userId, purpose = 'deposit', metadata = {} }) {
+async function createPayment({ amount, currency = 'RUB', description, userId, purpose = 'deposit', metadata = {} }) {
   try {
-    console.log('createPayment called with:', { amount, description, userId, purpose, metadata });
+    console.log('createPayment called with:', { amount, currency, description, userId, purpose, metadata });
 
     const idempotenceKey = crypto.randomUUID();
 
     const paymentData = {
       amount: {
         value: amount.toFixed(2),
-        currency: 'RUB'
+        currency: currency
       },
       confirmation: {
         type: 'redirect',

@@ -17,9 +17,9 @@ async function topUpBalance(req, res) {
   logger.info('topUpBalance start');
   try {
     const userId = req.user?.id;
-    const { amount } = req.body;
+    const { amount, currency = 'RUB', packageId } = req.body;
 
-    logger.info(`topUpBalance called with userId=${userId}, amount=${amount}`);
+    logger.info(`topUpBalance called with userId=${userId}, amount=${amount}, currency=${currency}, packageId=${packageId}`);
     logger.info(`Request body:`, req.body);
     logger.info(`User:`, req.user);
 
@@ -41,19 +41,42 @@ async function topUpBalance(req, res) {
       });
     }
 
-    if (amount < 100) {
-      logger.warn('Invalid amount: minimum 100 rubles');
+    // Минимальные суммы для разных валют
+    const MIN_AMOUNTS = {
+      RUB: 100,
+      USD: 1,
+      EUR: 1,
+      JPY: 100,
+      KRW: 1000,
+      CNY: 10
+    };
+
+    // Максимальные суммы для разных валют
+    const MAX_AMOUNTS = {
+      RUB: 100000,
+      USD: 1000,
+      EUR: 1000,
+      JPY: 100000,
+      KRW: 1000000,
+      CNY: 10000
+    };
+
+    const minAmount = MIN_AMOUNTS[currency] || 100;
+    const maxAmount = MAX_AMOUNTS[currency] || 100000;
+
+    if (amount < minAmount) {
+      logger.warn(`Invalid amount: minimum ${minAmount} ${currency}`);
       return res.status(400).json({
         success: false,
-        message: 'Минимальная сумма пополнения 100 рублей'
+        message: `Минимальная сумма пополнения ${minAmount} ${currency}`
       });
     }
 
-    if (amount > 100000) {
-      logger.warn('Invalid amount: maximum 100000 rubles');
+    if (amount > maxAmount) {
+      logger.warn(`Invalid amount: maximum ${maxAmount} ${currency}`);
       return res.status(400).json({
         success: false,
-        message: 'Максимальная сумма пополнения 100,000 рублей'
+        message: `Максимальная сумма пополнения ${maxAmount} ${currency}`
       });
     }
 
@@ -85,13 +108,16 @@ async function topUpBalance(req, res) {
     // Создаем платеж через ЮКассу
     const paymentResult = await createPayment({
       amount: amount,
-      description: `Пополнение баланса на ${amount} руб.`,
+      currency: currency,
+      description: `Пополнение баланса на ${amount} ${currency}`,
       userId: userId,
       purpose: 'deposit', // Используем допустимое значение из ENUM
       metadata: {
         type: 'balance_topup',
         user_id: userId,
-        amount: amount
+        amount: amount,
+        currency: currency,
+        packageId: packageId || null
       }
     });
 

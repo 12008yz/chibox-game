@@ -49,6 +49,7 @@ const { getWithdrawalStatus } = require('../controllers/user/withdrawItem');
 const playRoulette = require('../controllers/user/playRoulette');
 const playSlot = require('../controllers/user/playSlot');
 const { getCountryPrices, getSupportedCountries, getPriceExamples } = require('../controllers/user/getCountryPrices');
+const { getCreditPackages, getCreditPackageById } = require('../controllers/user/getCreditPackages');
 const { getSlotItems } = require('../controllers/user/getSlotItems');
 const getSlotStatus = require('../controllers/user/getSlotStatus');
 const { getLiveDrops } = require('../controllers/user/getLiveDrops');
@@ -177,5 +178,9 @@ router.post('/upgrade/perform', authMiddleware, performUpgrade); // Выполн
 router.get('/prices/country', getCountryPrices); // Получение цен с учетом страны пользователя
 router.get('/prices/supported-countries', getSupportedCountries); // Получение списка поддерживаемых стран
 router.get('/prices/examples', getPriceExamples); // Получение примеров цен для тестирования
+
+// Credit packages routes
+router.get('/credit-packages', getCreditPackages); // Получение доступных пакетов КР
+router.get('/credit-packages/:packageId', getCreditPackageById); // Получение конкретного пакета КР
 
 module.exports = router;
