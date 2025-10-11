@@ -131,17 +131,23 @@ async function yoomoneyWebhook(req, res) {
           payment_amount: payment.amount
         });
 
+        // Определяем сумму для транзакции
+        let transactionAmount = parseFloat(payment.amount);
+        if (payment.purpose === 'deposit' && payment.metadata && payment.metadata.chicoins) {
+          transactionAmount = parseFloat(payment.metadata.chicoins);
+        }
+
         // Создаем запись транзакции
         const transaction = await require('../models').Transaction.create({
           user_id: user.id,
           type: payment.purpose === 'subscription' ? 'subscription_purchase' : 'balance_add',
-          amount: parseFloat(payment.amount),
+          amount: transactionAmount,
           description: payment.description,
           status: 'completed',
           related_entity_id: payment.id,
           related_entity_type: 'Payment',
           balance_before: user.balance,
-          balance_after: payment.purpose === 'subscription' ? user.balance : (user.balance + parseFloat(payment.amount)),
+          balance_after: payment.purpose === 'subscription' ? user.balance : (user.balance + transactionAmount),
           ip_address: req.ip,
           user_agent: req.headers['user-agent'],
           is_system: false,
@@ -161,14 +167,25 @@ async function yoomoneyWebhook(req, res) {
           logger.info(`✅ Subscription activated for user ${user.id}`);
         } else if (payment.purpose === 'deposit') {
           const oldBalance = user.balance;
-          user.balance = (user.balance || 0) + parseFloat(payment.amount);
+
+          // Получаем количество ChiCoins из metadata
+          let chicoinsToAdd = parseFloat(payment.amount); // По умолчанию = рубли
+
+          if (payment.metadata && payment.metadata.chicoins) {
+            chicoinsToAdd = parseFloat(payment.metadata.chicoins);
+            logger.info(`Using ChiCoins from metadata: ${chicoinsToAdd}`);
+          }
+
+          user.balance = (user.balance || 0) + chicoinsToAdd;
           await user.save();
 
           logger.info(`✅ User balance updated:`, {
             user_id: user.id,
             old_balance: oldBalance,
             new_balance: user.balance,
-            added_amount: parseFloat(payment.amount)
+            added_chicoins: chicoinsToAdd,
+            paid_in_rubles: parseFloat(payment.amount),
+            display_currency: payment.metadata?.display_currency || 'RUB'
           });
 
           // Добавление опыта за пополнение баланса
