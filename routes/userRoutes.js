@@ -56,6 +56,7 @@ const { claimSubscriptionCase, getSubscriptionCaseStatus } = require('../control
 const { createGame: createTicTacToeGame, getCurrentGame: getCurrentTicTacToeGame, makeMove: makeTicTacToeMove } = require('../controllers/user/ticTacToeController');
 const { getUpgradeableItems, getUpgradeOptions, performUpgrade } = require('../controllers/user/upgradeItem');
 const { topUpBalance } = require('../controllers/user/topUpBalance');
+const getCurrency = require('../controllers/user/getCurrency');
 const authMiddleware = require('../middleware/auth');
 const optionalAuthMiddleware = require('../middleware/optionalAuth');
 const { requireEmailVerification } = require('../middleware/emailVerification');
@@ -109,6 +110,7 @@ router.get('/withdraw-item/:withdrawalId', authMiddleware, getWithdrawalStatus);
 router.get('/cases', getCases); // Доступно всем для просмотра кейсов
 router.get('/balance', authMiddleware, getBalance); //+
 router.post('/balance/top-up', authMiddleware, topUpBalance); //+
+router.get('/currency', getCurrency); // Получить информацию о валютах и курсах
 router.post('/promo', authMiddleware, applyPromo);
 router.get('/transactions', authMiddleware, getTransactions);
 

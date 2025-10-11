@@ -6,10 +6,11 @@ const { updateUserAchievementProgress } = require('../../services/achievementSer
 const { activateSubscription } = require('../../services/subscriptionService');
 const { addExperience } = require('../../services/xpService');
 
+// Цены в ChiCoins (1 ChiCoin = 1₽)
 const subscriptionTiers = {
-  1: { days: 30, max_daily_cases: 1, bonus_percentage: 2.0, name: 'Статус', price: 1800 },
-  2: { days: 30, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус+', price: 3600 },
-  3: { days: 30, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус++', price: 7500 }
+  1: { days: 30, max_daily_cases: 1, bonus_percentage: 2.0, name: 'Статус', price: 1800 },      // 1800 ChiCoins
+  2: { days: 30, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус+', price: 3600 },     // 3600 ChiCoins
+  3: { days: 30, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус++', price: 7500 }     // 7500 ChiCoins
 };
 
 const logger = winston.createLogger({

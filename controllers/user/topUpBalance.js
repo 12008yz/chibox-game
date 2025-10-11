@@ -1,6 +1,13 @@
 const db = require('../../models');
 const winston = require('winston');
 const { createPayment } = require('../../services/paymentService');
+const {
+  convertToChiCoins,
+  convertFromChiCoins,
+  getMinimumTopUp,
+  getCurrencySymbol,
+  CHICOINS_SYMBOL
+} = require('../../services/currencyService');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -17,9 +24,9 @@ async function topUpBalance(req, res) {
   logger.info('topUpBalance start');
   try {
     const userId = req.user?.id;
-    const { amount } = req.body;
+    const { amount, currency = 'RUB' } = req.body;
 
-    logger.info(`topUpBalance called with userId=${userId}, amount=${amount}`);
+    logger.info(`topUpBalance called with userId=${userId}, amount=${amount}, currency=${currency}`);
     logger.info(`Request body:`, req.body);
     logger.info(`User:`, req.user);
 
@@ -41,21 +48,30 @@ async function topUpBalance(req, res) {
       });
     }
 
-    if (amount < 100) {
-      logger.warn('Invalid amount: minimum 100 rubles');
+    // Получаем минимальную сумму для выбранной валюты
+    const minAmount = getMinimumTopUp(currency);
+    if (amount < minAmount) {
+      const symbol = getCurrencySymbol(currency);
+      logger.warn(`Invalid amount: minimum ${minAmount} ${currency}`);
       return res.status(400).json({
         success: false,
-        message: 'Минимальная сумма пополнения 100 рублей'
+        message: `Минимальная сумма пополнения ${minAmount.toFixed(2)}${symbol}`
       });
     }
 
-    if (amount > 100000) {
-      logger.warn('Invalid amount: maximum 100000 rubles');
+    const maxAmount = convertFromChiCoins(100000, currency);
+    if (amount > maxAmount) {
+      const symbol = getCurrencySymbol(currency);
+      logger.warn(`Invalid amount: maximum ${maxAmount} ${currency}`);
       return res.status(400).json({
         success: false,
-        message: 'Максимальная сумма пополнения 100,000 рублей'
+        message: `Максимальная сумма пополнения ${maxAmount.toFixed(2)}${symbol}`
       });
     }
+
+    // Конвертируем в ChiCoins
+    const chicoins = convertToChiCoins(amount, currency);
+    logger.info(`Converted ${amount} ${currency} to ${chicoins} ChiCoins`);
 
     const user = await db.User.findByPk(userId);
     if (!user) {
@@ -83,15 +99,19 @@ async function topUpBalance(req, res) {
     logger.info(`YooKassa credentials check: shopId=${shopId ? 'present' : 'missing'}, clientSecret=${clientSecret ? 'present' : 'missing'}`);
 
     // Создаем платеж через ЮКассу
+    const currencySymbol = getCurrencySymbol(currency);
     const paymentResult = await createPayment({
       amount: amount,
-      description: `Пополнение баланса на ${amount} руб.`,
+      description: `Пополнение баланса: ${chicoins} ${CHICOINS_SYMBOL} (${amount}${currencySymbol})`,
       userId: userId,
       purpose: 'deposit', // Используем допустимое значение из ENUM
       metadata: {
         type: 'balance_topup',
         user_id: userId,
-        amount: amount
+        amount: amount,
+        currency: currency,
+        chicoins: chicoins,
+        exchange_rate: amount / chicoins
       }
     });
 
