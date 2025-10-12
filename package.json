@@ -51,7 +51,7 @@
     "pg-hstore": "^2.3.4",
     "playwright-core": "^1.52.0",
     "pug": "^3.0.3",
-    "puppeteer": "^24.9.0",
+    "puppeteer": "^24.10.0",
     "redis": "^5.1.1",
     "sequelize": "^6.37.7",
     "socket.io": "^4.8.1",
