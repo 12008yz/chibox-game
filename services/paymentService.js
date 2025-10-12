@@ -1,14 +1,18 @@
 const axios = require('axios');
 const { Payment } = require('../models');
 const crypto = require('crypto');
+const robokassaService = require('./robokassaService');
 
 const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID;
 const YOOKASSA_CLIENT_SECRET = process.env.YOOKASSA_CLIENT_SECRET;
 const YOOKASSA_API_URL = 'https://api.yookassa.ru/v3/payments';
 
-async function createPayment({ amount, description, userId, purpose = 'deposit', metadata = {} }) {
+/**
+ * Создание платежа через ЮКассу
+ */
+async function createYooKassaPayment({ amount, description, userId, purpose = 'deposit', metadata = {} }) {
   try {
-    console.log('createPayment called with:', { amount, description, userId, purpose, metadata });
+    console.log('createYooKassaPayment called with:', { amount, description, userId, purpose, metadata });
 
     const idempotenceKey = crypto.randomUUID();
 
@@ -87,6 +91,27 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
   }
 }
 
+/**
+ * Универсальная функция создания платежа
+ * @param {object} params
+ * @param {number} params.amount
+ * @param {string} params.description
+ * @param {number} params.userId
+ * @param {string} params.purpose
+ * @param {object} params.metadata
+ * @param {string} params.paymentMethod - 'yookassa' или 'robokassa'
+ */
+async function createPayment({ amount, description, userId, purpose = 'deposit', metadata = {}, paymentMethod = 'yookassa' }) {
+  console.log(`Creating payment with method: ${paymentMethod}`);
+
+  if (paymentMethod === 'robokassa') {
+    return await robokassaService.createPayment({ amount, description, userId, purpose, metadata });
+  } else {
+    return await createYooKassaPayment({ amount, description, userId, purpose, metadata });
+  }
+}
+
 module.exports = {
-  createPayment
+  createPayment,
+  createYooKassaPayment
 };

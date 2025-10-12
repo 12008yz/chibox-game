@@ -24,9 +24,9 @@ async function topUpBalance(req, res) {
   logger.info('topUpBalance start');
   try {
     const userId = req.user?.id;
-    const { amount, currency = 'RUB' } = req.body;
+    const { amount, currency = 'RUB', payment_method = 'yookassa' } = req.body;
 
-    logger.info(`topUpBalance called with userId=${userId}, amount=${amount}, currency=${currency}`);
+    logger.info(`topUpBalance called with userId=${userId}, amount=${amount}, currency=${currency}, payment_method=${payment_method}`);
     logger.info(`Request body:`, req.body);
     logger.info(`User:`, req.user);
 
@@ -86,27 +86,46 @@ async function topUpBalance(req, res) {
 
     logger.info(`User loaded: ${user.username}`);
 
-    // Проверяем настройки ЮКассы
-    const shopId = process.env.YOOKASSA_SHOP_ID;
-    const clientSecret = process.env.YOOKASSA_CLIENT_SECRET;
+    // Проверяем настройки платежной системы
+    if (payment_method === 'yookassa') {
+      const shopId = process.env.YOOKASSA_SHOP_ID;
+      const clientSecret = process.env.YOOKASSA_CLIENT_SECRET;
 
-    if (!shopId || !clientSecret) {
-      logger.error('YooKassa credentials not configured');
-      return res.status(500).json({
-        success: false,
-        message: 'Платежная система временно недоступна'
-      });
+      if (!shopId || !clientSecret) {
+        logger.error('YooKassa credentials not configured');
+        return res.status(500).json({
+          success: false,
+          message: 'ЮКасса временно недоступна'
+        });
+      }
+
+      logger.info(`YooKassa credentials check: shopId=${shopId ? 'present' : 'missing'}, clientSecret=${clientSecret ? 'present' : 'missing'}`);
+    } else if (payment_method === 'robokassa') {
+      const merchantLogin = process.env.ROBOKASSA_MERCHANT_LOGIN;
+      const password1 = process.env.ROBOKASSA_PASSWORD1;
+
+      // Для тестового режима используем дефолтные значения
+      const isTest = process.env.ROBOKASSA_TEST_MODE === 'true';
+
+      if (!isTest && (!merchantLogin || !password1)) {
+        logger.error('Robokassa credentials not configured');
+        return res.status(500).json({
+          success: false,
+          message: 'Robokassa временно недоступна'
+        });
+      }
+
+      logger.info(`Robokassa credentials check: merchantLogin=${merchantLogin || 'Test1999'}, isTest=${isTest}`);
     }
 
-    logger.info(`YooKassa credentials check: shopId=${shopId ? 'present' : 'missing'}, clientSecret=${clientSecret ? 'present' : 'missing'}`);
-
-    // Создаем платеж через ЮКассу (всегда в рублях)
+    // Создаем платеж (всегда в рублях)
     const currencySymbol = getCurrencySymbol(currency);
     const paymentResult = await createPayment({
       amount: amountInRubles, // Платим в рублях
       description: `Пополнение баланса: ${chicoins} ${CHICOINS_SYMBOL}${currency !== 'RUB' ? ` (≈${amountInUserCurrency.toFixed(2)}${currencySymbol})` : ''}`,
       userId: userId,
       purpose: 'deposit',
+      paymentMethod: payment_method,
       metadata: {
         type: 'balance_topup',
         user_id: userId,
