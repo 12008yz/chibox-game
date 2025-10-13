@@ -24,7 +24,7 @@ module.exports = (sequelize) => {
       comment: "Сумма платежа"
     },
     payment_system: {
-      type: DataTypes.ENUM('ukassa', 'paypal', 'stripe', 'qiwi', 'webmoney', 'crypto', 'bank_card', 'sbp', 'mir', 'other'),
+      type: DataTypes.ENUM('ukassa', 'robokassa', 'paypal', 'stripe', 'qiwi', 'webmoney', 'crypto', 'bank_card', 'sbp', 'mir', 'other'),
       allowNull: false,
       comment: "Платежная система, через которую совершается платеж"
     },
@@ -39,7 +39,7 @@ module.exports = (sequelize) => {
       comment: "Внешний ID платежа в платежной системе"
     },
     payment_url: {
-      type: DataTypes.STRING,
+      type: DataTypes.TEXT,
       allowNull: true,
       comment: "URL для оплаты (перенаправление пользователя)"
     },
