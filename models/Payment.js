@@ -212,6 +212,13 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true,
       comment: "Примечания администратора"
+    },
+    invoice_number: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      unique: true,
+      allowNull: true,
+      comment: "Числовой номер счета для платежных систем (например, Robokassa)"
     }
   }, {
     timestamps: true,

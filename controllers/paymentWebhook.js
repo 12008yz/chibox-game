@@ -261,8 +261,8 @@ async function robokassaResultURL(req, res) {
 
     logger.info('✅ Robokassa signature verification passed');
 
-    // Находим платеж в БД
-    const payment = await Payment.findByPk(parseInt(InvId));
+    // Находим платеж в БД по invoice_number
+    const payment = await Payment.findOne({ where: { invoice_number: parseInt(InvId) } });
     if (!payment) {
       logger.warn(`Payment not found: InvId=${InvId}`);
       return res.status(404).send('invoice not found');
@@ -391,8 +391,8 @@ async function robokassaSuccessURL(req, res) {
       return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}?payment=error`);
     }
 
-    // Можно проверить статус платежа в БД
-    const payment = await Payment.findByPk(parseInt(InvId));
+    // Можно проверить статус платежа в БД по invoice_number
+    const payment = await Payment.findOne({ where: { invoice_number: parseInt(InvId) } });
 
     if (payment && payment.status === 'completed') {
       logger.info(`Payment ${InvId} completed successfully, redirecting to success page`);
@@ -419,7 +419,7 @@ async function robokassaFailURL(req, res) {
     const { InvId } = req.query;
 
     if (InvId) {
-      const payment = await Payment.findByPk(parseInt(InvId));
+      const payment = await Payment.findOne({ where: { invoice_number: parseInt(InvId) } });
       if (payment && payment.status !== 'completed') {
         payment.status = 'failed';
         await payment.save();

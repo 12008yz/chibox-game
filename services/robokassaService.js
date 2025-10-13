@@ -97,15 +97,30 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
       metadata: metadata
     });
 
-    const invId = paymentRecord.id;
+    // Перезагружаем запись для получения автоинкрементного invoice_number
+    await paymentRecord.reload();
+
+    // Проверяем, что invoice_number создался
+    if (!paymentRecord.invoice_number) {
+      throw new Error('Failed to generate invoice_number');
+    }
+
+    const invId = paymentRecord.invoice_number;
     const outSum = amount.toFixed(2);
 
     // Формируем custom параметры (Shp_)
+    // ВАЖНО: ключи должны быть строчными для правильной сортировки
     const customParams = {
-      userId: userId,
-      purpose: purpose,
-      ...metadata
+      userId: userId.toString(),
+      purpose: purpose
     };
+
+    // Добавляем metadata в custom параметры
+    Object.keys(metadata).forEach(key => {
+      customParams[key] = metadata[key].toString();
+    });
+
+    console.log('Custom params before signature:', customParams);
 
     // Генерируем подпись с Password1
     const signature = generateSignature(
@@ -115,6 +130,8 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
       ROBOKASSA_PASSWORD1,
       customParams
     );
+
+    console.log('Generated signature:', signature);
 
     // Формируем URL для оплаты
     const params = new URLSearchParams({
