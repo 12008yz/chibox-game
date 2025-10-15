@@ -127,13 +127,11 @@ async function topUpBalance(req, res) {
       purpose: 'deposit',
       paymentMethod: payment_method,
       metadata: {
-        type: 'balance_topup',
-        user_id: userId,
         chicoins: chicoins,
+        // Остальные данные сохраняем в БД, но не передаем в Shp_ параметры
         amount_in_rubles: amountInRubles,
         display_currency: currency,
-        display_amount: amountInUserCurrency,
-        exchange_rate: amountInUserCurrency / chicoins
+        display_amount: amountInUserCurrency
       }
     });
 

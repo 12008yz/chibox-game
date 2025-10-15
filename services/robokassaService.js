@@ -44,19 +44,24 @@ function generateSignature(merchantLogin, outSum, invId, password, customParams 
  * @returns {boolean}
  */
 function verifyResultSignature(outSum, invId, receivedSignature, customParams = {}) {
-  const sortedParams = Object.keys(customParams)
-    .filter(key => key.startsWith('shp_'))
+  // Извлекаем и сортируем только shp_ параметры
+  const shpParams = Object.keys(customParams)
+    .filter(key => key.toLowerCase().startsWith('shp_'))
     .sort()
     .map(key => `${key}=${customParams[key]}`)
     .join(':');
 
-  const signatureString = sortedParams
-    ? `${outSum}:${invId}:${ROBOKASSA_PASSWORD2}:${sortedParams}`
+  // Формируем строку для подписи: OutSum:InvId:Password2[:Shp_params]
+  const signatureString = shpParams
+    ? `${outSum}:${invId}:${ROBOKASSA_PASSWORD2}:${shpParams}`
     : `${outSum}:${invId}:${ROBOKASSA_PASSWORD2}`;
 
   const calculatedSignature = crypto.createHash('md5').update(signatureString).digest('hex').toLowerCase();
 
   console.log('Verify Result Signature:', {
+    outSum,
+    invId,
+    shpParams,
     signatureString,
     calculated: calculatedSignature,
     received: receivedSignature.toLowerCase()
@@ -109,16 +114,17 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
     const outSum = amount.toFixed(2);
 
     // Формируем custom параметры (Shp_)
-    // ВАЖНО: ключи должны быть строчными для правильной сортировки
+    // ВАЖНО: используем ТОЛЬКО необходимые параметры для упрощения отладки
+    // Все данные уже сохранены в БД в таблице payments
     const customParams = {
-      userId: userId.toString(),
+      user_id: userId.toString(),
       purpose: purpose
     };
 
-    // Добавляем metadata в custom параметры
-    Object.keys(metadata).forEach(key => {
-      customParams[key] = metadata[key].toString();
-    });
+    // Добавляем только chicoins из metadata (если есть)
+    if (metadata.chicoins) {
+      customParams.chicoins = metadata.chicoins.toString();
+    }
 
     console.log('Custom params before signature:', customParams);
 
