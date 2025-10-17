@@ -30,6 +30,7 @@ module.exports = {
         id: '33333333-3333-3333-3333-333333333333',
         name: 'Ежедневный кейс - Статус+',
         description: 'Ежедневный кейс для подписчиков уровня Статус+',
+        image_url: '../public/images/cases/1760727712765nm01j5an.png',
         type: 'daily',
         min_subscription_tier: 2,
         cooldown_hours: 0.003, // ~10 секунд (было 24 часа)
@@ -41,6 +42,7 @@ module.exports = {
         id: '44444444-4444-4444-4444-444444444444',
         name: 'Ежедневный кейс - Статус++',
         description: 'Ежедневный кейс для подписчиков уровня Статус++',
+        image_url: '../public/images/cases/1760726634230o9sdib3y.png',
         type: 'daily',
         min_subscription_tier: 3,
         cooldown_hours: 0.003, // ~10 секунд (было 24 часа)
@@ -52,6 +54,7 @@ module.exports = {
         id: '55555555-5555-5555-5555-555555555555',
         name: 'Бонусный кейс',
         description: 'Кейс, получаемый в бонусной игре',
+        image_url: '../public/images/cases/1760728443809aohdtco1.png',
         type: 'special',
         min_subscription_tier: 0,
         cooldown_hours: 0,
