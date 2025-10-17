@@ -13,12 +13,14 @@ const ROBOKASSA_PAYMENT_URL = 'https://auth.robokassa.ru/Merchant/Index.aspx';
  * @param {number} outSum
  * @param {number} invId
  * @param {string} password
+ * @param {string} receipt - JSON строка с данными чека (опционально)
  * @param {object} customParams - дополнительные параметры в формате {key: value}
  * @returns {string}
  */
-function generateSignature(merchantLogin, outSum, invId, password, customParams = {}) {
+function generateSignature(merchantLogin, outSum, invId, password, receipt = null, customParams = {}) {
   // Формируем строку для подписи
-  // MerchantLogin:OutSum:InvId:Password[:Shp_param1=value1:Shp_param2=value2...]
+  // Если есть Receipt: MerchantLogin:OutSum:InvId:Receipt:Password[:Shp_param1=value1:Shp_param2=value2...]
+  // Без Receipt: MerchantLogin:OutSum:InvId:Password[:Shp_param1=value1:Shp_param2=value2...]
 
   // Сортируем кастомные параметры по ключу
   const sortedParams = Object.keys(customParams)
@@ -26,9 +28,18 @@ function generateSignature(merchantLogin, outSum, invId, password, customParams 
     .map(key => `Shp_${key}=${customParams[key]}`)
     .join(':');
 
-  const signatureString = sortedParams
-    ? `${merchantLogin}:${outSum}:${invId}:${password}:${sortedParams}`
-    : `${merchantLogin}:${outSum}:${invId}:${password}`;
+  let signatureString;
+  if (receipt) {
+    // С Receipt
+    signatureString = sortedParams
+      ? `${merchantLogin}:${outSum}:${invId}:${receipt}:${password}:${sortedParams}`
+      : `${merchantLogin}:${outSum}:${invId}:${receipt}:${password}`;
+  } else {
+    // Без Receipt (старый формат)
+    signatureString = sortedParams
+      ? `${merchantLogin}:${outSum}:${invId}:${password}:${sortedParams}`
+      : `${merchantLogin}:${outSum}:${invId}:${password}`;
+  }
 
   console.log('Signature string:', signatureString);
 
@@ -128,12 +139,32 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
 
     console.log('Custom params before signature:', customParams);
 
-    // Генерируем подпись с Password1
+    // Формируем массив Receipt для фискализации
+    const receipt = {
+      sno: "osn", // Общая система налогообложения
+      items: [
+        {
+          name: description.substring(0, 128), // Ограничение 128 символов
+          quantity: 1,
+          sum: parseFloat(outSum),
+          payment_method: "full_payment", // Полная оплата
+          payment_object: "service", // Услуга (пополнение баланса)
+          tax: "none" // Без НДС
+        }
+      ]
+    };
+
+    // Преобразуем Receipt в JSON строку
+    const receiptJson = JSON.stringify(receipt);
+    console.log('Receipt JSON:', receiptJson);
+
+    // Генерируем подпись с Password1 и Receipt
     const signature = generateSignature(
       ROBOKASSA_MERCHANT_LOGIN,
       outSum,
       invId,
       ROBOKASSA_PASSWORD1,
+      receiptJson,
       customParams
     );
 
@@ -148,7 +179,8 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
       SignatureValue: signature,
       IsTest: ROBOKASSA_TEST_MODE ? '1' : '0',
       Culture: 'ru',
-      Encoding: 'utf-8'
+      Encoding: 'utf-8',
+      Receipt: receiptJson // Добавляем Receipt
     });
 
     // Добавляем custom параметры
@@ -165,7 +197,8 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
       invId: invId,
       outSum: outSum,
       signature: signature,
-      isTest: ROBOKASSA_TEST_MODE
+      isTest: ROBOKASSA_TEST_MODE,
+      receipt: receipt // Сохраняем информацию о чеке
     };
     await paymentRecord.save();
 

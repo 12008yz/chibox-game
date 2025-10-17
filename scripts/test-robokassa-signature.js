@@ -31,12 +31,30 @@ const customParams = {
   chicoins: '100'
 };
 
+// Формируем Receipt для фискализации
+const receipt = {
+  sno: "osn", // Общая система налогообложения
+  items: [
+    {
+      name: Description.substring(0, 128), // Ограничение 128 символов
+      quantity: 1,
+      sum: parseFloat(OutSum),
+      payment_method: "full_payment", // Полная оплата
+      payment_object: "service", // Услуга (пополнение баланса)
+      tax: "none" // Без НДС
+    }
+  ]
+};
+
+const receiptJson = JSON.stringify(receipt);
+
 console.log('2. ПАРАМЕТРЫ ПЛАТЕЖА');
 console.log('─────────────────────────────────────────────────────────────');
 console.log('OutSum:', OutSum);
 console.log('InvId:', InvId);
 console.log('Description:', Description);
 console.log('Custom параметры:', JSON.stringify(customParams, null, 2));
+console.log('Receipt:', receiptJson);
 console.log('');
 
 // Генерация подписи
@@ -54,8 +72,9 @@ const sortedParams = sortedKeys
 console.log('Отсортированные параметры:', sortedParams);
 console.log('');
 
-// Формируем строку для подписи
-const signatureString = `${MERCHANT_LOGIN}:${OutSum}:${InvId}:${PASSWORD1}:${sortedParams}`;
+// Формируем строку для подписи (с Receipt)
+// Формат: MerchantLogin:OutSum:InvId:Receipt:Password1:Shp_params
+const signatureString = `${MERCHANT_LOGIN}:${OutSum}:${InvId}:${receiptJson}:${PASSWORD1}:${sortedParams}`;
 
 console.log('4. СТРОКА ДО ХЕШИРОВАНИЯ (для Robokassa):');
 console.log('─────────────────────────────────────────────────────────────');
@@ -82,7 +101,8 @@ const params = new URLSearchParams({
   SignatureValue: signatureValue,
   IsTest: TEST_MODE ? '1' : '0',
   Culture: 'ru',
-  Encoding: 'utf-8'
+  Encoding: 'utf-8',
+  Receipt: receiptJson // Добавляем Receipt для фискализации
 });
 
 // Добавляем custom параметры
@@ -126,10 +146,11 @@ console.log('══════════════════════�
 console.log('💡 ДОПОЛНИТЕЛЬНАЯ ИНФОРМАЦИЯ:');
 console.log('─────────────────────────────────────────────────────────────');
 console.log('Алгоритм хеширования: MD5');
-console.log('Формат строки для подписи:');
-console.log('  MerchantLogin:OutSum:InvId:Password1:Shp_param1=value1:Shp_param2=value2:...');
+console.log('Формат строки для подписи (с фискализацией):');
+console.log('  MerchantLogin:OutSum:InvId:Receipt:Password1:Shp_param1=value1:Shp_param2=value2:...');
 console.log('');
 console.log('Примечание: Custom параметры сортируются по алфавиту ключа.');
+console.log('Receipt передается в формате JSON для автоматической фискализации.');
 console.log('');
 
 // Проверка на наличие паролей
