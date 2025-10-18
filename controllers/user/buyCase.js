@@ -24,31 +24,32 @@ async function buyCase(req, res) {
     // Валидация количества
     if (!quantity || quantity < 1) {
       return res.status(400).json({
+        success: false,
         message: 'Количество кейсов должно быть больше 0'
       });
     }
 
     const user = await db.User.findByPk(userId);
     if (!user) {
-      return res.status(404).json({ message: 'Пользователь не найден' });
+      return res.status(404).json({ success: false, message: 'Пользователь не найден' });
     }
 
     // Получаем шаблон кейса
     if (!caseTemplateId) {
-      return res.status(400).json({ message: 'Не указан тип кейса' });
+      return res.status(400).json({ success: false, message: 'Не указан тип кейса' });
     }
 
     const caseTemplate = await db.CaseTemplate.findByPk(caseTemplateId);
     if (!caseTemplate) {
-      return res.status(404).json({ message: 'Шаблон кейса не найден' });
+      return res.status(404).json({ success: false, message: 'Шаблон кейса не найден' });
     }
 
     if (!caseTemplate.price || caseTemplate.price <= 0) {
-      return res.status(400).json({ message: 'Этот кейс нельзя купить (бесплатный)' });
+      return res.status(400).json({ success: false, message: 'Этот кейс нельзя купить (бесплатный)' });
     }
 
     if (!caseTemplate.is_active) {
-      return res.status(400).json({ message: 'Кейс временно недоступен' });
+      return res.status(400).json({ success: false, message: 'Кейс временно недоступен' });
     }
 
     const CASE_PRICE = parseFloat(caseTemplate.price);
@@ -60,9 +61,12 @@ async function buyCase(req, res) {
       // Покупка за баланс
       if ((user.balance || 0) < totalPrice) {
         return res.status(400).json({
+          success: false,
           message: 'Недостаточно средств на балансе',
-          required: totalPrice,
-          available: user.balance || 0
+          data: {
+            required: totalPrice,
+            available: user.balance || 0
+          }
         });
       }
 
@@ -120,17 +124,20 @@ async function buyCase(req, res) {
         return res.json({
           success: true,
           message: `Успешно куплено ${allowedQuantity} кейс(ов) в инвентарь`,
-          inventory_cases: inventoryCases.map(c => ({
-            id: c.id,
-            case_template_id: c.case_template_id,
-            template_name: caseTemplate.name,
-            template_image: caseTemplate.image_url,
-            purchase_price: CASE_PRICE,
-            acquisition_date: c.acquisition_date,
-            expires_at: c.expires_at,
-            item_type: c.item_type
-          })),
-          balance: user.balance
+          data: {
+            inventory_cases: inventoryCases.map(c => ({
+              id: c.id,
+              case_template_id: c.case_template_id,
+              template_name: caseTemplate.name,
+              template_image: caseTemplate.image_url,
+              purchase_price: CASE_PRICE,
+              acquisition_date: c.acquisition_date,
+              expires_at: c.expires_at,
+              item_type: c.item_type
+            })),
+            balance: user.balance,
+            new_balance: user.balance
+          }
         });
       } catch (error) {
         // Откатываем транзакцию при ошибке
@@ -162,25 +169,29 @@ async function buyCase(req, res) {
         const paymentUrl = `payment-processing-${paymentJob.id}`;
 
         return res.json({
-          paymentUrl,
+          success: true,
           message: 'Перенаправьте пользователя для оплаты',
-          quantity: allowedQuantity,
-          total_price: totalPrice,
-          case_price: CASE_PRICE
+          data: {
+            paymentUrl,
+            quantity: allowedQuantity,
+            total_price: totalPrice,
+            case_price: CASE_PRICE
+          }
         });
       } catch (error) {
         logger.error('Ошибка создания платежа для покупки кейсов:', error);
-        return res.status(500).json({ message: 'Ошибка при создании платежа' });
+        return res.status(500).json({ success: false, message: 'Ошибка при создании платежа' });
       }
     } else {
       return res.status(400).json({
+        success: false,
         message: 'Неверный метод оплаты. Используйте "balance" или "bank_card"'
       });
     }
 
   } catch (error) {
     logger.error('Ошибка покупки кейсов:', error);
-    return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+    return res.status(500).json({ success: false, message: 'Внутренняя ошибка сервера' });
   }
 }
 
