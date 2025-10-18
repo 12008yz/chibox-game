@@ -277,12 +277,7 @@ async function createItemInDatabase(marketHashName, imageUrl, priceRub, priceUsd
   const skinName = extractSkinName(marketHashName);
   const exterior = extractExterior(marketHashName);
 
-  let itemOrigin;
-  if (caseType.startsWith('subscription_tier')) {
-    itemOrigin = 'subscription_case';
-  } else {
-    itemOrigin = `${caseType}_case`;
-  }
+  let itemOrigin = `${caseType}_case`;
 
   const steamMarketUrl = `https://steamcommunity.com/market/listings/730/${encodeURIComponent(marketHashName)}`;
 
@@ -363,47 +358,18 @@ const FALLBACK_PRICES = {
   exotic: 100000
 };
 
-// Базовые конфигурации кейсов
-const BASE_CASE_CONFIGS = {
-  subscription_tier1: {
-    name: 'Подписочные кейсы (Уровень 1)',
-    price: null,
-    target_expected_value: 40,
-    min_subscription_tier: 1,
-    type: 'daily'
-  },
-  subscription_tier2: {
-    name: 'Подписочные кейсы (Уровень 2)',
-    price: null,
-    target_expected_value: 80,
-    min_subscription_tier: 2,
-    type: 'daily'
-  },
-  subscription_tier3: {
-    name: 'Подписочные кейсы (Уровень 3)',
-    price: null,
-    target_expected_value: 180,
-    min_subscription_tier: 3,
-    type: 'daily'
-  },
-  purchase: {
-    name: 'Покупные кейсы ₽99',
-    price: 99,
-    target_expected_value: 79.20,
-    min_subscription_tier: 0,
-    type: 'premium'
-  },
-  premium: {
-    name: 'Премиум кейсы ₽499',
-    price: 499,
-    target_expected_value: 399.20,
-    min_subscription_tier: 0,
-    type: 'special'
-  }
-};
-
 // Предметы для разных типов кейсов
 const ITEMS_URLS = {
+  free_daily: {
+    consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 1000),
+    industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 1000),
+    milspec: COMPLETE_ITEMS_URLS.subscription.milspec.slice(0, 50),
+    restricted: COMPLETE_ITEMS_URLS.subscription.restricted.slice(0, 50),
+    classified: COMPLETE_ITEMS_URLS.subscription.classified.slice(0, 20),
+    covert: COMPLETE_ITEMS_URLS.subscription.covert.slice(0, 10),
+    contraband: COMPLETE_ITEMS_URLS.subscription.extraordinary.slice(0, 5),
+    exotic: COMPLETE_ITEMS_URLS.subscription.exotic.slice(0, 5)
+  },
   subscription_tier1: {
     consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 1000),
     industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 1000),
@@ -434,9 +400,19 @@ const ITEMS_URLS = {
     contraband: COMPLETE_ITEMS_URLS.subscription.extraordinary.slice(0, 100),
     exotic: COMPLETE_ITEMS_URLS.subscription.exotic.slice(0, 100)
   },
+  bonus: {
+    consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 1000),
+    industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 1000),
+    milspec: COMPLETE_ITEMS_URLS.subscription.milspec.slice(0, 100),
+    restricted: COMPLETE_ITEMS_URLS.subscription.restricted.slice(0, 100),
+    classified: COMPLETE_ITEMS_URLS.subscription.classified.slice(0, 100),
+    covert: COMPLETE_ITEMS_URLS.subscription.covert.slice(0, 50),
+    contraband: COMPLETE_ITEMS_URLS.subscription.extraordinary.slice(0, 50),
+    exotic: COMPLETE_ITEMS_URLS.subscription.exotic.slice(0, 50)
+  },
   purchase: {
-    consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 100),
-    industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 100),
+    consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 1000),
+    industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 1000),
     milspec: COMPLETE_ITEMS_URLS.subscription.milspec.slice(0, 100),
     restricted: COMPLETE_ITEMS_URLS.subscription.restricted.slice(0, 100),
     classified: COMPLETE_ITEMS_URLS.subscription.classified.slice(0, 100),
@@ -445,8 +421,8 @@ const ITEMS_URLS = {
     exotic: COMPLETE_ITEMS_URLS.subscription.exotic.slice(0, 100)
   },
   premium: {
-    consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 100),
-    industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 100),
+    consumer: COMPLETE_ITEMS_URLS.subscription.consumer.slice(0, 1000),
+    industrial: COMPLETE_ITEMS_URLS.subscription.industrial.slice(0, 1000),
     milspec: COMPLETE_ITEMS_URLS.subscription.milspec.slice(0, 100),
     restricted: COMPLETE_ITEMS_URLS.subscription.restricted.slice(0, 100),
     classified: COMPLETE_ITEMS_URLS.subscription.classified.slice(0, 100),
@@ -500,10 +476,11 @@ async function createCaseTemplates() {
 
   const templates = [
     {
-      name: 'Ежедневный кейс (Уровень 1)',
-      description: 'Бесплатный ежедневный кейс для подписчиков 1 уровня',
+      name: 'Ежедневный кейс - Бесплатный',
+      description: 'Ежедневный кейс для пользователей без подписки',
+      image_url: '/images/cases/free.png',
       type: 'daily',
-      min_subscription_tier: 1,
+      min_subscription_tier: 0,
       is_active: true,
       cooldown_hours: 0.003,
       price: null,
@@ -511,10 +488,11 @@ async function createCaseTemplates() {
       sort_order: 1
     },
     {
-      name: 'Ежедневный кейс (Уровень 2)',
-      description: 'Улучшенный ежедневный кейс для подписчиков 2 уровня',
+      name: 'Ежедневный кейс - Статус',
+      description: 'Ежедневный кейс для подписчиков уровня Статус',
+      image_url: '/images/cases/status.png',
       type: 'daily',
-      min_subscription_tier: 2,
+      min_subscription_tier: 1,
       is_active: true,
       cooldown_hours: 0.003,
       price: null,
@@ -522,10 +500,11 @@ async function createCaseTemplates() {
       sort_order: 2
     },
     {
-      name: 'Ежедневный кейс (Уровень 3)',
-      description: 'Премиум ежедневный кейс для подписчиков 3 уровня',
+      name: 'Ежедневный кейс - Статус+',
+      description: 'Ежедневный кейс для подписчиков уровня Статус+',
+      image_url: '/images/cases/+.png',
       type: 'daily',
-      min_subscription_tier: 3,
+      min_subscription_tier: 2,
       is_active: true,
       cooldown_hours: 0.003,
       price: null,
@@ -533,24 +512,50 @@ async function createCaseTemplates() {
       sort_order: 3
     },
     {
-      name: 'Покупной кейс',
-      description: 'Кейс за ₽99',
+      name: 'Ежедневный кейс - Статус++',
+      description: 'Ежедневный кейс для подписчиков уровня Статус++',
+      image_url: '/images/cases/++.png',
+      type: 'daily',
+      min_subscription_tier: 3,
+      is_active: true,
+      cooldown_hours: 0.003,
+      price: null,
+      color_scheme: '#673AB7',
+      sort_order: 4
+    },
+    {
+      name: 'Бонусный кейс',
+      description: 'Кейс, получаемый в бонусной игре',
+      image_url: '/images/cases/bonus.png',
+      type: 'special',
+      min_subscription_tier: 0,
+      is_active: true,
+      cooldown_hours: 0,
+      price: null,
+      color_scheme: '#FF5722',
+      sort_order: 5
+    },
+    {
+      name: 'Стандартный кейс',
+      description: 'Стандартный кейс с хорошими предметами',
+      image_url: '/images/cases/99.png',
       type: 'premium',
       min_subscription_tier: 0,
       is_active: true,
       price: 99,
       color_scheme: '#FF9800',
-      sort_order: 4
+      sort_order: 6
     },
     {
       name: 'Премиум кейс',
-      description: 'Эксклюзивный кейс за ₽499',
-      type: 'special',
+      description: 'Премиум кейс с редкими и дорогими предметами',
+      image_url: '/images/cases/499.png',
+      type: 'premium',
       min_subscription_tier: 0,
       is_active: true,
       price: 499,
       color_scheme: '#F44336',
-      sort_order: 5
+      sort_order: 7
     }
   ];
 
@@ -578,51 +583,71 @@ async function createCaseTemplates() {
 async function linkItemsToCaseTemplates() {
   console.log('\n🔗 Связываем предметы с шаблонами кейсов...\n');
 
-  const CASE_ITEM_MAPPING = {
-    'Ежедневный кейс (Уровень 1)': 'subscription_case',
-    'Ежедневный кейс (Уровень 2)': 'subscription_case',
-    'Ежедневный кейс (Уровень 3)': 'subscription_case',
-    'Покупной кейс': 'purchase_case',
-    'Премиум кейс': 'premium_case'
-  };
-
   try {
     const caseTemplates = await db.CaseTemplate.findAll({
       where: { is_active: true }
     });
 
+    // Получаем ВСЕ доступные предметы
+    const allItems = await db.Item.findAll({
+      where: { is_available: true }
+    });
+
+    console.log(`📊 Всего доступных предметов: ${allItems.length}\n`);
+
     for (const template of caseTemplates) {
       console.log(`🎯 Обрабатываем кейс: ${template.name}`);
 
-      let originPattern = CASE_ITEM_MAPPING[template.name];
+      let items = [];
 
-      if (!originPattern) {
-        if (template.name.includes('Ежедневный') || template.type === 'daily') {
-          originPattern = 'subscription_case';
-        } else if (template.name.includes('Покупной') || (template.price && template.price <= 150)) {
-          originPattern = 'purchase_case';
-        } else if (template.name.includes('Премиум') || (template.price && template.price > 150)) {
-          originPattern = 'premium_case';
-        }
+      // Распределяем предметы по кейсам в зависимости от их цены
+      switch(template.name) {
+        case 'Ежедневный кейс - Бесплатный':
+          // Дешевые предметы (до 50₽)
+          items = allItems.filter(item => item.price <= 50);
+          break;
+
+        case 'Ежедневный кейс - Статус':
+          // Дешевые и средние предметы (до 150₽)
+          items = allItems.filter(item => item.price <= 150);
+          break;
+
+        case 'Ежедневный кейс - Статус+':
+          // Средние предметы (до 800₽)
+          items = allItems.filter(item => item.price <= 800);
+          break;
+
+        case 'Ежедневный кейс - Статус++':
+          // Дорогие предметы (до 5000₽)
+          items = allItems.filter(item => item.price <= 5000);
+          break;
+
+        case 'Бонусный кейс':
+          // Средние и хорошие предметы (30₽ - 1000₽)
+          items = allItems.filter(item => item.price >= 30 && item.price <= 1000);
+          break;
+
+        case 'Стандартный кейс':
+          // Средние предметы для покупного кейса (30₽ - 500₽)
+          items = allItems.filter(item => item.price >= 30 && item.price <= 500);
+          break;
+
+        case 'Премиум кейс':
+          // Дорогие предметы (от 100₽)
+          items = allItems.filter(item => item.price >= 100);
+          break;
+
+        default:
+          console.warn(`⚠️ Неизвестный кейс: ${template.name}`);
+          continue;
       }
-
-      if (!originPattern) {
-        console.warn(`⚠️ Не удалось определить тип для кейса: ${template.name}`);
-        continue;
-      }
-
-      const items = await db.Item.findAll({
-        where: {
-          is_available: true,
-          origin: originPattern
-        }
-      });
 
       if (items.length === 0) {
-        console.log(`   ❌ Нет предметов с origin: ${originPattern}`);
+        console.log(`   ❌ Нет предметов для кейса: ${template.name}`);
         continue;
       }
 
+      // Очищаем старые связи и добавляем новые
       await template.setItems([]);
       await template.addItems(items);
 
