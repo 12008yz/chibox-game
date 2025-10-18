@@ -2,14 +2,22 @@
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    await queryInterface.addColumn('users', 'verification_code', {
-      type: Sequelize.STRING(6),
-      allowNull: true,
-      comment: 'Код подтверждения email (6 цифр)'
-    });
+    const tableDescription = await queryInterface.describeTable('users');
+
+    if (!tableDescription.verification_code) {
+      await queryInterface.addColumn('users', 'verification_code', {
+        type: Sequelize.STRING(6),
+        allowNull: true,
+        comment: 'Код подтверждения email (6 цифр)'
+      });
+    }
   },
 
   down: async (queryInterface, Sequelize) => {
-    await queryInterface.removeColumn('users', 'verification_code');
+    const tableDescription = await queryInterface.describeTable('users');
+
+    if (tableDescription.verification_code) {
+      await queryInterface.removeColumn('users', 'verification_code');
+    }
   }
 };

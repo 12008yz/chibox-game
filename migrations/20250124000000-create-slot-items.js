@@ -2,6 +2,13 @@
 
 module.exports = {
   async up(queryInterface, Sequelize) {
+    // Проверяем существование таблицы
+    const tables = await queryInterface.showAllTables();
+    if (tables.includes('slot_items')) {
+      console.log('Таблица slot_items уже существует, пропускаем создание');
+      return;
+    }
+
     await queryInterface.createTable('slot_items', {
       id: {
         allowNull: false,
