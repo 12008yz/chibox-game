@@ -66,67 +66,78 @@ async function buyCase(req, res) {
         });
       }
 
-      // Списываем средства
-      user.balance -= totalPrice;
-      await user.save();
+      // Используем транзакцию для атомарности операции
+      const transaction = await db.sequelize.transaction();
 
-      // Обновляем данные пользователя из базы для корректного ответа
-      await user.reload();
+      try {
+        // Списываем средства
+        user.balance -= totalPrice;
+        await user.save({ transaction });
 
-      // Используем выбранный шаблон кейса
-
-      // Создаем кейсы в инвентаре
-      const inventoryCases = [];
-      for (let i = 0; i < allowedQuantity; i++) {
-        const inventoryCase = await db.UserInventory.create({
-          user_id: userId,
-          item_id: null, // Для кейсов item_id не используется
-          item_type: 'case',
-          case_template_id: caseTemplate.id,
-          source: 'purchase',
-          status: 'inventory',
-          acquisition_date: new Date(),
-          expires_at: caseTemplate.availability_end || null // Устанавливаем срок действия если есть
-        });
-        inventoryCases.push(inventoryCase);
-      }
-
-      // Добавляем опыт за покупку
-      await addExperience(userId, 5 * allowedQuantity, 'buy_case', null, `Покупка ${allowedQuantity} кейса(ов)`);
-
-      // Создаем уведомление
-      await db.Notification.create({
-        user_id: userId,
-        title: 'Покупка кейсов',
-        message: `Вы успешно купили ${allowedQuantity} кейс(ов) за ${totalPrice}₽`,
-        type: 'success',
-        category: 'transaction',
-        link: '/cases',
-        importance: 3,
-        data: {
-          quantity: allowedQuantity,
-          price: totalPrice,
-          inventory_case_ids: inventoryCases.map(c => c.id)
+        // Создаем кейсы в инвентаре
+        const inventoryCases = [];
+        for (let i = 0; i < allowedQuantity; i++) {
+          const inventoryCase = await db.UserInventory.create({
+            user_id: userId,
+            item_id: null, // Для кейсов item_id не используется
+            item_type: 'case',
+            case_template_id: caseTemplate.id,
+            source: 'purchase',
+            status: 'inventory',
+            acquisition_date: new Date(),
+            expires_at: caseTemplate.availability_end || null // Устанавливаем срок действия если есть
+          }, { transaction });
+          inventoryCases.push(inventoryCase);
         }
-      });
 
-      logger.info(`Пользователь ${userId} купил ${allowedQuantity} кейсов за баланс (${totalPrice}₽)`);
+        // Добавляем опыт за покупку
+        await addExperience(userId, 5 * allowedQuantity, 'buy_case', null, `Покупка ${allowedQuantity} кейса(ов)`);
 
-      return res.json({
-        success: true,
-        message: `Успешно куплено ${allowedQuantity} кейс(ов) в инвентарь`,
-        inventory_cases: inventoryCases.map(c => ({
-          id: c.id,
-          case_template_id: c.case_template_id,
-          template_name: caseTemplate.name,
-          template_image: caseTemplate.image_url,
-          purchase_price: CASE_PRICE,
-          acquisition_date: c.acquisition_date,
-          expires_at: c.expires_at,
-          item_type: c.item_type
-        })),
-        balance: user.balance
-      });
+        // Создаем уведомление
+        await db.Notification.create({
+          user_id: userId,
+          title: 'Покупка кейсов',
+          message: `Вы успешно купили ${allowedQuantity} кейс(ов) за ${totalPrice}₽`,
+          type: 'success',
+          category: 'transaction',
+          link: '/cases',
+          importance: 3,
+          data: {
+            quantity: allowedQuantity,
+            price: totalPrice,
+            inventory_case_ids: inventoryCases.map(c => c.id)
+          }
+        }, { transaction });
+
+        // Фиксируем транзакцию
+        await transaction.commit();
+
+        // Обновляем данные пользователя из базы для корректного ответа
+        await user.reload();
+
+        logger.info(`Пользователь ${userId} купил ${allowedQuantity} кейсов за баланс (${totalPrice}₽)`);
+
+        return res.json({
+          success: true,
+          message: `Успешно куплено ${allowedQuantity} кейс(ов) в инвентарь`,
+          inventory_cases: inventoryCases.map(c => ({
+            id: c.id,
+            case_template_id: c.case_template_id,
+            template_name: caseTemplate.name,
+            template_image: caseTemplate.image_url,
+            purchase_price: CASE_PRICE,
+            acquisition_date: c.acquisition_date,
+            expires_at: c.expires_at,
+            item_type: c.item_type
+          })),
+          balance: user.balance
+        });
+      } catch (error) {
+        // Откатываем транзакцию при ошибке
+        await transaction.rollback();
+        logger.error('Ошибка при покупке кейса, транзакция откатана:', error);
+        throw error;
+      }
 
     } else if (method === 'bank_card') {
       // Покупка через банковскую карту
