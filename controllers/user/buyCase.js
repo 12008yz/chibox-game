@@ -94,9 +94,6 @@ async function buyCase(req, res) {
           inventoryCases.push(inventoryCase);
         }
 
-        // Добавляем опыт за покупку
-        await addExperience(userId, 5 * allowedQuantity, 'buy_case', null, `Покупка ${allowedQuantity} кейса(ов)`);
-
         // Создаем уведомление
         await db.Notification.create({
           user_id: userId,
@@ -116,8 +113,10 @@ async function buyCase(req, res) {
         // Фиксируем транзакцию
         await transaction.commit();
 
-        // Обновляем данные пользователя из базы для корректного ответа
-        await user.reload();
+        // Добавляем опыт за покупку ПОСЛЕ коммита транзакции
+        await addExperience(userId, 5 * allowedQuantity, 'buy_case', null, `Покупка ${allowedQuantity} кейса(ов)`).catch(err => {
+          logger.error('Ошибка при добавлении опыта:', err);
+        });
 
         logger.info(`Пользователь ${userId} купил ${allowedQuantity} кейсов за баланс (${totalPrice}₽)`);
 
