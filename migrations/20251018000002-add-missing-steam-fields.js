@@ -9,8 +9,7 @@ module.exports = {
     if (!tableDescription.steam_profile) {
       await queryInterface.addColumn('users', 'steam_profile', {
         type: Sequelize.JSONB,
-        allowNull: true,
-        comment: 'Данные профиля Steam (аватар, никнейм и т.д.)'
+        allowNull: true
       });
       console.log('✅ Поле steam_profile добавлено');
     }
@@ -18,7 +17,7 @@ module.exports = {
     // Создаем ENUM тип для auth_provider
     if (!tableDescription.auth_provider) {
       try {
-        await queryInterface.sequelize.query("CREATE TYPE \"enum_users_auth_provider\" AS ENUM('local', 'steam')");
+        await queryInterface.sequelize.query(`CREATE TYPE "enum_users_auth_provider" AS ENUM('local', 'steam')`);
         console.log('✅ ENUM тип enum_users_auth_provider создан');
       } catch (error) {
         console.log('ℹ️ ENUM тип enum_users_auth_provider уже существует');
@@ -27,8 +26,7 @@ module.exports = {
       await queryInterface.addColumn('users', 'auth_provider', {
         type: Sequelize.ENUM('local', 'steam'),
         defaultValue: 'local',
-        allowNull: false,
-        comment: 'Провайдер авторизации (local для обычной регистрации, steam для Steam OAuth)'
+        allowNull: false
       });
       console.log('✅ Поле auth_provider добавлено');
     }
@@ -43,7 +41,7 @@ module.exports = {
 
     if (tableDescription.auth_provider) {
       await queryInterface.removeColumn('users', 'auth_provider');
-      await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_users_auth_provider";');
+      await queryInterface.sequelize.query(`DROP TYPE IF EXISTS "enum_users_auth_provider"`);
     }
   }
 };
