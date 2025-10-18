@@ -3,8 +3,13 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
-    // Создание ENUM типов перед созданием таблицы
-    await queryInterface.sequelize.query('CREATE TYPE "enum_users_role" AS ENUM(\'user\', \'moderator\', \'admin\', \'superadmin\');');
+    // Создание ENUM типов перед созданием таблицы (с проверкой существования)
+    try {
+      await queryInterface.sequelize.query(`CREATE TYPE "enum_users_role" AS ENUM('user', 'moderator', 'admin', 'superadmin');`);
+    } catch (error) {
+      // Тип уже существует, игнорируем ошибку
+      console.log('ENUM тип enum_users_role уже существует или ошибка:', error.message);
+    }
 
     await queryInterface.createTable('users', {
       id: {
@@ -132,7 +137,7 @@ module.exports = {
         allowNull: true,
         comment: "Имя пользователя в Steam"
       },
-      steam_avatar: {
+      steam_avatar_url: {
         type: Sequelize.STRING,
         allowNull: true,
         comment: "URL аватара пользователя в Steam"
