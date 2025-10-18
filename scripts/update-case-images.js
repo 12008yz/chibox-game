@@ -22,6 +22,47 @@ async function updateCaseImages() {
     `);
     console.log('✅ Обновлено изображение для кейса "Статус++"');
 
+    // Обновляем изображение для кейса бесплатный
+    await sequelize.query(`
+      UPDATE case_templates
+      SET image_url = 'https://tempfile.aiquickdraw.com/s/8481c85343394be38b2a4fada0b75432_0_1760778030_8892.png',
+        updated_at = NOW()
+      WHERE id = '11111111-1111-1111-1111-111111111111'
+    `);     
+      console.log('✅ Обновлено изображение для кейса "Статус++"');
+
+
+       // Обновляем изображение для кейса 499
+    await sequelize.query(`
+      UPDATE case_templates
+      SET image_url = 'https://tempfile.aiquickdraw.com/s/349c36631e9245baa290bcd19cb21c67_0_1760780444_5576.png',
+        updated_at = NOW()
+      WHERE id = '77777777-7777-7777-7777-777777777777'
+    `);     
+      console.log('✅ Обновлено изображение для кейса "499"');
+
+
+         // Обновляем изображение для кейса 99
+    await sequelize.query(`
+      UPDATE case_templates
+      SET image_url = 'https://tempfile.aiquickdraw.com/s/391a1fd06ec241d6aed9eb65c0daef90_0_1760780787_9196.png',
+        updated_at = NOW()
+      WHERE id = '66666666-6666-6666-6666-666666666666'
+    `);     
+      console.log('✅ Обновлено изображение для кейса "99"');
+
+
+
+
+    // Обновляем изображение для кейса Статус
+    await sequelize.query(`
+      UPDATE case_templates
+      SET image_url = 'https://tempfile.aiquickdraw.com/s/8a85630f511543da9c7a52277a592c05_0_1760777459_8266.png',
+          updated_at = NOW()
+      WHERE id = '22222222-2222-2222-2222-222222222222'
+    `);
+    console.log('✅ Обновлено изображение для кейса "Статус++"');
+
     // Обновляем изображение для Бонусного кейса
     await sequelize.query(`
       UPDATE case_templates
