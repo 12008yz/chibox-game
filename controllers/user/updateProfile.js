@@ -124,7 +124,7 @@ async function updateProfile(req, res) {
         username: updatedUser.username,
         steam_trade_url: updatedUser.steam_trade_url,
         steam_id: updatedUser.steam_id,
-        steam_avatar: updatedUser.steam_avatar,
+        steam_avatar: updatedUser.steam_avatar_url,
         steam_profile: updatedUser.steam_profile,
         steam_profile_url: updatedUser.steam_profile_url
       },

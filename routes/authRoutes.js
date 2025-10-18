@@ -62,7 +62,7 @@ router.get('/status', auth, (req, res) => {
       id: req.user.id,
       username: req.user.username,
       auth_provider: req.user.auth_provider,
-      steam_avatar: req.user.steam_avatar,
+      steam_avatar: req.user.steam_avatar_url,
       steam_profile_url: req.user.steam_profile_url
     }
   });
@@ -215,7 +215,7 @@ router.get('/link-steam/return',
       const updateData = {
         steam_id: steamId,
         steam_profile: steamData.steam_profile,
-        steam_avatar: steamData.steam_avatar,
+        steam_avatar_url: steamData.steam_avatar,
         steam_profile_url: steamData.steam_profile_url
       };
 

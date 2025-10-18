@@ -328,6 +328,16 @@ module.exports = (sequelize) => {
       defaultValue: 'local',
       allowNull: false,
       comment: "Провайдер авторизации (local для обычной регистрации, steam для Steam OAuth)"
+    },
+    // Виртуальное поле для обратной совместимости
+    steam_avatar: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        return this.steam_avatar_url;
+      },
+      set(value) {
+        this.steam_avatar_url = value;
+      }
     }
   }, {
     timestamps: true, // Создаст createdAt и updatedAt

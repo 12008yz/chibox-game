@@ -73,7 +73,7 @@ if (STEAM_API_KEY) {
         req.session.steamLinkData = {
           steam_id: steamId,
           steam_profile: profile._json,
-          steam_avatar: profile._json?.avatarfull || profile._json?.avatarmedium || profile._json?.avatar,
+          steam_avatar_url: profile._json?.avatarfull || profile._json?.avatarmedium || profile._json?.avatar,
           steam_profile_url: profile._json?.profileurl
         };
         // Возвращаем специальный объект для обозначения процесса привязки с linkUserId
@@ -104,7 +104,7 @@ if (STEAM_API_KEY) {
         const updateData = {
           username: newUsername,
           steam_profile: profile._json,
-          steam_avatar: avatarUrl,
+          steam_avatar_url: avatarUrl,
           steam_profile_url: profile._json?.profileurl,
           last_login_date: new Date()
         };
@@ -144,7 +144,7 @@ if (STEAM_API_KEY) {
           password: 'steam_oauth', // Пароль не используется для Steam пользователей
           steam_id: steamId,
           steam_profile: profile._json,
-          steam_avatar: avatarUrl,
+          steam_avatar_url: avatarUrl,
           steam_profile_url: profile._json?.profileurl,
           auth_provider: 'steam',
           is_email_verified: true, // Steam аккаунты считаем верифицированными
@@ -205,7 +205,7 @@ if (STEAM_API_KEY) {
             steamId,
             linkUserId: req.session.linkUserId,
             steamProfile: profile._json?.personaname,
-            steamAvatar: steamLinkData.steam_avatar
+            steamAvatar: steamLinkData.steam_avatar_url
           });
         }
       });

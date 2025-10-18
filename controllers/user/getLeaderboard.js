@@ -104,7 +104,7 @@ async function getLeaderboardByLevel(limit, leaderboardData) {
       'total_xp_earned',
       'subscription_tier',
       'subscription_days_left',
-      'steam_avatar',
+      'steam_avatar_url',
       'steam_profile',
       'created_at'
     ],
@@ -127,7 +127,7 @@ async function getLeaderboardByLevel(limit, leaderboardData) {
     total_xp_earned: user.total_xp_earned,
     subscription_tier: user.subscription_tier,
     subscription_days_left: user.subscription_days_left,
-    steam_avatar: user.steam_avatar,
+    steam_avatar: user.steam_avatar_url,
     steam_profile: user.steam_profile,
     score: user.level, // Для сортировки
     created_at: user.created_at
@@ -143,7 +143,7 @@ async function getLeaderboardByCasesOpened(limit, leaderboardData) {
       'level',
       'subscription_tier',
       'subscription_days_left',
-      'steam_avatar',
+      'steam_avatar_url',
       'steam_profile',
       [
         db.Sequelize.literal(`(
@@ -173,7 +173,7 @@ async function getLeaderboardByCasesOpened(limit, leaderboardData) {
     level: user.level,
     subscription_tier: user.subscription_tier,
     subscription_days_left: user.subscription_days_left,
-    steam_avatar: user.steam_avatar,
+    steam_avatar: user.steam_avatar_url,
     steam_profile: user.steam_profile,
     cases_opened: parseInt(user.dataValues.cases_opened) || 0,
     score: parseInt(user.dataValues.cases_opened) || 0, // Для сортировки
@@ -189,7 +189,7 @@ async function getLeaderboardByMostExpensiveItem(limit, leaderboardData) {
       'level',
       'subscription_tier',
       'subscription_days_left',
-      'steam_avatar',
+      'steam_avatar_url',
       'steam_profile',
       [
         db.Sequelize.literal(`(
@@ -243,7 +243,7 @@ async function getLeaderboardByMostExpensiveItem(limit, leaderboardData) {
     level: user.level,
     subscription_tier: user.subscription_tier,
     subscription_days_left: user.subscription_days_left,
-    steam_avatar: user.steam_avatar,
+    steam_avatar: user.steam_avatar_url,
     steam_profile: user.steam_profile,
     max_item_value: parseFloat(user.dataValues.max_item_value) || 0,
     most_expensive_item_name: user.dataValues.most_expensive_item_name || null,
@@ -271,7 +271,7 @@ async function getLeaderboardByMostExpensiveItem(limit, leaderboardData) {
       level: user.level,
       subscription_tier: user.subscription_tier,
       subscription_days_left: user.subscription_days_left,
-      steam_avatar: user.steam_avatar,
+      steam_avatar: user.steam_avatar_url,
       steam_profile: user.steam_profile,
       max_item_value: 0,
       most_expensive_item_name: null,

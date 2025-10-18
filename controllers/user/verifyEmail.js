@@ -147,7 +147,7 @@ async function verifyEmail(req, res) {
         balance: user.balance,
         steam_id: user.steam_id,
         steam_username: user.steam_username,
-        steam_avatar: user.steam_avatar,
+        steam_avatar: user.steam_avatar_url,
         steam_profile_url: user.steam_profile_url,
         steam_trade_url: user.steam_trade_url,
         is_email_verified: user.is_email_verified,
