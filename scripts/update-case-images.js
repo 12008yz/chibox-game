@@ -16,7 +16,7 @@ async function updateCaseImages() {
     // Обновляем изображение для кейса Статус++
     await sequelize.query(`
       UPDATE case_templates
-      SET image_url = 'https://tempfile.aiquickdraw.com/s/ed7b0a105d3e46da9dcab0380772e4c6_0_1760726597_3944.png',
+      SET image_url = 'https://tempfile.aiquickdraw.com/s/8729a654796c49669b8887953a4d16a0_0_1760822322_9560.png',
           updated_at = NOW()
       WHERE id = '44444444-4444-4444-4444-444444444444'
     `);
@@ -66,7 +66,7 @@ async function updateCaseImages() {
     // Обновляем изображение для Бонусного кейса
     await sequelize.query(`
       UPDATE case_templates
-      SET image_url = 'https://tempfile.aiquickdraw.com/s/e6df1da5bc5c41eeb084b17475730c20_0_1760728419_6087.png',
+      SET image_url = 'https://tempfile.aiquickdraw.com/s/84cba77ac84f4e42a5faa0649a139a21_0_1760825034_4819.png',
           updated_at = NOW()
       WHERE id = '55555555-5555-5555-5555-555555555555'
     `);
