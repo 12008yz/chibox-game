@@ -82,13 +82,21 @@ async function openCase(req, res) {
             console.log('Это ежедневный кейс, проверяем права пользователя');
 
             const user = await db.User.findByPk(userId);
+            console.log('Данные пользователя:', {
+              id: user?.id,
+              subscription_tier: user?.subscription_tier,
+              subscription_days_left: user?.subscription_days_left,
+              subscription_expiry_date: user?.subscription_expiry_date
+            });
+            console.log('Требуемый уровень подписки:', caseTemplate.min_subscription_tier);
+
             if (user && user.subscription_tier >= caseTemplate.min_subscription_tier) {
-              console.log('Пользователь имеет право на этот кейс, проверяем лимиты');
+              console.log('✓ Пользователь имеет право на этот кейс');
 
               // ОГРАНИЧЕНИЕ НА ЕЖЕДНЕВНЫЙ ЛИМИТ ОТКЛЮЧЕНО
               // Пользователь может получать кейс сколько угодно раз
 
-              console.log('Лимиты проверены, выдаем кейс автоматически');
+              console.log('Выдаем кейс автоматически...');
 
               try {
                 // Выдаем конкретный ежедневный кейс пользователю
@@ -100,9 +108,18 @@ async function openCase(req, res) {
                   ? null
                   : new Date(now.getTime() + caseTemplate.cooldown_hours * 3600000);
 
-                await addCaseToInventory(userId, templateId, 'subscription', expiresAt);
+                console.log('Вызываем addCaseToInventory с параметрами:', {
+                  userId,
+                  templateId,
+                  source: 'subscription',
+                  expiresAt
+                });
+
+                const createdCase = await addCaseToInventory(userId, templateId, 'subscription', expiresAt);
+                console.log('Кейс успешно добавлен в инвентарь:', createdCase.id);
 
                 // Пытаемся найти кейс снова
+                console.log('Ищем только что созданный кейс в инвентаре...');
                 const newInventoryCase = await db.UserInventory.findOne({
                   where: {
                     user_id: userId,
@@ -122,14 +139,17 @@ async function openCase(req, res) {
                 });
 
                 if (newInventoryCase) {
-                  console.log('Автовыданный кейс найден, открываем:', newInventoryCase.id);
+                  console.log('✓ Автовыданный кейс найден, открываем:', newInventoryCase.id);
                   return await openCaseFromInventory(req, res, newInventoryCase.id);
+                } else {
+                  console.error('✗ Кейс был создан, но не найден при поиске!');
                 }
               } catch (autoGiveError) {
-                console.error('Ошибка при автовыдаче ежедневного кейса:', autoGiveError);
+                console.error('✗ Ошибка при автовыдаче ежедневного кейса:', autoGiveError);
+                console.error('Stack trace:', autoGiveError.stack);
               }
             } else {
-              console.log('Пользователь не имеет права на этот кейс. subscription_tier:', user?.subscription_tier, 'required:', caseTemplate.min_subscription_tier);
+              console.log('✗ Пользователь не имеет права на этот кейс. subscription_tier:', user?.subscription_tier, 'required:', caseTemplate.min_subscription_tier);
               return res.status(403).json({
                 success: false,
                 message: `Для этого кейса требуется подписка уровня ${caseTemplate.min_subscription_tier} или выше`
