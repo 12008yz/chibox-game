@@ -157,19 +157,13 @@ function selectRandomItemWithWeight(items) {
 }
 
 /**
- * Создает "пустой" предмет для случаев когда ничего не выпадает
+ * Выбирает случайный предмет из всех доступных
  */
-function createEmptyItem() {
-  return {
-    id: 'empty',
-    name: 'Пусто',
-    image_url: '/images/empty-slot.png', // Заглушка
-    price: 0,
-    rarity: 'empty',
-    weapon_type: null,
-    skin_name: null,
-    steam_market_hash_name: null
-  };
+function selectRandomItem(allItems) {
+  if (allItems.length === 0) {
+    return null;
+  }
+  return allItems[Math.floor(Math.random() * allItems.length)];
 }
 
 /**
@@ -216,9 +210,8 @@ async function generateSlotResult() {
       break;
   }
 
-  // Проверяем выигрыш (3 одинаковых НЕ пустых предмета)
+  // Проверяем выигрыш (3 одинаковых предмета по ID)
   const isWin = result.length === 3 &&
-               result[0].id !== 'empty' &&
                result[0].id === result[1].id &&
                result[1].id === result[2].id;
 
@@ -229,54 +222,43 @@ async function generateSlotResult() {
 
 /**
  * Генерирует проигрышную комбинацию (3 разных предмета)
+ * Всегда возвращает РЕАЛЬНЫЕ предметы, но РАЗНЫЕ, чтобы не было выигрыша
  */
 function generateLoseResult(slotItems) {
   const result = [];
   const allItems = [...slotItems.cheap, ...slotItems.expensive];
 
-  if (allItems.length === 0) {
-    // Если нет предметов, возвращаем 3 пустых слота
-    return [createEmptyItem(), createEmptyItem(), createEmptyItem()];
+  if (allItems.length < 3) {
+    // Если предметов меньше 3, дублируем чтобы было минимум 3
+    while (allItems.length < 3 && allItems.length > 0) {
+      allItems.push(...allItems);
+    }
   }
 
-  // Выбираем 3 разных предмета для проигрыша
-  const usedItems = new Set();
+  // Выбираем 3 РАЗНЫХ предмета для проигрыша
+  const usedIndices = new Set();
 
   for (let i = 0; i < 3; i++) {
     let attempts = 0;
-    let selectedItem;
+    let selectedIndex;
 
     do {
-      // Случайно выбираем между предметом и пустым слотом (70% предмет, 30% пустой)
-      if (Math.random() < 0.7 && allItems.length > 0) {
-        selectedItem = allItems[Math.floor(Math.random() * allItems.length)];
-      } else {
-        selectedItem = createEmptyItem();
-      }
+      selectedIndex = Math.floor(Math.random() * allItems.length);
       attempts++;
-    } while (usedItems.has(selectedItem.id) && attempts < 10);
+    } while (usedIndices.has(selectedIndex) && attempts < 50 && allItems.length > 3);
 
-    // Если не смогли найти уникальный предмет, берем случайный
-    if (usedItems.has(selectedItem.id)) {
-      if (allItems.length > 0) {
-        selectedItem = allItems[Math.floor(Math.random() * allItems.length)];
-      } else {
-        selectedItem = createEmptyItem();
-      }
-    }
-
-    usedItems.add(selectedItem.id);
-    result.push(selectedItem);
+    usedIndices.add(selectedIndex);
+    result.push(allItems[selectedIndex]);
   }
 
-  // Убеждаемся, что это точно проигрыш (не все предметы одинаковые)
-  if (result[0].id === result[1].id && result[1].id === result[2].id && result[0].id !== 'empty') {
-    // Если случайно получились 3 одинаковых, заменяем последний
+  // ВАЖНО: Убеждаемся, что это точно проигрыш (не все предметы одинаковые по ID)
+  if (result[0].id === result[1].id && result[1].id === result[2].id) {
+    // Если случайно получились 3 одинаковых, заменяем последний на другой
     if (allItems.length > 1) {
-      const differentItem = allItems.find(item => item.id !== result[0].id) || createEmptyItem();
-      result[2] = differentItem;
-    } else {
-      result[2] = createEmptyItem();
+      const differentItem = allItems.find(item => item.id !== result[0].id);
+      if (differentItem) {
+        result[2] = differentItem;
+      }
     }
   }
 
@@ -433,9 +415,8 @@ const playSlot = async (req, res) => {
     // Генерируем результат слота
     const slotResult = await generateSlotResult();
 
-    // Проверяем выигрыш (3 одинаковых НЕ пустых предмета)
+    // Проверяем выигрыш (3 одинаковых предмета по ID)
     const isWin = slotResult.length === 3 &&
-                 slotResult[0].id !== 'empty' &&
                  slotResult[0].id === slotResult[1].id &&
                  slotResult[1].id === slotResult[2].id;
 
@@ -464,27 +445,25 @@ const playSlot = async (req, res) => {
 
     let wonItem = null;
 
-    if (isWin && slotResult[0].id !== 'empty') {
+    if (isWin) {
       // Добавляем выигранный предмет в инвентарь
       wonItem = slotResult[0];
 
-      // Проверяем что предмет существует в базе данных (не пустой)
-      if (wonItem.id !== 'empty') {
-        const itemExists = await Item.findByPk(wonItem.id);
+      // Проверяем что предмет существует в базе данных
+      const itemExists = await Item.findByPk(wonItem.id);
 
-        if (itemExists) {
-          await UserInventory.create({
-            user_id: userId,
-            item_id: wonItem.id,
-            status: 'inventory', // предмет в инвентаре
-            source: 'bonus' // слот как бонусная игра
-          }, { transaction });
+      if (itemExists) {
+        await UserInventory.create({
+          user_id: userId,
+          item_id: wonItem.id,
+          status: 'inventory', // предмет в инвентаре
+          source: 'bonus' // слот как бонусная игра
+        }, { transaction });
 
-          logger.info(`User ${userId} won item ${wonItem.id} (${wonItem.name}) in slot game`);
-        } else {
-          logger.warn(`Won item ${wonItem.id} does not exist in database, skipping inventory addition`);
-          wonItem = null;
-        }
+        logger.info(`User ${userId} won item ${wonItem.id} (${wonItem.name}) in slot game`);
+      } else {
+        logger.warn(`Won item ${wonItem.id} does not exist in database, skipping inventory addition`);
+        wonItem = null;
       }
     }
 
