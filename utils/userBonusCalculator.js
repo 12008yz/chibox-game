@@ -164,10 +164,10 @@ async function getUserBonusInfo(userId) {
         subscriptionBonus: user.subscription_bonus_percentage || 0,
         totalBonus: user.total_drop_bonus_percentage || 0,
         bonusBreakdown: {
-            achievements: `+${(user.achievements_bonus_percentage || 0).toFixed(1)}%`,
-            level: `+${(user.level_bonus_percentage || 0).toFixed(1)}%`,
-            subscription: `+${(user.subscription_bonus_percentage || 0).toFixed(1)}%`,
-            total: `+${(user.total_drop_bonus_percentage || 0).toFixed(1)}%`
+            achievements: `+${(user.achievements_bonus_percentage || 0).toFixed(2)}%`,
+            level: `+${(user.level_bonus_percentage || 0).toFixed(2)}%`,
+            subscription: `+${(user.subscription_bonus_percentage || 0).toFixed(2)}%`,
+            total: `+${(user.total_drop_bonus_percentage || 0).toFixed(2)}%`
         }
     };
 }

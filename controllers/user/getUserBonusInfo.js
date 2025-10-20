@@ -51,7 +51,7 @@ async function getUserBonusInfoController(req, res) {
             potentialBonus: 'Зависит от достижения'
         });
 
-        logger.info(`Пользователь ${userId} запросил информацию о бонусах. Общий бонус: +${bonusInfo.totalBonus.toFixed(1)}%`);
+        logger.info(`Пользователь ${userId} запросил информацию о бонусах. Общий бонус: +${bonusInfo.totalBonus.toFixed(2)}%`);
 
         res.json(response);
 
