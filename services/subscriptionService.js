@@ -96,7 +96,7 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
       await db.Notification.create({
         user_id: userId,
         title: 'Окончание подписки',
-        message: 'Ваша подписка истекла. Продлите её, чтобы продолжить пользоваться преимуществами.',
+        message: 'Ваш статус истекл. Продлите её, чтобы продолжить пользоваться преимуществами.',
         type: 'warning',
         category: 'subscription',
         importance: 7,
