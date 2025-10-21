@@ -7,7 +7,7 @@ const db = require('../models');
 
 // Импортируем сервисы
 const SteamPriceService = require('../services/steamPriceService');
-const FixDropWeights = require('./fix-drop-weights');
+const { calculateCorrectWeightByPrice } = require('../utils/dropWeightCalculator');
 const COMPLETE_ITEMS_URLS = require('../utils/linkItems-complete');
 
 // Инициализируем сервисы
@@ -339,8 +339,8 @@ async function populateDatabaseOptimized(limitPerCategory = 100) {
   // Сохраняем финальный кэш
   saveCache();
 
-  // Настраиваем веса
-  await FixDropWeights.calculateWeightsByPrice();
+  // Настраиваем веса используя новую улучшенную систему
+  await updateItemWeights();
   await linkItemsToCaseTemplates();
 
   console.log('\n🎉 Оптимизированный импорт завершен!');
@@ -468,6 +468,66 @@ function extractQuality(marketHashName) {
   if (marketHashName.includes('Souvenir')) return 'Souvenir';
   if (marketHashName.includes('★')) return 'Special';
   return null;
+}
+
+// Функция для обновления весов предметов в БД
+async function updateItemWeights() {
+  console.log('\n⚖️  Обновляем веса предметов...\n');
+
+  try {
+    const items = await db.Item.findAll({
+      where: { is_available: true },
+      order: [['price', 'DESC']]
+    });
+
+    console.log(`📦 Найдено ${items.length} доступных предметов`);
+
+    let updatedCount = 0;
+    const significantItems = [];
+
+    for (const item of items) {
+      const price = parseFloat(item.price) || 0;
+      const correctWeight = calculateCorrectWeightByPrice(price);
+
+      // Обновляем вес в БД
+      await item.update({ drop_weight: correctWeight });
+      updatedCount++;
+
+      // Собираем информацию о дорогих предметах
+      if (price >= 1000) {
+        significantItems.push({
+          name: item.name.substring(0, 40),
+          price: price,
+          weight: correctWeight
+        });
+      }
+
+      // Прогресс
+      if (updatedCount % 100 === 0) {
+        process.stdout.write(`\r⏳ Обновлено: ${updatedCount}/${items.length}`);
+      }
+    }
+
+    console.log(`\r✅ Обновлено предметов: ${updatedCount}/${items.length}${' '.repeat(20)}\n`);
+
+    // Показываем примеры дорогих предметов с новыми весами
+    if (significantItems.length > 0) {
+      console.log('💎 Примеры дорогих предметов с новыми весами:');
+      console.log('─'.repeat(80));
+      significantItems.slice(0, 10).forEach(item => {
+        console.log(`   ${item.name.padEnd(40)} | ${item.price.toFixed(2).padStart(10)}₽ | Вес: ${item.weight.toFixed(4)}`);
+      });
+      console.log('─'.repeat(80));
+    }
+
+    console.log('✅ Веса обновлены по новой улучшенной системе!');
+    console.log('💰 Дорогие предметы теперь выпадают в 11-20 раз реже\n');
+
+    return { success: true, updatedCount };
+  } catch (error) {
+    console.error('❌ Ошибка обновления весов:', error.message);
+    return { success: false, error: error.message };
+  }
 }
 
 // Функция для создания шаблонов кейсов
@@ -601,24 +661,31 @@ async function linkItemsToCaseTemplates() {
       let items = [];
 
       // Распределяем предметы по кейсам в зависимости от их цены
+      // ВАЖНО: Много дешевых предметов + редкие дорогие = правильная рентабельность
       switch(template.name) {
         case 'Ежедневный кейс - Бесплатный':
-          // Дешевые предметы (до 50₽)
+          // Дешевые предметы (до 50₽) - базовый кейс
           items = allItems.filter(item => item.price <= 50);
           break;
 
         case 'Ежедневный кейс - Статус':
-          // Дешевые и средние предметы (до 150₽)
-          items = allItems.filter(item => item.price <= 150);
+          // Улучшенная версия: основа до 150₽ + редкие джекпоты до 3000₽
+          // Большинство дешевых (вес ~200) + очень редкие дорогие (вес ~4)
+          items = allItems.filter(item => item.price <= 3000);
+          console.log(`   💎 Добавлено предметов до 150₽: ${allItems.filter(i => i.price <= 150).length}`);
+          console.log(`   🎰 Добавлено джекпот-предметов (150₽-3000₽): ${allItems.filter(i => i.price > 150 && i.price <= 3000).length}`);
           break;
 
         case 'Ежедневный кейс - Статус+':
-          // Средние предметы (до 800₽)
-          items = allItems.filter(item => item.price <= 800);
+          // Улучшенная версия: основа до 800₽ + джекпоты до 8000₽
+          // Много средних предметов + очень редкие дорогие
+          items = allItems.filter(item => item.price <= 8000);
+          console.log(`   💎 Добавлено предметов до 800₽: ${allItems.filter(i => i.price <= 800).length}`);
+          console.log(`   🎰 Добавлено джекпот-предметов (800₽-8000₽): ${allItems.filter(i => i.price > 800 && i.price <= 8000).length}`);
           break;
 
         case 'Ежедневный кейс - Статус++':
-          // Дорогие предметы (до 5000₽)
+          // Дорогие предметы (до 5000₽) - премиум подписка
           items = allItems.filter(item => item.price <= 5000);
           break;
 
@@ -628,12 +695,15 @@ async function linkItemsToCaseTemplates() {
           break;
 
         case 'Стандартный кейс':
-          // Средние предметы для покупного кейса (30₽ - 500₽)
-          items = allItems.filter(item => item.price >= 30 && item.price <= 500);
+          // Улучшенная версия для кейса за 99₽: основа 30-500₽ + джекпоты до 10000₽
+          // Рентабельность сохраняется за счет весов (дорогие предметы вес ~0.8-2)
+          items = allItems.filter(item => item.price >= 30 && item.price <= 10000);
+          console.log(`   💎 Добавлено предметов 30-500₽: ${allItems.filter(i => i.price >= 30 && i.price <= 500).length}`);
+          console.log(`   🎰 Добавлено джекпот-предметов (500₽-10000₽): ${allItems.filter(i => i.price > 500 && i.price <= 10000).length}`);
           break;
 
         case 'Премиум кейс':
-          // Дорогие предметы (от 100₽)
+          // Дорогие предметы (от 100₽) - премиум кейс за 499₽
           items = allItems.filter(item => item.price >= 100);
           break;
 
