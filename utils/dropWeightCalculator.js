@@ -29,19 +29,22 @@ function filterExcludedItems(items, userSubscriptionTier = 0) {
 function calculateCorrectWeightByPrice(price) {
   price = parseFloat(price) || 0;
 
-  // УЛЬТРА АГРЕССИВНАЯ оптимизация для достижения 40-60% возврата (снижение дорогих предметов в 3-5 раз)
-  if (price >= 50000) return 0.0005;    // 0.05% - легендарные (-75% от предыдущего)
-  if (price >= 30000) return 0.001;     // 0.1% - мифические (-75%)
-  if (price >= 20000) return 0.002;     // 0.2% - эпические (-71%)
-  if (price >= 15000) return 0.003;     // 0.3% - очень редкие (-75%)
-  if (price >= 10000) return 0.006;     // 0.6% - редкие (-70%)
-  if (price >= 8000) return 0.01;       // 1.0% - необычные+ (-67%)
-  if (price >= 5000) return 0.02;       // 2.0% - необычные (-67%)
-  if (price >= 3000) return 0.04;       // 4.0% - обычные+ (-67%)
-  if (price >= 1000) return 0.12;       // 12% - обычные (-57%)
-  if (price >= 500) return 0.35;        // 35% - частые (-22%)
-  if (price >= 100) return 0.8;         // 80% - очень частые (без изменений)
-  return 1.5;                           // 150% - базовые/дешевые (+25%)
+  // Система весов на основе цены для создания правильного распределения
+  // Используем логарифмическую шкалу - чем дороже предмет, тем меньше его вес,
+  // но минимальный вес достаточен для видимого шанса выпадения
+  if (price >= 100000) return 1;       // 0.5-1% - ультра редкие
+  if (price >= 50000) return 2;        // 0.8-1.5% - легендарные
+  if (price >= 30000) return 3;        // 1-2% - мифические
+  if (price >= 20000) return 5;        // 1.5-3% - эпические
+  if (price >= 15000) return 8;        // 2-4% - очень редкие
+  if (price >= 10000) return 12;       // 3-6% - редкие
+  if (price >= 8000) return 18;        // 4-8% - необычные+
+  if (price >= 5000) return 28;        // 6-12% - необычные
+  if (price >= 3000) return 45;        // 10-18% - обычные+
+  if (price >= 1000) return 70;        // 15-28% - обычные
+  if (price >= 500) return 100;        // 20-35% - частые
+  if (price >= 100) return 130;        // 25-40% - очень частые
+  return 150;                          // 30-50% - базовые/дешевые
 }
 
 /**
@@ -460,5 +463,6 @@ module.exports = {
   selectItemWithFullDuplicateProtection,
   selectItemWithCorrectWeights,
   filterExcludedItems,
-  getWeightDistributionStats
+  getWeightDistributionStats,
+  calculateCorrectWeightByPrice
 };

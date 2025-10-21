@@ -1,29 +1,7 @@
 const { CaseTemplate, Item, User, CaseItemDrop } = require('../../models');
 const { logger } = require('../../utils/logger');
-const { calculateModifiedDropWeights } = require('../../utils/dropWeightCalculator');
-
-/**
- * Рассчитать правильный вес предмета на основе его цены
- * @param {number} price - цена предмета
- * @returns {number} правильный вес предмета
- */
-function calculateCorrectWeightByPrice(price) {
-  price = parseFloat(price) || 0;
-
-  // Система весов на основе цены для создания правильного распределения
-  if (price >= 50000) return 0.005;     // 0.5% - легендарные
-  if (price >= 30000) return 0.008;     // 0.8% - мифические
-  if (price >= 20000) return 0.015;     // 1.5% - эпические
-  if (price >= 15000) return 0.025;     // 2.5% - очень редкие
-  if (price >= 10000) return 0.04;      // 4% - редкие
-  if (price >= 8000) return 0.06;       // 6% - необычные+
-  if (price >= 5000) return 0.1;        // 10% - необычные
-  if (price >= 3000) return 0.2;        // 20% - обычные+
-  if (price >= 1000) return 0.35;       // 35% - обычные
-  if (price >= 500) return 0.5;         // 50% - частые
-  if (price >= 100) return 0.7;         // 70% - очень частые
-  return 1.0;                           // 100% - базовые/дешевые
-}
+const { calculateModifiedDropWeights, calculateCorrectWeightByPrice } = require('../../utils/dropWeightCalculator');
+const { seededShuffle } = require('../../utils/seededShuffle');
 
 const getCaseTemplateItems = async (req, res) => {
   try {
@@ -154,7 +132,7 @@ const getCaseTemplateItems = async (req, res) => {
               in_stock: item.in_stock,
               // Добавляем информацию о модифицированных шансах
               modified_weight: weight,
-              drop_chance_percent: Math.round(chance * 100) / 100, // Округляем до 2 знаков
+              drop_chance_percent: chance < 0.01 && chance > 0 ? parseFloat(chance.toFixed(6)) : Math.round(chance * 100) / 100, // Для малых шансов показываем до 6 знаков
               weight_multiplier: item.weightMultiplier,
               bonus_applied: item.bonusApplied,
               // Добавляем информацию о том, что предмет уже выпадал
@@ -262,7 +240,7 @@ const getCaseTemplateItems = async (req, res) => {
           category_id: item.category_id,
           is_tradable: item.is_tradable,
           in_stock: item.in_stock,
-          drop_chance_percent: Math.round(chance * 100) / 100,
+          drop_chance_percent: chance < 0.01 && chance > 0 ? parseFloat(chance.toFixed(6)) : Math.round(chance * 100) / 100, // Для малых шансов показываем до 6 знаков
           modified_weight: null,
           weight_multiplier: 1,
           bonus_applied: 0,
@@ -274,6 +252,9 @@ const getCaseTemplateItems = async (req, res) => {
       });
     }
 
+    // Перемешиваем предметы используя ID кейса как seed для синхронизации с клиентом
+    const shuffledItems = seededShuffle(itemsWithChances, caseTemplateId);
+
     // Возвращаем предметы с рассчитанными шансами
     res.json({
       success: true,
@@ -284,7 +265,7 @@ const getCaseTemplateItems = async (req, res) => {
           description: caseTemplate.description,
           type: caseTemplate.type
         },
-        items: itemsWithChances,
+        items: shuffledItems,
         user_bonus: userBonusInfo
       }
     });
