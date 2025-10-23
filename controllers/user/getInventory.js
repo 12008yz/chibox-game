@@ -51,6 +51,12 @@ async function getInventory(req, res) {
           required: false // Для обычных предметов case_template будет null
         },
         {
+          model: db.Case,
+          as: 'case',
+          required: false, // LEFT JOIN для получения template_id из кейса
+          attributes: ['id', 'template_id']
+        },
+        {
           model: db.Withdrawal,
           as: 'withdrawal',
           required: false // LEFT JOIN для проверки статуса withdrawal
@@ -86,7 +92,8 @@ async function getInventory(req, res) {
       status: item.status,
       case_id: item.case_id,
       withdrawal: item.withdrawal,
-      case_template_id: item.case_template_id,
+      // Для предметов из кейсов получаем case_template_id через связь case.template_id
+      case_template_id: item.case_template_id || (item.case ? item.case.template_id : null),
       item_id: item.item_id,
       transaction_date: item.transaction_date,
       expires_at: item.expires_at

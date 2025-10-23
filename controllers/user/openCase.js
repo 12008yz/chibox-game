@@ -469,14 +469,16 @@ async function openCase(req, res) {
       await userCase.reload({ transaction: t });
       logger.info(`Кейс ${caseId} после обновления: is_opened=${userCase.is_opened}, opened_date=${userCase.opened_date}, result_item_id=${userCase.result_item_id}`);
 
+      // Добавляем предмет в инвентарь
+      // Примечание: case_template_id должен быть null для item_type='item' согласно валидации модели
+      // Информация о шаблоне кейса доступна через case_id -> Cases.template_id
       await db.UserInventory.create({
         user_id: userId,
         item_id: selectedItem.id,
         source: 'case',
         status: 'inventory',
         case_id: userCase.id,
-        item_type: 'item',
-        case_template_id: userCase.template_id
+        item_type: 'item'
       }, { transaction: t });
 
       // Записываем выпавший предмет для всех пользователей
@@ -872,14 +874,15 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       }, { transaction: t });
 
       // Добавляем предмет в инвентарь
+      // Примечание: case_template_id должен быть null для item_type='item' согласно валидации модели
+      // Информация о шаблоне кейса доступна через case_id -> Cases.template_id
       await db.UserInventory.create({
         user_id: userId,
         item_id: selectedItem.id,
         source: 'case',
         status: 'inventory',
         case_id: newCase.id,
-        item_type: 'item',
-        case_template_id: inventoryCase.case_template_id
+        item_type: 'item'
       }, { transaction: t });
 
       // Записываем выпавший предмет для всех пользователей
