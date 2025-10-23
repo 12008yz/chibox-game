@@ -36,11 +36,21 @@ async function getPublicProfile(req, res) {
         user_id: id,
         status: 'inventory'
       },
+      attributes: [
+        'id', 'item_type', 'item_id', 'acquisition_date', 'source',
+        'status', 'case_id', 'case_template_id', 'transaction_date', 'expires_at'
+      ],
       include: [
         {
           model: db.Item,
           as: 'item',
           attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
+        },
+        {
+          model: db.Case,
+          as: 'case',
+          required: false, // LEFT JOIN для получения template_id из кейса
+          attributes: ['id', 'template_id']
         }
       ],
       order: [['acquisition_date', 'DESC']],
@@ -66,11 +76,21 @@ async function getPublicProfile(req, res) {
         user_id: id,
         source: 'case'
       },
+      attributes: [
+        'id', 'item_type', 'item_id', 'acquisition_date', 'source',
+        'status', 'case_id', 'case_template_id', 'transaction_date', 'expires_at'
+      ],
       include: [
         {
           model: db.Item,
           as: 'item',
           attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
+        },
+        {
+          model: db.Case,
+          as: 'case',
+          required: false, // LEFT JOIN для получения template_id из кейса
+          attributes: ['id', 'template_id']
         }
       ],
       order: [['acquisition_date', 'DESC']],
@@ -107,10 +127,40 @@ async function getPublicProfile(req, res) {
     });
 
     // Фильтруем инвентарь, удаляя записи с отсутствующими предметами
-    const filteredInventory = inventory.filter(inventoryItem => inventoryItem.item !== null);
+    const filteredInventory = inventory
+      .filter(inventoryItem => inventoryItem.item !== null)
+      .map(item => ({
+        id: item.id,
+        item_type: item.item_type,
+        item: item.item,
+        acquisition_date: item.acquisition_date,
+        source: item.source,
+        status: item.status,
+        case_id: item.case_id,
+        // Для предметов из кейсов получаем case_template_id через связь case.template_id
+        case_template_id: item.case_template_id || (item.case ? item.case.template_id : null),
+        item_id: item.item_id,
+        transaction_date: item.transaction_date,
+        expires_at: item.expires_at
+      }));
 
     // Фильтруем предметы из кейсов, удаляя записи с отсутствующими предметами
-    const filteredCaseItems = allCaseItems.filter(inventoryItem => inventoryItem.item !== null);
+    const filteredCaseItems = allCaseItems
+      .filter(inventoryItem => inventoryItem.item !== null)
+      .map(item => ({
+        id: item.id,
+        item_type: item.item_type,
+        item: item.item,
+        acquisition_date: item.acquisition_date,
+        source: item.source,
+        status: item.status,
+        case_id: item.case_id,
+        // Для предметов из кейсов получаем case_template_id через связь case.template_id
+        case_template_id: item.case_template_id || (item.case ? item.case.template_id : null),
+        item_id: item.item_id,
+        transaction_date: item.transaction_date,
+        expires_at: item.expires_at
+      }));
 
     // Определяем лучшее оружие за ВСЁ ВРЕМЯ на основе сохраненного значения best_item_value
     let bestWeapon = null;
