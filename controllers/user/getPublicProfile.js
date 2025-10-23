@@ -15,8 +15,11 @@ const logger = winston.createLogger({
 async function getPublicProfile(req, res) {
   try {
     const { id } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 24;
+    const offset = (page - 1) * limit;
 
-    // Получаем пользователя с инвентарем (убираем лимит, возвращаем все предметы)
+    // Получаем пользователя
     const user = await db.User.findByPk(id, {
       attributes: [
         'id', 'username', 'createdAt', 'level', 'subscription_tier',
@@ -24,26 +27,28 @@ async function getPublicProfile(req, res) {
         'achievements_bonus_percentage', 'subscription_bonus_percentage',
         'level_bonus_percentage', 'total_drop_bonus_percentage',
         'best_item_value', 'total_items_value', 'daily_streak', 'max_daily_streak'
-      ],
-      include: [
-        {
-          model: db.UserInventory,
-          as: 'inventory',
-          where: { status: 'inventory' },
-          required: false,
-          // Убираем лимит - возвращаем ВСЕ предметы
-          include: [
-            {
-              model: db.Item,
-              as: 'item',
-              attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
-            }
-          ]
-        }
       ]
     });
 
-    // Получаем ВСЕ предметы пользователя (включая проданные, обмененные и т.д.) для вычисления лучшего оружия и общей стоимости
+    // Получаем инвентарь с пагинацией
+    const { count: inventoryCount, rows: inventory } = await db.UserInventory.findAndCountAll({
+      where: {
+        user_id: id,
+        status: 'inventory'
+      },
+      include: [
+        {
+          model: db.Item,
+          as: 'item',
+          attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
+        }
+      ],
+      order: [['acquisition_date', 'DESC']],
+      limit,
+      offset
+    });
+
+    // Получаем ВСЕ предметы пользователя только для вычисления лучшего оружия и общей стоимости
     const allUserItems = await db.UserInventory.findAll({
       where: { user_id: id },
       include: [
@@ -55,8 +60,8 @@ async function getPublicProfile(req, res) {
       ]
     });
 
-    // Получаем ВСЕ предметы полученные из кейсов (включая проданные, выведенные и т.д.)
-    const allCaseItems = await db.UserInventory.findAll({
+    // Получаем предметы из кейсов с пагинацией
+    const { count: caseItemsCount, rows: allCaseItems } = await db.UserInventory.findAndCountAll({
       where: {
         user_id: id,
         source: 'case'
@@ -68,7 +73,9 @@ async function getPublicProfile(req, res) {
           attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
         }
       ],
-      order: [['acquisition_date', 'DESC']]
+      order: [['acquisition_date', 'DESC']],
+      limit,
+      offset
     });
 
     if (!user) {
@@ -100,17 +107,10 @@ async function getPublicProfile(req, res) {
     });
 
     // Фильтруем инвентарь, удаляя записи с отсутствующими предметами
-    let filteredInventory = [];
-    if (user.inventory && user.inventory.length > 0) {
-      // Фильтруем только предметы, которые действительно существуют
-      filteredInventory = user.inventory.filter(inventoryItem => inventoryItem.item !== null);
-    }
+    const filteredInventory = inventory.filter(inventoryItem => inventoryItem.item !== null);
 
     // Фильтруем предметы из кейсов, удаляя записи с отсутствующими предметами
-    let filteredCaseItems = [];
-    if (allCaseItems && allCaseItems.length > 0) {
-      filteredCaseItems = allCaseItems.filter(inventoryItem => inventoryItem.item !== null);
-    }
+    const filteredCaseItems = allCaseItems.filter(inventoryItem => inventoryItem.item !== null);
 
     // Определяем лучшее оружие за ВСЁ ВРЕМЯ на основе сохраненного значения best_item_value
     let bestWeapon = null;
@@ -217,7 +217,21 @@ async function getPublicProfile(req, res) {
         subscriptionStatus: getSubscriptionStatus(user.subscription_tier),
         totalCasesOpened: totalCasesOpened,
         inventory: filteredInventory,
-        caseItems: filteredCaseItems, // Все предметы из кейсов (включая проданные/выведенные)
+        inventoryPagination: {
+          total: inventoryCount,
+          page: page,
+          limit: limit,
+          totalPages: Math.ceil(inventoryCount / limit),
+          hasMore: page < Math.ceil(inventoryCount / limit)
+        },
+        caseItems: filteredCaseItems, // Предметы из кейсов с пагинацией
+        caseItemsPagination: {
+          total: caseItemsCount,
+          page: page,
+          limit: limit,
+          totalPages: Math.ceil(caseItemsCount / limit),
+          hasMore: page < Math.ceil(caseItemsCount / limit)
+        },
         bestWeapon: bestWeapon,
         bestItemValue: user.best_item_value || 0, // Всегда используем сохранённое значение из базы
         totalItemsValue: totalItemsValue, // Используем вычисленное значение

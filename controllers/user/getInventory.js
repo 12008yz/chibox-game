@@ -128,8 +128,13 @@ async function getInventory(req, res) {
         totalCases: activeCases.length, // Активные кейсы для совместимости
         allItems: formattedItems.length, // Общее количество всех предметов
         allCases: formattedCases.length, // Общее количество всех кейсов
-        currentPage: page,
-        totalPages: Math.ceil(inventoryItems.length / limit)
+        pagination: {
+          page: page,
+          limit: limit,
+          total: count,
+          totalPages: Math.ceil(count / limit),
+          hasMore: page < Math.ceil(count / limit)
+        }
       }
     });
   } catch (error) {
