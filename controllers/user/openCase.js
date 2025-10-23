@@ -475,7 +475,8 @@ async function openCase(req, res) {
         source: 'case',
         status: 'inventory',
         case_id: userCase.id,
-        item_type: 'item'
+        item_type: 'item',
+        case_template_id: userCase.template_id
       }, { transaction: t });
 
       // Записываем выпавший предмет для всех пользователей
@@ -877,7 +878,8 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
         source: 'case',
         status: 'inventory',
         case_id: newCase.id,
-        item_type: 'item'
+        item_type: 'item',
+        case_template_id: inventoryCase.case_template_id
       }, { transaction: t });
 
       // Записываем выпавший предмет для всех пользователей
