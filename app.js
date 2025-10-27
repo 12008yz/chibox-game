@@ -19,7 +19,9 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Защитные миддлвары
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 
 // Добавляем compression middleware для сжатия ответов
 app.use(compression());
@@ -55,6 +57,16 @@ app.set('view engine', 'pug');
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
+
+// Добавляем CORS заголовки для статических файлов
+app.use('/images', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Сессии для Passport
