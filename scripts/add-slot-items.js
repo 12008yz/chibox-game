@@ -2,18 +2,21 @@ const db = require('../models');
 
 // 🎯 ПРОСТО ДОБАВЬТЕ ID ПРЕДМЕТОВ СЮДА:
 const ITEM_IDS = [
-  '00bd1077-1a17-400f-8f82-4bdb55cbecf9', // StatTrak™ MP5-SD | Liquidation (Battle-Scarred)
-  '01cfa208-af21-443d-bba4-53c5c9e99bb7', // M249 | Contrast Spray (Battle-Scarred)
-  '06031971-5358-4e6b-8ba0-eb2e4d95bea4', // Souvenir FAMAS | Faulty Wiring (Field-Tested)
-  '0ac99b5c-f1ef-464c-a056-18832ee56701', // UMP-45 | Green Swirl (Battle-Scarred)
-  '115c1bf4-4acf-4af8-af2b-2251918b3245', // AK-47 | Safari Mesh (Well-Worn)
-  '13d1f941-1a7d-482f-bd9d-28ab78ad8b22', // Little Kev | The Professionals
-  '13f5f792-6fa7-4e55-8e88-76bcecc905fd', // StatTrak™ USP-S | 27 (Field-Tested)
-  '15802d9f-4360-43b8-997e-92107e8ba291', // SG 553 | Basket Halftone (Minimal Wear)
-  '1688c661-f11c-4983-9dee-e1d7c865ddcd', // ★ Driver Gloves | King Snake (Field-Tested)
+  // Дешевые (1-12₽) - часто выпадают
+  '58e2cd94-f365-427e-b823-c6bcc1cafc6b', // UMP-45 | Green Swirl (Battle-Scarred) - 2.29₽
+  '4f80b633-2c6c-45bb-80b0-fad7620b7ad0', // Tec-9 | Army Mesh (Battle-Scarred) - 2.35₽
+  '1a2b00f4-af5a-4b74-9cd0-f1612878cf70', // Souvenir SG 553 | Bleached (Well-Worn) - 4.03₽
+  '1709210e-1538-4f68-a4f1-f1d2356c79d9', // Desert Eagle | Mudder (Battle-Scarred) - 8.57₽
+  '186e14ff-00fc-4b27-8592-5bd73be6c861', // P2000 | Granite Marbleized (Well-Worn) - 11.12₽
 
-  // 👇 ДОБАВЛЯЙТЕ НОВЫЕ ID ЗДЕСЬ:
+  // Средние (12-300₽) - редкие выигрыши
+  '02831efb-7cdd-475f-958f-04e74a5d10c1', // StatTrak™ Tec-9 | Rebel (Well-Worn) - 14.53₽
+  '028d19f1-385e-48d4-a7b9-3aa23250fdfa', // Zeus x27 | Electric Blue (Minimal Wear) - 37.48₽
+  '1eb4e984-d098-4444-8a10-2bd0cb4f8689', // FAMAS | Cyanospatter (Factory New) - 111.20₽
+  '08b34ebf-eddf-4ab2-b1e6-8ca688fe2f6a', // XM1014 | Jungle (Battle-Scarred) - 270.45₽
 
+  // Дорогой (500+₽) - джекпот
+  '036dc064-4df6-4cba-a7a8-89460c03b7c3', // P2000 | Handgun (Factory New) - 693.53₽
 ];
 
 /**
