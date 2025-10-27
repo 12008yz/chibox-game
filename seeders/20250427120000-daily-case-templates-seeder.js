@@ -8,7 +8,7 @@ module.exports = {
         id: '11111111-1111-1111-1111-111111111111',
         name: 'Ежедневный кейс - Бесплатный',
         description: 'Ежедневный кейс для пользователей без подписки',
-        image_url: '../public/images/cases/free.png',
+        image_url: '/images/cases/free.png',
         type: 'daily',
         min_subscription_tier: 0,
         cooldown_hours: 0.003, // ~10 секунд (было 24 часа)
