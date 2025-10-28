@@ -94,21 +94,7 @@ async function buyCase(req, res) {
           inventoryCases.push(inventoryCase);
         }
 
-        // Создаем уведомление
-        await db.Notification.create({
-          user_id: userId,
-          title: 'Покупка кейсов',
-          message: `Вы успешно купили ${allowedQuantity} кейс(ов) за ${totalPrice}₽`,
-          type: 'success',
-          category: 'transaction',
-          link: '/cases',
-          importance: 3,
-          data: {
-            quantity: allowedQuantity,
-            price: totalPrice,
-            inventory_case_ids: inventoryCases.map(c => c.id)
-          }
-        }, { transaction });
+        // Уведомление о покупке кейсов убрано - настройки пользователя
 
         // Фиксируем транзакцию
         await transaction.commit();

@@ -101,20 +101,7 @@ async function giveDailyCaseToUser(userId, subscriptionTier) {
             expires_at: expiresAt
           }, { transaction });
 
-          // Создаем уведомление о получении кейса
-          await db.Notification.create({
-            user_id: userId,
-            title: 'Новый кейс!',
-            message: `Вы получили ежедневный кейс: ${template.name}`,
-            type: 'success',
-            category: 'case_opening',
-            link: '/inventory',
-            importance: 2,
-            data: {
-              case_template_id: template.id,
-              subscription_tier: subscriptionTier
-            }
-          }, { transaction });
+          // Уведомление о получении ежедневного кейса убрано - настройки пользователя
         }
       }
     });
@@ -153,21 +140,7 @@ async function addCaseToInventory(userId, caseTemplateId, source = 'system', exp
     expires_at: expiresAt
   });
 
-  // Создаем уведомление
-  await db.Notification.create({
-    user_id: userId,
-    title: 'Новый кейс получен!',
-    message: `Вы получили кейс: ${caseTemplate.name}`,
-    type: 'success',
-    category: 'case_opening',
-    link: '/inventory',
-    importance: 2,
-    data: {
-      case_template_id: caseTemplateId,
-      source: source,
-      inventory_case_id: inventoryCase.id
-    }
-  });
+  // Уведомление о получении кейса убрано - настройки пользователя
 
   return inventoryCase;
 }
@@ -233,8 +206,8 @@ async function removeExpiredCases(userId = null) {
     expiredCase.transaction_date = new Date();
     await expiredCase.save();
 
-    // Уведомляем пользователя об истечении кейса
-    await db.Notification.create({
+     // Уведомляем пользователя об истечении кейса
+     await db.Notification.create({
       user_id: expiredCase.user_id,
       title: 'Кейс просрочен',
       message: `Срок действия кейса "${expiredCase.case_template?.name || 'Неизвестный кейс'}" истек`,
