@@ -172,6 +172,21 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
     } else if (requirementType === 'daily_streak') {
       // Для ежедневного стрика берем текущее значение стрика (не накапливаем)
       newProgress = Math.max(userAchievement.current_progress, progressToAdd);
+    } else if (requirementType === 'level_reached') {
+      // Для уровня берем текущий уровень пользователя (не накапливаем)
+      const user = await db.User.findByPk(userId, { attributes: ['level'] });
+      newProgress = user ? user.level : 0;
+    } else if (requirementType === 'case_opening_streak' || requirementType === 'epic_streak') {
+      // Для серий берем максимальное значение (не накапливаем)
+      newProgress = Math.max(userAchievement.current_progress, progressToAdd);
+    } else if (requirementType === 'total_sold_value') {
+      // Для общей стоимости продаж накапливаем
+      newProgress = userAchievement.current_progress + progressToAdd;
+    } else if (requirementType === 'night_case_opened' || requirementType === 'early_epic_item' ||
+               requirementType === 'legendary_item_found' || requirementType === 'roulette_jackpot' ||
+               requirementType === 'upgrade_success') {
+      // Для разовых достижений просто отмечаем выполнение
+      newProgress = progressToAdd > 0 ? 1 : userAchievement.current_progress;
     } else {
       // Для остальных типов просто добавляем
       newProgress = userAchievement.current_progress + progressToAdd;
@@ -187,17 +202,17 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
         // Применение бонуса к шансу выпадения дорогих предметов
         const user = await db.User.findByPk(userId);
         const currentAchievementsBonus = user.achievements_bonus_percentage || 0;
-        // Убираем ограничение на 5% и увеличиваем до 25%
-        const newAchievementsBonus = Math.min(currentAchievementsBonus + achievement.bonus_percentage, 25.0);
+        // Максимальный бонус от достижений: 17%
+        const newAchievementsBonus = Math.min(currentAchievementsBonus + achievement.bonus_percentage, 17.0);
 
         user.achievements_bonus_percentage = newAchievementsBonus;
 
-        // Пересчитываем общий бонус с ограничением 30%
+        // Пересчитываем общий бонус с ограничением 25%
         user.total_drop_bonus_percentage = Math.min(
           newAchievementsBonus +
           (user.level_bonus_percentage || 0) +
           (user.subscription_bonus_percentage || 0),
-          30.0
+          25.0
         );
 
         await user.save();

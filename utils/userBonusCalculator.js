@@ -48,11 +48,11 @@ async function updateUserBonuses(userId) {
     user.subscription_bonus_percentage = subscriptionBonus;
 
     // Бонус от достижений уже должен быть установлен в achievementService
-    // Ограничиваем максимальный бонус от достижений до 10%
-    const achievementsBonus = Math.min(user.achievements_bonus_percentage || 0, 10.0);
+    // Ограничиваем максимальный бонус от достижений до 17%
+    const achievementsBonus = Math.min(user.achievements_bonus_percentage || 0, 17.0);
 
-    // Рассчитываем общий бонус (максимум 20%)
-    const totalBonus = Math.min(achievementsBonus + levelBonus + subscriptionBonus, 20.0);
+    // Рассчитываем общий бонус (максимум 25%)
+    const totalBonus = Math.min(achievementsBonus + levelBonus + subscriptionBonus, 25.0);
     user.total_drop_bonus_percentage = totalBonus;
 
     await user.save();
@@ -87,10 +87,10 @@ async function updateLevelBonus(userId, newLevel) {
     user.level_bonus_percentage = newLevelBonus;
 
     // Пересчитываем общий бонус с ограничениями
-    const achievementsBonus = Math.min(user.achievements_bonus_percentage || 0, 10.0);
+    const achievementsBonus = Math.min(user.achievements_bonus_percentage || 0, 17.0);
     user.total_drop_bonus_percentage = Math.min(
         achievementsBonus + newLevelBonus + (user.subscription_bonus_percentage || 0),
-        20.0
+        25.0
     );
 
     await user.save();
@@ -125,10 +125,10 @@ async function updateSubscriptionBonus(userId, subscriptionTier) {
     user.subscription_bonus_percentage = newSubscriptionBonus;
 
     // Пересчитываем общий бонус с ограничениями
-    const achievementsBonus = Math.min(user.achievements_bonus_percentage || 0, 10.0);
+    const achievementsBonus = Math.min(user.achievements_bonus_percentage || 0, 17.0);
     user.total_drop_bonus_percentage = Math.min(
         achievementsBonus + (user.level_bonus_percentage || 0) + newSubscriptionBonus,
-        20.0
+        25.0
     );
 
     await user.save();

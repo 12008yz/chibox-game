@@ -36,7 +36,18 @@ module.exports = (sequelize) => {
         'subscription_days',      // Дни с активной подпиской
         'daily_streak',           // Дни подряд с открытием кейса
         'total_items_value',      // Общая стоимость предметов
-        'best_item_value'         // Самый дорогой предмет
+        'best_item_value',        // Самый дорогой предмет
+        'exchange_item',          // Обмен предметов на подписку
+        'slot_plays',             // Количество игр в слоты
+        'legendary_item_found',   // Получение легендарного предмета
+        'total_sold_value',       // Общая стоимость проданных предметов
+        'upgrade_success',        // Успешные улучшения предметов
+        'level_reached',          // Достижение уровня
+        'roulette_jackpot',       // Выигрыш джекпота в рулетке
+        'night_case_opened',      // Открытие кейса ночью (2:00-4:00)
+        'early_epic_item',        // Epic предмет из первых 5 кейсов
+        'epic_streak',            // Серия редких предметов подряд
+        'case_opening_streak'     // Серия дней открытия кейсов
       ),
       allowNull: false,
       comment: "Тип требования для получения достижения"
