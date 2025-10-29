@@ -70,6 +70,10 @@ async function sellItem(req, res) {
       // Update achievement progress for sell item (после коммита)
       await updateUserAchievementProgress(userId, 'sell_item', 1);
 
+      // Обновляем достижение для общей суммы продаж
+      await updateUserAchievementProgress(userId, 'total_sold_value', sellPrice);
+      logger.info(`Обновлено достижение total_sold_value для пользователя ${userId}: ${sellPrice}`);
+
       // Добавление опыта за продажу предмета (после коммита)
       await addExperience(userId, 15, 'sell_item', null, 'Продажа предмета');
 

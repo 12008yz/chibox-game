@@ -469,6 +469,23 @@ const playSlot = async (req, res) => {
 
     await transaction.commit();
 
+    // Обновляем достижения после успешной игры
+    try {
+      const { updateUserAchievementProgress } = require('../../services/achievementService');
+
+      // Обновляем счетчик игр в слоты
+      await updateUserAchievementProgress(userId, 'slot_plays', 1);
+      logger.info(`Обновлено достижение slot_plays для пользователя ${userId}`);
+
+      // Если выиграл джекпот (дорогой предмет), обновляем достижение
+      if (isWin && wonItem && wonItem.price >= 1000) {
+        await updateUserAchievementProgress(userId, 'roulette_jackpot', 1);
+        logger.info(`Обновлено достижение roulette_jackpot для пользователя ${userId} (выиграл ${wonItem.name} за ${wonItem.price})`);
+      }
+    } catch (achievementError) {
+      logger.error('Ошибка обновления достижений:', achievementError);
+    }
+
     logger.info(`User ${userId} played slot: ${isWin ? 'WIN' : 'LOSE'}, balance: ${balanceBefore} -> ${balanceAfter}`);
 
     res.json({

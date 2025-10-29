@@ -640,6 +640,55 @@ async function openCase(req, res) {
       await updateInventoryRelatedAchievements(userId);
       logger.info(`Обновлены достижения инвентаря для пользователя ${userId}`);
 
+      // 7. Проверяем ночное открытие кейса (2:00-4:00)
+      const openTime = new Date();
+      const hours = openTime.getHours();
+      if (hours >= 2 && hours < 4) {
+        await updateUserAchievementProgress(userId, 'night_case_opened', 1);
+        logger.info(`Обновлено достижение night_case_opened для пользователя ${userId}`);
+      }
+
+      // 8. Проверяем Epic предмет из первых 5 кейсов
+      const totalCasesOpened = user.total_cases_opened || 0;
+      if (totalCasesOpened <= 5 && ['epic', 'legendary', 'covert', 'contraband'].includes(itemRarity)) {
+        await updateUserAchievementProgress(userId, 'early_epic_item', 1);
+        logger.info(`Обновлено достижение early_epic_item для пользователя ${userId}`);
+      }
+
+      // 9. Проверяем легендарный предмет
+      if (['legendary', 'contraband'].includes(itemRarity)) {
+        await updateUserAchievementProgress(userId, 'legendary_item_found', 1);
+        logger.info(`Обновлено достижение legendary_item_found для пользователя ${userId}`);
+      }
+
+      // 10. Проверяем серию Epic+ предметов (epic_streak)
+      // Получаем последние 5 открытых кейсов пользователя
+      const recentCases = await db.Case.findAll({
+        where: {
+          user_id: userId,
+          is_opened: true
+        },
+        include: [{
+          model: db.Item,
+          as: 'result_item',
+          attributes: ['rarity']
+        }],
+        order: [['opened_date', 'DESC']],
+        limit: 5
+      });
+
+      if (recentCases.length === 5) {
+        const allEpicOrBetter = recentCases.every(c => {
+          const rarity = c.result_item?.rarity?.toLowerCase();
+          return ['epic', 'legendary', 'covert', 'contraband'].includes(rarity);
+        });
+
+        if (allEpicOrBetter) {
+          await updateUserAchievementProgress(userId, 'epic_streak', 1);
+          logger.info(`Обновлено достижение epic_streak для пользователя ${userId}`);
+        }
+      }
+
     } catch (achievementError) {
       logger.error('Ошибка обновления достижений:', achievementError);
     }

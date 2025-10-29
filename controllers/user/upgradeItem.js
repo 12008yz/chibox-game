@@ -266,6 +266,12 @@ async function performUpgrade(req, res) {
       try {
         await updateUserAchievementProgress(userId, 'upgrade_item', 1);
 
+        // Проверяем достижение для успешного апгрейда с вероятностью <10%
+        if (finalSuccessChance < 10) {
+          await updateUserAchievementProgress(userId, 'upgrade_success', 1);
+          logger.info(`Обновлено достижение upgrade_success для пользователя ${userId} (шанс был ${finalSuccessChance.toFixed(1)}%)`);
+        }
+
         // Больше опыта за успешный апгрейд с несколькими предметами
         const expReward = 25 + (sourceInventoryItems.length * 5);
         await addExperience(userId, expReward, 'upgrade_success', null, `Успешный апгрейд ${sourceInventoryItems.length} предметов`);
