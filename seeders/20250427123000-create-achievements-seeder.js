@@ -351,7 +351,7 @@ module.exports = {
         name: 'Ночной игрок',
         description: 'Откройте кейс между 2:00 и 4:00 ночью',
         xp_reward: 400,
-        icon_url: '/Achievements/generated_image_20251029142302-no-bg-preview.png',
+        icon_url: '/Achievements/Ночной игрок.png',
         requirement_type: 'night_case_opened',
         requirement_value: 1,
         bonus_percentage: 0.5,
