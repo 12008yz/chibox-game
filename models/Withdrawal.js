@@ -18,7 +18,7 @@ module.exports = (sequelize) => {
       comment: "ID пользователя, запросившего вывод предметов"
     },
     status: {
-      type: DataTypes.ENUM('pending', 'queued', 'processing', 'waiting_confirmation', 'completed', 'failed', 'cancelled', 'rejected', 'expired', 'direct_trade_pending', 'direct_trade_sent'),
+      type: DataTypes.ENUM('pending', 'queued', 'processing', 'waiting_confirmation', 'completed', 'failed', 'cancelled', 'rejected', 'expired', 'direct_trade_pending', 'direct_trade_sent', 'searching_on_playerok', 'found_on_playerok', 'purchasing_on_playerok', 'purchased_on_playerok', 'trade_sent_to_user', 'waiting_user_accept'),
       defaultValue: 'pending',
       comment: "Статус запроса на вывод предметов"
     },
@@ -196,6 +196,68 @@ module.exports = (sequelize) => {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
       comment: "Тестовый запрос (не учитывается в статистике)"
+    },
+    // PlayerOk арбитраж поля
+    playerok_order_id: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      comment: "ID заказа на PlayerOk"
+    },
+    playerok_price: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Цена покупки на PlayerOk (без комиссии)"
+    },
+    playerok_fee: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Комиссия PlayerOk (обычно 5%)"
+    },
+    playerok_total_cost: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Полная стоимость на PlayerOk (цена + комиссия)"
+    },
+    steam_market_price: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Актуальная цена Steam Market на момент покупки"
+    },
+    chibox_item_price: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Цена предмета в ChiBox для пользователя"
+    },
+    arbitrage_profit: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: "Прибыль с арбитража (разница между ChiBox и PlayerOk)"
+    },
+    arbitrage_margin_percent: {
+      type: DataTypes.DECIMAL(5, 2),
+      allowNull: true,
+      comment: "Процент маржи арбитража"
+    },
+    playerok_seller: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      comment: "Продавец на PlayerOk"
+    },
+    playerok_item_url: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: "URL предмета на PlayerOk"
+    },
+    alternative_items_offered: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: "JSON список альтернативных предметов (если оригинал не найден)"
+    },
+    purchase_method: {
+      type: DataTypes.ENUM('steam_bot', 'playerok_arbitrage', 'manual'),
+      allowNull: true,
+      defaultValue: 'steam_bot',
+      comment: "Метод вывода предмета: через Steam бота или PlayerOk арбитраж"
     }
   }, {
     timestamps: true,

@@ -84,6 +84,27 @@ module.exports = {
       log_file: "./logs/daily-cases.log",
       time: true,
       merge_logs: true
+    },
+
+    // PlayerOk арбитраж бот
+    {
+      name: "chibox-playerok-bot",
+      script: "./scripts/playerok-arbitrage.js",
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "1G", // Puppeteer может использовать много памяти
+      env: {
+        NODE_ENV: "production"
+      },
+      env_development: {
+        NODE_ENV: "development"
+      },
+      error_file: "./logs/playerok-error.log",
+      out_file: "./logs/playerok-out.log",
+      log_file: "./logs/playerok.log",
+      time: true,
+      merge_logs: true
     }
   ],
 

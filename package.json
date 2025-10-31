@@ -19,7 +19,9 @@
     "system:logs": "pm2 logs",
     "system:monit": "pm2 monit",
     "cron:start": "node ./scripts/setup-cron-improved.js",
-    "cron:legacy": "node ./scripts/setup-cron.js"
+    "cron:legacy": "node ./scripts/setup-cron.js",
+    "playerok:start": "node ./scripts/playerok-arbitrage.js",
+    "playerok:dev": "nodemon ./scripts/playerok-arbitrage.js"
   },
   "dependencies": {
     "@fastify/csrf-protection": "^6.0.0",
@@ -52,6 +54,8 @@
     "playwright-core": "^1.52.0",
     "pug": "^3.0.3",
     "puppeteer": "^24.9.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "redis": "^5.1.1",
     "sequelize": "^6.37.7",
     "socket.io": "^4.8.1",
