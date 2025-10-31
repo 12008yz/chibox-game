@@ -149,7 +149,10 @@ class WithdrawalProcessor {
               ]
             }
           ],
-          order: [['request_date', 'ASC']],
+          order: [
+            ['priority', 'DESC'],      // Сначала по приоритету (выше число = выше приоритет)
+            ['request_date', 'ASC']    // Затем по дате (старые первыми)
+          ],
           limit: CONFIG.MAX_WITHDRAWALS_PER_CYCLE
         });
 
