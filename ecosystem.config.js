@@ -86,10 +86,10 @@ module.exports = {
       merge_logs: true
     },
 
-    // PlayerOk арбитраж бот
+    // Unified Withdrawal Processor (Steam Bot + PlayerOk Arbitrage)
     {
-      name: "chibox-playerok-bot",
-      script: "./scripts/playerok-arbitrage.js",
+      name: "chibox-withdrawal-processor",
+      script: "./scripts/withdrawal-processor.js",
       instances: 1,
       autorestart: true,
       watch: false,
@@ -100,9 +100,9 @@ module.exports = {
       env_development: {
         NODE_ENV: "development"
       },
-      error_file: "./logs/playerok-error.log",
-      out_file: "./logs/playerok-out.log",
-      log_file: "./logs/playerok.log",
+      error_file: "./logs/withdrawal-processor-error.log",
+      out_file: "./logs/withdrawal-processor-out.log",
+      log_file: "./logs/withdrawal-processor.log",
       time: true,
       merge_logs: true
     }

@@ -176,12 +176,12 @@ class PlayerOkArbitrageBot {
         logger.info(`💵 Цена Steam: ${steamPrice}₽`);
 
         // 2. Ищем предмет на PlayerOk
-        const playerokOffers = await this.playerokBot.searchItem(
+        const bestOffer = await this.playerokBot.searchItem(
           item.name,
           Math.max(steamPrice, item.price) // Ищем не дороже максимума из Steam/ChiBox
         );
 
-        if (playerokOffers.length === 0) {
+        if (!bestOffer) {
           logger.warn(`⚠️ Предмет не найден на PlayerOk или слишком дорогой`);
 
           // Ищем альтернативы
@@ -190,8 +190,7 @@ class PlayerOkArbitrageBot {
         }
 
         // 3. Берём лучшее предложение
-        const bestOffer = playerokOffers[0];
-        logger.info(`🏆 Лучшее предложение: ${bestOffer.price}₽ от ${bestOffer.seller}`);
+        logger.info(`🏆 Лучшее предложение: ${bestOffer.price}₽`);
 
         // 4. Сравниваем цены
         const comparison = this.playerokBot.comparePrices(
@@ -216,20 +215,26 @@ class PlayerOkArbitrageBot {
           );
 
           if (purchaseResult.success) {
-            logger.info(`✅ Покупка успешна! Заказ: ${purchaseResult.order_number}`);
+            logger.info(`✅ Покупка успешна! Chat ID: ${purchaseResult.chat_id}`);
+            logger.info(`🔗 Chat URL: ${purchaseResult.chat_url}`);
 
-            // Отправляем Trade URL в чат продавца
-            if (purchaseResult.order_number) {
-              await this.playerokBot.sendTradeUrlToSeller(
-                purchaseResult.order_number,
-                withdrawal.steam_trade_url || withdrawal.user.steam_trade_url
-              );
-            }
+            // Trade URL уже отправлен в purchaseItem, но можно отправить повторно если нужно
+            // await this.playerokBot.sendTradeUrlToSeller(purchaseResult.chat_id, withdrawal.steam_trade_url || withdrawal.user.steam_trade_url);
 
             // Обновляем withdrawal
             await withdrawal.update({
-              status: 'processing', // Ждём пока продавец отправит трейд
-              admin_notes: `PlayerOk заказ: ${purchaseResult.order_number}. Цена: ${bestOffer.price}₽. Прибыль: ${comparison.profit_vs_chibox.toFixed(2)}₽`
+              status: 'purchased_on_playerok', // Статус покупки на PlayerOk
+              playerok_order_id: purchaseResult.chat_id,
+              playerok_price: bestOffer.price,
+              playerok_fee: comparison.playerok_fee,
+              playerok_total_cost: comparison.total_cost,
+              steam_market_price: steamPrice,
+              chibox_item_price: item.price,
+              arbitrage_profit: comparison.profit_vs_chibox,
+              arbitrage_margin_percent: comparison.margin_percent,
+              playerok_item_url: bestOffer.url,
+              purchase_method: 'playerok_arbitrage',
+              admin_notes: `PlayerOk покупка: Chat ${purchaseResult.chat_id}. Цена: ${bestOffer.price}₽ + ${comparison.playerok_fee.toFixed(2)}₽ комиссия. Прибыль: ${comparison.profit_vs_chibox.toFixed(2)}₽ (${comparison.margin_percent}%)`
             });
 
             logger.info(`✅ Withdrawal обновлён, ожидаем отправку трейда от продавца`);
