@@ -17,6 +17,7 @@ const logger = winston.createLogger({
 });
 
 async function withdrawItem(req, res) {
+  const transaction = await db.sequelize.transaction();
   let inventoryItem = null;
   let withdrawal = null;
 
@@ -33,22 +34,26 @@ async function withdrawItem(req, res) {
       // Старый формат: передается item_id, берем первый доступный экземпляр
       searchCriteria = { user_id: userId, item_id: itemId, status: 'inventory' };
     } else {
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: 'Необходимо указать itemId или inventoryItemId'
       });
     }
 
-    // Проверяем, есть ли предмет в инвентаре пользователя
+    // Проверяем, есть ли предмет в инвентаре пользователя с блокировкой
     inventoryItem = await db.UserInventory.findOne({
       where: searchCriteria,
       include: [{
         model: db.Item,
         as: 'item'
-      }]
+      }],
+      transaction,
+      lock: transaction.LOCK.UPDATE
     });
 
     if (!inventoryItem) {
+      await transaction.rollback();
       return res.status(404).json({ success: false, message: 'Предмет не найден в инвентаре' });
     }
 
@@ -67,10 +72,12 @@ async function withdrawItem(req, res) {
         model: db.UserInventory,
         as: 'items',
         where: { id: inventoryItem.id } // Проверяем конкретный экземпляр, а не item_id
-      }]
+      }],
+      transaction
     });
 
     if (existingWithdrawal) {
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: 'На этот экземпляр предмета уже создана заявка на вывод',
@@ -83,8 +90,9 @@ async function withdrawItem(req, res) {
     }
 
     // Получаем данные пользователя для проверки подписки и Steam Trade URL
-    const user = await db.User.findByPk(userId);
+    const user = await db.User.findByPk(userId, { transaction });
     if (!user) {
+      await transaction.rollback();
       return res.status(404).json({
         success: false,
         message: 'Пользователь не найден'
@@ -116,6 +124,7 @@ async function withdrawItem(req, res) {
     if (!hasActiveSubscription) {
       logger.warn(`Попытка вывода предмета пользователем ${userId} без действующей подписки`);
 
+      await transaction.rollback();
       return res.status(403).json({
         success: false,
         message: 'Для вывода предметов в Steam необходима действующая подписка',
@@ -138,6 +147,7 @@ async function withdrawItem(req, res) {
       tradeUrl = user.steam_trade_url;
 
       if (!tradeUrl) {
+        await transaction.rollback();
         return res.status(400).json({
           success: false,
           message: 'Отсутствует ссылка для обмена в Steam. Пожалуйста, добавьте её в свой профиль или укажите в запросе.'
@@ -148,6 +158,7 @@ async function withdrawItem(req, res) {
     // Проверяем, что предмет можно вывести
     const marketHashName = inventoryItem.item.steam_market_hash_name || inventoryItem.item.name;
     if (!marketHashName) {
+      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: 'Этот предмет нельзя вывести в Steam.'
@@ -173,16 +184,19 @@ async function withdrawItem(req, res) {
           price: inventoryItem.item.price
         }
       }
-    });
+    }, { transaction });
 
     // Связываем предмет с заявкой на вывод и обновляем статус
     await inventoryItem.update({
       withdrawal_id: withdrawal.id,
       status: 'pending_withdrawal', // Ставим статус ожидания вывода при создании заявки
       transaction_date: new Date()
-    });
+    }, { transaction });
 
-    // ✅ ДОБАВЛЯЕМ: Сразу добавляем в очередь для обработки
+    // Коммитим транзакцию перед добавлением в очередь
+    await transaction.commit();
+
+    // ✅ ДОБАВЛЯЕМ: Сразу добавляем в очередь для обработки (после коммита)
     try {
       await addJob.processWithdrawal({
         withdrawalId: withdrawal.id
@@ -194,21 +208,11 @@ async function withdrawItem(req, res) {
       logger.info(`Withdrawal #${withdrawal.id} добавлен в очередь для обработки`);
     } catch (queueError) {
       logger.warn(`Не удалось добавить withdrawal в очередь: ${queueError.message}`);
-
-      // Если не удалось добавить в очередь, откатываем статус предмета
-      await inventoryItem.update({
-        withdrawal_id: null,
-        status: 'inventory',
-        transaction_date: null
-      });
-
-      return res.status(500).json({
-        success: false,
-        message: 'Не удалось обработать заявку на вывод. Попробуйте позже.'
-      });
+      // Транзакция уже закоммичена, заявка создана, просто логируем ошибку
+      // Заявка будет обработана позже вручную или через cron
     }
 
-    // Создаем уведомление для пользователя
+    // Создаем уведомление для пользователя (после коммита)
     await db.Notification.create({
       user_id: userId,
       type: 'success',
@@ -223,10 +227,10 @@ async function withdrawItem(req, res) {
       }
     });
 
-    // Начисляем опыт за вывод предмета
+    // Начисляем опыт за вывод предмета (после коммита)
     await addExperience(userId, 20, 'withdraw_item', null, 'Вывод предмета');
 
-    // Обновляем прогресс достижений
+    // Обновляем прогресс достижений (после коммита)
     await updateUserAchievementProgress(userId, 'steam_inventory', 1);
 
     logger.info(`Пользователь ${userId} запросил вывод предмета ${inventoryItem.item.id} (${inventoryItem.item.name}). Статус подписки: ${subscriptionStatus}`);
@@ -244,20 +248,12 @@ async function withdrawItem(req, res) {
   } catch (error) {
     logger.error('Ошибка вывода предмета:', error);
 
-    // Если произошла ошибка, пытаемся откатить статус предмета
+    // Откатываем транзакцию при ошибке
     try {
-      if (inventoryItem && withdrawal) {
-        await inventoryItem.update({
-          withdrawal_id: null,
-          status: 'inventory',
-          transaction_date: null
-        });
-
-        // Также удаляем созданную заявку на вывод
-        await withdrawal.destroy();
-      }
+      await transaction.rollback();
+      logger.info('Транзакция успешно откатана');
     } catch (rollbackError) {
-      logger.error('Ошибка отката статуса предмета:', rollbackError);
+      logger.error('Ошибка отката транзакции:', rollbackError);
     }
 
     return res.status(500).json({ success: false, message: 'Внутренняя ошибка сервера', error: error.message });
