@@ -57,33 +57,13 @@ const requestLogger = (req, res, next) => {
   next();
 };
 
-// Middleware для логирования попыток входа
+// Пустые middleware для обратной совместимости
+// Логирование теперь происходит напрямую в контроллерах
 const logLoginAttempt = (req, res, next) => {
-  // Используем событие finish вместо перехвата res.send
-  res.on('finish', () => {
-    if (req.path === '/api/v1/login') {
-      if (res.statusCode === 200) {
-        logger.info(`Успешный вход пользователя: ${req.body.email}`, { ip: req.ip });
-      } else {
-        logger.warn(`Неудачная попытка входа: ${req.body.email}`, { ip: req.ip, status: res.statusCode });
-      }
-    }
-  });
   next();
 };
 
-// Middleware для логирования платежей
 const logPayment = (req, res, next) => {
-  // Используем событие finish вместо перехвата res.send
-  res.on('finish', () => {
-    if (req.path.startsWith('/api/payment')) {
-      logger.info(`Обработка платежа: ${req.method} ${req.originalUrl}`, {
-        ip: req.ip,
-        userId: req.user?.id,
-        body: req.body
-      });
-    }
-  });
   next();
 };
 

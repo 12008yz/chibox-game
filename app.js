@@ -77,6 +77,39 @@ app.use('/Achievements', (req, res, next) => {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Middleware для защиты от двойной отправки заголовков
+app.use((req, res, next) => {
+  const originalRender = res.render;
+  const originalSend = res.send;
+  const originalJson = res.json;
+
+  res.render = function(...args) {
+    if (res.headersSent) {
+      console.error('Headers already sent, skipping render');
+      return;
+    }
+    return originalRender.apply(this, args);
+  };
+
+  res.send = function(...args) {
+    if (res.headersSent) {
+      console.error('Headers already sent, skipping send');
+      return;
+    }
+    return originalSend.apply(this, args);
+  };
+
+  res.json = function(...args) {
+    if (res.headersSent) {
+      console.error('Headers already sent, skipping json');
+      return;
+    }
+    return originalJson.apply(this, args);
+  };
+
+  next();
+});
+
 // Сессии для Passport
 const session = require('express-session');
 const SequelizeStore = require('connect-session-sequelize')(session.Store);
@@ -209,6 +242,12 @@ app.use(function(req, res, next) {
 
 // Обработчик ошибок
 app.use(function(err, req, res, next) {
+  // Проверяем, не были ли уже отправлены заголовки
+  if (res.headersSent) {
+    console.error('Headers already sent, cannot handle error:', err);
+    return next(err);
+  }
+
   // Настройка локальных переменных, предоставление ошибки только в среде разработки
   res.locals.message = err.message;
   res.locals.error = req.app.get('env') === 'development' ? err : {};
