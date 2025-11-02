@@ -149,6 +149,15 @@ async function decreaseSubscriptionDays() {
             subscription_expiry_date: null
           });
 
+          // ✅ ВАЖНО: Пересчитываем total_drop_bonus_percentage после сброса подписки
+          const { updateUserBonuses } = require('../utils/userBonusCalculator');
+          try {
+            await updateUserBonuses(user.id);
+            logger.info(`Пересчитаны бонусы для пользователя ${user.id} после истечения подписки`);
+          } catch (bonusError) {
+            logger.error(`Ошибка пересчета бонусов для пользователя ${user.id}:`, bonusError);
+          }
+
           // Уведомление об истечении
           await createNotification(
             user.id,
@@ -249,8 +258,19 @@ async function validateSubscriptionData() {
           subscription_days_left: 0,
           subscription_tier: 0,
           subscription_bonus_percentage: 0,
-          max_daily_cases: 0
+          max_daily_cases: 0,
+          cases_available: 0,
+          subscription_expiry_date: null
         });
+
+        // ✅ Пересчитываем бонусы после сброса подписки
+        const { updateUserBonuses } = require('../utils/userBonusCalculator');
+        try {
+          await updateUserBonuses(user.id);
+        } catch (bonusError) {
+          logger.error(`Ошибка пересчета бонусов для пользователя ${user.id}:`, bonusError);
+        }
+
         fixedCount++;
         logger.info(`Исправлены данные истекшей подписки для пользователя ${user.id}`);
       }

@@ -39,6 +39,22 @@ async function buySubscription(req, res) {
     }
     logger.info(`Subscription tier found: ${JSON.stringify(tier)}`);
 
+    // ✅ ПРОВЕРКА: запрещаем покупку другого статуса при наличии активной подписки
+    const now = new Date();
+    const hasActiveSubscription = user.subscription_tier &&
+                                   user.subscription_expiry_date &&
+                                   user.subscription_expiry_date > now;
+
+    if (hasActiveSubscription && user.subscription_tier !== parseInt(tierId)) {
+      logger.warn(`User ${userId} tried to buy different tier ${tierId} while having active tier ${user.subscription_tier}`);
+      return res.status(400).json({
+        success: false,
+        message: `У вас уже есть активная подписка "${subscriptionTiers[user.subscription_tier].name}". Дождитесь окончания текущей подписки или продлите существующую.`,
+        current_tier: user.subscription_tier,
+        expiry_date: user.subscription_expiry_date
+      });
+    }
+
     let price = tier.price || 0;
     let action = 'purchase';
     let exchangeItemId = null;
