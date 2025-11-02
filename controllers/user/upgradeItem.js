@@ -258,6 +258,40 @@ async function performUpgrade(req, res) {
         item_type: 'item'
       }, { transaction });
 
+      // Обновляем лучший предмет, если текущий дороже (атомарно)
+      const user = await db.User.findByPk(userId, { transaction });
+      const currentBestValue = parseFloat(user.best_item_value) || 0;
+      logger.info(`DEBUG UPGRADE: Обновление лучшего предмета. Текущий: ${currentBestValue}, Новый: ${targetPrice}, Предмет: ${targetItem.name}`);
+
+      if (targetPrice > currentBestValue) {
+        logger.info(`DEBUG UPGRADE: Новый рекорд! Обновляем best_item_value с ${currentBestValue} на ${targetPrice}`);
+
+        // Используем прямое обновление для надежности
+        await db.User.update(
+          {
+            best_item_value: targetPrice,
+            total_items_value: db.Sequelize.literal(`COALESCE(total_items_value, 0) + ${targetPrice}`)
+          },
+          {
+            where: { id: userId },
+            transaction
+          }
+        );
+
+        logger.info(`DEBUG UPGRADE: best_item_value успешно обновлен в базе данных`);
+      } else {
+        // Все равно обновляем общую стоимость
+        await db.User.update(
+          {
+            total_items_value: db.Sequelize.literal(`COALESCE(total_items_value, 0) + ${targetPrice}`)
+          },
+          {
+            where: { id: userId },
+            transaction
+          }
+        );
+      }
+
       // Коммитим транзакцию перед обновлением достижений
       await transaction.commit();
       transaction = null; // Помечаем что транзакция завершена
@@ -265,6 +299,10 @@ async function performUpgrade(req, res) {
       // Обновляем достижения и опыт асинхронно после коммита
       try {
         await updateUserAchievementProgress(userId, 'upgrade_item', 1);
+
+        // Обновляем достижение для лучшего предмета
+        await updateUserAchievementProgress(userId, 'best_item_value', targetPrice);
+        logger.info(`Обновлено достижение best_item_value для пользователя ${userId}: ${targetPrice}`);
 
         // Проверяем достижение для успешного апгрейда с вероятностью <10%
         if (finalSuccessChance < 10) {

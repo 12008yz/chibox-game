@@ -460,6 +460,40 @@ const playSlot = async (req, res) => {
           source: 'bonus' // слот как бонусная игра
         }, { transaction });
 
+        // Обновляем лучший предмет, если текущий дороже (атомарно)
+        const itemPrice = parseFloat(wonItem.price) || 0;
+        const currentBestValue = parseFloat(user.best_item_value) || 0;
+        logger.info(`DEBUG SLOT: Обновление лучшего предмета. Текущий: ${currentBestValue}, Новый: ${itemPrice}, Предмет: ${wonItem.name}`);
+
+        if (itemPrice > currentBestValue) {
+          logger.info(`DEBUG SLOT: Новый рекорд! Обновляем best_item_value с ${currentBestValue} на ${itemPrice}`);
+
+          // Используем прямое обновление для надежности
+          await User.update(
+            {
+              best_item_value: itemPrice,
+              total_items_value: sequelize.literal(`COALESCE(total_items_value, 0) + ${itemPrice}`)
+            },
+            {
+              where: { id: userId },
+              transaction
+            }
+          );
+
+          logger.info(`DEBUG SLOT: best_item_value успешно обновлен в базе данных`);
+        } else {
+          // Все равно обновляем общую стоимость
+          await User.update(
+            {
+              total_items_value: sequelize.literal(`COALESCE(total_items_value, 0) + ${itemPrice}`)
+            },
+            {
+              where: { id: userId },
+              transaction
+            }
+          );
+        }
+
         logger.info(`User ${userId} won item ${wonItem.id} (${wonItem.name}) in slot game`);
       } else {
         logger.warn(`Won item ${wonItem.id} does not exist in database, skipping inventory addition`);
@@ -477,10 +511,16 @@ const playSlot = async (req, res) => {
       await updateUserAchievementProgress(userId, 'slot_plays', 1);
       logger.info(`Обновлено достижение slot_plays для пользователя ${userId}`);
 
-      // Если выиграл джекпот (дорогой предмет), обновляем достижение
-      if (isWin && wonItem && wonItem.price >= 1000) {
-        await updateUserAchievementProgress(userId, 'roulette_jackpot', 1);
-        logger.info(`Обновлено достижение roulette_jackpot для пользователя ${userId} (выиграл ${wonItem.name} за ${wonItem.price})`);
+      // Если выиграл, обновляем достижение для лучшего предмета
+      if (isWin && wonItem) {
+        await updateUserAchievementProgress(userId, 'best_item_value', wonItem.price);
+        logger.info(`Обновлено достижение best_item_value для пользователя ${userId}: ${wonItem.price}`);
+
+        // Если выиграл джекпот (дорогой предмет), обновляем достижение
+        if (wonItem.price >= 1000) {
+          await updateUserAchievementProgress(userId, 'roulette_jackpot', 1);
+          logger.info(`Обновлено достижение roulette_jackpot для пользователя ${userId} (выиграл ${wonItem.name} за ${wonItem.price})`);
+        }
       }
     } catch (achievementError) {
       logger.error('Ошибка обновления достижений:', achievementError);
