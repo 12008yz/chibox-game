@@ -478,7 +478,7 @@ class SteamBot {
     };
   }
 
-  async sendTradeOffer(partnerSteamId, itemsToGive, itemsToReceive = []) {
+  async sendTradeOfferWithToken(partnerSteamId, token, itemsToGive, itemsToReceive = []) {
     return new Promise(async (resolve, reject) => {
       if (!this.loggedIn) {
         return resolve({
@@ -494,9 +494,28 @@ class SteamBot {
         });
       }
 
-      logger.info(`Создание торгового предложения для ${partnerSteamId}. Отправка ${itemsToGive.length} предметов, получение ${itemsToReceive.length} предметов.`);
+      // Проверяем API ключ
+      if (!this.manager.apiKey) {
+        logger.error('❌ API ключ не установлен для Trade Manager');
+        return resolve({
+          success: false,
+          message: 'API ключ Steam не настроен'
+        });
+      }
 
+      logger.info(`Создание торгового предложения для ${partnerSteamId}. Отправка ${itemsToGive.length} предметов, получение ${itemsToReceive.length} предметов.`);
+      logger.info(`📋 API Key установлен: ${this.manager.apiKey ? 'Да' : 'Нет'}`);
+      logger.info(`📋 Steam ID бота: ${this.client.steamID ? this.client.steamID.getSteamID64() : 'Неизвестен'}`);
+      logger.info(`📋 Токен получателя: ${token}`);
+
+      // Создаем оффер и устанавливаем токен
       const offer = this.manager.createOffer(partnerSteamId);
+
+      // ВАЖНО: Устанавливаем токен из Trade URL
+      if (token) {
+        offer.setToken(token);
+        logger.info(`✅ Токен установлен для трейд-оффера`);
+      }
 
       if (itemsToGive.length > 0) {
         offer.addMyItems(itemsToGive);
@@ -512,18 +531,33 @@ class SteamBot {
           logger.error('Failed to send trade offer:', err);
 
           let errorMessage = err.message;
+          let possibleReasons = [];
+
           if (err.eresult === 15) {
-            errorMessage = 'Trade URL устарел или недействителен. Создайте новый Trade URL в Steam';
+            errorMessage = 'Не удалось отправить трейд-оффер (eresult: 15)';
+            possibleReasons = [
+              '• Trade URL получателя изменился или неверен',
+              '• У получателя приватный профиль или VAC бан',
+              '• У получателя нет Steam Guard (7 дней)',
+              '• Получатель заблокировал вас',
+              '• У вас (бота) нет Mobile Authenticator',
+              '• API ключ неверный или истек'
+            ];
+            logger.error('❌ Возможные причины ошибки eresult:15:');
+            possibleReasons.forEach(reason => logger.error(reason));
           } else if (err.eresult === 20) {
             errorMessage = 'Профиль получателя недоступен или ограничен';
           } else if (err.eresult === 25) {
             errorMessage = 'У получателя есть ограничения на торговлю';
+          } else if (err.eresult === 16) {
+            errorMessage = 'У вас (бота) есть trade hold или нет Mobile Authenticator';
           }
 
           return resolve({
             success: false,
             message: errorMessage,
             eresult: err.eresult,
+            possibleReasons,
             error: err
           });
         }
@@ -543,6 +577,12 @@ class SteamBot {
         });
       });
     });
+  }
+
+  // Старый метод для обратной совместимости (без токена)
+  async sendTradeOffer(partnerSteamId, itemsToGive, itemsToReceive = []) {
+    // Вызываем новый метод без токена
+    return this.sendTradeOfferWithToken(partnerSteamId, null, itemsToGive, itemsToReceive);
   }
 
   // Метод для отправки трейда с Trade URL (удобная обертка) с retry-логикой

@@ -304,11 +304,21 @@ class WithdrawalProcessor {
 
       // Отправляем трейд
       logger.info('📤 Отправка Steam трейда...');
+      logger.info(`📝 Trade URL: ${tradeUrl}`);
 
-      const tradeResult = await this.steamBot.sendTradeOffer(
-        tradeUrl,
+      // Валидируем Trade URL и извлекаем Steam ID и токен
+      const urlValidation = await this.steamBot.validateTradeUrl(tradeUrl);
+      if (!urlValidation.valid) {
+        throw new Error(urlValidation.error || 'Неверный Trade URL');
+      }
+
+      logger.info(`✅ Trade URL валиден. Partner ID: ${urlValidation.partnerId}, Token: ${urlValidation.token}`);
+
+      const tradeResult = await this.steamBot.sendTradeOfferWithToken(
+        urlValidation.partnerSteamId,
+        urlValidation.token,
         [foundItem],
-        `Вывод предмета ${item.name} для пользователя ${withdrawal.user.username}`
+        [] // Пустой массив - мы не получаем предметы от пользователя
       );
 
       if (tradeResult.success) {
@@ -326,13 +336,22 @@ class WithdrawalProcessor {
 
         return true;
       } else {
-        logger.error(`❌ Ошибка отправки трейда: ${tradeResult.error}`);
-        return false;
+        // Предмет найден, но трейд не отправлен - это критическая ошибка
+        const errorMsg = tradeResult.message || tradeResult.error || 'Неизвестная ошибка отправки трейда';
+        logger.error(`❌ Ошибка отправки трейда: ${errorMsg}`);
+        throw new Error(`Не удалось отправить трейд: ${errorMsg}`);
       }
 
     } catch (error) {
-      logger.error('❌ Ошибка обработки через Steam:', error);
-      return false;
+      // Если предмет не найден в инвентаре - возвращаем false для поиска на PlayerOk
+      if (error.message && error.message.includes('не найден в инвентаре')) {
+        logger.info('⚠️ Предмет не найден в инвентаре Steam бота');
+        return false;
+      }
+
+      // Любая другая ошибка - критическая (Trade URL, отправка трейда и т.д.)
+      logger.error('❌ Критическая ошибка при обработке через Steam:', error.message);
+      throw error;
     }
   }
 
