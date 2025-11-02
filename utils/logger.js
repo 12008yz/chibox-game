@@ -59,8 +59,8 @@ const requestLogger = (req, res, next) => {
 
 // Middleware для логирования попыток входа
 const logLoginAttempt = (req, res, next) => {
-  const originalSend = res.send;
-  res.send = function (body) {
+  // Используем событие finish вместо перехвата res.send
+  res.on('finish', () => {
     if (req.path === '/api/v1/login') {
       if (res.statusCode === 200) {
         logger.info(`Успешный вход пользователя: ${req.body.email}`, { ip: req.ip });
@@ -68,15 +68,14 @@ const logLoginAttempt = (req, res, next) => {
         logger.warn(`Неудачная попытка входа: ${req.body.email}`, { ip: req.ip, status: res.statusCode });
       }
     }
-    originalSend.apply(res, arguments);
-  };
+  });
   next();
 };
 
 // Middleware для логирования платежей
 const logPayment = (req, res, next) => {
-  const originalSend = res.send;
-  res.send = function (body) {
+  // Используем событие finish вместо перехвата res.send
+  res.on('finish', () => {
     if (req.path.startsWith('/api/payment')) {
       logger.info(`Обработка платежа: ${req.method} ${req.originalUrl}`, {
         ip: req.ip,
@@ -84,8 +83,7 @@ const logPayment = (req, res, next) => {
         body: req.body
       });
     }
-    originalSend.apply(res, arguments);
-  };
+  });
   next();
 };
 
