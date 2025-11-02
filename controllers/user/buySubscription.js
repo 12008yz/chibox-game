@@ -8,9 +8,9 @@ const { addExperience } = require('../../services/xpService');
 
 // Цены в ChiCoins (1 ChiCoin = 1₽)
 const subscriptionTiers = {
-  1: { days: 30, max_daily_cases: 1, bonus_percentage: 2.0, name: 'Статус', price: 1800 },      // 1800 ChiCoins
-  2: { days: 30, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус+', price: 3600 },     // 3600 ChiCoins
-  3: { days: 30, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус++', price: 7500 }     // 7500 ChiCoins
+  1: { days: 30, max_daily_cases: 1, bonus_percentage: 2.0, name: 'Статус', price: 1811 },      // 1800 ChiCoins
+  2: { days: 30, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус+', price: 3666 },     // 3600 ChiCoins
+  3: { days: 30, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус++', price: 7580 }     // 7500 ChiCoins
 };
 
 const logger = winston.createLogger({
@@ -75,8 +75,24 @@ async function buySubscription(req, res) {
       // Создаем платеж через YooMoney и возвращаем ссылку на оплату
       try {
         logger.info('Создание платежа через YooMoney');
-        const paymentUrl = await createPayment(price, userId, 'subscription', { tierId });
-        logger.info(`Платеж создан, paymentUrl: ${paymentUrl}`);
+        const paymentResult = await createPayment({
+          amount: price,
+          description: `Подписка ${tier.name} на ${tier.days} дней`,
+          userId: userId,
+          purpose: 'subscription',
+          metadata: { tierId },
+          paymentMethod: 'yookassa'
+        });
+
+        if (!paymentResult.success) {
+          logger.error('Ошибка создания платежа:', paymentResult.error);
+          return res.status(500).json({
+            success: false,
+            message: 'Ошибка при создании платежа'
+          });
+        }
+
+        logger.info(`Платеж создан, paymentUrl: ${paymentResult.paymentUrl}`);
 
         // Получаем актуальные данные пользователя для возврата
         const updatedUser = await db.User.findByPk(userId);
@@ -84,7 +100,7 @@ async function buySubscription(req, res) {
         return res.json({
           success: true,
           data: {
-            paymentUrl: paymentUrl
+            paymentUrl: paymentResult.paymentUrl
           },
           message: 'Перенаправьте пользователя для оплаты',
           subscription_purchase_date: updatedUser.subscription_purchase_date,
@@ -93,7 +109,10 @@ async function buySubscription(req, res) {
         });
       } catch (error) {
         logger.error('Ошибка создания платежа через YooMoney:', error);
-        return res.status(500).json({ message: 'Ошибка при создании платежа' });
+        return res.status(500).json({
+          success: false,
+          message: 'Ошибка при создании платежа'
+        });
       }
     }
 

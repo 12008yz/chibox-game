@@ -29,9 +29,9 @@ class ProfitabilityCalculator {
    */
   analyzeSubscriptions() {
     const subscriptions = {
-      tier1: { price: 1800, bonus: 2, dailyCases: 1 },
-      tier2: { price: 3600, bonus: 3, dailyCases: 1 },
-      tier3: { price: 7500, bonus: 5, dailyCases: 1 }
+      tier1: { price: 1811, bonus: 2, dailyCases: 1 },
+      tier2: { price: 3666, bonus: 3, dailyCases: 1 },
+      tier3: { price: 7580, bonus: 5, dailyCases: 1 }
     };
 
     const analysis = {};
@@ -207,18 +207,18 @@ class ProfitabilityCalculator {
     return {
       prices: {
         tier1: {
-          current: 1800,
-          recommended: 1800, // без изменений
+          current: 1811,
+          recommended: 1811, // без изменений
           reasoning: "Цена уже скорректирована до оптимального уровня"
         },
         tier2: {
-          current: 3600,
-          recommended: 3600, // без изменений
+          current: 3666,
+          recommended: 3666, // без изменений
           reasoning: "Цена уже скорректирована до оптимального уровня"
         },
         tier3: {
-          current: 7500,
-          recommended: 7500, // без изменений
+          current: 7580,
+          recommended: 7580, // без изменений
           reasoning: "Цена уже скорректирована до оптимального уровня"
         }
       },
