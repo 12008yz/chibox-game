@@ -1,4 +1,3 @@
-const argon2 = require('argon2');
 const jwt = require('jsonwebtoken');
 const db = require('../../models');
 const winston = require('winston');
@@ -17,15 +16,11 @@ const logger = winston.createLogger({
 async function updateProfile(req, res) {
   try {
     const userId = req.user.id;
-    const { username, password, steam_trade_url } = req.body;
+    const { username, steam_trade_url } = req.body;
 
     // Валидация типов для защиты от Type Confusion
     if (username !== undefined && typeof username !== 'string') {
       return res.status(400).json({ message: 'Username должен быть строкой' });
-    }
-
-    if (password !== undefined && typeof password !== 'string') {
-      return res.status(400).json({ message: 'Пароль должен быть строкой' });
     }
 
     if (steam_trade_url !== undefined && typeof steam_trade_url !== 'string') {
@@ -35,10 +30,6 @@ async function updateProfile(req, res) {
     // Дополнительная валидация длины
     if (username && username.length > 50) {
       return res.status(400).json({ message: 'Username слишком длинный' });
-    }
-
-    if (password && password.length > 128) {
-      return res.status(400).json({ message: 'Пароль слишком длинный' });
     }
 
     if (steam_trade_url && steam_trade_url.length > 500) {
@@ -59,19 +50,6 @@ async function updateProfile(req, res) {
         return res.status(409).json({ message: 'Такой username уже занят' });
       }
       user.username = trimmedUsername;
-    }
-
-    if (password) {
-      // Проверяем, что password это строка (уже проверили выше, но для уверенности)
-      if (typeof password !== 'string' || password.length < 8
-          || !/[A-Z]/.test(password)
-          || !/[a-z]/.test(password)
-          || !/[0-9]/.test(password)
-          || !/[^A-Za-z0-9]/.test(password)
-      ) {
-        return res.status(400).json({ message: 'Пароль должен быть не менее 8 символов и содержать строчные, заглавные буквы, цифру и спецсимвол.' });
-      }
-      user.password = await argon2.hash(password);
     }
 
     if (steam_trade_url) {
