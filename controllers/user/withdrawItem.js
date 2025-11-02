@@ -42,12 +42,9 @@ async function withdrawItem(req, res) {
     }
 
     // Проверяем, есть ли предмет в инвентаре пользователя с блокировкой
+    // Сначала блокируем запись без include (чтобы избежать FOR UPDATE с LEFT JOIN)
     inventoryItem = await db.UserInventory.findOne({
       where: searchCriteria,
-      include: [{
-        model: db.Item,
-        as: 'item'
-      }],
       transaction,
       lock: transaction.LOCK.UPDATE
     });
@@ -55,6 +52,12 @@ async function withdrawItem(req, res) {
     if (!inventoryItem) {
       await transaction.rollback();
       return res.status(404).json({ success: false, message: 'Предмет не найден в инвентаре' });
+    }
+
+    // Теперь получаем связанные данные item отдельным запросом
+    const item = await db.Item.findByPk(inventoryItem.item_id, { transaction });
+    if (item) {
+      inventoryItem.item = item;
     }
 
     // Проверяем, нет ли уже активной заявки на вывод ЭТОГО КОНКРЕТНОГО экземпляра предмета
