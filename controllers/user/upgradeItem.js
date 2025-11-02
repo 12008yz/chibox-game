@@ -70,37 +70,40 @@ async function getUpgradeableItems(req, res) {
 // Получить возможные варианты апгрейда для предмета
 async function getUpgradeOptions(req, res) {
   try {
-    const { itemIds } = req.query; // Теперь получаем массив ID предметов
+    const { inventoryIds } = req.query; // ИСПРАВЛЕНО: получаем inventoryIds вместо itemIds
     const userId = req.user.id;
 
-    if (!itemIds) {
-      return res.status(400).json({ message: 'itemIds обязательны' });
+    if (!inventoryIds) {
+      return res.status(400).json({ message: 'inventoryIds обязательны' });
     }
 
-    // Парсим ID предметов из строки или массива
-    let itemIdArray;
-    if (typeof itemIds === 'string') {
-      itemIdArray = itemIds.split(',').map(id => id.trim());
+    // Парсим ID экземпляров из инвентаря из строки или массива
+    let inventoryIdArray;
+    if (typeof inventoryIds === 'string') {
+      inventoryIdArray = inventoryIds.split(',').map(id => id.trim());
     } else {
-      itemIdArray = Array.isArray(itemIds) ? itemIds : [itemIds];
+      inventoryIdArray = Array.isArray(inventoryIds) ? inventoryIds : [inventoryIds];
     }
 
-    if (itemIdArray.length === 0) {
+    if (inventoryIdArray.length === 0) {
       return res.status(400).json({ message: 'Нужно выбрать хотя бы один предмет' });
     }
 
-    // Получаем выбранные предметы пользователя из инвентаря
+    // Ограничиваем количество предметов
+    if (inventoryIdArray.length > 10) {
+      return res.status(400).json({ message: 'Максимум 10 предметов можно использовать для улучшения' });
+    }
+
+    // ИСПРАВЛЕНО: Получаем выбранные экземпляры из инвентаря по их ID
     const selectedItems = await db.UserInventory.findAll({
       where: {
+        id: inventoryIdArray,
         user_id: userId,
         status: 'inventory'
       },
       include: [{
         model: db.Item,
         as: 'item',
-        where: {
-          id: itemIdArray
-        },
         attributes: ['id', 'name', 'image_url', 'price', 'rarity', 'weapon_type'],
         required: true
       }]
@@ -110,10 +113,17 @@ async function getUpgradeOptions(req, res) {
       return res.status(404).json({ message: 'Выбранные предметы не найдены в инвентаре' });
     }
 
-    // Вычисляем общую стоимость выбранных предметов
+    if (selectedItems.length !== inventoryIdArray.length) {
+      return res.status(404).json({ message: 'Некоторые предметы не найдены или уже использованы' });
+    }
+
+    // Вычисляем общую стоимость выбранных предметов (все экземпляры)
     const totalSourcePrice = selectedItems.reduce((sum, invItem) => {
       return sum + parseFloat(invItem.item.price);
     }, 0);
+
+    // Получаем уникальные ID предметов для исключения из результатов
+    const uniqueItemIds = [...new Set(selectedItems.map(invItem => invItem.item.id))];
 
     // Получаем диапазон цен для поиска предметов улучшения
     const { minPrice, maxPrice } = getUpgradePriceRange(totalSourcePrice);
@@ -125,7 +135,7 @@ async function getUpgradeOptions(req, res) {
         },
         is_available: true,
         id: {
-          [db.Sequelize.Op.notIn]: itemIdArray // Исключаем выбранные предметы
+          [db.Sequelize.Op.notIn]: uniqueItemIds // Исключаем выбранные предметы
         }
       },
       attributes: ['id', 'name', 'image_url', 'price', 'rarity', 'weapon_type'],
@@ -143,7 +153,8 @@ async function getUpgradeOptions(req, res) {
         upgrade_chance: chanceData.finalChance,
         base_chance: chanceData.baseChance,
         cheap_target_bonus: chanceData.cheapTargetBonus,
-        price_ratio: chanceData.priceRatio
+        price_ratio: chanceData.priceRatio,
+        expected_value: chanceData.expectedValue // Добавляем мат. ожидание
       };
     });
 
@@ -209,6 +220,14 @@ async function performUpgrade(req, res) {
       return sum + parseFloat(invItem.item.price);
     }, 0);
 
+    // НОВАЯ ПРОВЕРКА: Минимальная стоимость исходных предметов
+    if (totalSourcePrice < 5) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: `Минимальная общая стоимость предметов для улучшения - 5 КР. Ваша стоимость: ${totalSourcePrice.toFixed(2)} КР. Выберите более дорогие предметы.`
+      });
+    }
+
     // Проверяем целевой предмет
     const targetItem = await db.Item.findByPk(targetItemId, { transaction });
     if (!targetItem) {
@@ -221,8 +240,9 @@ async function performUpgrade(req, res) {
     // Проверяем, что целевой предмет подходит для улучшения
     if (!isValidUpgradeTarget(totalSourcePrice, targetPrice)) {
       await transaction.rollback();
+      const minRequired = totalSourcePrice <= 20 ? (totalSourcePrice * 1.10).toFixed(2) : (totalSourcePrice * 1.08).toFixed(2);
       return res.status(400).json({
-        message: `Целевой предмет должен быть минимум на 5% дороже общей стоимости выбранных предметов. Общая стоимость: ${totalSourcePrice.toFixed(2)}, целевая: ${targetPrice.toFixed(2)}`
+        message: `Целевой предмет должен быть дороже минимум на ${totalSourcePrice <= 20 ? '10%' : '8%'}. Требуется минимум ${minRequired} КР, целевая цена: ${targetPrice.toFixed(2)} КР`
       });
     }
 
