@@ -3,6 +3,7 @@ const db = require('../../models');
 const jwt = require('jsonwebtoken');
 const { logger } = require('../../middleware/logger');
 const { updateUserBonuses } = require('../../utils/userBonusCalculator');
+const { addExperience } = require('../../services/xpService');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
@@ -71,6 +72,44 @@ async function login(req, res) {
       await user.reload();
     } catch (bonusError) {
       logger.error('Ошибка при обновлении бонусов пользователя:', bonusError);
+      // Не прерываем процесс логина, просто логируем ошибку
+    }
+
+    // Начисляем +15 XP за вход на сайт (раз в день)
+    try {
+      const now = new Date();
+      const lastLogin = user.last_login_date;
+
+      // Проверяем, был ли вход сегодня
+      let shouldAwardXP = false;
+      if (!lastLogin) {
+        // Первый вход
+        shouldAwardXP = true;
+      } else {
+        const lastLoginDate = new Date(lastLogin);
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const lastLoginStart = new Date(lastLoginDate.getFullYear(), lastLoginDate.getMonth(), lastLoginDate.getDate());
+
+        // Если последний вход был до сегодняшнего дня
+        if (lastLoginStart < todayStart) {
+          shouldAwardXP = true;
+        }
+      }
+
+      if (shouldAwardXP) {
+        // Начисляем опыт за ежедневный вход
+        await addExperience(user.id, 15, 'daily_login', null, 'Вход на сайт');
+        logger.info(`Пользователю ${user.username} начислено +15 XP за ежедневный вход`);
+      }
+
+      // Обновляем дату последнего входа
+      user.last_login_date = now;
+      await user.save();
+
+      // Перезагружаем пользователя, чтобы получить обновленные XP и уровень
+      await user.reload();
+    } catch (loginXpError) {
+      logger.error('Ошибка при начислении XP за вход:', loginXpError);
       // Не прерываем процесс логина, просто логируем ошибку
     }
 

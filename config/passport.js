@@ -3,6 +3,7 @@ const SteamStrategy = require('passport-steam').Strategy;
 const db = require('../models');
 const { logger } = require('../utils/logger');
 const { createSteamLoginNotification } = require('../utils/notificationHelper');
+const { addExperience } = require('../services/xpService');
 
 // Настройки Steam OAuth
 const STEAM_API_KEY = process.env.STEAM_API_KEY;
@@ -101,12 +102,29 @@ if (STEAM_API_KEY) {
           fullProfile: profile._json
         });
 
+        // Проверяем, нужно ли начислить XP за ежедневный вход
+        const now = new Date();
+        const lastLogin = user.last_login_date;
+        let shouldAwardXP = false;
+
+        if (!lastLogin) {
+          shouldAwardXP = true;
+        } else {
+          const lastLoginDate = new Date(lastLogin);
+          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const lastLoginStart = new Date(lastLoginDate.getFullYear(), lastLoginDate.getMonth(), lastLoginDate.getDate());
+
+          if (lastLoginStart < todayStart) {
+            shouldAwardXP = true;
+          }
+        }
+
         const updateData = {
           username: newUsername,
           steam_profile: profile._json,
           steam_avatar_url: avatarUrl,
           steam_profile_url: profile._json?.profileurl,
-          last_login_date: new Date()
+          last_login_date: now
         };
 
         console.log('📝 Update data:', updateData);
@@ -115,6 +133,18 @@ if (STEAM_API_KEY) {
 
         console.log('✅ Steam data updated successfully');
         logger.info(`Пользователь ${user.username} вошел через Steam, данные обновлены`);
+
+        // Начисляем +15 XP за ежедневный вход (если это первый вход за день)
+        if (shouldAwardXP) {
+          try {
+            await addExperience(user.id, 15, 'daily_login', null, 'Вход через Steam');
+            logger.info(`Пользователю ${user.username} начислено +15 XP за ежедневный вход через Steam`);
+            // Перезагружаем пользователя, чтобы получить обновленные XP и уровень
+            await user.reload();
+          } catch (xpError) {
+            logger.error('Ошибка при начислении XP за вход через Steam:', xpError);
+          }
+        }
 
         // Создаем уведомление о входе через Steam
         try {
@@ -153,6 +183,16 @@ if (STEAM_API_KEY) {
         });
 
         logger.info(`Создан новый пользователь через Steam: ${username} (${steamId})`);
+
+        // Начисляем +15 XP за первый вход
+        try {
+          await addExperience(user.id, 15, 'daily_login', null, 'Первый вход через Steam');
+          logger.info(`Новому пользователю ${username} начислено +15 XP за первый вход через Steam`);
+          // Перезагружаем пользователя, чтобы получить обновленные XP и уровень
+          await user.reload();
+        } catch (xpError) {
+          logger.error('Ошибка при начислении XP новому пользователю Steam:', xpError);
+        }
 
         // Создаем уведомление о входе через Steam для нового пользователя
         try {
