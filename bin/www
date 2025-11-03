@@ -53,6 +53,26 @@ function broadcastLiveDrop(dropData) {
   console.log(`Live Drop отправлен: ${dropData.user.username} получил ${dropData.item.name}`);
 }
 
+// Функция для отправки уведомления конкретному пользователю
+function sendNotificationToUser(userId, notification) {
+  // Находим все сокеты пользователя
+  const userIdKey = `user_${userId}`;
+  const connections = userConnections.get(userIdKey);
+  
+  if (connections && connections.size > 0) {
+    // Отправляем уведомление всем активным соединениям пользователя
+    connections.forEach(socketId => {
+      const socket = io.sockets.sockets.get(socketId);
+      if (socket) {
+        socket.emit('notification', notification);
+        console.log(`Уведомление отправлено пользователю ${userId} (socket ${socketId}): ${notification.title}`);
+      }
+    });
+  } else {
+    console.log(`Пользователь ${userId} не онлайн, уведомление будет доставлено при следующем входе`);
+  }
+}
+
 // Функция для получения уникального идентификатора пользователя
 function getUserId(socket) {
   // Пытаемся получить user ID из сессии
@@ -193,5 +213,9 @@ function onListening() {
 const { initLiveDropService } = require('../services/liveDropService');
 initLiveDropService(broadcastLiveDrop);
 
-// Экспортируем io и функцию для использования в других модулях
-module.exports = { io, broadcastLiveDrop };
+// Инициализируем систему уведомлений
+const { initNotificationSender } = require('../utils/notificationHelper');
+initNotificationSender(sendNotificationToUser);
+
+// Экспортируем io и функции для использования в других модулях
+module.exports = { io, broadcastLiveDrop, sendNotificationToUser };

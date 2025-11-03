@@ -1,6 +1,15 @@
 const db = require('../models');
 const { logger } = require('./logger');
 
+// Функция для отправки уведомления через WebSocket
+let sendNotificationToUser = null;
+
+// Инициализация функции отправки уведомлений
+function initNotificationSender(senderFunction) {
+  sendNotificationToUser = senderFunction;
+  logger.info('Функция отправки уведомлений через WebSocket инициализирована');
+}
+
 /**
  * Создание уведомления для пользователя
  * @param {string} userId - ID пользователя
@@ -34,6 +43,28 @@ async function createNotification(userId, title, message, type = 'info', categor
       type: type,
       category: category
     });
+
+    // Отправляем уведомление через WebSocket в реальном времени
+    if (sendNotificationToUser && typeof sendNotificationToUser === 'function') {
+      try {
+        sendNotificationToUser(userId, {
+          id: notification.id,
+          title: notification.title,
+          message: notification.message,
+          type: notification.type,
+          category: notification.category,
+          link: notification.link,
+          importance: notification.importance,
+          is_read: notification.is_read,
+          created_at: notification.created_at
+        });
+      } catch (wsError) {
+        logger.warn('Ошибка отправки уведомления через WebSocket (пользователь может быть оффлайн):', {
+          userId: userId,
+          error: wsError.message
+        });
+      }
+    }
 
     return notification;
   } catch (error) {
@@ -95,5 +126,6 @@ async function createRegistrationNotification(userId, username) {
 module.exports = {
   createNotification,
   createSteamLoginNotification,
-  createRegistrationNotification
+  createRegistrationNotification,
+  initNotificationSender
 };
