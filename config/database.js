@@ -20,39 +20,25 @@ const sequelize = new Sequelize(
   dbConfig.username,
   dbConfig.password,
   {
+    host: dbConfig.host,
     dialect: dbConfig.dialect,
-    replication: {
-      read: [
-        {
-          host: process.env.DB_READ_HOST_1 || config[env].readHost1,
-          username: process.env.DB_USERNAME || config[env].username,
-          password: String(process.env.DB_PASSWORD || config[env].password || ''),
-          database: process.env.DB_DATABASE || config[env].database,
-          dialect: dbConfig.dialect,
-        },
-        // Можно добавить дополнительные read реплики
-      ],
-      write: {
-        host: dbConfig.host,
-        username: dbConfig.username,
-        password: dbConfig.password,
-        database: dbConfig.database,
-        dialect: dbConfig.dialect,
-      }
-    },
-    logging: console.log, // Можно установить false для отключения логов SQL-запросов
+    logging: false, // Отключаем логи SQL для production
     define: {
-      timestamps: true, // Добавляем timestamps во все модели по умолчанию
-      underscored: false, // Использовать snake_case вместо camelCase для полей
-      freezeTableName: false // Не преобразовывать имена таблиц
+      timestamps: true,
+      underscored: false,
+      freezeTableName: false
     },
     pool: {
-      max: 10,              // Достаточно для большинства нагрузок
-      min: 2,               // Минимальные соединения
-      acquire: 30000,       // Уменьшить timeout
-      idle: 10000,          // Быстрее освобождать соединения
-      evict: 1000,          // Добавлен eviction
-      handleDisconnects: true
+      max: 50,              // Увеличено для Socket.IO и множественных соединений
+      min: 5,               // Минимальные соединения
+      acquire: 60000,       // Увеличен timeout до 60 секунд
+      idle: 10000,          // Освобождать неактивные соединения через 10 сек
+      evict: 1000,          // Проверка каждую секунду
+      handleDisconnects: true,
+      maxUses: 1000        // Переиспользовать соединение максимум 1000 раз
+    },
+    retry: {
+      max: 3               // Максимум 3 попытки переподключения
     }
   }
 );

@@ -21,6 +21,9 @@ module.exports = {
       ADD VALUE IF NOT EXISTS 'upgrade_success';
 
       ALTER TYPE "enum_achievements_requirement_type"
+      ADD VALUE IF NOT EXISTS 'upgrade_item';
+
+      ALTER TYPE "enum_achievements_requirement_type"
       ADD VALUE IF NOT EXISTS 'level_reached';
 
       ALTER TYPE "enum_achievements_requirement_type"

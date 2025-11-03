@@ -116,6 +116,10 @@ const SequelizeStore = require('connect-session-sequelize')(session.Store);
 
 const sessionStore = new SequelizeStore({
   db: sequelize,
+  tableName: 'Sessions',
+  checkExpirationInterval: 15 * 60 * 1000, // Проверка истекших сессий каждые 15 минут
+  expiration: 7 * 24 * 60 * 60 * 1000, // 7 дней
+  disableTouch: false // Обновлять время последнего доступа
 });
 
 // Синхронизируем таблицу сессий
@@ -125,19 +129,34 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'your-session-secret',
   store: sessionStore,
   resave: false,
-  saveUninitialized: true, // Изменено на true для Steam OAuth
+  saveUninitialized: false, // ВАЖНО: false для предотвращения создания лишних сессий
   cookie: {
     secure: false, // Установлено в false для работы с HTTP в разработке
     httpOnly: true,
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 дней
     sameSite: 'lax' // Добавлено для лучшей совместимости с OAuth
-  }
+  },
+  // Дополнительные настройки для производительности
+  rolling: false, // Не обновлять cookie при каждом запросе
+  unset: 'destroy' // Удалять сессию из store при уничтожении
 }));
 
 // Инициализация Passport
 const passport = require('./config/passport');
 app.use(passport.initialize());
 app.use(passport.session());
+
+// Мониторинг пула соединений БД (в режиме разработки)
+if (process.env.NODE_ENV !== 'production') {
+  const { monitorPool } = require('./middleware/pool-monitor');
+  app.use(monitorPool);
+}
+
+// Периодическая очистка старых сессий (каждый час)
+const cleanupSessions = require('./scripts/cleanup-sessions');
+setInterval(() => {
+  cleanupSessions().catch(err => logger.error('Ошибка очистки сессий:', err));
+}, 60 * 60 * 1000); // 1 час
 
 // CSRF защита убрана, так как пакет csurf deprecated
 // Для API используем JWT токены, что более безопасно

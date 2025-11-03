@@ -121,11 +121,17 @@ async function exchangeItemForSubscription(req, res) {
       date: now
     }, { transaction });
 
-    // Обновляем прогресс достижений
-    const { updateUserAchievementProgress } = require('../../services/achievementService');
-    await updateUserAchievementProgress(userId, 'exchange_item', 1);
-
+    // Коммитим транзакцию ПЕРЕД обновлением достижений
     await transaction.commit();
+
+    // Обновляем прогресс достижений ПОСЛЕ коммита (не критично для основной операции)
+    try {
+      const { updateUserAchievementProgress } = require('../../services/achievementService');
+      await updateUserAchievementProgress(userId, 'exchange_item', 1);
+    } catch (achievementError) {
+      console.error('Ошибка при обновлении достижений (не критично):', achievementError);
+      // Продолжаем выполнение, так как основная операция уже завершена
+    }
 
     // Создание уведомления о обмене предмета на подписку
     await require('../../models').Notification.create({

@@ -42,6 +42,7 @@ module.exports = (sequelize) => {
         'legendary_item_found',   // Получение легендарного предмета
         'total_sold_value',       // Общая стоимость проданных предметов
         'upgrade_success',        // Успешные улучшения предметов
+        'upgrade_item',           // Попытки улучшения предметов
         'level_reached',          // Достижение уровня
         'roulette_jackpot',       // Выигрыш джекпота в рулетке
         'night_case_opened',      // Открытие кейса ночью (2:00-4:00)
