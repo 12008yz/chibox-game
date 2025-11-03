@@ -61,6 +61,7 @@ async function getPublicProfile(req, res) {
             attributes: ['id', 'template_id']
           }
         ],
+        distinct: true,
         order: [['acquisition_date', 'DESC']],
         limit,
         offset
@@ -99,6 +100,7 @@ async function getPublicProfile(req, res) {
             attributes: ['id', 'template_id']
           }
         ],
+        distinct: true,
         order: [['acquisition_date', 'DESC']],
         limit,
         offset
@@ -281,6 +283,10 @@ async function getPublicProfile(req, res) {
       level: user.level_bonus_percentage || 0,
       total: user.total_drop_bonus_percentage || 0
     };
+
+    // Логируем для отладки
+    logger.info(`Public profile request - User: ${id}, Tab: ${tab}, Page: ${page}, Limit: ${limit}`);
+    logger.info(`Returning - Inventory: ${filteredInventory.length}, CaseItems: ${filteredCaseItems.length}`);
 
     return res.json({
       user: {
