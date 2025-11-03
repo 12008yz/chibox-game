@@ -191,25 +191,13 @@ async function getLeaderboardByMostExpensiveItem(limit, leaderboardData) {
       'subscription_days_left',
       'steam_avatar_url',
       'steam_profile',
-      [
-        db.Sequelize.literal(`(
-          SELECT MAX(items.price)
-          FROM user_inventory
-          JOIN items ON user_inventory.item_id = items.id
-          WHERE user_inventory.user_id = "User".id
-          AND user_inventory.source = 'case'
-          AND user_inventory.status IN ('inventory', 'sold', 'withdrawn')
-        )`),
-        'max_item_value'
-      ],
+      'best_item_value',
       [
         db.Sequelize.literal(`(
           SELECT items.name
           FROM user_inventory
           JOIN items ON user_inventory.item_id = items.id
           WHERE user_inventory.user_id = "User".id
-          AND user_inventory.source = 'case'
-          AND user_inventory.status IN ('inventory', 'sold', 'withdrawn')
           ORDER BY items.price DESC
           LIMIT 1
         )`),
@@ -219,18 +207,12 @@ async function getLeaderboardByMostExpensiveItem(limit, leaderboardData) {
     where: {
       is_active: true,
       is_banned: false,
-      // Только пользователи, у которых есть предметы из кейсов
-      [Op.and]: [
-        db.Sequelize.literal(`(
-          SELECT COUNT(*)
-          FROM user_inventory
-          WHERE user_inventory.user_id = "User".id
-          AND user_inventory.source = 'case'
-        ) > 0`)
-      ]
+      best_item_value: {
+        [Op.gt]: 0
+      }
     },
     order: [
-      [db.Sequelize.literal('max_item_value'), 'DESC'],
+      ['best_item_value', 'DESC'],
       [db.Sequelize.fn('RANDOM')] // Рандомизация при одинаковой стоимости
     ],
     limit: limit * 2,
@@ -245,9 +227,9 @@ async function getLeaderboardByMostExpensiveItem(limit, leaderboardData) {
     subscription_days_left: user.subscription_days_left,
     steam_avatar: user.steam_avatar_url,
     steam_profile: user.steam_profile,
-    max_item_value: parseFloat(user.dataValues.max_item_value) || 0,
+    max_item_value: parseFloat(user.best_item_value) || 0,
     most_expensive_item_name: user.dataValues.most_expensive_item_name || null,
-    score: parseFloat(user.dataValues.max_item_value) || 0, // Для сортировки
+    score: parseFloat(user.best_item_value) || 0, // Для сортировки
   })));
 
   // Если недостаточно пользователей с предметами, добавляем пользователей с нулевой стоимостью
