@@ -77,8 +77,8 @@ module.exports = {
       },
       {
         id: '88888888-8888-8888-8888-888888888888',
-        name: 'Покупатель подписки',
-        description: 'Приобрести любой уровень подписки',
+        name: 'Покупатель статуса',
+        description: 'Приобрести любой уровень статуса',
         xp_reward: 150,
         icon_url: '/Achievements/Покупатель подписки-no-bg-previe.png',
         requirement_type: 'subscription_purchased',
@@ -151,7 +151,7 @@ module.exports = {
       {
         id: '99999999-9999-9999-9999-999999999999',
         name: 'Обменник',
-        description: 'Обменяйте 5 предметов на подписку',
+        description: 'Обменяйте 5 предметов на статус',
         xp_reward: 250,
         icon_url: '/Achievements/обменник-no-bg-preview.png',
         requirement_type: 'exchange_item',
@@ -403,7 +403,7 @@ module.exports = {
       {
         id: '80808080-8080-8080-8080-808080808080',
         name: 'Постоянный клиент',
-        description: 'Имейте активную подписку 45 дней подряд',
+        description: 'Имейте активный статус 45 дней подряд',
         xp_reward: 700,
         icon_url: '/Achievements/Постоянный клиент-no-bg-preview.png',
         requirement_type: 'subscription_days',
