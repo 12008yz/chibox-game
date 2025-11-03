@@ -118,13 +118,9 @@ async function getPublicProfile(req, res) {
       order: [['completion_date', 'DESC']]
     });
 
-    // Подсчитываем общее количество открытых кейсов в реальном времени
-    const totalCasesOpened = await db.Case.count({
-      where: {
-        user_id: id,
-        is_opened: true
-      }
-    });
+    // Используем поле total_cases_opened из таблицы Users (как в личном профиле)
+    // Это значение обновляется при каждом открытии кейса и является источником истины
+    const totalCasesOpened = user.total_cases_opened || 0;
 
     // Фильтруем инвентарь, удаляя записи с отсутствующими предметами
     const filteredInventory = inventory
