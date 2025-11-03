@@ -16,7 +16,8 @@ async function getPublicProfile(req, res) {
   try {
     const { id } = req.params;
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 24;
+    const limit = parseInt(req.query.limit) || 12;
+    const tab = req.query.tab || 'active'; // 'active' или 'opened'
     const offset = (page - 1) * limit;
 
     // Получаем пользователя
@@ -30,33 +31,89 @@ async function getPublicProfile(req, res) {
       ]
     });
 
-    // Получаем инвентарь с пагинацией
-    const { count: inventoryCount, rows: inventory } = await db.UserInventory.findAndCountAll({
-      where: {
-        user_id: id,
-        status: 'inventory'
-      },
-      attributes: [
-        'id', 'item_type', 'item_id', 'acquisition_date', 'source',
-        'status', 'case_id', 'case_template_id', 'transaction_date', 'expires_at'
-      ],
-      include: [
-        {
-          model: db.Item,
-          as: 'item',
-          attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
+    // Получаем данные в зависимости от активного таба
+    let inventory = [];
+    let inventoryCount = 0;
+    let allCaseItems = [];
+    let caseItemsCount = 0;
+
+    if (tab === 'active') {
+      // Получаем активные предметы с пагинацией
+      const result = await db.UserInventory.findAndCountAll({
+        where: {
+          user_id: id,
+          status: 'inventory'
         },
-        {
-          model: db.Case,
-          as: 'case',
-          required: false, // LEFT JOIN для получения template_id из кейса
-          attributes: ['id', 'template_id']
+        attributes: [
+          'id', 'item_type', 'item_id', 'acquisition_date', 'source',
+          'status', 'case_id', 'case_template_id', 'transaction_date', 'expires_at'
+        ],
+        include: [
+          {
+            model: db.Item,
+            as: 'item',
+            attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
+          },
+          {
+            model: db.Case,
+            as: 'case',
+            required: false,
+            attributes: ['id', 'template_id']
+          }
+        ],
+        order: [['acquisition_date', 'DESC']],
+        limit,
+        offset
+      });
+      inventory = result.rows;
+      inventoryCount = result.count;
+
+      // Получаем общее количество предметов из кейсов (без данных)
+      caseItemsCount = await db.UserInventory.count({
+        where: {
+          user_id: id,
+          source: 'case'
         }
-      ],
-      order: [['acquisition_date', 'DESC']],
-      limit,
-      offset
-    });
+      });
+    } else {
+      // Получаем предметы из кейсов с пагинацией
+      const result = await db.UserInventory.findAndCountAll({
+        where: {
+          user_id: id,
+          source: 'case'
+        },
+        attributes: [
+          'id', 'item_type', 'item_id', 'acquisition_date', 'source',
+          'status', 'case_id', 'case_template_id', 'transaction_date', 'expires_at'
+        ],
+        include: [
+          {
+            model: db.Item,
+            as: 'item',
+            attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
+          },
+          {
+            model: db.Case,
+            as: 'case',
+            required: false,
+            attributes: ['id', 'template_id']
+          }
+        ],
+        order: [['acquisition_date', 'DESC']],
+        limit,
+        offset
+      });
+      allCaseItems = result.rows;
+      caseItemsCount = result.count;
+
+      // Получаем общее количество активных предметов (без данных)
+      inventoryCount = await db.UserInventory.count({
+        where: {
+          user_id: id,
+          status: 'inventory'
+        }
+      });
+    }
 
     // Получаем ВСЕ предметы пользователя только для вычисления лучшего оружия и общей стоимости
     const allUserItems = await db.UserInventory.findAll({
@@ -68,34 +125,6 @@ async function getPublicProfile(req, res) {
           attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
         }
       ]
-    });
-
-    // Получаем предметы из кейсов с пагинацией
-    const { count: caseItemsCount, rows: allCaseItems } = await db.UserInventory.findAndCountAll({
-      where: {
-        user_id: id,
-        source: 'case'
-      },
-      attributes: [
-        'id', 'item_type', 'item_id', 'acquisition_date', 'source',
-        'status', 'case_id', 'case_template_id', 'transaction_date', 'expires_at'
-      ],
-      include: [
-        {
-          model: db.Item,
-          as: 'item',
-          attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
-        },
-        {
-          model: db.Case,
-          as: 'case',
-          required: false, // LEFT JOIN для получения template_id из кейса
-          attributes: ['id', 'template_id']
-        }
-      ],
-      order: [['acquisition_date', 'DESC']],
-      limit,
-      offset
     });
 
     if (!user) {
