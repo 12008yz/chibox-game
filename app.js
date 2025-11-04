@@ -54,8 +54,9 @@ app.use('/api/v1/buyCase', createRateLimit(60 * 1000, 10, 'Слишком мно
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// Увеличиваем лимит для загрузки файлов
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 app.use(cookieParser());
 
 // Добавляем CORS заголовки для статических файлов
