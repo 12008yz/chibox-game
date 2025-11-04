@@ -101,7 +101,23 @@ router.get('/live-drops', getLiveDrops); // + Публичное API для жи
 // Protected routes
 router.get('/profile', authMiddleware, getProfile);
 router.put('/profile', authMiddleware, updateProfile); //+
-router.post('/profile/avatar', authMiddleware, uploadMiddleware, uploadAvatar); // Upload avatar
+
+// Avatar upload with error handling
+router.post('/profile/avatar', authMiddleware, (req, res, next) => {
+  console.log('🔍 Avatar upload route hit');
+  console.log('Content-Type:', req.get('content-type'));
+  uploadMiddleware(req, res, (err) => {
+    if (err) {
+      console.error('❌ Multer error:', err);
+      return res.status(400).json({
+        success: false,
+        message: err.message || 'Ошибка при загрузке файла'
+      });
+    }
+    next();
+  });
+}, uploadAvatar);
+
 router.delete('/profile/avatar', authMiddleware, deleteAvatar); // Delete avatar
 router.post('/logout', authMiddleware, logout); //+
 

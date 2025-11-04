@@ -58,9 +58,15 @@ const uploadMiddleware = upload.single('avatar');
 // Контроллер для обработки загрузки аватара
 async function uploadAvatar(req, res) {
   try {
+    console.log('📸 Upload avatar controller called');
+    console.log('Content-Type:', req.get('content-type'));
+    console.log('User:', req.user?.id);
+    console.log('File:', req.file);
+
     const userId = req.user.id;
 
     if (!req.file) {
+      console.log('❌ No file in request');
       return res.status(400).json({
         success: false,
         message: 'Файл не был загружен'
