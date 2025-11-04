@@ -24,7 +24,7 @@ async function getPublicProfile(req, res) {
     const user = await db.User.findByPk(id, {
       attributes: [
         'id', 'username', 'createdAt', 'level', 'subscription_tier',
-        'total_cases_opened', 'steam_avatar_url', 'steam_profile',
+        'total_cases_opened', 'steam_avatar_url', 'avatar_url', 'steam_profile',
         'achievements_bonus_percentage', 'subscription_bonus_percentage',
         'level_bonus_percentage', 'total_drop_bonus_percentage',
         'best_item_value', 'total_items_value', 'daily_streak', 'max_daily_streak'
@@ -318,6 +318,7 @@ async function getPublicProfile(req, res) {
         totalItemsValue: totalItemsValue, // Используем вычисленное значение
         dailyStreak: dailyStreak, // Используем актуальное значение
         maxDailyStreak: maxDailyStreak, // Используем актуальное значение
+        avatar_url: user.avatar_url,
         steam_avatar: user.steam_avatar_url,
         steam_profile: user.steam_profile,
         achievements: userAchievements.map(ua => ({

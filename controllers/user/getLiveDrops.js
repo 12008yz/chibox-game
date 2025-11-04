@@ -15,7 +15,7 @@ async function getLiveDrops(req, res) {
         {
           model: db.User,
           as: 'user',
-          attributes: ['id', 'username', 'level', 'steam_avatar_url'],
+          attributes: ['id', 'username', 'level', 'steam_avatar_url', 'avatar_url'],
           required: true
         },
         {
@@ -43,7 +43,10 @@ async function getLiveDrops(req, res) {
         id: drop.user.id,
         username: drop.user.username,
         level: drop.user.level,
-        avatar: drop.user.steam_avatar_url
+        // Приоритет: кастомный аватар > Steam аватар
+        avatar: drop.user.avatar_url
+          ? `${process.env.BASE_URL || 'http://localhost:3000'}/api${drop.user.avatar_url}`
+          : drop.user.steam_avatar_url || null
       },
       item: {
         id: drop.item.id,
