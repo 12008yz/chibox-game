@@ -41,7 +41,10 @@ function broadcastDrop(user, item, caseData, dropData = {}) {
         id: user.id,
         username: user.username || 'Анонимный игрок',
         level: user.level || 1,
-        avatar: user.steam_avatar_url || null
+        // Приоритет: кастомный аватар > Steam аватар
+        avatar: user.avatar_url
+          ? `${process.env.BASE_URL || 'http://localhost:3000'}/api${user.avatar_url}`
+          : user.steam_avatar_url || null
       },
       item: {
         id: item.id,

@@ -104,6 +104,7 @@ async function getLeaderboardByLevel(limit, leaderboardData) {
       'total_xp_earned',
       'subscription_tier',
       'subscription_days_left',
+      'avatar_url',
       'steam_avatar_url',
       'steam_profile',
       'created_at'
@@ -127,6 +128,7 @@ async function getLeaderboardByLevel(limit, leaderboardData) {
     total_xp_earned: user.total_xp_earned,
     subscription_tier: user.subscription_tier,
     subscription_days_left: user.subscription_days_left,
+    avatar_url: user.avatar_url ? `${process.env.BASE_URL || 'http://localhost:3000'}/api${user.avatar_url}` : null,
     steam_avatar: user.steam_avatar_url,
     steam_profile: user.steam_profile,
     score: user.level, // Для сортировки
@@ -143,6 +145,7 @@ async function getLeaderboardByCasesOpened(limit, leaderboardData) {
       'level',
       'subscription_tier',
       'subscription_days_left',
+      'avatar_url',
       'steam_avatar_url',
       'steam_profile',
       [
@@ -173,6 +176,7 @@ async function getLeaderboardByCasesOpened(limit, leaderboardData) {
     level: user.level,
     subscription_tier: user.subscription_tier,
     subscription_days_left: user.subscription_days_left,
+    avatar_url: user.avatar_url ? `${process.env.BASE_URL || 'http://localhost:3000'}/api${user.avatar_url}` : null,
     steam_avatar: user.steam_avatar_url,
     steam_profile: user.steam_profile,
     cases_opened: parseInt(user.dataValues.cases_opened) || 0,
@@ -189,6 +193,7 @@ async function getLeaderboardByMostExpensiveItem(limit, leaderboardData) {
       'level',
       'subscription_tier',
       'subscription_days_left',
+      'avatar_url',
       'steam_avatar_url',
       'steam_profile',
       'best_item_value',
@@ -225,6 +230,7 @@ async function getLeaderboardByMostExpensiveItem(limit, leaderboardData) {
     level: user.level,
     subscription_tier: user.subscription_tier,
     subscription_days_left: user.subscription_days_left,
+    avatar_url: user.avatar_url ? `${process.env.BASE_URL || 'http://localhost:3000'}/api${user.avatar_url}` : null,
     steam_avatar: user.steam_avatar_url,
     steam_profile: user.steam_profile,
     max_item_value: parseFloat(user.best_item_value) || 0,
@@ -235,7 +241,7 @@ async function getLeaderboardByMostExpensiveItem(limit, leaderboardData) {
   // Если недостаточно пользователей с предметами, добавляем пользователей с нулевой стоимостью
   if (leaderboardData.length < limit) {
     const usersWithoutItems = await db.User.findAll({
-      attributes: ['id', 'username', 'level', 'subscription_tier', 'subscription_days_left', 'steam_avatar', 'steam_profile'],
+      attributes: ['id', 'username', 'level', 'subscription_tier', 'subscription_days_left', 'avatar_url', 'steam_avatar_url', 'steam_profile'],
       where: {
         is_active: true,
         is_banned: false,
@@ -253,6 +259,7 @@ async function getLeaderboardByMostExpensiveItem(limit, leaderboardData) {
       level: user.level,
       subscription_tier: user.subscription_tier,
       subscription_days_left: user.subscription_days_left,
+      avatar_url: user.avatar_url ? `${process.env.BASE_URL || 'http://localhost:3000'}/api${user.avatar_url}` : null,
       steam_avatar: user.steam_avatar_url,
       steam_profile: user.steam_profile,
       max_item_value: 0,

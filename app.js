@@ -112,6 +112,15 @@ app.use('/avatars', (req, res, next) => {
   next();
 });
 
+// Раздача аватаров через /api/avatars (для совместимости с фронтендом)
+app.use('/api/avatars', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(path.join(__dirname, 'public/avatars')));
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Middleware для защиты от двойной отправки заголовков
