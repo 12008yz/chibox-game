@@ -45,15 +45,15 @@ const registerValidation = [
 
 async function register(req, res) {
   // Логируем входящий запрос для отладки
-  logger.info('Register request received:', {
+  logger.info('[REGISTER] Register request received:', {
     headers: req.headers,
-    body: req.body,
+    body: { ...req.body, password: '***' }, // Скрываем пароль в логах
     contentType: req.get('Content-Type')
   });
 
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    logger.error('Validation errors:', errors.array());
+    logger.error('[REGISTER] Validation errors:', errors.array());
     return res.status(400).json({
       message: 'Ошибка валидации',
       errors: errors.array(),
@@ -61,6 +61,7 @@ async function register(req, res) {
   }
   try {
     let { email, password, username, promoCode } = req.body;
+    logger.info('[REGISTER] Processing registration for:', { email, username });
 
     // Валидация типов для защиты от Type Confusion
     if (typeof email !== 'string' || typeof password !== 'string' || typeof username !== 'string') {
@@ -81,20 +82,25 @@ async function register(req, res) {
 
     const existingUser = await db.User.findOne({ where: { email } });
     if (existingUser) {
+      logger.warn('[REGISTER] Email already exists:', email);
       return res.status(409).json({ message: 'Почта уже используется' });
     }
 
     const existingUsername = await db.User.findOne({ where: { username } });
     if (existingUsername) {
+      logger.warn('[REGISTER] Username already exists:', username);
       return res.status(409).json({ message: 'Имя пользователя уже занято' });
     }
 
+    logger.info('[REGISTER] Hashing password...');
     const hashedPassword = await argon2.hash(password);
 
     // Генерируем код подтверждения
+    logger.info('[REGISTER] Generating verification code...');
     const verificationCode = emailService.generateVerificationCode();
     const verificationExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 минут
 
+    logger.info('[REGISTER] Creating new user in database...');
     const newUser = await db.User.create({
       email,
       username,
@@ -103,6 +109,7 @@ async function register(req, res) {
       verification_code: verificationCode,
       email_verification_expires: verificationExpires
     });
+    logger.info('[REGISTER] User created successfully with ID:', newUser.id);
 
     // Создаем уведомление о успешной регистрации
     try {
@@ -130,9 +137,10 @@ async function register(req, res) {
 
     // Отправляем код подтверждения на email
     try {
+      logger.info('[REGISTER] Sending verification email to:', email);
       const emailResult = await emailService.sendVerificationCode(email, username, verificationCode);
 
-      logger.info('Verification email sent to new user', {
+      logger.info('[REGISTER] Verification email sent successfully', {
         userId: newUser.id,
         email: email,
         messageId: emailResult.messageId
@@ -150,8 +158,10 @@ async function register(req, res) {
       // Добавляем preview URL только в режиме разработки и если это ethereal email
       if (process.env.NODE_ENV === 'development' && emailResult.previewUrl) {
         response.previewUrl = emailResult.previewUrl;
+        logger.info('[REGISTER] Preview URL included:', emailResult.previewUrl);
       }
 
+      logger.info('[REGISTER] Sending success response:', response);
       return res.status(201).json(response);
 
     } catch (emailError) {

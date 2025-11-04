@@ -21,9 +21,11 @@ const failedLogin = new Map();
 async function login(req, res) {
   try {
     const { email, password } = req.body;
+    logger.info('[LOGIN] Login request received for email:', email);
 
     // Валидация типов для защиты от Prototype Pollution
     if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
+      logger.warn('[LOGIN] Invalid email or password type');
       return res.status(400).json({ message: 'Email и пароль обязательны и должны быть строками' });
     }
 
@@ -40,8 +42,10 @@ async function login(req, res) {
       return res.status(429).json({ message: 'Попробуйте позже (блокировка из-за неудачных попыток)' });
     }
 
+    logger.info('[LOGIN] Looking up user in database:', key);
     const user = await db.User.findOne({ where: { email: key } });
     if (!user) {
+      logger.warn('[LOGIN] User not found:', key);
       const attempts = failedLogin.get(key) || { count: 0 };
       attempts.count++;
       if (attempts.count >= 5) {
@@ -51,8 +55,10 @@ async function login(req, res) {
       return res.status(401).json({ message: 'Неверный email или пароль.' });
     }
 
+    logger.info('[LOGIN] User found, verifying password for user ID:', user.id);
     const passwordMatch = await argon2.verify(user.password, password);
     if (!passwordMatch) {
+      logger.warn('[LOGIN] Password mismatch for user:', key);
       const attempts = failedLogin.get(key) || { count: 0 };
       attempts.count++;
       if (attempts.count >= 5) {
@@ -62,6 +68,7 @@ async function login(req, res) {
       return res.status(401).json({ message: 'Неверный email или пароль.' });
     }
 
+    logger.info('[LOGIN] Password verified successfully for user:', user.id);
     // Очистка после удачного входа
     failedLogin.delete(key);
 
@@ -143,8 +150,10 @@ async function login(req, res) {
     const achievements = userWithDetails ? userWithDetails.achievements : [];
     const inventory = userWithDetails ? userWithDetails.inventory : [];
 
+    logger.info('[LOGIN] Generating JWT token for user:', user.id);
     const token = generateToken(user);
 
+    logger.info('[LOGIN] Preparing response data...');
     const response = {
       success: true,
       token,
@@ -190,12 +199,19 @@ async function login(req, res) {
     if (!user.is_email_verified) {
       response.emailVerificationRequired = true;
       response.message = 'Для доступа ко всем функциям необходимо подтвердить email адрес';
+      logger.info('[LOGIN] Email not verified for user:', user.id);
     }
 
+    logger.info('[LOGIN] Login successful, sending response for user:', {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      hasToken: !!token
+    });
     return res.json(response);
 
   } catch (error) {
-    logger.error('Ошибка при входе:', error);
+    logger.error('[LOGIN] Error during login:', error);
     return res.status(500).json({ message: 'Внутренняя ошибка сервера' });
   }
 }
