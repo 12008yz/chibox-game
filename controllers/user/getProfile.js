@@ -155,8 +155,16 @@ async function getProfile(req, res) {
     }
 
     // Добавляем вычисленные поля к объекту пользователя
+    const userJson = user.toJSON();
+
+    // Формируем полный URL для пользовательского аватара
+    const avatarUrl = userJson.avatar_url
+      ? `${process.env.BASE_URL || 'http://localhost:3000'}/api${userJson.avatar_url}`
+      : null;
+
     const userWithTotalValue = {
-      ...user.toJSON(),
+      ...userJson,
+      avatar_url: avatarUrl,
       total_items_value: totalItemsValue,
       bestWeapon: bestWeapon,
       bestItemValue: user.best_item_value || 0

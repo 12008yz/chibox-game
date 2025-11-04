@@ -288,6 +288,11 @@ async function getPublicProfile(req, res) {
     logger.info(`Public profile request - User: ${id}, Tab: ${tab}, Page: ${page}, Limit: ${limit}`);
     logger.info(`Returning - Inventory: ${filteredInventory.length}, CaseItems: ${filteredCaseItems.length}`);
 
+    // Формируем полный URL для пользовательского аватара
+    const avatarUrl = user.avatar_url
+      ? `${process.env.BASE_URL || 'http://localhost:3000'}/api${user.avatar_url}`
+      : null;
+
     return res.json({
       user: {
         id: user.id,
@@ -318,7 +323,8 @@ async function getPublicProfile(req, res) {
         totalItemsValue: totalItemsValue, // Используем вычисленное значение
         dailyStreak: dailyStreak, // Используем актуальное значение
         maxDailyStreak: maxDailyStreak, // Используем актуальное значение
-        avatar_url: user.avatar_url,
+        avatar_url: avatarUrl,
+        steam_avatar_url: user.steam_avatar_url,
         steam_avatar: user.steam_avatar_url,
         steam_profile: user.steam_profile,
         achievements: userAchievements.map(ua => ({
