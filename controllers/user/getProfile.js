@@ -38,7 +38,7 @@ async function getProfile(req, res) {
         'next_bonus_available_time', 'last_bonus_date', 'lifetime_bonuses_claimed', 'successful_bonus_claims',
         'drop_rate_modifier', 'achievements_bonus_percentage', 'subscription_bonus_percentage', 'total_drop_bonus_percentage',
         'balance',
-        'steam_id', 'steam_profile', 'steam_avatar_url', 'steam_profile_url', 'steam_trade_url', 'auth_provider',
+        'steam_id', 'steam_profile', 'steam_avatar_url', 'avatar_url', 'steam_profile_url', 'steam_trade_url', 'auth_provider',
         'best_item_value' // Добавляем поле лучшего предмета
       ],
       include: [

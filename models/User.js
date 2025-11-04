@@ -313,6 +313,11 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: "URL аватара Steam"
     },
+    avatar_url: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      comment: "URL пользовательского аватара (приоритет над Steam)"
+    },
     steam_profile_url: {
       type: DataTypes.STRING,
       allowNull: true,

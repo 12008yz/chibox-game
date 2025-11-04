@@ -57,6 +57,7 @@ const { createGame: createTicTacToeGame, getCurrentGame: getCurrentTicTacToeGame
 const { getUpgradeableItems, getUpgradeOptions, performUpgrade } = require('../controllers/user/upgradeItem');
 const { topUpBalance } = require('../controllers/user/topUpBalance');
 const getCurrency = require('../controllers/user/getCurrency');
+const { uploadAvatar, deleteAvatar, uploadMiddleware } = require('../controllers/user/uploadAvatar');
 const authMiddleware = require('../middleware/auth');
 const optionalAuthMiddleware = require('../middleware/optionalAuth');
 const { requireEmailVerification } = require('../middleware/emailVerification');
@@ -100,6 +101,8 @@ router.get('/live-drops', getLiveDrops); // + Публичное API для жи
 // Protected routes
 router.get('/profile', authMiddleware, getProfile);
 router.put('/profile', authMiddleware, updateProfile); //+
+router.post('/profile/avatar', authMiddleware, uploadMiddleware, uploadAvatar); // Upload avatar
+router.delete('/profile/avatar', authMiddleware, deleteAvatar); // Delete avatar
 router.post('/logout', authMiddleware, logout); //+
 
 router.get('/inventory', authMiddleware, getInventory); //+
