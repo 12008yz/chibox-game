@@ -91,7 +91,15 @@ const createGame = async (req, res) => {
       const limit = getTicTacToeLimit(user.subscription_tier);
       logger.info(`[TICTACTOE] Сброс попыток для пользователя ${user.username}, тир ${user.subscription_tier}, лимит ${limit}`);
       user.tictactoe_attempts_left = limit;
-      user.last_tictactoe_reset = new Date();
+
+      // Устанавливаем last_tictactoe_reset на время последнего планового сброса (16:00 МСК = 13:00 UTC)
+      const resetTime = new Date();
+      resetTime.setUTCHours(13, 0, 0, 0);
+      // Если текущее время до 16:00 МСК, используем вчерашний сброс
+      if (now < resetTime) {
+        resetTime.setDate(resetTime.getDate() - 1);
+      }
+      user.last_tictactoe_reset = resetTime;
       await user.save();
     }
 
@@ -198,7 +206,15 @@ const getCurrentGame = async (req, res) => {
       const limit = getTicTacToeLimit(user.subscription_tier);
       logger.info(`[TICTACTOE] Сброс попыток для пользователя ${user.username}, тир ${user.subscription_tier}, лимит ${limit}`);
       user.tictactoe_attempts_left = limit;
-      user.last_tictactoe_reset = new Date();
+
+      // Устанавливаем last_tictactoe_reset на время последнего планового сброса (16:00 МСК = 13:00 UTC)
+      const resetTime = new Date();
+      resetTime.setUTCHours(13, 0, 0, 0);
+      // Если текущее время до 16:00 МСК, используем вчерашний сброс
+      if (now < resetTime) {
+        resetTime.setDate(resetTime.getDate() - 1);
+      }
+      user.last_tictactoe_reset = resetTime;
       await user.save();
     }
 

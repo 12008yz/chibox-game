@@ -15,6 +15,14 @@ const logger = winston.createLogger({
   ],
 });
 
+// Лимиты попыток для крестиков-ноликов
+const TICTACTOE_LIMITS = {
+  0: 0, // Без подписки - нельзя играть
+  1: 3, // Тир 1 - 3 попытки
+  2: 4, // Тир 2 - 4 попытки
+  3: 5  // Тир 3 - 5 попыток
+};
+
 /**
  * Активирует подписку для пользователя
  * @param {number} userId - ID пользователя
@@ -53,6 +61,21 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
 
     user.max_daily_cases = tier.max_daily_cases;
     user.cases_available = Math.max(user.cases_available || 0, 1);
+
+    // Устанавливаем попытки для крестиков-ноликов при активации подписки
+    const tictactoeLimit = TICTACTOE_LIMITS[tierId] || 0;
+    user.tictactoe_attempts_left = tictactoeLimit;
+
+    // Устанавливаем время последнего сброса на последнее плановое время сброса (16:00 МСК = 13:00 UTC)
+    const resetTime = new Date();
+    resetTime.setUTCHours(13, 0, 0, 0);
+    // Если текущее время до 16:00 МСК, используем вчерашний сброс
+    if (now < resetTime) {
+      resetTime.setDate(resetTime.getDate() - 1);
+    }
+    user.last_tictactoe_reset = resetTime;
+
+    logger.info(`[TICTACTOE] Установлены попытки для пользователя ${userId}, тир ${tierId}, лимит ${tictactoeLimit}`);
 
     await user.save();
 
