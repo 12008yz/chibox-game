@@ -217,6 +217,28 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: "Время последней игры в рулетку"
     },
+    roulette_attempts_left: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      comment: "Количество оставшихся попыток в рулетку на сегодня"
+    },
+    last_roulette_reset: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Дата последнего сброса попыток рулетки (в 16:00 МСК)"
+    },
+
+    // Крестики-нолики (ограничения по подписке)
+    tictactoe_attempts_left: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      comment: "Количество оставшихся попыток в крестики-нолики на сегодня"
+    },
+    last_tictactoe_reset: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Дата последнего сброса попыток крестиков-ноликов (в 16:00 МСК)"
+    },
 
     // Слот-машина (ограничения по подписке)
     slots_played_today: {
