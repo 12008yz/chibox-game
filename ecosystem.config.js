@@ -65,27 +65,6 @@ module.exports = {
       merge_logs: true
     },
 
-    // Выдача ежедневных кейсов
-    {
-      name: "chibox-daily-cases",
-      script: "./scripts/dailyCaseIssuer.js",
-      instances: 1,
-      autorestart: false, // Запускается только по cron
-      watch: false,
-      cron_restart: "0 0 * * *", // Каждый день в полночь
-      env: {
-        NODE_ENV: "production"
-      },
-      env_development: {
-        NODE_ENV: "development"
-      },
-      error_file: "./logs/daily-cases-error.log",
-      out_file: "./logs/daily-cases-out.log",
-      log_file: "./logs/daily-cases.log",
-      time: true,
-      merge_logs: true
-    },
-
     // Unified Withdrawal Processor (Steam Bot + PlayerOk Arbitrage)
     {
       name: "chibox-withdrawal-processor",

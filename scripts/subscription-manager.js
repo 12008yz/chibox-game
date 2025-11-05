@@ -95,24 +95,18 @@ async function decreaseSubscriptionDays() {
       try {
         processedCount++;
 
-        // Проверяем согласованность данных
-        const expiryDate = user.subscription_expiry_date ? new Date(user.subscription_expiry_date) : null;
+        // Получаем текущие дни подписки
         let currentDaysLeft = user.subscription_days_left || 0;
-
-        // Если есть expiry_date, пересчитываем дни
-        if (expiryDate) {
-          const msLeft = expiryDate.getTime() - now.getTime();
-          const calculatedDays = msLeft > 0 ? Math.ceil(msLeft / (24 * 60 * 60 * 1000)) : 0;
-
-          // Синхронизируем, если есть расхождение больше 1 дня
-          if (Math.abs(calculatedDays - currentDaysLeft) > 1) {
-            logger.warn(`Синхронизация дней для пользователя ${user.id}: ${currentDaysLeft} -> ${calculatedDays}`);
-            currentDaysLeft = calculatedDays;
-          }
-        }
 
         // Уменьшаем на 1 день
         const newDaysLeft = Math.max(0, currentDaysLeft - 1);
+
+        // Обновляем expiry_date (сдвигаем на 1 день назад)
+        let newExpiryDate = user.subscription_expiry_date;
+        if (newExpiryDate) {
+          newExpiryDate = new Date(newExpiryDate);
+          newExpiryDate.setDate(newExpiryDate.getDate() - 1);
+        }
 
         // Отправляем предупреждения
         if (newDaysLeft === 3) {
@@ -146,7 +140,8 @@ async function decreaseSubscriptionDays() {
             subscription_bonus_percentage: 0,
             max_daily_cases: 0,
             cases_available: 0,
-            subscription_expiry_date: null
+            subscription_expiry_date: null,
+            subscription_purchase_date: null
           });
 
           // ✅ ВАЖНО: Пересчитываем total_drop_bonus_percentage после сброса подписки
@@ -171,12 +166,13 @@ async function decreaseSubscriptionDays() {
           deactivatedCount++;
           logger.info(`Подписка деактивирована для пользователя ${user.id} (@${user.username})`);
         } else {
-          // Просто обновляем количество дней
+          // Просто обновляем количество дней и expiry_date
           await user.update({
-            subscription_days_left: newDaysLeft
+            subscription_days_left: newDaysLeft,
+            subscription_expiry_date: newExpiryDate
           });
 
-          logger.debug(`Пользователь ${user.id}: ${currentDaysLeft} -> ${newDaysLeft} дней`);
+          logger.debug(`Пользователь ${user.id}: ${currentDaysLeft} -> ${newDaysLeft} дней (expiry: ${newExpiryDate ? newExpiryDate.toISOString() : 'null'})`);
         }
 
       } catch (error) {
