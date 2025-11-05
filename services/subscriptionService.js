@@ -23,6 +23,14 @@ const TICTACTOE_LIMITS = {
   3: 5  // Тир 3 - 5 попыток
 };
 
+// Лимиты попыток для рулетки (1 игра для всех уровней подписки)
+const ROULETTE_LIMITS = {
+  0: 0, // Без подписки - нельзя играть
+  1: 1, // Тир 1 - 1 попытка
+  2: 1, // Тир 2 - 1 попытка
+  3: 1  // Тир 3 - 1 попытка
+};
+
 /**
  * Активирует подписку для пользователя
  * @param {number} userId - ID пользователя
@@ -66,6 +74,10 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
     const tictactoeLimit = TICTACTOE_LIMITS[tierId] || 0;
     user.tictactoe_attempts_left = tictactoeLimit;
 
+    // Устанавливаем попытки для рулетки при активации подписки (1 попытка для всех уровней)
+    const rouletteLimit = ROULETTE_LIMITS[tierId] || 0;
+    user.roulette_attempts_left = rouletteLimit;
+
     // Устанавливаем время последнего сброса на последнее плановое время сброса (16:00 МСК = 13:00 UTC)
     const resetTime = new Date();
     resetTime.setUTCHours(13, 0, 0, 0);
@@ -74,8 +86,10 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
       resetTime.setDate(resetTime.getDate() - 1);
     }
     user.last_tictactoe_reset = resetTime;
+    user.last_roulette_reset = resetTime;
 
     logger.info(`[TICTACTOE] Установлены попытки для пользователя ${userId}, тир ${tierId}, лимит ${tictactoeLimit}`);
+    logger.info(`[ROULETTE] Установлены попытки для пользователя ${userId}, тир ${tierId}, лимит ${rouletteLimit}`);
 
     await user.save();
 

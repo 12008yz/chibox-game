@@ -56,6 +56,41 @@ function getTicTacToeLimit(subscriptionTier) {
   return TICTACTOE_LIMITS[subscriptionTier] || 0;
 }
 
+/**
+ * Проверяет и сбрасывает попытки пользователя, если необходимо
+ * @param {Object} user - Объект пользователя
+ * @returns {Promise<Object>} - { hasActiveSubscription, resetTime }
+ */
+async function checkAndResetUserAttempts(user) {
+  const now = new Date();
+
+  // Проверяем наличие активной подписки
+  const hasActiveSubscription = user.subscription_tier > 0 &&
+    user.subscription_expiry_date &&
+    new Date(user.subscription_expiry_date) > now;
+
+  // Проверяем, нужно ли сбросить счетчик попыток
+  const needsReset = shouldResetTicTacToeCounter(user.last_tictactoe_reset);
+
+  if (needsReset) {
+    const limit = getTicTacToeLimit(user.subscription_tier);
+    logger.info(`[TICTACTOE] Сброс попыток для пользователя ${user.username}, тир ${user.subscription_tier}, лимит ${limit}`);
+    user.tictactoe_attempts_left = limit;
+
+    // Устанавливаем last_tictactoe_reset на время последнего планового сброса (16:00 МСК = 13:00 UTC)
+    const resetTime = new Date();
+    resetTime.setUTCHours(13, 0, 0, 0);
+    // Если текущее время до 16:00 МСК, используем вчерашний сброс
+    if (now < resetTime) {
+      resetTime.setDate(resetTime.getDate() - 1);
+    }
+    user.last_tictactoe_reset = resetTime;
+    await user.save();
+  }
+
+  return { hasActiveSubscription, now };
+}
+
 // Создание новой игры
 const createGame = async (req, res) => {
   try {
@@ -71,36 +106,14 @@ const createGame = async (req, res) => {
       });
     }
 
-    // Проверяем наличие активной подписки
-    const now = new Date();
-    const hasActiveSubscription = user.subscription_tier > 0 &&
-      user.subscription_expiry_date &&
-      new Date(user.subscription_expiry_date) > now;
+    // Проверяем подписку и сбрасываем попытки при необходимости
+    const { hasActiveSubscription, now } = await checkAndResetUserAttempts(user);
 
     if (!hasActiveSubscription) {
       return res.status(403).json({
         success: false,
         error: 'Приобретите статус для доступа к бонусу'
       });
-    }
-
-    // Проверяем, нужно ли сбросить счетчик попыток
-    const needsReset = shouldResetTicTacToeCounter(user.last_tictactoe_reset);
-
-    if (needsReset) {
-      const limit = getTicTacToeLimit(user.subscription_tier);
-      logger.info(`[TICTACTOE] Сброс попыток для пользователя ${user.username}, тир ${user.subscription_tier}, лимит ${limit}`);
-      user.tictactoe_attempts_left = limit;
-
-      // Устанавливаем last_tictactoe_reset на время последнего планового сброса (16:00 МСК = 13:00 UTC)
-      const resetTime = new Date();
-      resetTime.setUTCHours(13, 0, 0, 0);
-      // Если текущее время до 16:00 МСК, используем вчерашний сброс
-      if (now < resetTime) {
-        resetTime.setDate(resetTime.getDate() - 1);
-      }
-      user.last_tictactoe_reset = resetTime;
-      await user.save();
     }
 
     // Проверяем, остались ли попытки
@@ -193,30 +206,8 @@ const getCurrentGame = async (req, res) => {
       });
     }
 
-    // Проверяем наличие активной подписки
-    const now = new Date();
-    const hasActiveSubscription = user.subscription_tier > 0 &&
-      user.subscription_expiry_date &&
-      new Date(user.subscription_expiry_date) > now;
-
-    // Проверяем, нужно ли сбросить счетчик попыток
-    const needsReset = shouldResetTicTacToeCounter(user.last_tictactoe_reset);
-
-    if (needsReset) {
-      const limit = getTicTacToeLimit(user.subscription_tier);
-      logger.info(`[TICTACTOE] Сброс попыток для пользователя ${user.username}, тир ${user.subscription_tier}, лимит ${limit}`);
-      user.tictactoe_attempts_left = limit;
-
-      // Устанавливаем last_tictactoe_reset на время последнего планового сброса (16:00 МСК = 13:00 UTC)
-      const resetTime = new Date();
-      resetTime.setUTCHours(13, 0, 0, 0);
-      // Если текущее время до 16:00 МСК, используем вчерашний сброс
-      if (now < resetTime) {
-        resetTime.setDate(resetTime.getDate() - 1);
-      }
-      user.last_tictactoe_reset = resetTime;
-      await user.save();
-    }
+    // Проверяем подписку и сбрасываем попытки при необходимости
+    const { hasActiveSubscription, now } = await checkAndResetUserAttempts(user);
 
     // Ищем только активную игру
     const game = await TicTacToeGame.findOne({
@@ -227,6 +218,26 @@ const getCurrentGame = async (req, res) => {
       order: [['created_at', 'DESC']]
     });
 
+    // Проверяем, выиграл ли пользователь сегодня
+    const lastResetTime = new Date();
+    lastResetTime.setUTCHours(13, 0, 0, 0); // 16:00 МСК = 13:00 UTC
+    if (now < lastResetTime) {
+      lastResetTime.setDate(lastResetTime.getDate() - 1);
+    }
+
+    const todayWin = await TicTacToeGame.findOne({
+      where: {
+        user_id: userId,
+        result: 'win',
+        reward_given: true,
+        updated_at: {
+          [Op.gte]: lastResetTime
+        }
+      },
+      order: [['updated_at', 'DESC']]
+    });
+
+    const hasWonToday = !!todayWin;
     const canPlay = hasActiveSubscription && user.tictactoe_attempts_left > 0;
 
     res.json({
@@ -234,7 +245,8 @@ const getCurrentGame = async (req, res) => {
       game,
       canPlay,
       attempts_left: user.tictactoe_attempts_left,
-      has_subscription: hasActiveSubscription
+      has_subscription: hasActiveSubscription,
+      has_won_today: hasWonToday
     });
 
   } catch (error) {
