@@ -105,7 +105,7 @@ async function withdrawItem(req, res) {
     // ✅ ПРОВЕРЯЕМ ПОДПИСКУ: пользователь должен иметь действующую подписку
     const now = new Date();
     let hasActiveSubscription = false;
-    let subscriptionStatus = 'Подписка отсутствует';
+    let subscriptionStatus = 'Статус отсутствует';
 
     // Проверяем количество оставшихся дней подписки
     if (user.subscription_days_left && user.subscription_days_left > 0) {

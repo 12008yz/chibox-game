@@ -93,7 +93,7 @@ async function buySubscription(req, res) {
         logger.info('Создание платежа через YooMoney');
         const paymentResult = await createPayment({
           amount: price,
-          description: `Подписка ${tier.name} на ${tier.days} дней`,
+          description: `Статус ${tier.name} на ${tier.days} дней`,
           userId: userId,
           purpose: 'subscription',
           metadata: { tierId },
@@ -225,7 +225,7 @@ async function buySubscription(req, res) {
         max_daily_cases: tier.max_daily_cases
       },
       balance: user.balance,
-      message: 'Подписка успешно активирована'
+      message: 'Статус успешно активирован'
     });
   } catch (error) {
     logger.error('Ошибка покупки подписки:', error);

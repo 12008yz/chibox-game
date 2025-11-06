@@ -42,7 +42,7 @@ module.exports = {
       {
         id: '33333333-3333-3333-3333-333333333333',
         name: 'Премиум игрок',
-        description: 'Найдите 3 предмета стоимостью от 100 руб',
+        description: 'Найдите 3 предмета стоимостью от 100 chiCoins',
         xp_reward: 300,
         icon_url: '/Achievements/Премиум игрок-no-bg-preview.png',
         requirement_type: 'premium_items_found',

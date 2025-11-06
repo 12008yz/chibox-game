@@ -73,7 +73,7 @@ async function getCaseStatus(req, res) {
 
       // Проверяем есть ли активная подписка (дни)
       if (minSubscriptionTier > 0 && subscriptionDaysLeft <= 0) {
-        status.reason = 'Подписка истекла';
+        status.reason = 'Статус истек';
         return res.json({ success: true, data: status });
       }
 
