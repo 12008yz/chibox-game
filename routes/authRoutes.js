@@ -215,7 +215,7 @@ router.get('/link-steam/return',
       const updateData = {
         steam_id: steamId,
         steam_profile: steamData.steam_profile,
-        steam_avatar_url: steamData.steam_avatar,
+        steam_avatar_url: steamData.steam_avatar_url || steamData.steam_avatar,
         steam_profile_url: steamData.steam_profile_url
       };
 

@@ -88,15 +88,14 @@ if (STEAM_API_KEY) {
 
       if (user) {
         // Пользователь существует, обновляем его данные
-        const avatarUrl = profile._json?.avatarfull || profile._json?.avatarmedium || profile._json?.avatar;
-        const newUsername = profile._json?.personaname || user.username;
+        const steamAvatarUrl = profile._json?.avatarfull || profile._json?.avatarmedium || profile._json?.avatar;
 
         console.log('🔄 Updating existing user Steam data:', {
           userId: user.id,
           currentUsername: user.username,
-          newUsername: newUsername,
           steamId,
-          avatarUrl,
+          steamAvatarUrl,
+          hasCustomAvatar: !!user.avatar_url,
           profileUrl: profile._json?.profileurl,
           displayName: profile.displayName,
           fullProfile: profile._json
@@ -119,10 +118,11 @@ if (STEAM_API_KEY) {
           }
         }
 
+        // Обновляем steam_profile, steam_avatar_url и steam_profile_url
+        // НЕ обновляем username - пользователь сам может его изменить
         const updateData = {
-          username: newUsername,
           steam_profile: profile._json,
-          steam_avatar_url: avatarUrl,
+          steam_avatar_url: steamAvatarUrl,
           steam_profile_url: profile._json?.profileurl,
           last_login_date: now
         };
@@ -155,6 +155,21 @@ if (STEAM_API_KEY) {
 
         return done(null, user);
       } else {
+        // Перед созданием нового пользователя проверяем, не привязан ли уже этот Steam ID к другому аккаунту
+        const existingSteamUser = await db.User.findOne({
+          where: { steam_id: steamId }
+        });
+
+        if (existingSteamUser) {
+          logger.error('Попытка создать нового пользователя с уже существующим Steam ID:', {
+            steamId,
+            existingUserId: existingSteamUser.id,
+            existingUsername: existingSteamUser.username,
+            existingEmail: existingSteamUser.email
+          });
+          return done(new Error('Этот Steam аккаунт уже привязан к другому пользователю'), null);
+        }
+
         // Создаем нового пользователя
         const username = profile._json?.personaname || `steam_user_${steamId.slice(-8)}`;
         const email = `${steamId}@steam.local`; // Временный email
@@ -231,7 +246,7 @@ if (STEAM_API_KEY) {
       const steamLinkData = {
         steam_id: steamId,
         steam_profile: profile._json,
-        steam_avatar: profile._json?.avatarfull || profile._json?.avatarmedium || profile._json?.avatar,
+        steam_avatar_url: profile._json?.avatarfull || profile._json?.avatarmedium || profile._json?.avatar,
         steam_profile_url: profile._json?.profileurl
       };
 
