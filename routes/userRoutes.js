@@ -47,6 +47,7 @@ const { verifyEmailValidation, verifyEmail } = require('../controllers/user/veri
 const { resendValidation, resendVerificationCode } = require('../controllers/user/resendVerificationCode');
 const { getWithdrawalStatus } = require('../controllers/user/withdrawItem');
 const playRoulette = require('../controllers/user/playRoulette');
+const playPlinko = require('../controllers/user/playPlinko');
 const playSlot = require('../controllers/user/playSlot');
 const { getSlotItems } = require('../controllers/user/getSlotItems');
 const getSlotStatus = require('../controllers/user/getSlotStatus');
@@ -151,6 +152,7 @@ router.get('/subscription', authMiddleware, getSubscription); //+
 router.get('/subscription/tiers', getSubscriptionTiers); // Public route for subscription tiers
 router.post('/items/exchange-for-subscription', authMiddleware, exchangeItemForSubscription); //+
 router.post('/bonus/play-roulette', authMiddleware, playRoulette); //+
+router.post('/games/play-plinko', authMiddleware, playPlinko); // Игра в Plinko
 router.post('/games/play-slot', authMiddleware, playSlot); // Игра в слот
 router.get('/games/slot-items', getSlotItems); // Получение предметов для слота (публичный endpoint)
 router.get('/games/slot-status', authMiddleware, getSlotStatus); // Получение статуса слота для пользователя
