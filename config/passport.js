@@ -4,6 +4,7 @@ const db = require('../models');
 const { logger } = require('../utils/logger');
 const { createSteamLoginNotification } = require('../utils/notificationHelper');
 const { addExperience } = require('../services/xpService');
+const { updateUserBonuses } = require('../utils/userBonusCalculator');
 
 // Настройки Steam OAuth
 const STEAM_API_KEY = process.env.STEAM_API_KEY;
@@ -206,6 +207,16 @@ if (STEAM_API_KEY) {
         });
 
         logger.info(`Создан новый пользователь через Steam: ${username} (${steamId})`);
+
+        // Инициализируем бонусы пользователя
+        try {
+          await updateUserBonuses(user.id);
+          logger.info(`Бонусы инициализированы для нового пользователя ${username}`);
+          // Перезагружаем пользователя, чтобы получить обновленные бонусы
+          await user.reload();
+        } catch (bonusError) {
+          logger.error('Ошибка при инициализации бонусов для нового пользователя Steam:', bonusError);
+        }
 
         // Начисляем +15 XP за первый вход
         try {
