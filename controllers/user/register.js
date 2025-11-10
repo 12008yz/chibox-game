@@ -135,50 +135,21 @@ async function register(req, res) {
       }
     }
 
-    // Отправляем код подтверждения на email
-    try {
-      logger.info('[REGISTER] Sending verification email to:', email);
-      const emailResult = await emailService.sendVerificationCode(email, username, verificationCode);
+    // Код подтверждения сохранен в базе данных
+    // Email будет отправлен только когда пользователь запросит его через "Отправить код повторно"
+    logger.info('[REGISTER] Verification code generated and saved to database');
+    logger.info('[REGISTER] User must request verification code manually');
 
-      logger.info('[REGISTER] Verification email sent successfully', {
-        userId: newUser.id,
-        email: email,
-        messageId: emailResult.messageId
-      });
+    const response = {
+      success: true,
+      message: 'Пользователь зарегистрирован. Нажмите "Отправить код" для получения кода подтверждения на email.',
+      userId: newUser.id,
+      email: email,
+      codeExpires: verificationExpires
+    };
 
-      // Если используется ethereal email для тестирования, включаем preview URL в ответ
-      const response = {
-        success: true,
-        message: 'Пользователь зарегистрирован. Проверьте почту и введите код подтверждения.',
-        userId: newUser.id,
-        email: email,
-        codeExpires: verificationExpires
-      };
-
-      // Добавляем preview URL только в режиме разработки и если это ethereal email
-      if (process.env.NODE_ENV === 'development' && emailResult.previewUrl) {
-        response.previewUrl = emailResult.previewUrl;
-        logger.info('[REGISTER] Preview URL included:', emailResult.previewUrl);
-      }
-
-      logger.info('[REGISTER] Sending success response:', response);
-      return res.status(201).json(response);
-
-    } catch (emailError) {
-      logger.error('Failed to send verification email:', {
-        userId: newUser.id,
-        email: email,
-        error: emailError.message
-      });
-
-      // Удаляем пользователя, если не удалось отправить email
-      await newUser.destroy();
-
-      return res.status(500).json({
-        message: 'Регистрация не завершена: не удалось отправить код подтверждения на email',
-        error: process.env.NODE_ENV === 'development' ? emailError.message : undefined
-      });
-    }
+    logger.info('[REGISTER] Sending success response:', response);
+    return res.status(201).json(response);
   } catch (error) {
     logger.error('Ошибка при регистрации:', {
       message: error.message,

@@ -66,12 +66,20 @@ async function resendVerificationCode(req, res) {
 
     // Проверяем, не слишком ли часто запрашивается код
     // Ограничение: не чаще чем раз в 1 минуту
-    const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
-    if (user.email_verification_expires && user.email_verification_expires > oneMinuteAgo) {
-      const remainingTime = Math.ceil((user.email_verification_expires.getTime() - oneMinuteAgo.getTime()) / 1000);
-      return res.status(429).json({
-        message: `Код был отправлен недавно. Повторить запрос можно через ${remainingTime} секунд.`
-      });
+    // Но разрешаем первую отправку сразу после регистрации
+    if (user.updatedAt) {
+      const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
+      const lastUpdate = new Date(user.updatedAt);
+
+      // Проверяем, был ли обновлен пользователь в последнюю минуту
+      if (lastUpdate > oneMinuteAgo) {
+        const remainingTime = Math.ceil((lastUpdate.getTime() + 60000 - Date.now()) / 1000);
+        if (remainingTime > 0) {
+          return res.status(429).json({
+            message: `Код был отправлен недавно. Повторить запрос можно через ${remainingTime} секунд.`
+          });
+        }
+      }
     }
 
     // Генерируем новый код подтверждения
@@ -86,9 +94,10 @@ async function resendVerificationCode(req, res) {
 
     // Отправляем новый код на email
     try {
+      logger.info('Attempting to send verification code to:', email);
       const emailResult = await emailService.sendVerificationCode(email, user.username, verificationCode);
 
-      logger.info('Verification code resent', {
+      logger.info('✅ Verification code resent successfully', {
         userId: user.id,
         email: email,
         messageId: emailResult.messageId
@@ -103,19 +112,24 @@ async function resendVerificationCode(req, res) {
       // Добавляем preview URL только в режиме разработки и если это ethereal email
       if (process.env.NODE_ENV === 'development' && emailResult.previewUrl) {
         response.previewUrl = emailResult.previewUrl;
+        logger.info('📧 Preview URL:', emailResult.previewUrl);
       }
 
       return res.status(200).json(response);
 
     } catch (emailError) {
-      logger.error('Failed to resend verification email:', {
+      logger.error('❌ Failed to resend verification email:', {
         userId: user.id,
         email: email,
-        error: emailError.message
+        error: emailError.message,
+        code: emailError.code,
+        command: emailError.command,
+        response: emailError.response,
+        stack: emailError.stack
       });
 
       return res.status(500).json({
-        message: 'Не удалось отправить код подтверждения на email',
+        message: 'Не удалось отправить код подтверждения на email. Проверьте настройки SMTP.',
         error: process.env.NODE_ENV === 'development' ? emailError.message : undefined
       });
     }

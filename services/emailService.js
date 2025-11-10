@@ -12,47 +12,78 @@ const logger = winston.createLogger({
 });
 
 // Настройка email транспорта
+const nodemailer = require('nodemailer');
 let transporter = null;
+let isInitializing = false;
+let initializationPromise = null;
 
 // Инициализация транспорта
 async function initializeTransporter() {
-  try {
-    const nodemailer = require('nodemailer');
+  if (transporter) return transporter;
+  if (isInitializing) return initializationPromise;
 
-    // Проверяем настройки SMTP
-    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-      transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT) || 587,
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: {
+  isInitializing = true;
+  initializationPromise = (async () => {
+    try {
+      // Проверяем настройки SMTP
+      if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+        logger.info('Инициализация SMTP транспорта с настройками:', {
+          host: process.env.SMTP_HOST,
+          port: process.env.SMTP_PORT,
           user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS
-        }
-      });
-      logger.info('Email транспорт настроен через SMTP');
-    } else {
-      // Fallback на Ethereal Email для тестирования
-      const testAccount = await nodemailer.createTestAccount();
-      transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass
-        }
-      });
-      logger.info('Используется тестовый Ethereal Email транспорт');
-      logger.info(`Тестовые письма можно посмотреть на: https://ethereal.email`);
+          secure: process.env.SMTP_SECURE
+        });
+
+        transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST,
+          port: parseInt(process.env.SMTP_PORT) || 587,
+          secure: process.env.SMTP_SECURE === 'true',
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS
+          }
+        });
+
+        // Проверяем соединение
+        await transporter.verify();
+        logger.info('✅ Email транспорт настроен через SMTP и подключение проверено');
+      } else {
+        logger.warn('SMTP настройки не найдены в .env:', {
+          hasHost: !!process.env.SMTP_HOST,
+          hasUser: !!process.env.SMTP_USER,
+          hasPass: !!process.env.SMTP_PASS
+        });
+        // Fallback на Ethereal Email для тестирования
+        const testAccount = await nodemailer.createTestAccount();
+        transporter = nodemailer.createTransport({
+          host: 'smtp.ethereal.email',
+          port: 587,
+          secure: false,
+          auth: {
+            user: testAccount.user,
+            pass: testAccount.pass
+          }
+        });
+        logger.info('Используется тестовый Ethereal Email транспорт');
+        logger.info(`Тестовые письма можно посмотреть на: https://ethereal.email`);
+      }
+      return transporter;
+    } catch (error) {
+      logger.error('❌ Ошибка настройки email транспорта:', error.message);
+      transporter = null;
+      throw error;
+    } finally {
+      isInitializing = false;
     }
-  } catch (error) {
-    logger.warn('Ошибка настройки email транспорта:', error.message);
-  }
+  })();
+
+  return initializationPromise;
 }
 
 // Инициализируем транспорт
-initializeTransporter();
+initializeTransporter().catch(err => {
+  logger.error('Не удалось инициализировать email транспорт:', err);
+});
 
 /**
  * Генерирует 6-значный код подтверждения
@@ -66,8 +97,13 @@ function generateVerificationCode() {
  */
 async function sendVerificationEmail(email, code, username) {
   try {
+    // Убеждаемся, что транспорт инициализирован
     if (!transporter) {
-      logger.info(`[DEV MODE] Код подтверждения для ${email}: ${code}`);
+      await initializeTransporter();
+    }
+
+    if (!transporter) {
+      logger.warn(`[DEV MODE] Транспорт не инициализирован. Код подтверждения для ${email}: ${code}`);
       return { success: true, message: 'Код выведен в консоль (dev mode)' };
     }
 
@@ -92,20 +128,24 @@ async function sendVerificationEmail(email, code, username) {
     };
 
     const info = await transporter.sendMail(mailOptions);
-    logger.info(`Код подтверждения отправлен на ${email}`);
+    logger.info(`✅ Код подтверждения отправлен на ${email}`);
 
     // Если используется Ethereal Email, покажем ссылку на просмотр
     if (info.messageId && transporter.options.host === 'smtp.ethereal.email') {
-      const nodemailer = require('nodemailer');
       const previewUrl = nodemailer.getTestMessageUrl(info);
       logger.info(`📧 Просмотр email: ${previewUrl}`);
-      return { success: true, message: 'Email отправлен', previewUrl };
+      return { success: true, message: 'Email отправлен', previewUrl, messageId: info.messageId };
     }
 
-    return { success: true, message: 'Email отправлен' };
+    return { success: true, message: 'Email отправлен', messageId: info.messageId };
   } catch (error) {
-    logger.error('Ошибка отправки email:', error);
-    return { success: false, message: 'Ошибка отправки email' };
+    logger.error('❌ Ошибка отправки email:', {
+      error: error.message,
+      code: error.code,
+      command: error.command,
+      response: error.response
+    });
+    throw error; // Пробрасываем ошибку наверх для правильной обработки
   }
 }
 
@@ -114,8 +154,13 @@ async function sendVerificationEmail(email, code, username) {
  */
 async function sendPasswordResetEmail(email, resetToken, username) {
   try {
+    // Убеждаемся, что транспорт инициализирован
     if (!transporter) {
-      logger.info(`[DEV MODE] Токен сброса пароля для ${email}: ${resetToken}`);
+      await initializeTransporter();
+    }
+
+    if (!transporter) {
+      logger.warn(`[DEV MODE] Транспорт не инициализирован. Токен сброса пароля для ${email}: ${resetToken}`);
       return { success: true, message: 'Токен выведен в консоль (dev mode)' };
     }
 
@@ -146,12 +191,17 @@ async function sendPasswordResetEmail(email, resetToken, username) {
       `
     };
 
-    await transporter.sendMail(mailOptions);
-    logger.info(`Ссылка сброса пароля отправлена на ${email}`);
-    return { success: true, message: 'Email отправлен' };
+    const info = await transporter.sendMail(mailOptions);
+    logger.info(`✅ Ссылка сброса пароля отправлена на ${email}`);
+    return { success: true, message: 'Email отправлен', messageId: info.messageId };
   } catch (error) {
-    logger.error('Ошибка отправки email:', error);
-    return { success: false, message: 'Ошибка отправки email' };
+    logger.error('❌ Ошибка отправки email:', {
+      error: error.message,
+      code: error.code,
+      command: error.command,
+      response: error.response
+    });
+    throw error; // Пробрасываем ошибку наверх для правильной обработки
   }
 }
 
