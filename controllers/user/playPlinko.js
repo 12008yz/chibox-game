@@ -1,32 +1,38 @@
-const { User } = require('../../models');
+const { User, Transaction } = require('../../models');
 const { logger } = require('../../utils/logger');
 
-// Конфигурация слотов Plinko (16 слотов с множителями)
-// Центральные слоты имеют больший вес (чаще выпадают), крайние - редко
+// Конфигурация слотов Plinko (17 слотов)
+// Призы: 1 слот = 1 день статуса, 1 слот = 2 дня статуса, остальные = монетки 5-10 руб
 const PLINKO_SLOTS = [
-  { multiplier: 110, weight: 1 },    // Крайний левый - очень редко
-  { multiplier: 41, weight: 2 },     // Редко
-  { multiplier: 10, weight: 3 },     // Редко
-  { multiplier: 5, weight: 5 },      // Иногда
-  { multiplier: 3, weight: 8 },      // Часто
-  { multiplier: 1.5, weight: 12 },   // Очень часто
-  { multiplier: 1, weight: 15 },     // Самый частый
-  { multiplier: 0.5, weight: 20 },   // Максимально частый (центр)
-  { multiplier: 0.5, weight: 20 },   // Максимально частый (центр)
-  { multiplier: 1, weight: 15 },     // Самый частый
-  { multiplier: 1.5, weight: 12 },   // Очень часто
-  { multiplier: 3, weight: 8 },      // Часто
-  { multiplier: 5, weight: 5 },      // Иногда
-  { multiplier: 10, weight: 3 },     // Редко
-  { multiplier: 41, weight: 2 },     // Редко
-  { multiplier: 110, weight: 1 }     // Крайний правый - очень редко
+  { type: 'coins', value: 8, weight: 10 },     // 8 руб
+  { type: 'coins', value: 6, weight: 12 },     // 6 руб
+  { type: 'coins', value: 5, weight: 15 },     // 5 руб
+  { type: 'coins', value: 7, weight: 12 },     // 7 руб
+  { type: 'coins', value: 9, weight: 10 },     // 9 руб
+  { type: 'coins', value: 6, weight: 12 },     // 6 руб
+  { type: 'coins', value: 10, weight: 8 },     // 10 руб
+  { type: 'coins', value: 5, weight: 15 },     // 5 руб
+  { type: 'status', days: 1, weight: 3 },      // 1 день статуса - редко
+  { type: 'coins', value: 5, weight: 15 },     // 5 руб
+  { type: 'coins', value: 10, weight: 8 },     // 10 руб
+  { type: 'coins', value: 6, weight: 12 },     // 6 руб
+  { type: 'coins', value: 9, weight: 10 },     // 9 руб
+  { type: 'coins', value: 7, weight: 12 },     // 7 руб
+  { type: 'coins', value: 5, weight: 15 },     // 5 руб
+  { type: 'status', days: 2, weight: 2 },      // 2 дня статуса - очень редко
+  { type: 'coins', value: 8, weight: 10 }      // 8 руб
 ];
 
 // Общий вес всех слотов
-const TOTAL_WEIGHT = PLINKO_SLOTS.reduce((sum, slot) => sum + slot.weight, 0);
+const calculateTotalWeight = (slots, occupiedSlots) => {
+  return slots.reduce((sum, slot, index) => {
+    if (occupiedSlots.includes(index)) return sum;
+    return sum + slot.weight;
+  }, 0);
+};
 
-// Кулдаун Plinko в миллисекундах (5 секунд)
-const PLINKO_COOLDOWN_MS = 5 * 1000;
+// Кулдаун Plinko в миллисекундах (нет кулдауна для одного броска)
+const PLINKO_COOLDOWN_MS = 0;
 
 /**
  * Проверяет, можно ли играть в Plinko (кулдаун 5 секунд)
@@ -56,29 +62,42 @@ function canPlayPlinko(lastPlayTime) {
 }
 
 /**
- * Выбирает случайный слот на основе весов
+ * Выбирает случайный слот на основе весов, исключая занятые
+ * @param {Array} occupiedSlots - Массив индексов занятых слотов
  * @returns {Object} Выбранный слот с индексом
  */
-function selectRandomSlot() {
-  const random = Math.random() * TOTAL_WEIGHT;
+function selectRandomSlot(occupiedSlots = []) {
+  const totalWeight = calculateTotalWeight(PLINKO_SLOTS, occupiedSlots);
+  const random = Math.random() * totalWeight;
   let currentWeight = 0;
 
-  logger.info(`Plinko: генерируется случайное число ${random} из общего веса ${TOTAL_WEIGHT}`);
+  logger.info(`Plinko: генерируется случайное число ${random} из общего веса ${totalWeight}, занято слотов: ${occupiedSlots.length}`);
 
   for (let i = 0; i < PLINKO_SLOTS.length; i++) {
+    // Пропускаем занятые слоты
+    if (occupiedSlots.includes(i)) {
+      continue;
+    }
+
     const slot = PLINKO_SLOTS[i];
     currentWeight += slot.weight;
 
     if (random <= currentWeight) {
-      logger.info(`Plinko: выбран слот ${i}, множитель: ${slot.multiplier}x`);
+      logger.info(`Plinko: выбран слот ${i}, тип: ${slot.type}, значение: ${slot.value || slot.days}`);
       return { index: i, ...slot };
     }
   }
 
-  // Fallback на последний слот (не должно происходить)
-  logger.warn(`Plinko: FALLBACK! Используется последний слот`);
-  const lastIndex = PLINKO_SLOTS.length - 1;
-  return { index: lastIndex, ...PLINKO_SLOTS[lastIndex] };
+  // Fallback - выбираем первый свободный слот
+  logger.warn(`Plinko: FALLBACK! Ищем первый свободный слот`);
+  for (let i = 0; i < PLINKO_SLOTS.length; i++) {
+    if (!occupiedSlots.includes(i)) {
+      return { index: i, ...PLINKO_SLOTS[i] };
+    }
+  }
+
+  // Если все слоты заняты - ошибка
+  throw new Error('Все слоты Plinko заняты');
 }
 
 /**
