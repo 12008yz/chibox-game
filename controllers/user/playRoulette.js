@@ -17,42 +17,34 @@ const ROULETTE_SEGMENTS = [
 // Общий вес всех секций
 const TOTAL_WEIGHT = ROULETTE_SEGMENTS.reduce((sum, segment) => sum + segment.weight, 0);
 
+// Кулдаун рулетки в миллисекундах (5 секунд)
+const ROULETTE_COOLDOWN_MS = 5 * 1000;
+
 /**
- * Проверяет, нужно ли сбросить счетчик попыток рулетки
- * @param {Date} lastResetDate - Дата последнего сброса
- * @returns {boolean} - true если нужен сброс
+ * Проверяет, можно ли играть в рулетку (кулдаун 5 секунд)
+ * @param {Date} lastPlayTime - Время последней игры
+ * @returns {Object} - {canPlay: boolean, nextTime: Date|null}
  */
-function shouldResetRouletteCounter(lastResetDate) {
-  if (!lastResetDate) {
-    logger.info(`[ROULETTE RESET DEBUG] No lastResetDate -> RESET NEEDED`);
-    return true;
+function canPlayRoulette(lastPlayTime) {
+  if (!lastPlayTime) {
+    logger.info(`[ROULETTE] Нет данных о последней игре -> можно играть`);
+    return { canPlay: true, nextTime: null };
   }
 
   const now = new Date();
-  const lastReset = new Date(lastResetDate);
+  const lastPlay = new Date(lastPlayTime);
+  const timeSinceLastPlay = now - lastPlay;
 
-  // Сегодняшний сброс в 16:00 МСК (в UTC это 13:00)
-  const todayReset = new Date(now);
-  todayReset.setUTCHours(13, 0, 0, 0); // 16:00 МСК = 13:00 UTC
+  logger.info(`[ROULETTE] Прошло времени с последней игры: ${timeSinceLastPlay}ms (требуется: ${ROULETTE_COOLDOWN_MS}ms)`);
 
-  // Если сегодня ещё не наступило время сброса (до 16:00), то используем вчерашний сброс
-  if (now < todayReset) {
-    todayReset.setDate(todayReset.getDate() - 1);
+  if (timeSinceLastPlay >= ROULETTE_COOLDOWN_MS) {
+    logger.info(`[ROULETTE] Кулдаун прошел -> можно играть`);
+    return { canPlay: true, nextTime: null };
   }
 
-  logger.info(`[ROULETTE RESET DEBUG] Times:`);
-  logger.info(`[ROULETTE RESET DEBUG] - Current UTC time: ${now.toISOString()}`);
-  logger.info(`[ROULETTE RESET DEBUG] - Target reset time: ${todayReset.toISOString()}`);
-  logger.info(`[ROULETTE RESET DEBUG] - Last reset: ${lastReset.toISOString()}`);
-
-  // Нужен сброс, если последний сброс был ДО текущего планового времени сброса
-  if (lastReset < todayReset) {
-    logger.info(`[ROULETTE RESET DEBUG] Last reset before target reset time -> RESET NEEDED`);
-    return true;
-  }
-
-  logger.info(`[ROULETTE RESET DEBUG] Last reset after target reset time -> NO RESET NEEDED`);
-  return false;
+  const nextTime = new Date(lastPlay.getTime() + ROULETTE_COOLDOWN_MS);
+  logger.info(`[ROULETTE] Кулдаун активен -> следующая игра в ${nextTime.toISOString()}`);
+  return { canPlay: false, nextTime };
 }
 
 /**
@@ -109,28 +101,14 @@ const playRoulette = async (req, res) => {
       });
     }
 
-    // Проверяем, нужно ли сбросить счетчик попыток
-    const needsReset = shouldResetRouletteCounter(user.last_roulette_reset);
+    // Проверяем кулдаун (5 секунд между играми)
+    const { canPlay, nextTime } = canPlayRoulette(user.last_roulette_play);
 
-    if (needsReset) {
-      logger.info(`[ROULETTE] Сброс попыток для пользователя ${user.username}`);
-      user.roulette_attempts_left = 1; // Всем 1 раз в сутки
-      user.last_roulette_reset = new Date();
-    }
-
-    // Проверяем, остались ли попытки
-    if (user.roulette_attempts_left <= 0) {
-      // Вычисляем время следующего сброса
-      const nextReset = new Date();
-      nextReset.setUTCHours(13, 0, 0, 0); // 16:00 МСК = 13:00 UTC
-      if (now >= nextReset) {
-        nextReset.setDate(nextReset.getDate() + 1);
-      }
-
+    if (!canPlay) {
       return res.status(429).json({
         success: false,
-        message: 'У вас закончились попытки. Следующая попытка будет доступна в 16:00 МСК',
-        next_time: nextReset.toISOString()
+        message: 'Подождите 5 секунд перед следующей игрой',
+        next_time: nextTime.toISOString()
       });
     }
 
@@ -140,8 +118,8 @@ const playRoulette = async (req, res) => {
     // Логируем результат выбора секции
     logger.info(`Рулетка - пользователь ${user.username}: выбрана секция ${selectedSegment.id}, тип: ${selectedSegment.type}, значение: ${selectedSegment.value}`);
 
-    // Уменьшаем количество попыток
-    user.roulette_attempts_left -= 1;
+    // Обновляем время последней игры
+    user.last_roulette_play = now;
 
     // Применяем приз, если есть
     if (selectedSegment.type === 'sub_1_day' || selectedSegment.type === 'sub_2_days') {
@@ -157,12 +135,8 @@ const playRoulette = async (req, res) => {
 
     await user.save();
 
-    // Вычисляем время следующего сброса
-    const nextReset = new Date();
-    nextReset.setUTCHours(13, 0, 0, 0); // 16:00 МСК = 13:00 UTC
-    if (now >= nextReset) {
-      nextReset.setDate(nextReset.getDate() + 1);
-    }
+    // Вычисляем время следующей игры (через 5 секунд)
+    const nextPlayTime = new Date(now.getTime() + ROULETTE_COOLDOWN_MS);
 
     // Формируем ответ
     const response = {
@@ -173,8 +147,7 @@ const playRoulette = async (req, res) => {
       winner_index: selectedSegment.id,
       prize_type: selectedSegment.type,
       prize_value: selectedSegment.value,
-      attempts_left: user.roulette_attempts_left,
-      next_time: nextReset.toISOString()
+      next_time: nextPlayTime.toISOString()
     };
 
     logger.info(`Рулетка - ответ пользователю ${user.username}:`, response);
