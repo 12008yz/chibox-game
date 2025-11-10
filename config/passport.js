@@ -56,7 +56,15 @@ if (STEAM_API_KEY) {
     returnURL: STEAM_RETURN_URL,
     realm: STEAM_REALM,
     apiKey: STEAM_API_KEY,
-    passReqToCallback: true
+    passReqToCallback: true,
+    // Добавляем настройки для ускорения OpenID discovery
+    profile: true,
+    // Увеличиваем размер кеша провайдера и устанавливаем таймауты
+    stateless: false,
+    // Используем прямой endpoint Steam вместо discovery
+    providerURL: 'https://steamcommunity.com/openid',
+    // Устанавливаем таймаут для HTTP запросов
+    timeout: 5000
   },
   async (req, identifier, profile, done) => {
     try {

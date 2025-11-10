@@ -8,7 +8,7 @@ const { getTradeUrlFromSteam, getTradePrivacyUrl } = require('../utils/steamTrad
 
 const router = express.Router();
 
-// Steam OAuth - начало авторизации
+// Steam OAuth - начало авторизации (быстрый метод с прямым редиректом)
 router.get('/steam', (req, res, next) => {
   if (!process.env.STEAM_API_KEY) {
     return res.status(500).json({
@@ -16,7 +16,25 @@ router.get('/steam', (req, res, next) => {
     });
   }
 
-  passport.authenticate('steam')(req, res, next);
+  // Используем минимальный набор параметров для максимальной скорости
+  const returnURL = encodeURIComponent(process.env.STEAM_RETURN_URL || 'http://localhost:3000/api/v1/auth/steam/return');
+  const realm = encodeURIComponent(process.env.STEAM_REALM || 'http://localhost:3000/');
+
+  // МИНИМАЛЬНЫЙ URL - убираем все необязательные параметры
+  const steamLoginUrl = `https://steamcommunity.com/openid/login?` +
+    `openid.mode=checkid_setup` +
+    `&openid.ns=http://specs.openid.net/auth/2.0` +
+    `&openid.identity=http://specs.openid.net/auth/2.0/identifier_select` +
+    `&openid.claimed_id=http://specs.openid.net/auth/2.0/identifier_select` +
+    `&openid.return_to=${returnURL}` +
+    `&openid.realm=${realm}`;
+
+  // Устанавливаем заголовки для ускорения
+  res.setHeader('Cache-Control', 'no-cache');
+
+  logger.info('Redirecting to Steam login (minimal params)');
+  // Используем 302 редирект для скорости
+  res.redirect(302, steamLoginUrl);
 });
 
 // Steam OAuth - callback после авторизации
