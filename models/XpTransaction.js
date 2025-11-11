@@ -24,11 +24,19 @@ module.exports = (sequelize) => {
     },
     source_type: {
       type: DataTypes.ENUM(
-        'case_open',         // Открытие кейса
+        'case_open',         // Открытие кейса (старое название)
+        'case_opening',      // Открытие кейса
         'achievement',       // Выполнение достижения
         'daily_login',       // Ежедневный вход
         'battle_win',        // Победа в битве
         'purchase',          // Покупка (пополнение баланса, подписка)
+        'buy_case',          // Покупка кейса
+        'buy_subscription',  // Покупка подписки
+        'sell_item',         // Продажа предмета
+        'upgrade_success',   // Успешный апгрейд
+        'upgrade_fail',      // Неудачный апгрейд
+        'withdraw_item',     // Вывод предмета
+        'deposit',           // Пополнение баланса
         'referral',          // Реферальная программа
         'admin',             // Начисление администратором
         'event',             // Участие в событии

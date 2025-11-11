@@ -14,27 +14,51 @@ async function addExperience(userId, amount, sourceType, sourceId = null, descri
 
     // Добавляем опыт
     const updatedXp = (user.xp || 0) + amount;
+    user.xp = updatedXp;
 
-    // Получаем настройки уровня пользователя
-    const currentLevelSettings = await db.LevelSettings.findOne({ where: { level: user.level } });
-    const nextLevelSettings = await db.LevelSettings.findOne({ where: { level: user.level + 1 } });
+    // Проверяем повышение уровня в цикле (может быть несколько уровней сразу)
+    let currentLevel = user.level;
+    let shouldContinue = true;
 
-    // Проверяем, достиг ли пользователь порога для повышения уровня
-    if (nextLevelSettings && updatedXp >= nextLevelSettings.xp_required) {
-      isLevelUp = true;
-      newLevel = user.level + 1;
-      user.level = newLevel;
-      user.xp_to_next_level = nextLevelSettings.xp_to_next_level;
-    } else if (currentLevelSettings) {
-      user.xp_to_next_level = currentLevelSettings.xp_to_next_level;
+    while (shouldContinue) {
+      const nextLevelSettings = await db.LevelSettings.findOne({
+        where: { level: currentLevel + 1 }
+      });
+
+      // Проверяем, достиг ли пользователь порога для повышения уровня
+      if (nextLevelSettings && updatedXp >= nextLevelSettings.xp_required) {
+        currentLevel++;
+        isLevelUp = true;
+        newLevel = currentLevel;
+      } else {
+        shouldContinue = false;
+      }
     }
 
-    user.xp = updatedXp;
+    // Обновляем уровень пользователя, если произошло повышение
+    if (isLevelUp) {
+      user.level = newLevel;
+      const newLevelSettings = await db.LevelSettings.findOne({
+        where: { level: newLevel }
+      });
+      if (newLevelSettings) {
+        user.xp_to_next_level = newLevelSettings.xp_to_next_level;
+      }
+    } else {
+      // Обновляем xp_to_next_level для текущего уровня
+      const currentLevelSettings = await db.LevelSettings.findOne({
+        where: { level: user.level }
+      });
+      if (currentLevelSettings) {
+        user.xp_to_next_level = currentLevelSettings.xp_to_next_level;
+      }
+    }
+
     await user.save();
 
     // Создаем запись о транзакции опыта с информацией о повышении уровня
     // Validate sourceType against allowed enum values
-    const allowedSourceTypes = ['case_open', 'achievement', 'daily_login', 'battle_win', 'purchase', 'referral', 'admin', 'event', 'other'];
+    const allowedSourceTypes = ['case_open', 'case_opening', 'achievement', 'daily_login', 'battle_win', 'purchase', 'referral', 'admin', 'event', 'buy_case', 'buy_subscription', 'sell_item', 'upgrade_success', 'upgrade_fail', 'withdraw_item', 'deposit', 'other'];
     let validatedSourceType = sourceType;
     if (!allowedSourceTypes.includes(sourceType)) {
       validatedSourceType = 'other';
