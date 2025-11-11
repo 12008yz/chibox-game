@@ -34,7 +34,7 @@ function determinePrize(matches) {
     // 3 совпадения = 5 дней подписки (1% шанс)
     return { type: 'subscription', days: 5 };
   } else if (matches === 2) {
-    // 2 совпадения = 1 день подписки (15% шанс)
+    // 2 совпадения = 1 день подписки (10% шанс)
     return { type: 'subscription', days: 1 };
   } else {
     // Нет совпадений или 1 совпадение - без призов
@@ -49,15 +49,15 @@ function simulateSafeCracker() {
   const random = Math.random() * 100;
 
   if (random < 1) {
-    // 1% шанс - 3 совпадения
+    // 1% шанс - 3 совпадения (5 дней подписки)
     const secretCode = generateRandomCode();
     return {
       secretCode,
       userCode: [...secretCode],
       matches: 3
     };
-  } else if (random < 16) {
-    // 15% шанс - 2 совпадения
+  } else if (random < 11) {
+    // 10% шанс - 2 совпадения (1 день подписки)
     const secretCode = generateRandomCode();
     const userCode = [...secretCode];
     // Меняем одну случайную цифру
@@ -69,7 +69,7 @@ function simulateSafeCracker() {
       matches: 2
     };
   } else {
-    // Остальное - 0 или 1 совпадение
+    // Остальное - 0 или 1 совпадение (без приза)
     const secretCode = generateRandomCode();
     const userCode = generateRandomCode();
     const matches = countMatches(secretCode, userCode);
