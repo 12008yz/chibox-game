@@ -31,6 +31,14 @@ const ROULETTE_LIMITS = {
   3: 1  // Тир 3 - 1 попытка
 };
 
+// Лимиты попыток для Safe Cracker
+const SAFECRACKER_LIMITS = {
+  0: 0, // Без подписки - нельзя играть
+  1: 3, // Тир 1 - 3 попытки
+  2: 4, // Тир 2 - 4 попытки
+  3: 5  // Тир 3 - 5 попыток
+};
+
 /**
  * Активирует подписку для пользователя
  * @param {number} userId - ID пользователя
@@ -78,6 +86,10 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
     const rouletteLimit = ROULETTE_LIMITS[tierId] || 0;
     user.roulette_attempts_left = rouletteLimit;
 
+    // Устанавливаем попытки для Safe Cracker при активации подписки
+    const safecrackerLimit = SAFECRACKER_LIMITS[tierId] || 0;
+    user.game_attempts = safecrackerLimit;
+
     // Устанавливаем время последнего сброса на последнее плановое время сброса (16:00 МСК = 13:00 UTC)
     const resetTime = new Date();
     resetTime.setUTCHours(13, 0, 0, 0);
@@ -87,9 +99,11 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
     }
     user.last_tictactoe_reset = resetTime;
     user.last_roulette_reset = resetTime;
+    user.last_safecracker_reset = resetTime;
 
     logger.info(`[TICTACTOE] Установлены попытки для пользователя ${userId}, тир ${tierId}, лимит ${tictactoeLimit}`);
     logger.info(`[ROULETTE] Установлены попытки для пользователя ${userId}, тир ${tierId}, лимит ${rouletteLimit}`);
+    logger.info(`[SAFECRACKER] Установлены попытки для пользователя ${userId}, тир ${tierId}, лимит ${safecrackerLimit}`);
 
     await user.save();
 

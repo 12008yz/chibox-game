@@ -259,6 +259,17 @@ module.exports = (sequelize) => {
       allowNull: false,
       comment: "Количество попыток для игры Safe Cracker"
     },
+    last_safecracker_reset: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Дата последнего сброса попыток Safe Cracker (в 16:00 МСК)"
+    },
+    has_won_safecracker: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
+      comment: "Флаг: выигрывал ли пользователь в Safe Cracker (выигрыш доступен один раз)"
+    },
 
     // Достижения и модификатор выпадения предметов
     drop_rate_modifier: {

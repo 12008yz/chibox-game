@@ -97,6 +97,14 @@ const playSafeCracker = async (req, res) => {
       });
     }
 
+    // Проверяем, выигрывал ли пользователь ранее
+    if (user.has_won_safecracker) {
+      return res.status(403).json({
+        success: false,
+        message: 'Вы уже выиграли в Safe Cracker! Бонус доступен только один раз.'
+      });
+    }
+
     // Проверяем наличие попыток
     if (!user.game_attempts || user.game_attempts <= 0) {
       return res.status(403).json({
@@ -125,14 +133,22 @@ const playSafeCracker = async (req, res) => {
       logger.info(`Пользователь ${user.username} выиграл ${prize.days} дней подписки в SafeCracker (${matches} совпадения). Было: ${currentSubscriptionDays}, станет: ${newSubscriptionDays}`);
 
       user.subscription_days_left = newSubscriptionDays;
-      message = `🎉 Поздравляем! ${matches} совпадения! Вы выиграли ${prize.days} ${prize.days === 1 ? 'день' : 'дней'} подписки!`;
 
-      // Создаем транзакцию
+      // Устанавливаем флаг, что пользователь выиграл (больше выигрывать нельзя)
+      user.has_won_safecracker = true;
+
+      message = `🎉 Поздравляем! ${matches} совпадения! Вы выиграли ${prize.days} ${prize.days === 1 ? 'день' : 'дней'} подписки! Это был ваш единственный шанс на выигрыш.`;
+
+      // Создаем транзакцию (баланс не меняется, т.к. приз - дни подписки)
+      const currentBalance = user.balance || 0;
       await Transaction.create({
         user_id: userId,
         type: 'bonus',
         amount: 0,
-        description: `Выигрыш в Safe Cracker: ${prize.days} ${prize.days === 1 ? 'день' : 'дней'} подписки`
+        balance_before: currentBalance,
+        balance_after: currentBalance,
+        description: `Выигрыш в Safe Cracker: ${prize.days} ${prize.days === 1 ? 'день' : 'дней'} подписки`,
+        status: 'completed'
       });
     } else {
       message = matches === 1

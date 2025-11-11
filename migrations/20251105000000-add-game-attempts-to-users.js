@@ -51,6 +51,25 @@ module.exports = {
         comment: 'Количество попыток для игры Safe Cracker'
       });
     }
+
+    // Добавляем поле для последнего сброса Safe Cracker
+    if (!tableDescription.last_safecracker_reset) {
+      await queryInterface.addColumn('users', 'last_safecracker_reset', {
+        type: Sequelize.DATE,
+        allowNull: true,
+        comment: 'Дата последнего сброса попыток Safe Cracker (в 16:00 МСК)'
+      });
+    }
+
+    // Добавляем флаг для отслеживания выигрыша в Safe Cracker
+    if (!tableDescription.has_won_safecracker) {
+      await queryInterface.addColumn('users', 'has_won_safecracker', {
+        type: Sequelize.BOOLEAN,
+        defaultValue: false,
+        allowNull: false,
+        comment: 'Флаг: выигрывал ли пользователь в Safe Cracker (выигрыш доступен один раз)'
+      });
+    }
   },
 
   async down(queryInterface, Sequelize) {
@@ -74,6 +93,14 @@ module.exports = {
 
     if (tableDescription.game_attempts) {
       await queryInterface.removeColumn('users', 'game_attempts');
+    }
+
+    if (tableDescription.last_safecracker_reset) {
+      await queryInterface.removeColumn('users', 'last_safecracker_reset');
+    }
+
+    if (tableDescription.has_won_safecracker) {
+      await queryInterface.removeColumn('users', 'has_won_safecracker');
     }
   }
 };
