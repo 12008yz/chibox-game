@@ -104,8 +104,8 @@ const getCaseTemplateItems = async (req, res) => {
           // Рассчитываем модифицированные веса
           const modifiedItems = calculateModifiedDropWeights(itemsWithChances, user.total_drop_bonus_percentage);
 
-          // Для пользователей Статус++ исключаем дубликаты ПЕРЕД расчетом общего веса
-          const filteredItems = user.subscription_tier >= 3
+          // Для пользователей Статус++ исключаем дубликаты ТОЛЬКО для ежедневного кейса Статус++
+          const filteredItems = (user.subscription_tier >= 3 && caseTemplateId === '44444444-4444-4444-4444-444444444444')
             ? modifiedItems.filter(item => !droppedItemIds.includes(item.id))
             : modifiedItems;
 
@@ -115,7 +115,8 @@ const getCaseTemplateItems = async (req, res) => {
           // Добавляем информацию о шансах к каждому предмету
           itemsWithChances = modifiedItems.map(item => {
             const isAlreadyDropped = droppedItemIds.includes(item.id);
-            const isExcluded = isAlreadyDropped && user.subscription_tier >= 3;
+            // isExcluded только для ежедневного кейса Статус++
+            const isExcluded = isAlreadyDropped && user.subscription_tier >= 3 && caseTemplateId === '44444444-4444-4444-4444-444444444444';
             const weight = isExcluded ? 0 : (item.modifiedWeight || item.drop_weight || 0);
             const chance = totalWeight > 0 && !isExcluded ? (weight / totalWeight * 100) : 0;
 
@@ -208,7 +209,8 @@ const getCaseTemplateItems = async (req, res) => {
         const itemData = item.toJSON ? item.toJSON() : item;
         const price = parseFloat(itemData.price) || 0;
         const isAlreadyDropped = droppedItemIds.includes(itemData.id);
-        const isExcluded = isAlreadyDropped && userSubscriptionTier >= 3;
+        // isExcluded только для ежедневного кейса Статус++
+        const isExcluded = isAlreadyDropped && userSubscriptionTier >= 3 && caseTemplateId === '44444444-4444-4444-4444-444444444444';
         const correctWeight = isExcluded ? 0 : calculateCorrectWeightByPrice(price);
 
         itemsWithCorrectWeights.push({
@@ -227,7 +229,9 @@ const getCaseTemplateItems = async (req, res) => {
 
       itemsWithChances = itemsWithCorrectWeights.map(item => {
         const weight = item.correctWeight;
-        const chance = totalWeight > 0 && !item.isExcluded ? (weight / totalWeight * 100) : 0;
+        // is_excluded только для ежедневного кейса Статус++ - в остальных кейсах всегда false
+        const isExcludedForCase = item.isExcluded && caseTemplateId === '44444444-4444-4444-4444-444444444444';
+        const chance = totalWeight > 0 && !isExcludedForCase ? (weight / totalWeight * 100) : 0;
 
         return {
           id: item.id,
@@ -247,13 +251,26 @@ const getCaseTemplateItems = async (req, res) => {
           correct_weight: weight, // Добавляем для отладки
           // Добавляем информацию о том, что предмет уже выпадал
           is_already_dropped: item.isAlreadyDropped,
-          is_excluded: item.isExcluded
+          is_excluded: isExcludedForCase // ВАЖНО: is_excluded теперь true ТОЛЬКО для ежедневного кейса Статус++
         };
       });
     }
 
+    // УБИРАЕМ ДУБЛИКАТЫ для кейса "Статус++" (44444444-4444-4444-4444-444444444444)
+    let finalItems = itemsWithChances;
+    if (caseTemplateId === '44444444-4444-4444-4444-444444444444') {
+      const uniqueItemsMap = new Map();
+      itemsWithChances.forEach(item => {
+        if (!uniqueItemsMap.has(item.id)) {
+          uniqueItemsMap.set(item.id, item);
+        }
+      });
+      finalItems = Array.from(uniqueItemsMap.values());
+      console.log(`DEBUG: Убрали дубликаты для кейса Статус++. Было: ${itemsWithChances.length}, стало: ${finalItems.length}`);
+    }
+
     // Перемешиваем предметы используя ID кейса как seed для синхронизации с клиентом
-    const shuffledItems = seededShuffle(itemsWithChances, caseTemplateId);
+    const shuffledItems = seededShuffle(finalItems, caseTemplateId);
 
     // Возвращаем предметы с рассчитанными шансами
     res.json({
