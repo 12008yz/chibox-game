@@ -41,6 +41,16 @@ module.exports = {
         comment: 'Дата последнего сброса попыток рулетки (в 16:00 МСК)'
       });
     }
+
+    // Добавляем поле для попыток Safe Cracker
+    if (!tableDescription.game_attempts) {
+      await queryInterface.addColumn('users', 'game_attempts', {
+        type: Sequelize.INTEGER,
+        defaultValue: 3,
+        allowNull: false,
+        comment: 'Количество попыток для игры Safe Cracker'
+      });
+    }
   },
 
   async down(queryInterface, Sequelize) {
@@ -60,6 +70,10 @@ module.exports = {
 
     if (tableDescription.last_roulette_reset) {
       await queryInterface.removeColumn('users', 'last_roulette_reset');
+    }
+
+    if (tableDescription.game_attempts) {
+      await queryInterface.removeColumn('users', 'game_attempts');
     }
   }
 };

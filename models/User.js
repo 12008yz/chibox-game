@@ -252,6 +252,14 @@ module.exports = (sequelize) => {
       comment: "Дата последнего сброса счетчика спинов слот-машины (в 16:00 МСК)"
     },
 
+    // Safe Cracker (взлом сейфа)
+    game_attempts: {
+      type: DataTypes.INTEGER,
+      defaultValue: 3,
+      allowNull: false,
+      comment: "Количество попыток для игры Safe Cracker"
+    },
+
     // Достижения и модификатор выпадения предметов
     drop_rate_modifier: {
       type: DataTypes.FLOAT,
