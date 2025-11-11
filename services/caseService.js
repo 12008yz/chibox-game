@@ -10,6 +10,8 @@ const claimLocks = new Map();
  * @param {number} subscriptionTier - уровень подписки пользователя
  */
 async function giveDailyCaseToUser(userId, subscriptionTier) {
+  console.log(`[CASE DEBUG] giveDailyCaseToUser called: userId=${userId}, subscriptionTier=${subscriptionTier}`);
+
   // Проверяем, нет ли уже активного запроса для этого пользователя
   const lockKey = `claim_${userId}`;
   if (claimLocks.has(lockKey)) {
@@ -43,6 +45,9 @@ async function giveDailyCaseToUser(userId, subscriptionTier) {
         },
         transaction
       });
+
+      console.log(`[CASE DEBUG] Found ${caseTemplates.length} case templates for tier ${subscriptionTier}`);
+      caseTemplates.forEach(t => console.log(`[CASE DEBUG] Template: id=${t.id}, name=${t.name}, min_tier=${t.min_subscription_tier}`));
 
       for (const template of caseTemplates) {
         // Проверяем, есть ли у пользователя уже кейс данного шаблона в инвентаре, который не истёк

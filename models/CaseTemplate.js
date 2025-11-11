@@ -60,9 +60,9 @@ module.exports = (sequelize) => {
       comment: "Максимальное количество открытий на пользователя (null - без ограничений)"
     },
     cooldown_hours: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.DECIMAL(10, 3),
       defaultValue: 24,
-      comment: "Период ожидания между выдачами кейса в часах"
+      comment: "Период ожидания между выдачами кейса в часах (может быть дробным)"
     },
     price: {
       type: DataTypes.DECIMAL(10, 2),
