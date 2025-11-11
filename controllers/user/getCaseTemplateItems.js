@@ -267,6 +267,23 @@ const getCaseTemplateItems = async (req, res) => {
       });
       finalItems = Array.from(uniqueItemsMap.values());
       console.log(`DEBUG: Убрали дубликаты для кейса Статус++. Было: ${itemsWithChances.length}, стало: ${finalItems.length}`);
+
+      // Подробная статистика для кейса Статус++
+      const excludedCount = finalItems.filter(item => item.is_excluded).length;
+      const availableCount = finalItems.filter(item => !item.is_excluded).length;
+      console.log(`DEBUG СТАТУС++: Всего предметов: ${finalItems.length}, Исключено: ${excludedCount}, Доступно: ${availableCount}`);
+
+      if (excludedCount > 0) {
+        console.log(`DEBUG СТАТУС++: Исключенные предметы:`, finalItems.filter(item => item.is_excluded).map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price
+        })));
+      }
+
+      if (availableCount === 0) {
+        console.log(`WARNING СТАТУС++: НЕТ ДОСТУПНЫХ ПРЕДМЕТОВ! Пользователь получил все предметы из кейса.`);
+      }
     }
 
     // Перемешиваем предметы используя ID кейса как seed для синхронизации с клиентом
