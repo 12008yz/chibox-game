@@ -78,6 +78,9 @@ const getSafeCrackerStatus = async (req, res) => {
       logger.info(`[SAFECRACKER] Сброс попыток для пользователя ${user.username}, тир ${user.subscription_tier}, лимит ${limit}`);
       user.game_attempts = limit;
 
+      // Сбрасываем флаг выигрыша (пользователь может выигрывать каждый день)
+      user.has_won_safecracker = false;
+
       // Устанавливаем last_safecracker_reset на время последнего планового сброса (16:00 МСК = 13:00 UTC)
       const resetTime = new Date();
       resetTime.setUTCHours(13, 0, 0, 0);
