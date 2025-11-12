@@ -1,8 +1,17 @@
-const { User, Transaction } = require('../../models');
+const { User, Transaction, UserInventory, Item } = require('../../models');
 const { logger } = require('../../utils/logger');
 
 // Кулдаун Safe Cracker в миллисекундах (нет кулдауна)
 const SAFE_CRACKER_COOLDOWN_MS = 0;
+
+// ID предметов, которые могут выпасть в SafeCracker (администратор может изменить этот список)
+const SAFECRACKER_ITEM_IDS = [
+  '1732de21-9bca-4328-ad90-b54b4d7d5af3',
+  '2a59fe6d-4438-42eb-882f-b50a1f5b5020',
+  '7472850b-99b4-409f-ab61-132fdaa89675',
+  '7bec1b7a-c521-447c-bf7a-0f8c0a1c0374',
+  '9bbbaa11-b3b0-43bd-977b-461130a39461',
+];
 
 /**
  * Генерирует случайный 3-значный код
@@ -25,59 +34,103 @@ function countMatches(secretCode, userCode) {
 }
 
 /**
- * Определяет приз на основе количества совпадений
- * @param {number} matches - Количество совпадений
- * @returns {Object} - {type: string, days: number}
+ * Определяет приз на основе вероятностей
+ * @returns {Object} - {type: string, value: number/object}
  */
-function determinePrize(matches) {
-  if (matches === 3) {
-    // 3 совпадения = 5 дней подписки (1% шанс)
-    return { type: 'subscription', days: 5 };
-  } else if (matches === 2) {
-    // 2 совпадения = 1 день подписки (10% шанс)
-    return { type: 'subscription', days: 1 };
-  } else {
-    // Нет совпадений или 1 совпадение - без призов
-    return { type: 'none', days: 0 };
+function determinePrize() {
+  const random = Math.random() * 100;
+
+  // 5% шанс выиграть деньги (от 15 до 50 рублей)
+  if (random < 5) {
+    const amount = Math.floor(Math.random() * (50 - 15 + 1)) + 15;
+    return { type: 'money', value: amount, matches: 3 };
   }
+
+  // 2.5% шанс выиграть предмет
+  if (random < 7.5) {
+    return { type: 'item', value: null, matches: 3 }; // value будет заполнен позже
+  }
+
+  // 1% шанс - 5 дней подписки (3 совпадения)
+  if (random < 8.5) {
+    return { type: 'subscription', value: 5, matches: 3 };
+  }
+
+  // 10% шанс - 1 день подписки (2 совпадения)
+  if (random < 18.5) {
+    return { type: 'subscription', value: 1, matches: 2 };
+  }
+
+  // Остальное - без приза
+  return { type: 'none', value: 0, matches: Math.random() < 0.5 ? 0 : 1 };
 }
 
 /**
  * Симулирует взлом сейфа с учетом настроенных шансов
  */
-function simulateSafeCracker() {
-  const random = Math.random() * 100;
+function simulateSafeCracker(prize) {
+  const secretCode = generateRandomCode();
+  let userCode;
+  const matches = prize.matches;
 
-  if (random < 1) {
-    // 1% шанс - 3 совпадения (5 дней подписки)
-    const secretCode = generateRandomCode();
-    return {
-      secretCode,
-      userCode: [...secretCode],
-      matches: 3
-    };
-  } else if (random < 11) {
-    // 10% шанс - 2 совпадения (1 день подписки)
-    const secretCode = generateRandomCode();
-    const userCode = [...secretCode];
-    // Меняем одну случайную цифру
+  if (matches === 3) {
+    // 3 совпадения - все цифры правильные
+    userCode = [...secretCode];
+  } else if (matches === 2) {
+    // 2 совпадения - одна цифра неправильная
+    userCode = [...secretCode];
     const randomIndex = Math.floor(Math.random() * 3);
     userCode[randomIndex] = (userCode[randomIndex] + Math.floor(Math.random() * 9) + 1) % 10;
-    return {
-      secretCode,
-      userCode,
-      matches: 2
-    };
+  } else if (matches === 1) {
+    // 1 совпадение - две цифры неправильные
+    userCode = [...secretCode];
+    const indices = [0, 1, 2];
+    const keepIndex = indices.splice(Math.floor(Math.random() * 3), 1)[0];
+    indices.forEach(idx => {
+      userCode[idx] = (userCode[idx] + Math.floor(Math.random() * 9) + 1) % 10;
+    });
   } else {
-    // Остальное - 0 или 1 совпадение (без приза)
-    const secretCode = generateRandomCode();
-    const userCode = generateRandomCode();
-    const matches = countMatches(secretCode, userCode);
-    return {
-      secretCode,
-      userCode,
-      matches
-    };
+    // 0 совпадений - все цифры неправильные
+    userCode = generateRandomCode();
+    while (countMatches(secretCode, userCode) > 0) {
+      userCode = generateRandomCode();
+    }
+  }
+
+  return {
+    secretCode,
+    userCode,
+    matches
+  };
+}
+
+/**
+ * Выбирает случайный предмет из списка доступных для SafeCracker
+ */
+async function selectRandomItem() {
+  if (SAFECRACKER_ITEM_IDS.length === 0) {
+    logger.warn('SafeCracker: Список предметов пуст!');
+    return null;
+  }
+
+  try {
+    const items = await Item.findAll({
+      where: {
+        id: SAFECRACKER_ITEM_IDS,
+        is_available: true
+      }
+    });
+
+    if (items.length === 0) {
+      logger.warn('SafeCracker: Не найдено доступных предметов из списка');
+      return null;
+    }
+
+    const randomItem = items[Math.floor(Math.random() * items.length)];
+    return randomItem;
+  } catch (error) {
+    logger.error('SafeCracker: Ошибка при выборе предмета:', error);
+    return null;
   }
 }
 
@@ -113,41 +166,102 @@ const playSafeCracker = async (req, res) => {
       });
     }
 
-    // Симулируем взлом сейфа
-    const { secretCode, userCode, matches } = simulateSafeCracker();
-
-    logger.info(`SafeCracker - пользователь ${user.username}: секретный код ${secretCode}, код пользователя ${userCode}, совпадений: ${matches}`);
-
     // Определяем приз
-    const prize = determinePrize(matches);
+    const prize = determinePrize();
+
+    // Если приз - предмет, выбираем случайный предмет
+    let wonItem = null;
+    if (prize.type === 'item') {
+      wonItem = await selectRandomItem();
+      if (!wonItem) {
+        // Если предметов нет, заменяем приз на деньги
+        prize.type = 'money';
+        prize.value = Math.floor(Math.random() * (50 - 15 + 1)) + 15;
+        logger.warn('SafeCracker: Не удалось выбрать предмет, заменяем на деньги');
+      }
+    }
+
+    // Симулируем взлом сейфа
+    const { secretCode, userCode, matches } = simulateSafeCracker(prize);
+
+    logger.info(`SafeCracker - пользователь ${user.username}: секретный код ${secretCode}, код пользователя ${userCode}, совпадений: ${matches}, приз: ${prize.type}`);
 
     // Уменьшаем количество попыток
     user.game_attempts -= 1;
 
     // Применяем приз если есть
     let message = '';
-    if (prize.days > 0) {
-      const currentSubscriptionDays = user.subscription_days_left || 0;
-      const newSubscriptionDays = currentSubscriptionDays + prize.days;
+    const balanceBefore = parseFloat(user.balance) || 0;
+    let balanceAfter = balanceBefore;
 
-      logger.info(`Пользователь ${user.username} выиграл ${prize.days} дней подписки в SafeCracker (${matches} совпадения). Было: ${currentSubscriptionDays}, станет: ${newSubscriptionDays}`);
-
-      user.subscription_days_left = newSubscriptionDays;
-
-      // Устанавливаем флаг, что пользователь выиграл сегодня (больше выигрывать нельзя до следующего сброса)
+    if (prize.type === 'money') {
+      // Выигрыш денег на баланс
+      balanceAfter = balanceBefore + prize.value;
+      user.balance = balanceAfter;
       user.has_won_safecracker = true;
 
-      message = `🎉 Поздравляем! ${matches} совпадения! Вы выиграли ${prize.days} ${prize.days === 1 ? 'день' : 'дней'} подписки! Следующие попытки будут доступны в 16:00 МСК.`;
+      message = `🎉 Поздравляем! ${matches} совпадения! Вы выиграли ${prize.value}₽ на баланс!`;
 
-      // Создаем транзакцию (баланс не меняется, т.к. приз - дни подписки)
-      const currentBalance = user.balance || 0;
+      logger.info(`Пользователь ${user.username} выиграл ${prize.value}₽ в SafeCracker. Баланс: ${balanceBefore} -> ${balanceAfter}`);
+
+      // Создаем транзакцию
+      await Transaction.create({
+        user_id: userId,
+        type: 'bonus',
+        amount: prize.value,
+        balance_before: balanceBefore,
+        balance_after: balanceAfter,
+        description: `Выигрыш в Safe Cracker: ${prize.value}₽`,
+        status: 'completed'
+      });
+
+    } else if (prize.type === 'item' && wonItem) {
+      // Выигрыш предмета
+      user.has_won_safecracker = true;
+
+      // Добавляем предмет в инвентарь
+      await UserInventory.create({
+        user_id: userId,
+        item_id: wonItem.id,
+        status: 'inventory',
+        source: 'bonus'
+      });
+
+      message = `🎉 Поздравляем! ${matches} совпадения! Вы выиграли предмет: ${wonItem.name}!`;
+
+      logger.info(`Пользователь ${user.username} выиграл предмет ${wonItem.name} (${wonItem.id}) в SafeCracker`);
+
+      // Создаем транзакцию для истории (баланс не меняется)
       await Transaction.create({
         user_id: userId,
         type: 'bonus',
         amount: 0,
-        balance_before: currentBalance,
-        balance_after: currentBalance,
-        description: `Выигрыш в Safe Cracker: ${prize.days} ${prize.days === 1 ? 'день' : 'дней'} подписки`,
+        balance_before: balanceBefore,
+        balance_after: balanceAfter,
+        description: `Выигрыш в Safe Cracker: ${wonItem.name}`,
+        status: 'completed'
+      });
+
+    } else if (prize.type === 'subscription' && prize.value > 0) {
+      // Выигрыш подписки
+      const currentSubscriptionDays = user.subscription_days_left || 0;
+      const newSubscriptionDays = currentSubscriptionDays + prize.value;
+
+      logger.info(`Пользователь ${user.username} выиграл ${prize.value} дней подписки в SafeCracker (${matches} совпадения). Было: ${currentSubscriptionDays}, станет: ${newSubscriptionDays}`);
+
+      user.subscription_days_left = newSubscriptionDays;
+      user.has_won_safecracker = true;
+
+      message = `🎉 Поздравляем! ${matches} совпадения! Вы выиграли ${prize.value} ${prize.value === 1 ? 'день' : 'дней'} подписки! Следующие попытки будут доступны в 16:00 МСК.`;
+
+      // Создаем транзакцию
+      await Transaction.create({
+        user_id: userId,
+        type: 'bonus',
+        amount: 0,
+        balance_before: balanceBefore,
+        balance_after: balanceAfter,
+        description: `Выигрыш в Safe Cracker: ${prize.value} ${prize.value === 1 ? 'день' : 'дней'} подписки`,
         status: 'completed'
       });
     } else {
@@ -166,7 +280,15 @@ const playSafeCracker = async (req, res) => {
       user_code: userCode,
       matches,
       prize_type: prize.type,
-      prize_days: prize.days,
+      prize_value: prize.value,
+      won_item: wonItem ? {
+        id: wonItem.id,
+        name: wonItem.name,
+        image_url: wonItem.image_url,
+        price: wonItem.price,
+        rarity: wonItem.rarity
+      } : null,
+      new_balance: balanceAfter,
       remaining_attempts: user.game_attempts
     };
 
