@@ -20,6 +20,14 @@ async function getInventory(req, res) {
     const offset = (page - 1) * limit;
     const status = req.query.status;
 
+    logger.info('🔍 [GET INVENTORY] Начало получения инвентаря:', {
+      userId,
+      page,
+      limit,
+      offset,
+      status: status || 'all'
+    });
+
     // Формируем условие поиска
     const whereCondition = {
       user_id: userId
@@ -83,21 +91,33 @@ async function getInventory(req, res) {
     });
 
     // Формируем ответ для ВСЕХ предметов (без фильтрации)
-    const formattedItems = items.map(item => ({
-      id: item.id,
-      item_type: item.item_type,
-      item: item.item,
-      acquisition_date: item.acquisition_date,
-      source: item.source,
-      status: item.status,
-      case_id: item.case_id,
-      withdrawal: item.withdrawal,
-      // Для предметов из кейсов получаем case_template_id через связь case.template_id
-      case_template_id: item.case_template_id || (item.case ? item.case.template_id : null),
-      item_id: item.item_id,
-      transaction_date: item.transaction_date,
-      expires_at: item.expires_at
-    }));
+    const formattedItems = items.map(item => {
+      logger.info(`🔍 [GET INVENTORY] Форматирование предмета:`, {
+        item_id: item.id,
+        item_name: item.item?.name,
+        status: item.status,
+        withdrawal_id: item.withdrawal_id,
+        has_withdrawal_object: !!item.withdrawal,
+        withdrawal_status: item.withdrawal?.status
+      });
+
+      return {
+        id: item.id,
+        item_type: item.item_type,
+        item: item.item,
+        acquisition_date: item.acquisition_date,
+        source: item.source,
+        status: item.status,
+        case_id: item.case_id,
+        withdrawal_id: item.withdrawal_id, // ВАЖНО: добавляем withdrawal_id
+        withdrawal: item.withdrawal,
+        // Для предметов из кейсов получаем case_template_id через связь case.template_id
+        case_template_id: item.case_template_id || (item.case ? item.case.template_id : null),
+        item_id: item.item_id,
+        transaction_date: item.transaction_date,
+        expires_at: item.expires_at
+      };
+    });
 
     // Формируем ответ для ВСЕХ кейсов (без фильтрации по expiry)
     const formattedCases = cases.map(caseItem => ({

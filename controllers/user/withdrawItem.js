@@ -169,6 +169,14 @@ async function withdrawItem(req, res) {
     }
 
     // Создаем заявку на вывод
+    logger.info('📝 [WITHDRAW ITEM] Создание заявки на вывод:', {
+      userId,
+      marketHashName,
+      itemId: inventoryItem.item.id,
+      itemName: inventoryItem.item.name,
+      inventoryItemId: inventoryItem.id
+    });
+
     withdrawal = await db.Withdrawal.create({
       user_id: userId,
       status: 'pending',
@@ -189,12 +197,29 @@ async function withdrawItem(req, res) {
       }
     }, { transaction });
 
+    logger.info('✅ [WITHDRAW ITEM] Заявка создана:', {
+      withdrawalId: withdrawal.id,
+      status: withdrawal.status
+    });
+
     // Связываем предмет с заявкой на вывод и обновляем статус
+    logger.info('🔗 [WITHDRAW ITEM] Связывание предмета с заявкой:', {
+      inventoryItemId: inventoryItem.id,
+      withdrawalId: withdrawal.id,
+      old_status: inventoryItem.status
+    });
+
     await inventoryItem.update({
       withdrawal_id: withdrawal.id,
       status: 'pending_withdrawal', // Ставим статус ожидания вывода при создании заявки
       transaction_date: new Date()
     }, { transaction });
+
+    logger.info('✅ [WITHDRAW ITEM] Предмет успешно обновлен:', {
+      inventoryItemId: inventoryItem.id,
+      withdrawal_id: inventoryItem.withdrawal_id,
+      new_status: inventoryItem.status
+    });
 
     // Коммитим транзакцию перед добавлением в очередь
     await transaction.commit();
@@ -315,24 +340,87 @@ async function getWithdrawalStatus(req, res) {
 }
 
 async function cancelWithdrawal(req, res) {
-  const transaction = await db.sequelize.transaction();
+  let transaction;
 
   try {
     const userId = req.user.id;
     const { withdrawalId } = req.params;
 
-    // Получаем заявку на вывод
-    const withdrawal = await db.Withdrawal.findOne({
-      where: { id: withdrawalId, user_id: userId },
-      include: [{
-        model: db.UserInventory,
-        as: 'items'
-      }],
-      transaction,
-      lock: transaction.LOCK.UPDATE
+    logger.info('🔍 [CANCEL WITHDRAWAL] Начало обработки отмены вывода:', {
+      userId,
+      withdrawalId,
+      params: req.params,
+      body: req.body
+    });
+
+    // Создаем транзакцию с уровнем изоляции READ COMMITTED
+    logger.info('📝 [CANCEL WITHDRAWAL] Создание транзакции...');
+    transaction = await db.sequelize.transaction({
+      isolationLevel: db.sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
+    });
+    logger.info('✅ [CANCEL WITHDRAWAL] Транзакция создана успешно');
+
+    // Получаем заявку С БЛОКИРОВКОЙ для предотвращения race condition
+    logger.info('🔍 [CANCEL WITHDRAWAL] Поиск заявки в БД с блокировкой...', {
+      withdrawalId,
+      userId
+    });
+
+    let withdrawal;
+    try {
+      // Сначала блокируем запись withdrawal БЕЗ include
+      withdrawal = await db.Withdrawal.findOne({
+        where: {
+          id: withdrawalId,
+          user_id: userId
+        },
+        transaction,
+        lock: transaction.LOCK.UPDATE
+      });
+
+      logger.info('📊 [CANCEL WITHDRAWAL] Withdrawal запись получена:', {
+        found: !!withdrawal,
+        id: withdrawal?.id,
+        status: withdrawal?.status
+      });
+
+      // Если нашли, подгружаем items отдельным запросом
+      if (withdrawal) {
+        const items = await db.UserInventory.findAll({
+          where: { withdrawal_id: withdrawalId },
+          transaction
+        });
+        withdrawal.items = items;
+
+        logger.info('📦 [CANCEL WITHDRAWAL] Items загружены:', {
+          items_count: items.length
+        });
+      }
+
+      logger.info('✅ [CANCEL WITHDRAWAL] Запрос к БД выполнен успешно');
+    } catch (dbError) {
+      logger.error('❌ [CANCEL WITHDRAWAL] Ошибка при запросе к БД:', {
+        error: dbError.message,
+        code: dbError.original?.code,
+        detail: dbError.original?.detail,
+        hint: dbError.original?.hint
+      });
+      throw dbError;
+    }
+
+    logger.info('📊 [CANCEL WITHDRAWAL] Результат поиска заявки:', {
+      withdrawal_found: !!withdrawal,
+      withdrawal_id: withdrawal?.id,
+      withdrawal_status: withdrawal?.status,
+      withdrawal_user_id: withdrawal?.user_id,
+      items_count: withdrawal?.items?.length || 0
     });
 
     if (!withdrawal) {
+      logger.error('❌ [CANCEL WITHDRAWAL] Заявка на вывод не найдена:', {
+        withdrawalId,
+        userId
+      });
       await transaction.rollback();
       return res.status(404).json({
         success: false,
@@ -342,7 +430,17 @@ async function cancelWithdrawal(req, res) {
 
     // Проверяем, что заявку можно отменить (только pending и queued статусы)
     const cancellableStatuses = ['pending', 'queued'];
+    logger.info('🔒 [CANCEL WITHDRAWAL] Проверка статуса заявки:', {
+      current_status: withdrawal.status,
+      cancellableStatuses,
+      is_cancellable: cancellableStatuses.includes(withdrawal.status)
+    });
+
     if (!cancellableStatuses.includes(withdrawal.status)) {
+      logger.warn('⚠️ [CANCEL WITHDRAWAL] Невозможно отменить заявку:', {
+        current_status: withdrawal.status,
+        allowed_statuses: cancellableStatuses
+      });
       await transaction.rollback();
       return res.status(400).json({
         success: false,
@@ -353,9 +451,21 @@ async function cancelWithdrawal(req, res) {
       });
     }
 
+
+
     // Возвращаем предметы в инвентарь
+    logger.info('🔄 [CANCEL WITHDRAWAL] Возврат предметов в инвентарь:', {
+      items_count: withdrawal.items?.length || 0
+    });
+
     if (withdrawal.items && withdrawal.items.length > 0) {
       for (const item of withdrawal.items) {
+        logger.info('📦 [CANCEL WITHDRAWAL] Обновление предмета:', {
+          item_id: item.id,
+          old_status: item.status,
+          old_withdrawal_id: item.withdrawal_id
+        });
+
         await item.update({
           status: 'inventory',
           withdrawal_id: null,
@@ -365,6 +475,7 @@ async function cancelWithdrawal(req, res) {
     }
 
     // Обновляем статус заявки
+    logger.info('📝 [CANCEL WITHDRAWAL] Обновление статуса заявки на cancelled');
     await withdrawal.update({
       status: 'cancelled',
       cancellation_reason: 'Отменено пользователем',
@@ -372,6 +483,7 @@ async function cancelWithdrawal(req, res) {
     }, { transaction });
 
     await transaction.commit();
+    logger.info('✅ [CANCEL WITHDRAWAL] Транзакция успешно завершена');
 
     // Создаем уведомление для пользователя
     await db.Notification.create({
@@ -396,12 +508,27 @@ async function cancelWithdrawal(req, res) {
     });
 
   } catch (error) {
-    logger.error('Ошибка отмены вывода:', error);
+    logger.error('❌ [CANCEL WITHDRAWAL] Ошибка отмены вывода:', {
+      error: error.message,
+      name: error.name,
+      code: error.original?.code,
+      detail: error.original?.detail,
+      sql: error.sql?.substring(0, 200),
+      stack: error.stack
+    });
 
-    try {
-      await transaction.rollback();
-    } catch (rollbackError) {
-      logger.error('Ошибка отката транзакции:', rollbackError);
+    // Откатываем транзакцию, если она существует
+    if (transaction) {
+      try {
+        logger.info('🔄 [CANCEL WITHDRAWAL] Попытка отката транзакции...');
+        await transaction.rollback();
+        logger.info('✅ [CANCEL WITHDRAWAL] Транзакция откачена успешно');
+      } catch (rollbackError) {
+        logger.error('❌ [CANCEL WITHDRAWAL] Ошибка отката транзакции:', {
+          error: rollbackError.message,
+          stack: rollbackError.stack
+        });
+      }
     }
 
     return res.status(500).json({
