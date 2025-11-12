@@ -105,6 +105,64 @@ function simulateSafeCracker(prize) {
 }
 
 /**
+ * Проверяет все предметы из списка SAFECRACKER_ITEM_IDS
+ * Логирует информацию о каждом предмете и выявляет отсутствующие
+ */
+async function validateSafeCrackerItems() {
+  logger.info('SafeCracker: Проверка предметов из списка SAFECRACKER_ITEM_IDS');
+
+  if (SAFECRACKER_ITEM_IDS.length === 0) {
+    logger.error('SafeCracker: Список предметов ПУСТ!');
+    return { valid: false, items: [] };
+  }
+
+  try {
+    const items = await Item.findAll({
+      where: {
+        id: SAFECRACKER_ITEM_IDS
+      }
+    });
+
+    logger.info(`SafeCracker: Найдено ${items.length} из ${SAFECRACKER_ITEM_IDS.length} предметов`);
+
+    // Проверяем каждый предмет
+    items.forEach(item => {
+      logger.info(`SafeCracker Item: ID=${item.id}, Name="${item.name}", Price=${item.price}₽, Rarity=${item.rarity}, Available=${item.is_available}`);
+
+      // Проверяем наличие всех необходимых полей для операций
+      const hasAllFields = item.id && item.name && item.price && item.rarity && item.image_url;
+      if (!hasAllFields) {
+        logger.warn(`SafeCracker: Предмет ${item.id} имеет пропущенные поля!`);
+      }
+    });
+
+    // Находим отсутствующие предметы
+    const foundIds = items.map(item => item.id);
+    const missingIds = SAFECRACKER_ITEM_IDS.filter(id => !foundIds.includes(id));
+
+    if (missingIds.length > 0) {
+      logger.error(`SafeCracker: НЕ НАЙДЕНЫ предметы с ID: ${missingIds.join(', ')}`);
+    }
+
+    // Находим недоступные предметы
+    const unavailableItems = items.filter(item => !item.is_available);
+    if (unavailableItems.length > 0) {
+      logger.warn(`SafeCracker: НЕДОСТУПНЫ для выпадения (is_available=false): ${unavailableItems.map(i => `${i.name} (${i.id})`).join(', ')}`);
+    }
+
+    return {
+      valid: missingIds.length === 0,
+      items,
+      missingIds,
+      unavailableItems
+    };
+  } catch (error) {
+    logger.error('SafeCracker: Ошибка при проверке предметов:', error);
+    return { valid: false, items: [], error };
+  }
+}
+
+/**
  * Выбирает случайный предмет из списка доступных для SafeCracker
  */
 async function selectRandomItem() {
@@ -123,10 +181,13 @@ async function selectRandomItem() {
 
     if (items.length === 0) {
       logger.warn('SafeCracker: Не найдено доступных предметов из списка');
+      // Проверяем все предметы для диагностики
+      await validateSafeCrackerItems();
       return null;
     }
 
     const randomItem = items[Math.floor(Math.random() * items.length)];
+    logger.info(`SafeCracker: Выбран предмет "${randomItem.name}" (ID: ${randomItem.id}, Price: ${randomItem.price}₽)`);
     return randomItem;
   } catch (error) {
     logger.error('SafeCracker: Ошибка при выборе предмета:', error);

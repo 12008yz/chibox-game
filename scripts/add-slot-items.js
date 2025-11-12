@@ -3,20 +3,11 @@ const db = require('../models');
 // 🎯 ПРОСТО ДОБАВЬТЕ ID ПРЕДМЕТОВ СЮДА:
 const ITEM_IDS = [
   // Дешевые (1-12₽) - часто выпадают
-  '58e2cd94-f365-427e-b823-c6bcc1cafc6b', // UMP-45 | Green Swirl (Battle-Scarred) - 2.29₽
-  '4f80b633-2c6c-45bb-80b0-fad7620b7ad0', // Tec-9 | Army Mesh (Battle-Scarred) - 2.35₽
-  '1a2b00f4-af5a-4b74-9cd0-f1612878cf70', // Souvenir SG 553 | Bleached (Well-Worn) - 4.03₽
-  '1709210e-1538-4f68-a4f1-f1d2356c79d9', // Desert Eagle | Mudder (Battle-Scarred) - 8.57₽
-  '186e14ff-00fc-4b27-8592-5bd73be6c861', // P2000 | Granite Marbleized (Well-Worn) - 11.12₽
-
-  // Средние (12-300₽) - редкие выигрыши
-  '02831efb-7cdd-475f-958f-04e74a5d10c1', // StatTrak™ Tec-9 | Rebel (Well-Worn) - 14.53₽
-  '028d19f1-385e-48d4-a7b9-3aa23250fdfa', // Zeus x27 | Electric Blue (Minimal Wear) - 37.48₽
-  '1eb4e984-d098-4444-8a10-2bd0cb4f8689', // FAMAS | Cyanospatter (Factory New) - 111.20₽
-  '08b34ebf-eddf-4ab2-b1e6-8ca688fe2f6a', // XM1014 | Jungle (Battle-Scarred) - 270.45₽
-
-  // Дорогой (500+₽) - джекпот
-  '036dc064-4df6-4cba-a7a8-89460c03b7c3', // P2000 | Handgun (Factory New) - 693.53₽
+  '1732de21-9bca-4328-ad90-b54b4d7d5af3',
+  '2a59fe6d-4438-42eb-882f-b50a1f5b5020',
+  '7472850b-99b4-409f-ab61-132fdaa89675',
+  '7bec1b7a-c521-447c-bf7a-0f8c0a1c0374',
+  '9bbbaa11-b3b0-43bd-977b-461130a39461',
 ];
 
 /**
