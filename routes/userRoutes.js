@@ -45,7 +45,7 @@ const { loginBot, sendTrade, getSteamInventory } = require('../controllers/user/
 const { getUserBonusInfoController } = require('../controllers/user/getUserBonusInfo');
 const { verifyEmailValidation, verifyEmail } = require('../controllers/user/verifyEmail');
 const { resendValidation, resendVerificationCode } = require('../controllers/user/resendVerificationCode');
-const { getWithdrawalStatus } = require('../controllers/user/withdrawItem');
+const { getWithdrawalStatus, cancelWithdrawal } = require('../controllers/user/withdrawItem');
 const playSafeCracker = require('../controllers/user/playSafeCracker');
 const getSafeCrackerStatus = require('../controllers/user/getSafeCrackerStatus');
 const playSlot = require('../controllers/user/playSlot');
@@ -127,6 +127,7 @@ router.post('/open-case', authMiddleware, openCase); //+
 router.post('/sell-item', authMiddleware, sellItem);
 router.post('/withdraw-item', authMiddleware, /* requireEmailVerification, */ withdrawItem);
 router.get('/withdraw-item/:withdrawalId', authMiddleware, getWithdrawalStatus);
+router.post('/withdraw-item/:withdrawalId/cancel', authMiddleware, cancelWithdrawal);
 router.get('/cases', getCases); // Доступно всем для просмотра кейсов
 router.get('/balance', authMiddleware, getBalance); //+
 router.post('/balance/top-up', authMiddleware, topUpBalance); //+

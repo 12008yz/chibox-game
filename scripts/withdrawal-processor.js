@@ -249,6 +249,9 @@ class WithdrawalProcessor {
         // Если не нашли ни в Steam, ни на PlayerOk
         logger.error('❌ Предмет не найден ни в одном источнике');
 
+        // Возвращаем предмет в инвентарь
+        await this.returnItemsToInventory(withdrawal);
+
         await withdrawal.update({
           status: 'failed',
           failed_reason: 'Предмет не найден ни в Steam боте, ни на PlayerOk по выгодной цене'
@@ -257,6 +260,9 @@ class WithdrawalProcessor {
 
     } catch (error) {
       logger.error(`❌ Ошибка обработки withdrawal ${withdrawal.id}:`, error);
+
+      // Возвращаем предмет в инвентарь при ошибке
+      await this.returnItemsToInventory(withdrawal);
 
       await withdrawal.update({
         status: 'failed',
@@ -478,6 +484,45 @@ class WithdrawalProcessor {
     } catch (error) {
       logger.error('❌ Ошибка конвертации цены:', error);
       return 0;
+    }
+  }
+
+  /**
+   * Возврат предметов в инвентарь при неудачном выводе
+   */
+  async returnItemsToInventory(withdrawal) {
+    try {
+      if (!withdrawal.items || withdrawal.items.length === 0) {
+        logger.warn(`⚠️ Нет предметов для возврата в withdrawal ${withdrawal.id}`);
+        return;
+      }
+
+      logger.info(`🔄 Возврат ${withdrawal.items.length} предмет(ов) в инвентарь для withdrawal ${withdrawal.id}`);
+
+      for (const item of withdrawal.items) {
+        await item.update({
+          status: 'inventory',
+          withdrawal_id: null,
+          transaction_date: new Date()
+        });
+
+        logger.info(`✅ Предмет ${item.id} (${item.item?.name || 'Unknown'}) возвращен в инвентарь`);
+      }
+
+      // Создаем уведомление для пользователя
+      await Withdrawal.sequelize.models.Notification.create({
+        user_id: withdrawal.user_id,
+        type: 'error',
+        title: 'Вывод не удался',
+        message: `Ваш запрос на вывод предмета не был выполнен. Предмет возвращен в инвентарь. Причина: ${withdrawal.failed_reason || 'Неизвестная ошибка'}`,
+        related_id: withdrawal.id,
+        category: 'withdrawal',
+        importance: 5
+      });
+
+      logger.info(`✅ Предметы для withdrawal ${withdrawal.id} успешно возвращены в инвентарь`);
+    } catch (error) {
+      logger.error(`❌ Ошибка возврата предметов в инвентарь для withdrawal ${withdrawal.id}:`, error);
     }
   }
 

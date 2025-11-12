@@ -314,7 +314,106 @@ async function getWithdrawalStatus(req, res) {
   }
 }
 
+async function cancelWithdrawal(req, res) {
+  const transaction = await db.sequelize.transaction();
+
+  try {
+    const userId = req.user.id;
+    const { withdrawalId } = req.params;
+
+    // Получаем заявку на вывод
+    const withdrawal = await db.Withdrawal.findOne({
+      where: { id: withdrawalId, user_id: userId },
+      include: [{
+        model: db.UserInventory,
+        as: 'items'
+      }],
+      transaction,
+      lock: transaction.LOCK.UPDATE
+    });
+
+    if (!withdrawal) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: 'Заявка на вывод не найдена'
+      });
+    }
+
+    // Проверяем, что заявку можно отменить (только pending и queued статусы)
+    const cancellableStatuses = ['pending', 'queued'];
+    if (!cancellableStatuses.includes(withdrawal.status)) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: `Нельзя отменить заявку со статусом "${withdrawal.status}". Отмена возможна только для статусов: ${cancellableStatuses.join(', ')}`,
+        data: {
+          current_status: withdrawal.status
+        }
+      });
+    }
+
+    // Возвращаем предметы в инвентарь
+    if (withdrawal.items && withdrawal.items.length > 0) {
+      for (const item of withdrawal.items) {
+        await item.update({
+          status: 'inventory',
+          withdrawal_id: null,
+          transaction_date: new Date()
+        }, { transaction });
+      }
+    }
+
+    // Обновляем статус заявки
+    await withdrawal.update({
+      status: 'cancelled',
+      cancellation_reason: 'Отменено пользователем',
+      cancellation_date: new Date()
+    }, { transaction });
+
+    await transaction.commit();
+
+    // Создаем уведомление для пользователя
+    await db.Notification.create({
+      user_id: userId,
+      type: 'info',
+      title: 'Вывод отменен',
+      message: 'Ваш запрос на вывод предмета был успешно отменен. Предмет возвращен в инвентарь.',
+      related_id: withdrawal.id,
+      category: 'withdrawal',
+      importance: 3
+    });
+
+    logger.info(`Пользователь ${userId} отменил заявку на вывод ${withdrawalId}`);
+
+    return res.json({
+      success: true,
+      message: 'Заявка на вывод успешно отменена. Предмет возвращен в инвентарь.',
+      data: {
+        withdrawal_id: withdrawal.id,
+        status: 'cancelled'
+      }
+    });
+
+  } catch (error) {
+    logger.error('Ошибка отмены вывода:', error);
+
+    try {
+      await transaction.rollback();
+    } catch (rollbackError) {
+      logger.error('Ошибка отката транзакции:', rollbackError);
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: 'Внутренняя ошибка сервера',
+      error: error.message
+    });
+  }
+}
+
 module.exports = {
   withdrawItem,
-  getWithdrawalStatus
+  getWithdrawalStatus,
+  cancelWithdrawal
 };
