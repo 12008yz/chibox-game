@@ -356,7 +356,7 @@ async function cancelWithdrawal(req, res) {
     // Создаем транзакцию с уровнем изоляции READ COMMITTED
     logger.info('📝 [CANCEL WITHDRAWAL] Создание транзакции...');
     transaction = await db.sequelize.transaction({
-      isolationLevel: db.sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
+      isolationLevel: db.Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
     });
     logger.info('✅ [CANCEL WITHDRAWAL] Транзакция создана успешно');
 
@@ -384,15 +384,16 @@ async function cancelWithdrawal(req, res) {
         status: withdrawal?.status
       });
 
-      // Если нашли, подгружаем items отдельным запросом
+      // Если нашли, подгружаем items отдельным запросом С БЛОКИРОВКОЙ
       if (withdrawal) {
         const items = await db.UserInventory.findAll({
           where: { withdrawal_id: withdrawalId },
-          transaction
+          transaction,
+          lock: transaction.LOCK.UPDATE
         });
         withdrawal.items = items;
 
-        logger.info('📦 [CANCEL WITHDRAWAL] Items загружены:', {
+        logger.info('📦 [CANCEL WITHDRAWAL] Items загружены с блокировкой:', {
           items_count: items.length
         });
       }

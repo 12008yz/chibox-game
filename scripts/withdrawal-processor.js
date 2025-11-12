@@ -249,26 +249,22 @@ class WithdrawalProcessor {
         // Если не нашли ни в Steam, ни на PlayerOk
         logger.error('❌ Предмет не найден ни в одном источнике');
 
-        // Возвращаем предмет в инвентарь
-        await this.returnItemsToInventory(withdrawal);
-
-        await withdrawal.update({
-          status: 'failed',
-          failed_reason: 'Предмет не найден ни в Steam боте, ни на PlayerOk по выгодной цене'
-        });
+        // Возвращаем предмет в инвентарь и обновляем статус в одной транзакции
+        await this.failWithdrawalAndReturnItems(
+          withdrawal,
+          'Предмет не найден ни в Steam боте, ни на PlayerOk по выгодной цене'
+        );
       }
 
     } catch (error) {
       logger.error(`❌ Ошибка обработки withdrawal ${withdrawal.id}:`, error);
 
-      // Возвращаем предмет в инвентарь при ошибке
-      await this.returnItemsToInventory(withdrawal);
-
-      await withdrawal.update({
-        status: 'failed',
-        failed_reason: `Ошибка обработки: ${error.message}`,
-        processing_attempts: (withdrawal.processing_attempts || 0) + 1
-      });
+      // Возвращаем предмет в инвентарь и обновляем статус в одной транзакции
+      await this.failWithdrawalAndReturnItems(
+        withdrawal,
+        `Ошибка обработки: ${error.message}`,
+        (withdrawal.processing_attempts || 0) + 1
+      );
     }
   }
 
@@ -490,7 +486,10 @@ class WithdrawalProcessor {
   /**
    * Возврат предметов в инвентарь при неудачном выводе
    */
-  async returnItemsToInventory(withdrawal) {
+  /**
+   * Возвращает предметы в инвентарь В РАМКАХ ТРАНЗАКЦИИ
+   */
+  async returnItemsToInventory(withdrawal, transaction) {
     try {
       if (!withdrawal.items || withdrawal.items.length === 0) {
         logger.warn(`⚠️ Нет предметов для возврата в withdrawal ${withdrawal.id}`);
@@ -504,25 +503,95 @@ class WithdrawalProcessor {
           status: 'inventory',
           withdrawal_id: null,
           transaction_date: new Date()
-        });
+        }, { transaction });
 
         logger.info(`✅ Предмет ${item.id} (${item.item?.name || 'Unknown'}) возвращен в инвентарь`);
       }
 
-      // Создаем уведомление для пользователя
-      await Withdrawal.sequelize.models.Notification.create({
-        user_id: withdrawal.user_id,
-        type: 'error',
-        title: 'Вывод не удался',
-        message: `Ваш запрос на вывод предмета не был выполнен. Предмет возвращен в инвентарь. Причина: ${withdrawal.failed_reason || 'Неизвестная ошибка'}`,
-        related_id: withdrawal.id,
-        category: 'withdrawal',
-        importance: 5
-      });
-
       logger.info(`✅ Предметы для withdrawal ${withdrawal.id} успешно возвращены в инвентарь`);
     } catch (error) {
       logger.error(`❌ Ошибка возврата предметов в инвентарь для withdrawal ${withdrawal.id}:`, error);
+      throw error; // Пробрасываем ошибку для отката транзакции
+    }
+  }
+
+  /**
+   * Переводит withdrawal в статус failed и возвращает предметы в инвентарь АТОМАРНО
+   */
+  async failWithdrawalAndReturnItems(withdrawal, failedReason, processingAttempts = null) {
+    const transaction = await withdrawal.sequelize.transaction({
+      isolationLevel: Withdrawal.sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
+    });
+
+    try {
+      logger.info(`🔄 [FAIL WITHDRAWAL] Начало атомарной операции для withdrawal ${withdrawal.id}`);
+
+      // Получаем withdrawal с блокировкой
+      const lockedWithdrawal = await Withdrawal.findOne({
+        where: { id: withdrawal.id },
+        include: [{
+          model: UserInventory,
+          as: 'items',
+          include: [{ model: Item, as: 'item' }]
+        }],
+        transaction,
+        lock: transaction.LOCK.UPDATE
+      });
+
+      if (!lockedWithdrawal) {
+        throw new Error(`Withdrawal ${withdrawal.id} не найден`);
+      }
+
+      // Возвращаем предметы в инвентарь (в рамках транзакции)
+      await this.returnItemsToInventory(lockedWithdrawal, transaction);
+
+      // Обновляем статус withdrawal
+      const updateData = {
+        status: 'failed',
+        failed_reason: failedReason
+      };
+
+      if (processingAttempts !== null) {
+        updateData.processing_attempts = processingAttempts;
+      }
+
+      await lockedWithdrawal.update(updateData, { transaction });
+
+      logger.info(`✅ [FAIL WITHDRAWAL] Withdrawal ${withdrawal.id} переведен в статус failed`);
+
+      // Коммитим транзакцию
+      await transaction.commit();
+      logger.info(`✅ [FAIL WITHDRAWAL] Транзакция успешно завершена для withdrawal ${withdrawal.id}`);
+
+      // Создаем уведомление ДЛЯ ПОЛЬЗОВАТЕЛЯ ПОСЛЕ коммита
+      try {
+        await Withdrawal.sequelize.models.Notification.create({
+          user_id: lockedWithdrawal.user_id,
+          type: 'error',
+          title: 'Вывод не удался',
+          message: `Ваш запрос на вывод предмета не был выполнен. Предмет возвращен в инвентарь. Причина: ${failedReason}`,
+          related_id: lockedWithdrawal.id,
+          category: 'withdrawal',
+          importance: 5
+        });
+        logger.info(`📧 [FAIL WITHDRAWAL] Уведомление создано для пользователя ${lockedWithdrawal.user_id}`);
+      } catch (notificationError) {
+        logger.error(`❌ [FAIL WITHDRAWAL] Ошибка создания уведомления:`, notificationError);
+        // Не критично, продолжаем работу
+      }
+
+    } catch (error) {
+      logger.error(`❌ [FAIL WITHDRAWAL] Ошибка атомарной операции для withdrawal ${withdrawal.id}:`, error);
+
+      // Откатываем транзакцию
+      try {
+        await transaction.rollback();
+        logger.info(`🔄 [FAIL WITHDRAWAL] Транзакция откатана для withdrawal ${withdrawal.id}`);
+      } catch (rollbackError) {
+        logger.error(`❌ [FAIL WITHDRAWAL] Ошибка отката транзакции:`, rollbackError);
+      }
+
+      throw error;
     }
   }
 
