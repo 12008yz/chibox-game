@@ -58,14 +58,13 @@ function getSlotLimit(subscriptionTier) {
  */
 function getNextResetTime() {
   const now = new Date();
-  const moscowOffset = 3 * 60; // МСК = UTC+3
-  const moscowTime = new Date(now.getTime() + (moscowOffset * 60 * 1000));
 
-  const nextReset = new Date(moscowTime);
-  nextReset.setHours(16, 0, 0, 0); // 16:00 МСК
+  // Следующий сброс в 16:00 МСК = 13:00 UTC
+  const nextReset = new Date(now);
+  nextReset.setUTCHours(13, 0, 0, 0); // 16:00 МСК = 13:00 UTC
 
-  // Если сегодня 16:00 уже прошло, переходим на завтрашний день
-  if (moscowTime >= nextReset) {
+  // Если сегодня 13:00 UTC уже прошло, переходим на завтрашний день
+  if (now >= nextReset) {
     nextReset.setDate(nextReset.getDate() + 1);
   }
 
