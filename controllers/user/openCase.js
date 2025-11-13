@@ -152,7 +152,7 @@ async function openCase(req, res) {
               console.log('✗ Пользователь не имеет права на этот кейс. subscription_tier:', user?.subscription_tier, 'required:', caseTemplate.min_subscription_tier);
               return res.status(403).json({
                 success: false,
-                message: `Для этого кейса требуется подписка уровня ${caseTemplate.min_subscription_tier} или выше`
+                message: `Для этого кейса требуется статус уровня ${caseTemplate.min_subscription_tier} или выше`
               });
             }
           }

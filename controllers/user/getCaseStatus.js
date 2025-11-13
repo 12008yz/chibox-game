@@ -67,7 +67,7 @@ async function getCaseStatus(req, res) {
     if (caseTemplate.type === 'daily') {
       // Проверяем уровень подписки
       if (userSubscriptionTier < minSubscriptionTier) {
-        status.reason = `Требуется подписка уровня ${minSubscriptionTier} или выше`;
+        status.reason = `Требуется статус уровня ${minSubscriptionTier} или выше`;
         return res.json({ success: true, data: status });
       }
 
