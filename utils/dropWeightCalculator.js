@@ -165,16 +165,16 @@ function calculateModifiedDropWeights(items, userBonuses = {}) {
   let totalBonus = 0;
   if (typeof userBonuses === 'number') {
     // Если передан процент как число, преобразуем его в долю (например, 15% -> 0.15)
-    totalBonus = Math.min(userBonuses / 100, 0.30); // Максимум 30%
+    totalBonus = Math.min(userBonuses / 100, 0.25); // Максимум 25%
     console.log(`[calculateModifiedDropWeights] Получен числовой бонус: ${userBonuses}% -> ${totalBonus}`);
   } else {
     // Если передан объект с отдельными бонусами
     const {
-      subscriptionBonus = 0,    // бонус от подписки (до 8%)
-      achievementBonus = 0,     // бонус от достижений (до 25%)
+      subscriptionBonus = 0,    // бонус от подписки (до 5%)
+      achievementBonus = 0,     // бонус от достижений (до 17%)
       levelBonus = 0           // бонус от уровня (до 2%)
     } = userBonuses;
-    totalBonus = Math.min((subscriptionBonus + achievementBonus + levelBonus) / 100, 0.30); // Максимум 30%
+    totalBonus = Math.min((subscriptionBonus + achievementBonus + levelBonus) / 100, 0.25); // Максимум 25%
     console.log(`[calculateModifiedDropWeights] Объект бонусов: подписка=${subscriptionBonus}%, достижения=${achievementBonus}%, уровень=${levelBonus}%, итого=${totalBonus}`);
   }
 
