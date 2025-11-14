@@ -4,6 +4,7 @@ const { logger } = require('../../utils/logger');
 const { addJob } = require('../../services/queueService');
 const { calculateModifiedDropWeights, selectItemWithModifiedWeights, selectItemWithModifiedWeightsAndDuplicateProtection, selectItemWithFullDuplicateProtection, selectItemWithCorrectWeights } = require('../../utils/dropWeightCalculator');
 const { broadcastDrop } = require('../../services/liveDropService');
+const { FREE_CASE_TEMPLATE_ID, checkFreeCaseAvailability, updateFreeCaseCounters } = require('../../utils/freeCaseHelper');
 
 async function openCase(req, res) {
   try {
@@ -77,6 +78,72 @@ async function openCase(req, res) {
             min_subscription_tier: caseTemplate.min_subscription_tier,
             is_active: caseTemplate.is_active
           } : 'null');
+
+          // Специальная логика для бесплатного кейса (ID: 11111111-1111-1111-1111-111111111111)
+          if (templateId === FREE_CASE_TEMPLATE_ID) {
+            console.log('Это бесплатный кейс для новых пользователей, проверяем доступность');
+
+            const user = await db.User.findByPk(userId);
+            const availability = checkFreeCaseAvailability(user);
+
+            console.log('Проверка доступности бесплатного кейса:', availability);
+
+            if (!availability.canClaim) {
+              return res.status(403).json({
+                success: false,
+                message: availability.reason,
+                nextAvailableTime: availability.nextAvailableTime
+              });
+            }
+
+            console.log('✓ Пользователь может получить бесплатный кейс, выдаем автоматически...');
+
+            try {
+              const { addCaseToInventory } = require('../../services/caseService');
+              const now = new Date();
+
+              // Бесплатный кейс не протухает
+              const createdCase = await addCaseToInventory(userId, templateId, 'free_case', null);
+              console.log('Бесплатный кейс успешно добавлен в инвентарь:', createdCase.id);
+
+              // Обновляем счетчики бесплатных кейсов
+              await updateFreeCaseCounters(user);
+              console.log('Счетчики бесплатных кейсов обновлены. Открыто кейсов:', user.free_case_claim_count);
+
+              // Открываем кейс из инвентаря
+              const newInventoryCase = await db.UserInventory.findOne({
+                where: {
+                  user_id: userId,
+                  case_template_id: templateId,
+                  item_type: 'case',
+                  status: 'inventory'
+                },
+                include: [{
+                  model: db.CaseTemplate,
+                  as: 'case_template'
+                }],
+                order: [['acquisition_date', 'DESC']]
+              });
+
+              if (newInventoryCase) {
+                console.log('✓ Автовыданный бесплатный кейс найден, открываем:', newInventoryCase.id);
+                return await openCaseFromInventory(req, res, newInventoryCase.id);
+              } else {
+                console.error('✗ Бесплатный кейс был создан, но не найден при поиске!');
+                return res.status(500).json({
+                  success: false,
+                  message: 'Ошибка при создании бесплатного кейса'
+                });
+              }
+            } catch (autoGiveError) {
+              console.error('✗ Ошибка при автовыдаче бесплатного кейса:', autoGiveError);
+              console.error('Stack trace:', autoGiveError.stack);
+              return res.status(500).json({
+                success: false,
+                message: 'Ошибка при выдаче бесплатного кейса'
+              });
+            }
+          }
 
           if (caseTemplate && caseTemplate.type === 'daily') {
             console.log('Это ежедневный кейс, проверяем права пользователя');

@@ -40,6 +40,7 @@ const {
 } = require('../controllers/user/userController');
 
 const { getSubscriptionTiers } = require('../controllers/user/getSubscriptionTiers');
+const getFreeCaseStatus = require('../controllers/user/getFreeCaseStatus');
 
 const { loginBot, sendTrade, getSteamInventory } = require('../controllers/user/steamBotController');
 const { getUserBonusInfoController } = require('../controllers/user/getUserBonusInfo');
@@ -162,6 +163,7 @@ router.post('/bonus/reset-cooldown', authMiddleware, resetBonusCooldown); //+ С
 router.get('/cases/available', getCasesAvailable); // Доступно всем для просмотра доступных кейсов
 router.get('/case-templates/:caseTemplateId/items', optionalAuthMiddleware, getCaseTemplateItems); // Получение предметов кейс-темплейта с опциональной аутентификацией
 router.get('/case-templates/:caseTemplateId/status', authMiddleware, getCaseStatus); // Получение статуса кейса
+router.get('/free-case/status', authMiddleware, getFreeCaseStatus); // Получение статуса бесплатного кейса для новых пользователей
 router.get('/achievements/progress', authMiddleware, getAchievementsProgress); //+
 
 // Case purchase routes

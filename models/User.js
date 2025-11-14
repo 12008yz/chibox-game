@@ -271,6 +271,24 @@ module.exports = (sequelize) => {
       comment: "Флаг: выигрывал ли пользователь в Safe Cracker (выигрыш доступен один раз)"
     },
 
+    // Бесплатный кейс для новых пользователей (каждый день в 16:00 на протяжении 2 дней)
+    free_case_claim_count: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      allowNull: false,
+      comment: "Количество открытых бесплатных кейсов (ID: 11111111-1111-1111-1111-111111111111)"
+    },
+    free_case_first_claim_date: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Дата первого открытия бесплатного кейса"
+    },
+    free_case_last_claim_date: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Дата последнего открытия бесплатного кейса"
+    },
+
     // Достижения и модификатор выпадения предметов
     drop_rate_modifier: {
       type: DataTypes.FLOAT,
