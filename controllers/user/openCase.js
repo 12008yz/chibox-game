@@ -2,7 +2,7 @@ const db = require('../../models');
 const { Op } = require('sequelize');
 const { logger } = require('../../utils/logger');
 const { addJob } = require('../../services/queueService');
-const { calculateModifiedDropWeights, selectItemWithModifiedWeights, selectItemWithModifiedWeightsAndDuplicateProtection, selectItemWithFullDuplicateProtection, selectItemWithCorrectWeights } = require('../../utils/dropWeightCalculator');
+const { calculateModifiedDropWeights, selectItemWithModifiedWeights, selectItemWithModifiedWeightsAndDuplicateProtection, selectItemWithFullDuplicateProtection, selectItemWithCorrectWeights, determineCaseType } = require('../../utils/dropWeightCalculator');
 const { broadcastDrop } = require('../../services/liveDropService');
 const { FREE_CASE_TEMPLATE_ID, checkFreeCaseAvailability, updateFreeCaseCounters } = require('../../utils/freeCaseHelper');
 
@@ -357,6 +357,10 @@ async function openCase(req, res) {
 
     let selectedItem = null;
 
+    // Определяем тип кейса для правильного расчета весов
+    const caseType = determineCaseType(userCase.template, userCase.is_paid);
+    logger.info(`Тип кейса определен как: ${caseType}`);
+
     logger.info(`Начинаем выбор предмета. Предметов в кейсе: ${items.length}, userDropBonus: ${userDropBonus}%, userSubscriptionTier: ${userSubscriptionTier}, is_paid: ${userCase.is_paid}`);
     logger.info(`Бонусы пользователя: достижения=${user.achievements_bonus_percentage || 0}%, уровень=${user.level_bonus_percentage || 0}%, подписка=${user.subscription_bonus_percentage || 0}%, итого=${user.total_drop_bonus_percentage || 0}%`);
 
@@ -374,9 +378,9 @@ async function openCase(req, res) {
 
     try {
       if (userDropBonus > 0) {
-        // Используем модифицированную систему весов
+        // Используем модифицированную систему весов с учетом типа кейса
         // Передаем процент как число (например, 15.5 для 15.5%)
-        const modifiedItems = calculateModifiedDropWeights(items, userDropBonus);
+        const modifiedItems = calculateModifiedDropWeights(items, userDropBonus, caseType);
 
         logger.info(`Модифицированных предметов: ${modifiedItems.length}`);
 
@@ -405,7 +409,7 @@ async function openCase(req, res) {
           );
         } else if (userSubscriptionTier >= 3) {
           logger.info('Используем стандартный выбор с модифицированными весами для пользователя Статус++ (другой кейс)');
-          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, []);
+          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, [], caseType);
         } else if (!userCase.is_paid) {
           // Применяем обычную защиту от дубликатов только для подписочных кейсов обычных пользователей
           logger.info('Используем обычную защиту от дубликатов для подписочного кейса');
@@ -450,7 +454,7 @@ async function openCase(req, res) {
           );
         } else if (userSubscriptionTier >= 3) {
           logger.info(`Пользователь Статус++ ${userId} открывает другой кейс ${userCase.template_id} (без защиты от дубликатов)`);
-          selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, []);
+          selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, [], caseType);
         } else {
           // Используем систему весов без бонусов, но с правильными весами на основе цены
           // Для обычных пользователей получаем исключенные предметы тоже (но не применяем фильтрацию)
@@ -464,7 +468,7 @@ async function openCase(req, res) {
           });
           const droppedItemIds = droppedItems.map(drop => drop.item_id);
 
-          selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, droppedItemIds);
+          selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, droppedItemIds, caseType);
         }
       }
 
