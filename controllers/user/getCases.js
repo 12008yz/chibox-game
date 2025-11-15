@@ -32,7 +32,7 @@ async function getCases(req, res) {
     let user = null;
     if (userId) {
       user = await db.User.findByPk(userId, {
-        attributes: ['id', 'subscription_tier', 'last_reset_date']
+        attributes: ['id', 'subscription_tier', 'last_reset_date', 'next_case_available_time']
       });
 
       // Получаем кейсы из инвентаря
@@ -55,9 +55,16 @@ async function getCases(req, res) {
       });
     }
 
-    // Разделяем кейсы на категории
-    const freeCases = caseTemplates.filter(c => !c.price || c.price <= 0);
-    const paidCases = caseTemplates.filter(c => c.price && c.price > 0);
+    // Разделяем кейсы на категории и добавляем next_available_time для каждого
+    const freeCases = caseTemplates.filter(c => !c.price || c.price <= 0).map(c => ({
+      ...c.toJSON(),
+      next_available_time: user?.next_case_available_time || null
+    }));
+
+    const paidCases = caseTemplates.filter(c => c.price && c.price > 0).map(c => ({
+      ...c.toJSON(),
+      next_available_time: null // Для платных кейсов таймер не нужен
+    }));
 
     logger.info('Получен список кейсов');
     return res.json({
@@ -74,7 +81,8 @@ async function getCases(req, res) {
         source: c.source,
         is_paid: c.source === 'purchase'
       })),
-      user_subscription_tier: user?.subscription_tier || 0
+      user_subscription_tier: user?.subscription_tier || 0,
+      next_case_available_time: user?.next_case_available_time || null
     });
   } catch (error) {
     logger.error('Ошибка получения кейсов:', error);

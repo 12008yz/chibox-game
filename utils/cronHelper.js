@@ -1,13 +1,29 @@
 /**
  * Вычисляет время следующего доступного кейса
- * ИЗМЕНЕНО: Теперь кейсы доступны каждые 10 секунд вместо 24 часов
+ * Кейсы для подписчиков выдаются каждый день в 16:00 по МСК
  * @returns {Date} время следующего запуска
  */
 function getNextDailyCaseTime() {
   const now = new Date();
-  const nextRun = new Date(now.getTime() + 10 * 1000); // Добавляем 10 секунд
 
-  return nextRun;
+  // Конвертируем текущее время в МСК (UTC+3)
+  const moscowOffset = 3 * 60; // МСК = UTC+3
+  const localOffset = now.getTimezoneOffset(); // Разница с UTC в минутах (отрицательная для восточных часовых поясов)
+  const moscowTime = new Date(now.getTime() + (moscowOffset + localOffset) * 60 * 1000);
+
+  // Устанавливаем следующее время выдачи кейсов на 16:00 МСК
+  let nextRun = new Date(moscowTime);
+  nextRun.setHours(16, 0, 0, 0);
+
+  // Если 16:00 уже прошло сегодня, переносим на следующий день
+  if (moscowTime >= nextRun) {
+    nextRun.setDate(nextRun.getDate() + 1);
+  }
+
+  // Конвертируем обратно в UTC
+  const nextRunUTC = new Date(nextRun.getTime() - (moscowOffset + localOffset) * 60 * 1000);
+
+  return nextRunUTC;
 }
 
 /**
