@@ -334,12 +334,22 @@ const makeMove = async (req, res) => {
         // Выдаем бонусный кейс
         rewardGiven = await giveReward(userId);
         logger.info(`Результат выдачи бонусного кейса: ${rewardGiven}`);
+        // Уменьшаем количество попыток (сначала бесплатные, потом обычные)
+        if (hasFreeAttempts) {
+          await updateFreeGameCounters(user, 'tictactoe');
+          await user.reload(); // Перезагружаем пользователя для актуальных данных
+          logger.info(`TicTacToe - использована бесплатная попытка. Осталось: ${2 - user.free_tictactoe_claim_count}`);
+        } else {
+          user.tictactoe_attempts_left = Math.max(0, user.tictactoe_attempts_left - 1);
+          await user.save();
+        }
       } else if (newGameState.winner === 'bot') {
         result = 'lose';
         logger.info(`Игрок ${userId} проиграл. Уменьшаем попытки.`);
         // Уменьшаем количество попыток (сначала бесплатные, потом обычные)
         if (hasFreeAttempts) {
           await updateFreeGameCounters(user, 'tictactoe');
+          await user.reload(); // Перезагружаем пользователя для актуальных данных
           logger.info(`TicTacToe - использована бесплатная попытка. Осталось: ${2 - user.free_tictactoe_claim_count}`);
         } else {
           user.tictactoe_attempts_left = Math.max(0, user.tictactoe_attempts_left - 1);
@@ -351,6 +361,7 @@ const makeMove = async (req, res) => {
         // При ничьей тоже уменьшаем попытки
         if (hasFreeAttempts) {
           await updateFreeGameCounters(user, 'tictactoe');
+          await user.reload(); // Перезагружаем пользователя для актуальных данных
           logger.info(`TicTacToe - использована бесплатная попытка. Осталось: ${2 - user.free_tictactoe_claim_count}`);
         } else {
           user.tictactoe_attempts_left = Math.max(0, user.tictactoe_attempts_left - 1);
