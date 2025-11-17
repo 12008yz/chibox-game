@@ -1,5 +1,6 @@
 const { User } = require('../../models');
 const { logger } = require('../../utils/logger');
+const { checkFreeGameAvailability } = require('../../utils/freeGameHelper');
 
 // Лимиты спинов по уровню подписки
 const SLOT_LIMITS = {
@@ -112,11 +113,16 @@ const getSlotStatus = async (req, res) => {
       logger.info(`[SLOT STATUS DEBUG] Reset slot counter for user ${userId}: 0/${slotLimit}`);
     }
 
+    // Проверяем доступность бесплатных попыток
+    const freeGameAvailability = checkFreeGameAvailability(user, 'slot');
+    const freeAttemptsRemaining = freeGameAvailability.canPlay ?
+      (2 - (user.free_slot_claim_count || 0)) : 0;
+
     const remaining = Math.max(0, slotLimit - slotsPlayedToday);
     // ИСПРАВЛЕНИЕ: Игра бесплатная, убираем проверку баланса
-    const canPlay = remaining > 0 && user.subscription_tier > 0;
+    const canPlay = (remaining > 0 && user.subscription_tier > 0) || freeGameAvailability.canPlay;
 
-    logger.info(`[SLOT STATUS DEBUG] - final status: ${slotsPlayedToday}/${slotLimit}, remaining: ${remaining}, canPlay: ${canPlay}`);
+    logger.info(`[SLOT STATUS DEBUG] - final status: ${slotsPlayedToday}/${slotLimit}, remaining: ${remaining}, free: ${freeAttemptsRemaining}, canPlay: ${canPlay}`);
 
     // Получаем названия уровней подписки
     const subscriptionNames = {
@@ -134,6 +140,15 @@ const getSlotStatus = async (req, res) => {
         limit: slotLimit,
         used: slotsPlayedToday,
         remaining: remaining,
+        free_attempts_remaining: freeAttemptsRemaining,
+        free_attempts_info: {
+          can_use: freeGameAvailability.canPlay,
+          reason: freeGameAvailability.reason,
+          next_available: freeGameAvailability.nextAvailableTime,
+          claim_count: user.free_slot_claim_count || 0,
+          first_claim_date: user.free_slot_first_claim_date,
+          last_claim_date: user.free_slot_last_claim_date
+        },
         canPlay: canPlay,
         cost: 0.00,
         balance: parseFloat(user.balance || 0),

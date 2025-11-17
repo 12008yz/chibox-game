@@ -289,6 +289,60 @@ module.exports = (sequelize) => {
       comment: "Дата последнего открытия бесплатного кейса"
     },
 
+    // Бесплатные попытки в Safe Cracker для новых пользователей (2 попытки на 2 дня)
+    free_safecracker_claim_count: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      allowNull: false,
+      comment: "Количество использованных бесплатных попыток в Safe Cracker"
+    },
+    free_safecracker_first_claim_date: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Дата первой бесплатной попытки в Safe Cracker"
+    },
+    free_safecracker_last_claim_date: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Дата последней бесплатной попытки в Safe Cracker"
+    },
+
+    // Бесплатные попытки в Slot для новых пользователей (2 попытки на 2 дня)
+    free_slot_claim_count: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      allowNull: false,
+      comment: "Количество использованных бесплатных попыток в Slot"
+    },
+    free_slot_first_claim_date: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Дата первой бесплатной попытки в Slot"
+    },
+    free_slot_last_claim_date: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Дата последней бесплатной попытки в Slot"
+    },
+
+    // Бесплатные попытки в Tic-Tac-Toe для новых пользователей (2 попытки на 2 дня)
+    free_tictactoe_claim_count: {
+      type: DataTypes.INTEGER,
+      defaultValue: 0,
+      allowNull: false,
+      comment: "Количество использованных бесплатных попыток в Tic-Tac-Toe"
+    },
+    free_tictactoe_first_claim_date: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Дата первой бесплатной попытки в Tic-Tac-Toe"
+    },
+    free_tictactoe_last_claim_date: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Дата последней бесплатной попытки в Tic-Tac-Toe"
+    },
+
     // Достижения и модификатор выпадения предметов
     drop_rate_modifier: {
       type: DataTypes.FLOAT,

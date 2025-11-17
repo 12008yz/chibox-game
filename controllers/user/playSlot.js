@@ -1,6 +1,7 @@
 const { User, Item, UserInventory, Transaction, sequelize } = require('../../models');
 const { logger } = require('../../utils/logger');
 const { Op } = require('sequelize');
+const { checkFreeGameAvailability, updateFreeGameCounters } = require('../../utils/freeGameHelper');
 
 // Стоимость одного спина в рублях
 const SLOT_COST = 0.00;
@@ -319,12 +320,17 @@ async function checkSlotAvailability(user, transaction) {
   logger.info(`[SLOT DEBUG] - slots_played_today: ${user.slots_played_today}`);
   logger.info(`[SLOT DEBUG] - last_slot_reset_date: ${user.last_slot_reset_date}`);
 
+  // Проверяем бесплатные попытки для новых пользователей
+  const freeGameAvailability = checkFreeGameAvailability(user, 'slot');
+  const hasFreeAttempts = freeGameAvailability.canPlay;
+
   // Проверяем подписку
   const slotLimit = getSlotLimit(user.subscription_tier);
   logger.info(`[SLOT DEBUG] - slot limit for tier ${user.subscription_tier}: ${slotLimit}`);
+  logger.info(`[SLOT DEBUG] - free attempts available: ${hasFreeAttempts}`);
 
-  if (slotLimit === 0) {
-    logger.info(`[SLOT DEBUG] - BLOCKED: No subscription (tier: ${user.subscription_tier})`);
+  if (slotLimit === 0 && !hasFreeAttempts) {
+    logger.info(`[SLOT DEBUG] - BLOCKED: No subscription and no free attempts`);
     return {
       available: false,
       reason: 'subscription_required',
@@ -349,10 +355,10 @@ async function checkSlotAvailability(user, transaction) {
     logger.info(`[SLOT DEBUG] - AFTER RESET: slots_played_today = ${user.slots_played_today}`);
   }
 
-  // Проверяем лимит
+  // Проверяем лимит (учитывая бесплатные попытки)
   logger.info(`[SLOT DEBUG] - Checking limit: ${user.slots_played_today} >= ${slotLimit}?`);
-  if (user.slots_played_today >= slotLimit) {
-    logger.info(`[SLOT DEBUG] - BLOCKED: Daily limit reached (${user.slots_played_today}/${slotLimit})`);
+  if (user.slots_played_today >= slotLimit && !hasFreeAttempts) {
+    logger.info(`[SLOT DEBUG] - BLOCKED: Daily limit reached and no free attempts (${user.slots_played_today}/${slotLimit})`);
     return {
       available: false,
       reason: 'daily_limit_reached',
@@ -363,13 +369,16 @@ async function checkSlotAvailability(user, transaction) {
   }
 
   const remaining = slotLimit - user.slots_played_today;
-  logger.info(`[SLOT DEBUG] - ALLOWED: ${user.slots_played_today}/${slotLimit} used, ${remaining} remaining`);
+  const freeAttemptsRemaining = hasFreeAttempts ? (2 - (user.free_slot_claim_count || 0)) : 0;
+  logger.info(`[SLOT DEBUG] - ALLOWED: ${user.slots_played_today}/${slotLimit} used, ${remaining} remaining, ${freeAttemptsRemaining} free attempts`);
 
   return {
     available: true,
     limit: slotLimit,
     used: user.slots_played_today,
-    remaining: remaining
+    remaining: remaining,
+    has_free_attempts: hasFreeAttempts,
+    free_attempts_remaining: freeAttemptsRemaining
   };
 }
 
@@ -424,13 +433,17 @@ const playSlot = async (req, res) => {
     const balanceBefore = user.balance;
     const balanceAfter = user.balance; // Баланс не изменяется
 
-    // Увеличиваем только счетчик спинов (средства не списываем)
-    const newSlotsCount = user.slots_played_today + 1;
-    logger.info(`[SLOT DEBUG] Incrementing slot counter for user ${userId}: ${user.slots_played_today} -> ${newSlotsCount}`);
-
-    await user.update({
-      slots_played_today: newSlotsCount
-    }, { transaction });
+    // Увеличиваем счетчик попыток (сначала бесплатные, потом обычные)
+    if (slotAvailability.has_free_attempts) {
+      await updateFreeGameCounters(user, 'slot');
+      logger.info(`[SLOT DEBUG] Using free attempt. Remaining: ${2 - user.free_slot_claim_count}`);
+    } else {
+      const newSlotsCount = user.slots_played_today + 1;
+      logger.info(`[SLOT DEBUG] Incrementing slot counter for user ${userId}: ${user.slots_played_today} -> ${newSlotsCount}`);
+      await user.update({
+        slots_played_today: newSlotsCount
+      }, { transaction });
+    }
 
     // Создаём транзакцию для истории (бесплатная игра)
     await Transaction.create({

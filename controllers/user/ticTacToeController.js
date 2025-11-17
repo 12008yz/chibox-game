@@ -2,6 +2,7 @@ const { TicTacToeGame, User, CaseTemplate, UserInventory } = require('../../mode
 const { Op } = require('sequelize');
 const ticTacToeService = require('../../services/ticTacToeService');
 const { logger } = require('../../utils/logger');
+const { checkFreeGameAvailability, updateFreeGameCounters } = require('../../utils/freeGameHelper');
 
 // Лимиты попыток для разных уровней подписки
 const TICTACTOE_LIMITS = {
@@ -109,15 +110,20 @@ const createGame = async (req, res) => {
     // Проверяем подписку и сбрасываем попытки при необходимости
     const { hasActiveSubscription, now } = await checkAndResetUserAttempts(user);
 
-    if (!hasActiveSubscription) {
+    // Проверяем бесплатные попытки для новых пользователей
+    const freeGameAvailability = checkFreeGameAvailability(user, 'tictactoe');
+    const hasFreeAttempts = freeGameAvailability.canPlay;
+    const hasRegularAttempts = user.tictactoe_attempts_left > 0;
+
+    if (!hasActiveSubscription && !hasFreeAttempts) {
       return res.status(403).json({
         success: false,
         error: 'Приобретите статус для доступа к бонусу'
       });
     }
 
-    // Проверяем, остались ли попытки
-    if (user.tictactoe_attempts_left <= 0) {
+    // Проверяем, остались ли попытки (обычные или бесплатные)
+    if (!hasRegularAttempts && !hasFreeAttempts) {
       // Вычисляем время следующего сброса
       const nextReset = new Date();
       nextReset.setUTCHours(13, 0, 0, 0); // 16:00 МСК = 13:00 UTC
@@ -238,13 +244,28 @@ const getCurrentGame = async (req, res) => {
     });
 
     const hasWonToday = !!todayWin;
-    const canPlay = hasActiveSubscription && user.tictactoe_attempts_left > 0;
+
+    // Проверяем доступность бесплатных попыток
+    const freeGameAvailability = checkFreeGameAvailability(user, 'tictactoe');
+    const freeAttemptsRemaining = freeGameAvailability.canPlay ?
+      (2 - (user.free_tictactoe_claim_count || 0)) : 0;
+
+    const canPlay = (hasActiveSubscription && user.tictactoe_attempts_left > 0) || freeGameAvailability.canPlay;
 
     res.json({
       success: true,
       game,
       canPlay,
       attempts_left: user.tictactoe_attempts_left,
+      free_attempts_remaining: freeAttemptsRemaining,
+      free_attempts_info: {
+        can_use: freeGameAvailability.canPlay,
+        reason: freeGameAvailability.reason,
+        next_available: freeGameAvailability.nextAvailableTime,
+        claim_count: user.free_tictactoe_claim_count || 0,
+        first_claim_date: user.free_tictactoe_first_claim_date,
+        last_claim_date: user.free_tictactoe_last_claim_date
+      },
       has_subscription: hasActiveSubscription,
       has_won_today: hasWonToday
     });
@@ -303,6 +324,10 @@ const makeMove = async (req, res) => {
     let rewardGiven = false;
 
     if (newGameState.status === 'finished') {
+      // Проверяем доступность бесплатных попыток
+      const freeGameAvailability = checkFreeGameAvailability(user, 'tictactoe');
+      const hasFreeAttempts = freeGameAvailability.canPlay;
+
       if (newGameState.winner === 'player') {
         result = 'win';
         logger.info(`Игрок ${userId} выиграл! Пытаемся выдать бонусный кейс...`);
@@ -312,15 +337,25 @@ const makeMove = async (req, res) => {
       } else if (newGameState.winner === 'bot') {
         result = 'lose';
         logger.info(`Игрок ${userId} проиграл. Уменьшаем попытки.`);
-        // Уменьшаем количество попыток в таблице пользователей
-        user.tictactoe_attempts_left = Math.max(0, user.tictactoe_attempts_left - 1);
-        await user.save();
+        // Уменьшаем количество попыток (сначала бесплатные, потом обычные)
+        if (hasFreeAttempts) {
+          await updateFreeGameCounters(user, 'tictactoe');
+          logger.info(`TicTacToe - использована бесплатная попытка. Осталось: ${2 - user.free_tictactoe_claim_count}`);
+        } else {
+          user.tictactoe_attempts_left = Math.max(0, user.tictactoe_attempts_left - 1);
+          await user.save();
+        }
       } else {
         result = 'draw';
         logger.info(`Ничья для игрока ${userId}. Уменьшаем попытки.`);
         // При ничьей тоже уменьшаем попытки
-        user.tictactoe_attempts_left = Math.max(0, user.tictactoe_attempts_left - 1);
-        await user.save();
+        if (hasFreeAttempts) {
+          await updateFreeGameCounters(user, 'tictactoe');
+          logger.info(`TicTacToe - использована бесплатная попытка. Осталось: ${2 - user.free_tictactoe_claim_count}`);
+        } else {
+          user.tictactoe_attempts_left = Math.max(0, user.tictactoe_attempts_left - 1);
+          await user.save();
+        }
       }
     }
 

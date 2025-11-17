@@ -1,5 +1,6 @@
 const { User, Transaction, UserInventory, Item } = require('../../models');
 const { logger } = require('../../utils/logger');
+const { checkFreeGameAvailability, updateFreeGameCounters } = require('../../utils/freeGameHelper');
 
 // Кулдаун Safe Cracker в миллисекундах (нет кулдауна)
 const SAFE_CRACKER_COOLDOWN_MS = 0;
@@ -219,8 +220,13 @@ const playSafeCracker = async (req, res) => {
       });
     }
 
-    // Проверяем наличие попыток
-    if (!user.game_attempts || user.game_attempts <= 0) {
+    // Проверяем бесплатные попытки для новых пользователей
+    const freeGameAvailability = checkFreeGameAvailability(user, 'safecracker');
+    const hasFreeAttempts = freeGameAvailability.canPlay;
+    const hasRegularAttempts = user.game_attempts && user.game_attempts > 0;
+
+    // Если нет ни бесплатных, ни обычных попыток
+    if (!hasFreeAttempts && !hasRegularAttempts) {
       return res.status(403).json({
         success: false,
         message: 'У вас закончились попытки для игры Safe Cracker'
@@ -247,8 +253,14 @@ const playSafeCracker = async (req, res) => {
 
     logger.info(`SafeCracker - пользователь ${user.username}: секретный код ${secretCode}, код пользователя ${userCode}, совпадений: ${matches}, приз: ${prize.type}`);
 
-    // Уменьшаем количество попыток
-    user.game_attempts -= 1;
+    // Уменьшаем количество попыток (сначала бесплатные, потом обычные)
+    if (hasFreeAttempts) {
+      await updateFreeGameCounters(user, 'safecracker');
+      logger.info(`SafeCracker - использована бесплатная попытка. Осталось: ${2 - user.free_safecracker_claim_count}`);
+    } else {
+      user.game_attempts -= 1;
+      logger.info(`SafeCracker - использована обычная попытка. Осталось: ${user.game_attempts}`);
+    }
 
     // Применяем приз если есть
     let message = '';

@@ -1,5 +1,6 @@
 const { User } = require('../../models');
 const { logger } = require('../../utils/logger');
+const { checkFreeGameAvailability } = require('../../utils/freeGameHelper');
 
 // Лимиты попыток для Safe Cracker в зависимости от уровня подписки
 const SAFECRACKER_LIMITS = {
@@ -92,14 +93,28 @@ const getSafeCrackerStatus = async (req, res) => {
       await user.save();
     }
 
+    // Проверяем доступность бесплатных попыток
+    const freeGameAvailability = checkFreeGameAvailability(user, 'safecracker');
+    const freeAttemptsRemaining = freeGameAvailability.canPlay ?
+      (2 - (user.free_safecracker_claim_count || 0)) : 0;
+
     const response = {
       success: true,
       remaining_attempts: user.game_attempts || 0,
+      free_attempts_remaining: freeAttemptsRemaining,
+      free_attempts_info: {
+        can_use: freeGameAvailability.canPlay,
+        reason: freeGameAvailability.reason,
+        next_available: freeGameAvailability.nextAvailableTime,
+        claim_count: user.free_safecracker_claim_count || 0,
+        first_claim_date: user.free_safecracker_first_claim_date,
+        last_claim_date: user.free_safecracker_last_claim_date
+      },
       subscription_days: user.subscription_days_left || 0,
       subscription_tier: user.subscription_tier || 0,
       max_attempts: SAFECRACKER_LIMITS[user.subscription_tier] || 0,
       has_won: user.has_won_safecracker || false,
-      can_play: !user.has_won_safecracker && (user.game_attempts > 0)
+      can_play: !user.has_won_safecracker && ((user.game_attempts > 0) || freeGameAvailability.canPlay)
     };
 
     res.json(response);
