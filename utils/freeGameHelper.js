@@ -119,8 +119,9 @@ function checkFreeGameAvailability(user, gameType) {
  * Обновляет счетчики бесплатных попыток пользователя для конкретной игры
  * @param {Object} user - объект пользователя из базы данных
  * @param {string} gameType - тип игры: 'safecracker', 'slot', 'tictactoe'
+ * @param {Object} transaction - опциональная транзакция Sequelize
  */
-async function updateFreeGameCounters(user, gameType) {
+async function updateFreeGameCounters(user, gameType, transaction = null) {
   const now = new Date();
   const countField = `free_${gameType}_claim_count`;
   const firstClaimField = `free_${gameType}_first_claim_date`;
@@ -128,18 +129,28 @@ async function updateFreeGameCounters(user, gameType) {
 
   const currentCount = user[countField] || 0;
 
+  const updateData = {};
+
   if (currentCount === 0) {
     // Первая попытка
-    user[firstClaimField] = now;
-    user[lastClaimField] = now;
-    user[countField] = 1;
+    updateData[firstClaimField] = now;
+    updateData[lastClaimField] = now;
+    updateData[countField] = 1;
   } else {
     // Вторая попытка
-    user[lastClaimField] = now;
-    user[countField] += 1;
+    updateData[lastClaimField] = now;
+    updateData[countField] = currentCount + 1;
   }
 
-  await user.save();
+  // ВАЖНО: Используем user.update() с transaction вместо user.save()
+  if (transaction) {
+    await user.update(updateData, { transaction });
+  } else {
+    await user.update(updateData);
+  }
+
+  // Обновляем локальные значения в объекте user
+  Object.assign(user, updateData);
 }
 
 module.exports = {

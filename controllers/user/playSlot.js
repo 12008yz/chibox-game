@@ -386,16 +386,19 @@ async function checkSlotAvailability(user, transaction) {
  * Основная функция игры в слот
  */
 const playSlot = async (req, res) => {
+  logger.info(`[SLOT API] === PLAY SLOT REQUEST STARTED for user ${req.user?.id} ===`);
   const transaction = await sequelize.transaction();
 
   try {
     const userId = req.user.id;
+    logger.info(`[SLOT API] User ID: ${userId}`);
 
     // Получаем пользователя с блокировкой
     const user = await User.findByPk(userId, {
       lock: true,
       transaction
     });
+    logger.info(`[SLOT API] User found: ${user ? 'YES' : 'NO'}`);
 
     if (!user) {
       await transaction.rollback();
@@ -422,21 +425,26 @@ const playSlot = async (req, res) => {
     }
 
     // Генерируем результат слота
+    logger.info('[SLOT API] Generating slot result...');
     const slotResult = await generateSlotResult();
+    logger.info('[SLOT API] Slot result generated successfully');
 
     // Проверяем выигрыш (3 одинаковых предмета по ID)
     const isWin = slotResult.length === 3 &&
                  slotResult[0].id === slotResult[1].id &&
                  slotResult[1].id === slotResult[2].id;
+    logger.info(`[SLOT API] Win check: ${isWin}`);
 
     // Сохраняем начальный баланс (игра бесплатная)
     const balanceBefore = user.balance;
     const balanceAfter = user.balance; // Баланс не изменяется
 
     // Увеличиваем счетчик попыток (сначала бесплатные, потом обычные)
+    logger.info('[SLOT API] Updating game counters...');
     if (slotAvailability.has_free_attempts) {
-      await updateFreeGameCounters(user, 'slot');
-      logger.info(`[SLOT DEBUG] Using free attempt. Remaining: ${2 - user.free_slot_claim_count}`);
+      logger.info('[SLOT API] Using free attempt, updating free game counters...');
+      await updateFreeGameCounters(user, 'slot', transaction);
+      logger.info(`[SLOT DEBUG] Free attempt used. Remaining: ${2 - user.free_slot_claim_count}`);
     } else {
       const newSlotsCount = user.slots_played_today + 1;
       logger.info(`[SLOT DEBUG] Incrementing slot counter for user ${userId}: ${user.slots_played_today} -> ${newSlotsCount}`);
@@ -444,8 +452,10 @@ const playSlot = async (req, res) => {
         slots_played_today: newSlotsCount
       }, { transaction });
     }
+    logger.info('[SLOT API] Game counters updated');
 
     // Создаём транзакцию для истории (бесплатная игра)
+    logger.info('[SLOT API] Creating transaction record...');
     await Transaction.create({
       user_id: userId,
       type: 'bonus',
@@ -455,31 +465,38 @@ const playSlot = async (req, res) => {
       description: 'Бесплатная игра в слот',
       status: 'completed'
     }, { transaction });
+    logger.info('[SLOT API] Transaction record created');
 
     let wonItem = null;
 
+    logger.info('[SLOT API] Processing win/lose logic...');
     if (isWin) {
+      logger.info('[SLOT API] Player won! Adding item to inventory...');
       // Добавляем выигранный предмет в инвентарь
       wonItem = slotResult[0];
 
       // Проверяем что предмет существует в базе данных
+      logger.info(`[SLOT API] Checking if item ${wonItem.id} exists in database...`);
       const itemExists = await Item.findByPk(wonItem.id);
+      logger.info(`[SLOT API] Item exists: ${!!itemExists}`);
 
       if (itemExists) {
+        logger.info('[SLOT API] Creating inventory record...');
         await UserInventory.create({
           user_id: userId,
           item_id: wonItem.id,
           status: 'inventory', // предмет в инвентаре
           source: 'bonus' // слот как бонусная игра
         }, { transaction });
+        logger.info('[SLOT API] Inventory record created');
 
         // Обновляем лучший предмет, если текущий дороже (атомарно)
         const itemPrice = parseFloat(wonItem.price) || 0;
         const currentBestValue = parseFloat(user.best_item_value) || 0;
-        logger.info(`DEBUG SLOT: Обновление лучшего предмета. Текущий: ${currentBestValue}, Новый: ${itemPrice}, Предмет: ${wonItem.name}`);
+        logger.info(`[SLOT API] Updating best item. Current: ${currentBestValue}, New: ${itemPrice}, Item: ${wonItem.name}`);
 
         if (itemPrice > currentBestValue) {
-          logger.info(`DEBUG SLOT: Новый рекорд! Обновляем best_item_value с ${currentBestValue} на ${itemPrice}`);
+          logger.info(`[SLOT API] New record! Updating best_item_value from ${currentBestValue} to ${itemPrice}`);
 
           // Используем прямое обновление для надежности
           await User.update(
@@ -493,9 +510,10 @@ const playSlot = async (req, res) => {
             }
           );
 
-          logger.info(`DEBUG SLOT: best_item_value успешно обновлен в базе данных`);
+          logger.info(`[SLOT API] best_item_value successfully updated in database`);
         } else {
           // Все равно обновляем общую стоимость
+          logger.info('[SLOT API] Updating total items value...');
           await User.update(
             {
               total_items_value: sequelize.literal(`COALESCE(total_items_value, 0) + ${itemPrice}`)
@@ -505,43 +523,55 @@ const playSlot = async (req, res) => {
               transaction
             }
           );
+          logger.info('[SLOT API] Total items value updated');
         }
 
-        logger.info(`User ${userId} won item ${wonItem.id} (${wonItem.name}) in slot game`);
+        logger.info(`[SLOT API] User ${userId} won item ${wonItem.id} (${wonItem.name}) in slot game`);
       } else {
-        logger.warn(`Won item ${wonItem.id} does not exist in database, skipping inventory addition`);
+        logger.warn(`[SLOT API] Won item ${wonItem.id} does not exist in database, skipping inventory addition`);
         wonItem = null;
       }
+    } else {
+      logger.info('[SLOT API] Player lost, no item to add');
     }
 
+    logger.info('[SLOT API] Committing transaction...');
     await transaction.commit();
+    logger.info('[SLOT API] Transaction committed successfully');
 
     // Обновляем достижения после успешной игры
+    logger.info('[SLOT API] Updating achievements...');
     try {
       const { updateUserAchievementProgress } = require('../../services/achievementService');
 
       // Обновляем счетчик игр в слоты
+      logger.info('[SLOT API] Updating slot_plays achievement...');
       await updateUserAchievementProgress(userId, 'slot_plays', 1);
-      logger.info(`Обновлено достижение slot_plays для пользователя ${userId}`);
+      logger.info(`[SLOT API] Updated slot_plays achievement for user ${userId}`);
 
       // Если выиграл, обновляем достижение для лучшего предмета
       if (isWin && wonItem) {
+        logger.info('[SLOT API] Updating best_item_value achievement...');
         await updateUserAchievementProgress(userId, 'best_item_value', wonItem.price);
-        logger.info(`Обновлено достижение best_item_value для пользователя ${userId}: ${wonItem.price}`);
+        logger.info(`[SLOT API] Updated best_item_value achievement for user ${userId}: ${wonItem.price}`);
 
         // Если выиграл джекпот (дорогой предмет), обновляем достижение
         if (wonItem.price >= 1000) {
+          logger.info('[SLOT API] Updating roulette_jackpot achievement...');
           await updateUserAchievementProgress(userId, 'roulette_jackpot', 1);
-          logger.info(`Обновлено достижение roulette_jackpot для пользователя ${userId} (выиграл ${wonItem.name} за ${wonItem.price})`);
+          logger.info(`[SLOT API] Updated roulette_jackpot achievement for user ${userId} (won ${wonItem.name} for ${wonItem.price})`);
         }
       }
+      logger.info('[SLOT API] Achievements updated successfully');
     } catch (achievementError) {
-      logger.error('Ошибка обновления достижений:', achievementError);
+      logger.error('[SLOT API] Error updating achievements:', achievementError);
+      logger.error('[SLOT API] Achievement error stack:', achievementError.stack);
+      // Не прерываем выполнение из-за ошибки в достижениях
     }
 
     logger.info(`User ${userId} played slot: ${isWin ? 'WIN' : 'LOSE'}, balance: ${balanceBefore} -> ${balanceAfter}`);
 
-    res.json({
+    const responseData = {
       success: true,
       result: {
         items: slotResult.map(item => ({
@@ -569,18 +599,29 @@ const playSlot = async (req, res) => {
           remaining: getSlotLimit(user.subscription_tier) - (user.slots_played_today + 1)
         }
       }
-    });
+    };
+
+    logger.info('[SLOT API] === SENDING RESPONSE ===');
+    logger.info(`[SLOT API] Response:`, JSON.stringify(responseData, null, 2));
+    res.json(responseData);
 
   } catch (error) {
     await transaction.rollback();
-    logger.error('Error in playSlot:', error);
+    logger.error('[SLOT API] === ERROR OCCURRED ===');
+    logger.error('[SLOT API] Error message:', error.message);
+    logger.error('[SLOT API] Error stack:', error.stack);
+    logger.error('[SLOT API] Full error:', error);
 
-    res.status(500).json({
+    const errorResponse = {
       success: false,
       message: error.message.includes('Предметы для слота не найдены')
         ? 'Предметы для слота не настроены. Обратитесь к администратору.'
-        : 'Внутренняя ошибка сервера'
-    });
+        : 'Внутренняя ошибка сервера',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    };
+
+    logger.error('[SLOT API] Sending error response:', errorResponse);
+    res.status(500).json(errorResponse);
   }
 };
 

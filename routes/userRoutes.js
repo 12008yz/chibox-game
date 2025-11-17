@@ -155,7 +155,12 @@ router.get('/subscription/tiers', getSubscriptionTiers); // Public route for sub
 router.post('/items/exchange-for-subscription', authMiddleware, exchangeItemForSubscription); //+
 router.post('/games/play-safe-cracker', authMiddleware, playSafeCracker); // Игра Safe Cracker
 router.get('/games/safe-cracker-status', authMiddleware, getSafeCrackerStatus); // Статус игры Safe Cracker
-router.post('/games/play-slot', authMiddleware, playSlot); // Игра в слот
+router.post('/games/play-slot', authMiddleware, (req, res, next) => {
+  console.log('[ROUTE DEBUG] /games/play-slot endpoint hit');
+  console.log('[ROUTE DEBUG] User:', req.user?.id);
+  console.log('[ROUTE DEBUG] Headers:', req.headers);
+  next();
+}, playSlot); // Игра в слот
 router.get('/games/slot-items', getSlotItems); // Получение предметов для слота (публичный endpoint)
 router.get('/games/slot-status', authMiddleware, getSlotStatus); // Получение статуса слота для пользователя
 router.get('/bonus/status', authMiddleware, getBonusStatus); //+
