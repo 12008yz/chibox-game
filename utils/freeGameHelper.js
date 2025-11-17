@@ -28,6 +28,25 @@ function checkFreeGameAvailability(user, gameType) {
   const claimCount = user[countField] || 0;
   const firstClaimDate = user[firstClaimField];
 
+  // ГЛАВНАЯ ПРОВЕРКА: Проверяем, прошло ли 2 дня с момента регистрации
+  if (user.createdAt) {
+    const registrationDate = new Date(user.createdAt);
+    const moscowTimeNow = getMoscowTime(now);
+    const moscowTimeRegistration = getMoscowTime(registrationDate);
+
+    // Вычисляем количество дней с момента регистрации
+    const daysSinceRegistration = Math.floor((moscowTimeNow - moscowTimeRegistration) / (1000 * 60 * 60 * 24));
+
+    // Если прошло более 2 дней с момента регистрации - отказываем в доступе
+    if (daysSinceRegistration >= FREE_GAME_PERIOD_DAYS) {
+      return {
+        canPlay: false,
+        reason: `Бесплатные попытки доступны только в первые ${FREE_GAME_PERIOD_DAYS} дня после регистрации`,
+        nextAvailableTime: null
+      };
+    }
+  }
+
   // Если пользователь уже использовал максимальное количество бесплатных попыток
   if (claimCount >= MAX_FREE_ATTEMPTS) {
     return {
