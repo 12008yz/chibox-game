@@ -28,8 +28,8 @@ async function buySubscription(req, res) {
   logger.info('buySubscription start');
   try {
     const userId = req.user.id;
-    const { tierId, method, itemId, promoCode } = req.body;
-    logger.info(`buySubscription called with userId=${userId}, tierId=${tierId}, method=${method}, itemId=${itemId}, promoCode=${promoCode}`);
+    const { tierId, method, itemId, promoCode, paymentMethod } = req.body;
+    logger.info(`buySubscription called with userId=${userId}, tierId=${tierId}, method=${method}, itemId=${itemId}, promoCode=${promoCode}, paymentMethod=${paymentMethod}`);
     const user = await db.User.findByPk(userId);
     logger.info(`User loaded: ${JSON.stringify(user)}`);
     const tier = subscriptionTiers[tierId];
@@ -88,16 +88,17 @@ async function buySubscription(req, res) {
     } else if (method === 'promo') {
       action = 'promo';
     } else if (method === 'bank_card') {
-      // Создаем платеж через YooMoney и возвращаем ссылку на оплату
+      // Создаем платеж через выбранную платежную систему и возвращаем ссылку на оплату
       try {
-        logger.info('Создание платежа через YooMoney');
+        const selectedPaymentMethod = paymentMethod || 'yookassa';
+        logger.info(`Создание платежа через ${selectedPaymentMethod}`);
         const paymentResult = await createPayment({
           amount: price,
           description: `Статус ${tier.name} на ${tier.days} дней`,
           userId: userId,
           purpose: 'subscription',
           metadata: { tierId },
-          paymentMethod: 'yookassa'
+          paymentMethod: selectedPaymentMethod
         });
 
         if (!paymentResult.success) {
@@ -124,7 +125,7 @@ async function buySubscription(req, res) {
           subscription_tier: updatedUser.subscription_tier
         });
       } catch (error) {
-        logger.error('Ошибка создания платежа через YooMoney:', error);
+        logger.error('Ошибка создания платежа:', error);
         return res.status(500).json({
           success: false,
           message: 'Ошибка при создании платежа'
