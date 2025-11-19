@@ -236,6 +236,13 @@ const playSafeCracker = async (req, res) => {
     // Определяем приз
     const prize = determinePrize();
 
+    // Если используются бесплатные попытки и выпала подписка - заменяем на деньги
+    if (hasFreeAttempts && prize.type === 'subscription') {
+      prize.type = 'money';
+      prize.value = Math.floor(Math.random() * (50 - 15 + 1)) + 15;
+      logger.info('SafeCracker: Бесплатная попытка - заменяем подписку на деньги');
+    }
+
     // Если приз - предмет, выбираем случайный предмет
     let wonItem = null;
     if (prize.type === 'item') {
