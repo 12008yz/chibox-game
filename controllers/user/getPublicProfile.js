@@ -39,7 +39,7 @@ async function getPublicProfile(req, res) {
 
     if (tab === 'active') {
       // Получаем активные предметы с пагинацией
-      const result = await db.UserInventory.findAndCountAll({
+      const result = await db.UserInventory.findAll({
         where: {
           user_id: id,
           status: 'inventory'
@@ -61,13 +61,19 @@ async function getPublicProfile(req, res) {
             attributes: ['id', 'template_id']
           }
         ],
-        distinct: true,
         order: [['acquisition_date', 'DESC']],
         limit,
         offset
       });
-      inventory = result.rows;
-      inventoryCount = result.count;
+      inventory = result;
+
+      // Используем простой count для согласованности
+      inventoryCount = await db.UserInventory.count({
+        where: {
+          user_id: id,
+          status: 'inventory'
+        }
+      });
 
       // Получаем общее количество предметов из кейсов (без данных)
       caseItemsCount = await db.UserInventory.count({
@@ -78,7 +84,7 @@ async function getPublicProfile(req, res) {
       });
     } else {
       // Получаем предметы из кейсов с пагинацией
-      const result = await db.UserInventory.findAndCountAll({
+      const result = await db.UserInventory.findAll({
         where: {
           user_id: id,
           source: 'case'
@@ -100,13 +106,19 @@ async function getPublicProfile(req, res) {
             attributes: ['id', 'template_id']
           }
         ],
-        distinct: true,
         order: [['acquisition_date', 'DESC']],
         limit,
         offset
       });
-      allCaseItems = result.rows;
-      caseItemsCount = result.count;
+      allCaseItems = result;
+
+      // Используем простой count для согласованности
+      caseItemsCount = await db.UserInventory.count({
+        where: {
+          user_id: id,
+          source: 'case'
+        }
+      });
 
       // Получаем общее количество активных предметов (без данных)
       inventoryCount = await db.UserInventory.count({
