@@ -14,7 +14,7 @@ const { getTransactions } = require('./getTransactions');
 const { withdrawBalance } = require('./withdrawBalance');
 const { getAchievements } = require('./getAchievements');
 const { getMissions } = require('./getMissions');
-const { getStatistics } = require('./getStatistics');
+const { getStatistics, getGlobalStatistics } = require('./getStatistics');
 const { getLeaderboard } = require('./getLeaderboard');
 const { getNotifications, getUnreadCount, markAsRead, markAllAsRead, deleteNotification } = require('./getNotifications');
 const { getPublicProfile } = require('./getPublicProfile');
@@ -50,6 +50,7 @@ module.exports = {
   getAchievements,
   getMissions,
   getStatistics,
+  getGlobalStatistics,
   getLeaderboard,
   getNotifications,
   getUnreadCount,

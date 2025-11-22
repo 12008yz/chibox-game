@@ -18,6 +18,7 @@ const {
   getAchievements,
   getMissions,
   getStatistics,
+  getGlobalStatistics,
   getLeaderboard,
   getNotifications,
   getUnreadCount,
@@ -140,6 +141,7 @@ router.post('/withdraw-balance', authMiddleware, withdrawBalance);
 router.get('/achievements', authMiddleware, getAchievements); //+
 router.get('/missions', authMiddleware, getMissions);
 router.get('/statistics', authMiddleware, getStatistics); //+
+router.get('/statistics/global', getGlobalStatistics); // Глобальная статистика сайта (без авторизации)
 router.get('/bonus-info', authMiddleware, getUserBonusInfoController); // Получить информацию о бонусах
 router.get('/leaderboard', authMiddleware, getLeaderboard); //+
 router.get('/notifications', authMiddleware, getNotifications); //+

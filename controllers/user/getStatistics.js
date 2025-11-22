@@ -34,6 +34,48 @@ async function getStatistics(req, res) {
   }
 }
 
+async function getGlobalStatistics(req, res) {
+  try {
+    // Получаем общее количество пользователей
+    const totalUsers = await db.User.count();
+
+    // Получаем общее количество открытых кейсов
+    const totalCasesOpened = await db.Case.count();
+
+    // Получаем количество апгрейдов (из инвентаря с source='upgrade')
+    const totalUpgrades = await db.UserInventory.count({
+      where: { source: 'upgrade' }
+    });
+
+    // Получаем количество сыгранных игр (TicTacToe)
+    const totalGamesPlayed = await db.TicTacToeGame.count();
+
+    // Попробуем получить из таблицы Statistics, если там есть данные
+    let stats = await db.Statistics.findOne({
+      order: [['last_calculated', 'DESC']]
+    });
+
+    const globalStats = {
+      totalUsers: stats?.total_users || totalUsers,
+      totalCasesOpened: stats?.total_cases_opened || totalCasesOpened,
+      totalUpgrades: totalUpgrades,
+      totalGamesPlayed: totalGamesPlayed,
+    };
+
+    return res.json({
+      success: true,
+      data: globalStats
+    });
+  } catch (error) {
+    logger.error('Ошибка получения глобальной статистики:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Внутренняя ошибка сервера'
+    });
+  }
+}
+
 module.exports = {
-  getStatistics
+  getStatistics,
+  getGlobalStatistics
 };
