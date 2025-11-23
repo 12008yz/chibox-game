@@ -278,6 +278,17 @@ async function performUpgrade(req, res) {
         item_type: 'item'
       }, { transaction });
 
+      // Создаем транзакцию для учета успешного апгрейда
+      await db.Transaction.create({
+        user_id: userId,
+        type: 'bonus',
+        amount: 0,
+        balance_before: 0,
+        balance_after: 0,
+        description: `Успешный апгрейд: ${targetItem.name} (${finalSuccessChance.toFixed(1)}% шанс)`,
+        status: 'completed'
+      }, { transaction });
+
       // Обновляем лучший предмет, если текущий дороже (атомарно)
       const user = await db.User.findByPk(userId, { transaction });
       const currentBestValue = parseFloat(user.best_item_value) || 0;
@@ -355,7 +366,19 @@ async function performUpgrade(req, res) {
         }
       });
     } else {
-      // Неудачный апгрейд - предметы потеряны, коммитим транзакцию
+      // Неудачный апгрейд - предметы потеряны
+      // Создаем транзакцию для учета неудачного апгрейда
+      await db.Transaction.create({
+        user_id: userId,
+        type: 'bonus',
+        amount: 0,
+        balance_before: 0,
+        balance_after: 0,
+        description: `Неудачный апгрейд: ${targetItem.name} (${finalSuccessChance.toFixed(1)}% шанс)`,
+        status: 'completed'
+      }, { transaction });
+
+      // Коммитим транзакцию
       await transaction.commit();
       transaction = null; // Помечаем что транзакция завершена
 

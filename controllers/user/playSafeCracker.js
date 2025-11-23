@@ -348,6 +348,17 @@ const playSafeCracker = async (req, res) => {
       message = matches === 1
         ? 'Одно совпадение! Попробуйте еще раз.'
         : 'Не угадали. Попробуйте еще раз!';
+
+      // Создаем транзакцию для истории даже при проигрыше
+      await Transaction.create({
+        user_id: userId,
+        type: 'bonus',
+        amount: 0,
+        balance_before: balanceBefore,
+        balance_after: balanceAfter,
+        description: `Игра в Safe Cracker (${matches} совпадения)`,
+        status: 'completed'
+      });
     }
 
     await user.save();

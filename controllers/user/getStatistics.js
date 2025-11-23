@@ -42,9 +42,13 @@ async function getGlobalStatistics(req, res) {
     // Получаем общее количество открытых кейсов
     const totalCasesOpened = await db.Case.count();
 
-    // Получаем количество апгрейдов (из инвентаря с source='upgrade')
-    const totalUpgrades = await db.UserInventory.count({
-      where: { source: 'upgrade' }
+    // Получаем количество апгрейдов (все попытки - успешные и неудачные)
+    const totalUpgrades = await db.Transaction.count({
+      where: {
+        description: {
+          [db.Sequelize.Op.like]: '%апгрейд%'
+        }
+      }
     });
 
     // Получаем количество сыгранных игр (TicTacToe + Slots + SafeCracker)
@@ -59,10 +63,20 @@ async function getGlobalStatistics(req, res) {
       }
     });
 
-    // Подсчитываем игры в сейф-взлом
-    const safeCrackerGames = await db.BonusMiniGameHistory.count();
+    // Подсчитываем игры в сейф-взлом через транзакции
+    const safeCrackerGames = await db.Transaction.count({
+      where: {
+        description: {
+          [db.Sequelize.Op.like]: '%Safe Cracker%'
+        }
+      }
+    });
 
     const totalGamesPlayed = ticTacToeGames + slotGames + safeCrackerGames;
+
+    // Логируем детальную статистику
+    logger.info(`Статистика игр: TicTacToe=${ticTacToeGames}, Slots=${slotGames}, SafeCracker=${safeCrackerGames}, Total=${totalGamesPlayed}`);
+    logger.info(`Статистика апгрейдов: Total=${totalUpgrades}`);
 
     // Попробуем получить из таблицы Statistics, если там есть данные
     let stats = await db.Statistics.findOne({
