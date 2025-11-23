@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@fastify/csrf-protection": "^6.0.0",
-    "@playwright/test": "^1.52.0",
+    "@playwright/test": "^1.55.1",
     "argon2": "^0.43.0",
     "axios": "^1.9.0",
     "bull": "^4.16.5",
@@ -52,7 +52,7 @@
     "passport-steam": "^1.0.18",
     "pg": "^8.16.0",
     "pg-hstore": "^2.3.4",
-    "playwright-core": "^1.52.0",
+    "playwright-core": "^1.55.1",
     "pug": "^3.0.3",
     "puppeteer": "^24.9.0",
     "puppeteer-extra": "^3.3.6",
