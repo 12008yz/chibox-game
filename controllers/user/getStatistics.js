@@ -47,8 +47,22 @@ async function getGlobalStatistics(req, res) {
       where: { source: 'upgrade' }
     });
 
-    // Получаем количество сыгранных игр (TicTacToe)
-    const totalGamesPlayed = await db.TicTacToeGame.count();
+    // Получаем количество сыгранных игр (TicTacToe + Slots + SafeCracker)
+    const ticTacToeGames = await db.TicTacToeGame.count();
+
+    // Подсчитываем слоты через транзакции с описанием "Бесплатная игра в слот"
+    const slotGames = await db.Transaction.count({
+      where: {
+        description: {
+          [db.Sequelize.Op.like]: '%слот%'
+        }
+      }
+    });
+
+    // Подсчитываем игры в сейф-взлом
+    const safeCrackerGames = await db.BonusMiniGameHistory.count();
+
+    const totalGamesPlayed = ticTacToeGames + slotGames + safeCrackerGames;
 
     // Попробуем получить из таблицы Statistics, если там есть данные
     let stats = await db.Statistics.findOne({
