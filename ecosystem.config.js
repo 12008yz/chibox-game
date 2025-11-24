@@ -3,7 +3,7 @@ module.exports = {
     // Основное веб-приложение
     {
       name: "chibox-main",
-      script: "app.js",
+      script: "bin/www",
       instances: 1,
       autorestart: true,
       watch: false,

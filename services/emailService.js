@@ -41,37 +41,32 @@ async function initializeTransporter() {
           auth: {
             user: process.env.SMTP_USER,
             pass: process.env.SMTP_PASS
-          }
+          },
+          connectionTimeout: 5000,
+          greetingTimeout: 5000
         });
 
-        // Проверяем соединение
-        await transporter.verify();
-        logger.info('✅ Email транспорт настроен через SMTP и подключение проверено');
+        // Проверяем соединение с таймаутом
+        try {
+          await Promise.race([
+            transporter.verify(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Verify timeout')), 5000))
+          ]);
+          logger.info('✅ Email транспорт настроен через SMTP и подключение проверено');
+        } catch (verifyError) {
+          logger.warn('⚠️ SMTP транспорт создан, но проверка подключения не удалась:', verifyError.message);
+          // Продолжаем работу, транспорт может работать позже
+        }
       } else {
-        logger.warn('SMTP настройки не найдены в .env:', {
-          hasHost: !!process.env.SMTP_HOST,
-          hasUser: !!process.env.SMTP_USER,
-          hasPass: !!process.env.SMTP_PASS
-        });
-        // Fallback на Ethereal Email для тестирования
-        const testAccount = await nodemailer.createTestAccount();
-        transporter = nodemailer.createTransport({
-          host: 'smtp.ethereal.email',
-          port: 587,
-          secure: false,
-          auth: {
-            user: testAccount.user,
-            pass: testAccount.pass
-          }
-        });
-        logger.info('Используется тестовый Ethereal Email транспорт');
-        logger.info(`Тестовые письма можно посмотреть на: https://ethereal.email`);
+        logger.warn('SMTP настройки не найдены в .env - email функции отключены');
+        transporter = null;
       }
       return transporter;
     } catch (error) {
-      logger.error('❌ Ошибка настройки email транспорта:', error.message);
+      logger.warn('⚠️ Ошибка настройки email транспорта:', error.message);
+      logger.warn('⚠️ Приложение продолжит работу без email функций');
       transporter = null;
-      throw error;
+      return null;
     } finally {
       isInitializing = false;
     }
@@ -80,9 +75,10 @@ async function initializeTransporter() {
   return initializationPromise;
 }
 
-// Инициализируем транспорт
+// Инициализируем транспорт (не блокируем запуск приложения)
 initializeTransporter().catch(err => {
-  logger.error('Не удалось инициализировать email транспорт:', err);
+  logger.warn('⚠️ Email транспорт не инициализирован');
+  logger.warn('⚠️ Приложение продолжит работу без функции отправки email');
 });
 
 /**
@@ -145,7 +141,7 @@ async function sendVerificationEmail(email, code, username) {
       command: error.command,
       response: error.response
     });
-    throw error; // Пробрасываем ошибку наверх для правильной обработки
+    throw error;
   }
 }
 
@@ -201,7 +197,7 @@ async function sendPasswordResetEmail(email, resetToken, username) {
       command: error.command,
       response: error.response
     });
-    throw error; // Пробрасываем ошибку наверх для правильной обработки
+    throw error;
   }
 }
 
