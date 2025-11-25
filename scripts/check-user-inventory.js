@@ -1,35 +1,14 @@
-// Скрипт для проверки PRODUCTION базы данных
-// Использует credentials напрямую (не из .env)
+require('dotenv').config();
+const { sequelize } = require('../config/database');
+const { QueryTypes } = require('sequelize');
 
-const { Sequelize, QueryTypes } = require('sequelize');
-
-// Production настройки
-const PROD_CONFIG = {
-  username: 'chibox',
-  password: 'chibox123',
-  database: 'chibox-game',
-  host: '127.0.0.1',
-  dialect: 'postgres'
-};
-
-const sequelize = new Sequelize(
-  PROD_CONFIG.database,
-  PROD_CONFIG.username,
-  PROD_CONFIG.password,
-  {
-    host: PROD_CONFIG.host,
-    dialect: PROD_CONFIG.dialect,
-    logging: false
-  }
-);
-
-async function checkProductionInventory(userId) {
+async function checkUserInventory(userId) {
   try {
-    console.log(`\n🔍 Проверка PRODUCTION инвентаря пользователя: ${userId}\n`);
+    console.log(`\n🔍 Проверка инвентаря пользователя: ${userId}\n`);
 
     // Подключаемся к БД
     await sequelize.authenticate();
-    console.log('✅ Подключение к PRODUCTION базе данных успешно\n');
+    console.log('✅ Подключение к базе данных успешно\n');
 
     // Получаем информацию о пользователе
     const user = await sequelize.query(
@@ -125,7 +104,6 @@ async function checkProductionInventory(userId) {
 
   } catch (error) {
     console.error('❌ Ошибка:', error.message);
-    console.error(error);
   } finally {
     await sequelize.close();
   }
@@ -134,4 +112,4 @@ async function checkProductionInventory(userId) {
 // Получаем ID из аргументов командной строки
 const userId = process.argv[2] || 'e0d82dfd-c10a-4415-a958-7f9b96ef2a84';
 
-checkProductionInventory(userId);
+checkUserInventory(userId);
