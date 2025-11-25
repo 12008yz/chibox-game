@@ -39,6 +39,8 @@ async function getPublicProfile(req, res) {
 
     if (tab === 'active') {
       // Получаем активные предметы с пагинацией
+      logger.info(`🔍 [PUBLIC PROFILE] Запрос инвентаря для user_id: ${id}, status: 'inventory'`);
+
       const result = await db.UserInventory.findAll({
         where: {
           user_id: id,
@@ -72,6 +74,19 @@ async function getPublicProfile(req, res) {
         offset
       });
       inventory = result;
+
+      logger.info(`🎒 [PUBLIC PROFILE] Найдено предметов: ${result.length}`);
+      result.forEach((item, index) => {
+        logger.info(`  Предмет ${index + 1}:`, {
+          id: item.id,
+          item_type: item.item_type,
+          status: item.status,
+          source: item.source,
+          has_item: !!item.item,
+          has_case_template: !!item.case_template,
+          case_template_id: item.case_template_id
+        });
+      });
 
       // Используем простой count для согласованности
       inventoryCount = await db.UserInventory.count({
