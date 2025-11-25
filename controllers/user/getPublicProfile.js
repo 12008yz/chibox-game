@@ -52,7 +52,8 @@ async function getPublicProfile(req, res) {
           {
             model: db.Item,
             as: 'item',
-            attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
+            attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url'],
+            required: false
           },
           {
             model: db.CaseTemplate,
@@ -102,7 +103,8 @@ async function getPublicProfile(req, res) {
           {
             model: db.Item,
             as: 'item',
-            attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
+            attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url'],
+            required: false
           },
           {
             model: db.CaseTemplate,
@@ -175,9 +177,19 @@ async function getPublicProfile(req, res) {
     // Это значение обновляется при каждом открытии кейса и является источником истины
     const totalCasesOpened = user.total_cases_opened || 0;
 
-    // Фильтруем инвентарь, удаляя записи с отсутствующими предметами
+    // Фильтруем инвентарь, удаляя только записи, где нет ни предмета, ни кейса
     const filteredInventory = inventory
-      .filter(inventoryItem => inventoryItem.item !== null)
+      .filter(inventoryItem => {
+        // Для обычных предметов проверяем наличие item
+        if (inventoryItem.item_type === 'item') {
+          return inventoryItem.item !== null;
+        }
+        // Для кейсов проверяем наличие case_template
+        if (inventoryItem.item_type === 'case') {
+          return inventoryItem.case_template !== null;
+        }
+        return false;
+      })
       .map(item => ({
         id: item.id,
         item_type: item.item_type,
@@ -194,9 +206,19 @@ async function getPublicProfile(req, res) {
         expires_at: item.expires_at
       }));
 
-    // Фильтруем предметы из кейсов, удаляя записи с отсутствующими предметами
+    // Фильтруем предметы из кейсов, удаляя только записи, где нет ни предмета, ни кейса
     const filteredCaseItems = allCaseItems
-      .filter(inventoryItem => inventoryItem.item !== null)
+      .filter(inventoryItem => {
+        // Для обычных предметов проверяем наличие item
+        if (inventoryItem.item_type === 'item') {
+          return inventoryItem.item !== null;
+        }
+        // Для кейсов проверяем наличие case_template
+        if (inventoryItem.item_type === 'case') {
+          return inventoryItem.case_template !== null;
+        }
+        return false;
+      })
       .map(item => ({
         id: item.id,
         item_type: item.item_type,
