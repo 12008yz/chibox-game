@@ -55,6 +55,11 @@ async function getPublicProfile(req, res) {
             attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
           },
           {
+            model: db.CaseTemplate,
+            as: 'case_template',
+            required: false
+          },
+          {
             model: db.Case,
             as: 'case',
             required: false,
@@ -98,6 +103,11 @@ async function getPublicProfile(req, res) {
             model: db.Item,
             as: 'item',
             attributes: ['id', 'name', 'rarity', 'price', 'weapon_type', 'skin_name', 'image_url']
+          },
+          {
+            model: db.CaseTemplate,
+            as: 'case_template',
+            required: false
           },
           {
             model: db.Case,
@@ -178,6 +188,7 @@ async function getPublicProfile(req, res) {
         case_id: item.case_id,
         // Для предметов из кейсов получаем case_template_id через связь case.template_id
         case_template_id: item.case_template_id || (item.case ? item.case.template_id : null),
+        case_template: item.case_template || null, // Добавляем case_template для отображения кейсов
         item_id: item.item_id,
         transaction_date: item.transaction_date,
         expires_at: item.expires_at
@@ -196,6 +207,7 @@ async function getPublicProfile(req, res) {
         case_id: item.case_id,
         // Для предметов из кейсов получаем case_template_id через связь case.template_id
         case_template_id: item.case_template_id || (item.case ? item.case.template_id : null),
+        case_template: item.case_template || null, // Добавляем case_template для отображения кейсов
         item_id: item.item_id,
         transaction_date: item.transaction_date,
         expires_at: item.expires_at
@@ -299,6 +311,14 @@ async function getPublicProfile(req, res) {
     // Логируем для отладки
     logger.info(`Public profile request - User: ${id}, Tab: ${tab}, Page: ${page}, Limit: ${limit}`);
     logger.info(`Returning - Inventory: ${filteredInventory.length}, CaseItems: ${filteredCaseItems.length}`);
+
+    // Детальное логирование для отладки
+    if (filteredCaseItems.length > 0) {
+      logger.info('Sample caseItem structure:', JSON.stringify(filteredCaseItems[0], null, 2));
+    }
+    if (filteredInventory.length > 0) {
+      logger.info('Sample inventory item structure:', JSON.stringify(filteredInventory[0], null, 2));
+    }
 
     // Формируем полный URL для пользовательского аватара
     const avatarUrl = user.avatar_url
