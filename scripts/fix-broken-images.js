@@ -105,7 +105,7 @@ async function parseImageFromSteamPage(url) {
     console.log(`🔄 Парсим изображение с: ${url}`);
 
     // Добавляем задержку чтобы не перегружать Steam
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     const response = await axios.get(url, {
       headers: {
@@ -250,12 +250,12 @@ async function parseAllItemImages() {
         console.log(`⏭️  Предмет не найден в БД: ${marketHashName}`);
         continue;
       }
-
+/*
       if (existingItem.image_url && existingItem.image_url.includes('steamstatic.com')) {
         console.log(`⏭️  Изображение уже есть для: ${marketHashName}`);
         continue;
       }
-
+*/
       // Парсим изображение
       const imageUrl = await parseImageFromSteamPage(url);
 

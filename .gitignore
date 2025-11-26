@@ -33,3 +33,4 @@ config/
 !config/.gitkeep
 !config/config.example.js
 !config/database.example.js
+scripts/import-cache.json

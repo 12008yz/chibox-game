@@ -43,8 +43,9 @@ async function checkUserInventory(userId) {
         ui.item_id,
         i.name as item_name,
         i.rarity,
-        i.category,
-        i.price_rub,
+        i.weapon_type,
+        i.skin_name,
+        COALESCE(i.actual_price_rub, i.price, 0) as price,
         ui.status,
         ui.source,
         ui.acquisition_date,
@@ -78,8 +79,10 @@ async function checkUserInventory(userId) {
         items.forEach((item, index) => {
           console.log(`${index + 1}. ${item.item_name || 'Кейс/Предмет'}`);
           console.log(`   ID: ${item.id}`);
+          if (item.weapon_type) console.log(`   Тип: ${item.weapon_type}`);
+          if (item.skin_name) console.log(`   Скин: ${item.skin_name}`);
           console.log(`   Редкость: ${item.rarity || 'N/A'}`);
-          console.log(`   Цена: ${item.price_rub || 0} ₽`);
+          console.log(`   Цена: ${item.price || 0} ₽`);
           console.log(`   Источник: ${item.source}`);
           console.log(`   Дата получения: ${new Date(item.acquisition_date).toLocaleString('ru-RU')}`);
           if (item.transaction_date) {
@@ -94,7 +97,7 @@ async function checkUserInventory(userId) {
       console.log('─'.repeat(80));
       const totalValue = inventory
         .filter(item => item.status === 'inventory')
-        .reduce((sum, item) => sum + (parseFloat(item.price_rub) || 0), 0);
+        .reduce((sum, item) => sum + (parseFloat(item.price) || 0), 0);
       console.log(`Общая стоимость предметов в инвентаре: ${totalValue.toFixed(2)} ₽`);
       console.log(`В инвентаре: ${byStatus.inventory?.length || 0}`);
       console.log(`Продано: ${byStatus.sold?.length || 0}`);
@@ -113,3 +116,4 @@ async function checkUserInventory(userId) {
 const userId = process.argv[2] || 'e0d82dfd-c10a-4415-a958-7f9b96ef2a84';
 
 checkUserInventory(userId);
+
