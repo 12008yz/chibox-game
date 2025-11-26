@@ -250,12 +250,12 @@ async function parseAllItemImages() {
         console.log(`⏭️  Предмет не найден в БД: ${marketHashName}`);
         continue;
       }
-/*
+
       if (existingItem.image_url && existingItem.image_url.includes('steamstatic.com')) {
         console.log(`⏭️  Изображение уже есть для: ${marketHashName}`);
         continue;
       }
-*/
+
       // Парсим изображение
       const imageUrl = await parseImageFromSteamPage(url);
 
