@@ -5,7 +5,7 @@ const db = require('../models');
  * Использование: node scripts/give-subscription.js <id_или_email_или_username> <tier> <days> [balance]
  * Пример: node scripts/give-subscription.js user@example.com 1 30
  * Пример: node scripts/give-subscription.js username123 3 365 10000
- * Пример: node scripts/give-subscription.js a1b2c3d4-5678-90ab-cdef-1234567890ab 2 90 5000
+ * Пример: node scripts/give-subscription.js a259f53f-723d-4e57-a6de-9c9e2100bddd 3 1 49999
  *
  * tier: 0 - нет подписки, 1 - Статус, 2 - Статус+, 3 - Статус++
  * days: количество дней подписки
