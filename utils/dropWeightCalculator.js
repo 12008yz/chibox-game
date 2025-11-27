@@ -800,6 +800,35 @@ function determineCaseType(caseTemplate, isPaid = false) {
     return 'premium_499';
   }
 
+  // Новые премиум кейсы
+  if (templateId === '88888888-8888-8888-8888-888888888888' || price === 17) {
+    return 'standard_99'; // Бронзовый - используем веса стандартного кейса
+  }
+  if (templateId === '99999999-9999-9999-9999-999999999999' || price === 50) {
+    return 'standard_99'; // Серебряный
+  }
+  if (templateId === 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' || price === 100) {
+    return 'standard_99'; // Золотой
+  }
+  if (templateId === 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' || price === 250) {
+    return 'premium_499'; // Платиновый - начинаем использовать премиум веса
+  }
+  if (templateId === 'cccccccc-cccc-cccc-cccc-cccccccccccc' || price === 500) {
+    return 'premium_499'; // Алмазный
+  }
+  if (templateId === 'dddddddd-dddd-dddd-dddd-dddddddddddd' || price === 1000) {
+    return 'premium_499'; // Легендарный
+  }
+  if (templateId === 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee' || price === 2500) {
+    return 'premium_499'; // Мистический
+  }
+  if (templateId === 'ffffffff-ffff-ffff-ffff-ffffffffffff' || price === 5000) {
+    return 'premium_499'; // Эпический
+  }
+  if (templateId === '10101010-1010-1010-1010-101010101010' || price === 10000) {
+    return 'premium_499'; // Мифический
+  }
+
   // Определяем по типу и цене
   if (caseTemplate.type === 'daily') {
     const minTier = caseTemplate.min_subscription_tier || 0;
