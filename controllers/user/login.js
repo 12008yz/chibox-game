@@ -159,7 +159,7 @@ async function login(req, res) {
     const cookieOptions = {
       httpOnly: true, // Защита от XSS - JavaScript не может получить доступ к cookie
       secure: process.env.NODE_ENV === 'production', // HTTPS только в production
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // CSRF защита
+      sameSite: 'lax', // CSRF защита (lax для работы с cross-site запросами)
       maxAge: 24 * 60 * 60 * 1000, // 1 день в миллисекундах
       path: '/' // Cookie доступен для всего домена
     };
