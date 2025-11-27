@@ -378,7 +378,7 @@ async function robokassaResultURL(req, res) {
 
 /**
  * Обработчик SuccessURL для Robokassa
- * Этот URL для редиректа пользователя после успешной оплаты
+ * Этот  URL для редиректа пользователя после успешной оплаты
  */
 async function robokassaSuccessURL(req, res) {
   try {
