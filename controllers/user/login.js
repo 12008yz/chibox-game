@@ -154,9 +154,22 @@ async function login(req, res) {
     const token = generateToken(user);
 
     logger.info('[LOGIN] Preparing response data...');
+
+    // Устанавливаем JWT токен в httpOnly cookie для защиты от XSS
+    const cookieOptions = {
+      httpOnly: true, // Защита от XSS - JavaScript не может получить доступ к cookie
+      secure: process.env.NODE_ENV === 'production', // HTTPS только в production
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // CSRF защита
+      maxAge: 24 * 60 * 60 * 1000, // 1 день в миллисекундах
+      path: '/' // Cookie доступен для всего домена
+    };
+
+    res.cookie('auth_token', token, cookieOptions);
+    logger.info('[LOGIN] JWT token set in httpOnly cookie for user:', user.id);
+
     const response = {
       success: true,
-      token,
+      // Больше НЕ отправляем токен в JSON - он теперь в httpOnly cookie
       user: {
         id: user.id,
         email: user.email,
