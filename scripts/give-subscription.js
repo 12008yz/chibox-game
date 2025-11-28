@@ -1,4 +1,5 @@
 const db = require('../models');
+const redis = require('redis');
 
 /**
  * Скрипт для выдачи подписки и/или пополнения баланса пользователю
@@ -11,6 +12,47 @@ const db = require('../models');
  * days: количество дней подписки
  * balance: (опционально) сумма для пополнения баланса в рублях
  */
+
+// Инициализируем Redis клиент
+let redisClient = null;
+async function initRedis() {
+  try {
+    redisClient = redis.createClient({
+      url: process.env.REDIS_URL || 'redis://127.0.0.1:6379'
+    });
+    await redisClient.connect();
+    console.log('✅ Redis подключен');
+  } catch (error) {
+    console.warn('⚠️  Redis недоступен, кэш не будет очищен:', error.message);
+  }
+}
+
+// Очистка кэша профиля пользователя
+async function clearUserCache(userId) {
+  if (!redisClient || !redisClient.isOpen) {
+    console.warn('⚠️  Redis не подключен, пропускаем очистку кэша');
+    return;
+  }
+
+  try {
+    // Очищаем все возможные ключи кэша для этого пользователя
+    const patterns = [
+      `cache:${userId}:*`,
+      `*:${userId}:*profile*`,
+      `*profile*${userId}*`
+    ];
+
+    for (const pattern of patterns) {
+      const keys = await redisClient.keys(pattern);
+      if (keys.length > 0) {
+        await redisClient.del(keys);
+        console.log(`🗑️  Очищено ${keys.length} ключей кэша для пользователя`);
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️  Ошибка при очистке кэша:', error.message);
+  }
+}
 
 async function giveSubscription(userIdentifier, tier, days, balanceAmount = null) {
   try {
@@ -106,9 +148,19 @@ async function giveSubscription(userIdentifier, tier, days, balanceAmount = null
       console.log(`   - Баланс: ${parseFloat(user.balance || 0).toFixed(2)}₽`);
     }
 
+    // Очищаем кэш профиля пользователя
+    await clearUserCache(user.id);
+
+    console.log('\n💡 Пользователю нужно обновить страницу профиля, чтобы увидеть изменения!');
+
   } catch (error) {
     console.error('❌ Ошибка при выдаче подписки:', error.message);
     console.error(error);
+  } finally {
+    // Закрываем соединение с Redis
+    if (redisClient && redisClient.isOpen) {
+      await redisClient.quit();
+    }
   }
 }
 
@@ -162,12 +214,12 @@ if (balanceAmount !== undefined && parseFloat(balanceAmount) < 0) {
 }
 
 // Запускаем
-giveSubscription(userIdentifier, tier, days, balanceAmount)
-  .then(() => {
-    console.log('🎉 Готово!');
-    process.exit(0);
-  })
-  .catch(error => {
+(async () => {
+  await initRedis();
+  await giveSubscription(userIdentifier, tier, days, balanceAmount);
+  console.log('🎉 Готово!');
+  process.exit(0);
+})().catch(error => {
     console.error('❌ Критическая ошибка:', error);
     process.exit(1);
   });
