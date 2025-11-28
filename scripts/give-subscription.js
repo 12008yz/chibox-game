@@ -1,5 +1,6 @@
 const db = require('../models');
 const redis = require('redis');
+const { updateUserBonuses } = require('../utils/userBonusCalculator');
 
 /**
  * Скрипт для выдачи подписки и/или пополнения баланса пользователю
@@ -38,16 +39,24 @@ async function clearUserCache(userId) {
     // Очищаем все возможные ключи кэша для этого пользователя
     const patterns = [
       `cache:${userId}:*`,
-      `*:${userId}:*profile*`,
-      `*profile*${userId}*`
+      `*:${userId}:*`,
+      `session:${userId}*`
     ];
 
+    let totalDeleted = 0;
     for (const pattern of patterns) {
       const keys = await redisClient.keys(pattern);
       if (keys.length > 0) {
         await redisClient.del(keys);
-        console.log(`🗑️  Очищено ${keys.length} ключей кэша для пользователя`);
+        totalDeleted += keys.length;
+        console.log(`🗑️  Очищено ${keys.length} ключей по паттерну "${pattern}"`);
       }
+    }
+
+    if (totalDeleted > 0) {
+      console.log(`✅ Всего очищено ${totalDeleted} ключей кэша`);
+    } else {
+      console.log(`ℹ️  Ключи кэша для пользователя не найдены`);
     }
   } catch (error) {
     console.warn('⚠️  Ошибка при очистке кэша:', error.message);
@@ -114,6 +123,15 @@ async function giveSubscription(userIdentifier, tier, days, balanceAmount = null
 
     // Обновляем данные пользователя
     await user.update(updateData);
+
+    // Пересчитываем все бонусы пользователя (уровень, подписка, достижения)
+    console.log('\n🔄 Пересчёт бонусов...');
+    const bonusInfo = await updateUserBonuses(user.id);
+    console.log(`✅ Бонусы обновлены:`);
+    console.log(`   - Уровень: +${bonusInfo.levelBonus.toFixed(2)}%`);
+    console.log(`   - Подписка: +${bonusInfo.subscriptionBonus.toFixed(2)}%`);
+    console.log(`   - Достижения: +${bonusInfo.achievementsBonus.toFixed(2)}%`);
+    console.log(`   - Общий бонус: +${bonusInfo.totalBonus.toFixed(2)}%`);
 
     // Записываем в историю подписок
     await db.SubscriptionHistory.create({
