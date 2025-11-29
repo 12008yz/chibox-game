@@ -1,6 +1,6 @@
 const { CaseTemplate, Item, User, CaseItemDrop } = require('../../models');
 const { logger } = require('../../utils/logger');
-const { calculateModifiedDropWeights, calculateCorrectWeightByPrice } = require('../../utils/dropWeightCalculator');
+const { calculateModifiedDropWeights, calculateCorrectWeightByPrice, determineCaseType } = require('../../utils/dropWeightCalculator');
 const { seededShuffle } = require('../../utils/seededShuffle');
 
 const getCaseTemplateItems = async (req, res) => {
@@ -57,6 +57,10 @@ const getCaseTemplateItems = async (req, res) => {
     let itemsWithChances = caseTemplate.items || [];
     let userBonusInfo = null;
 
+    // Определяем тип кейса для правильного расчета весов
+    const caseType = determineCaseType(caseTemplate, false); // false потому что это не платный кейс (открытие через инвентарь)
+    logger.info(`[getCaseTemplateItems] Тип кейса ${caseTemplateId} определен как: ${caseType}`);
+
     // Если пользователь аутентифицирован, рассчитываем модифицированные шансы
     if (req.user && req.user.id) {
       try {
@@ -99,10 +103,10 @@ const getCaseTemplateItems = async (req, res) => {
         }
 
         if (user && user.total_drop_bonus_percentage > 0) {
-          logger.info(`Расчет модифицированных шансов для пользователя ${user.id}, бонус: ${user.total_drop_bonus_percentage}%`);
+          logger.info(`Расчет модифицированных шансов для пользователя ${user.id}, бонус: ${user.total_drop_bonus_percentage}%, тип кейса: ${caseType}`);
 
-          // Рассчитываем модифицированные веса
-          const modifiedItems = calculateModifiedDropWeights(itemsWithChances, user.total_drop_bonus_percentage);
+          // Рассчитываем модифицированные веса с учетом типа кейса
+          const modifiedItems = calculateModifiedDropWeights(itemsWithChances, user.total_drop_bonus_percentage, caseType);
 
           // Для пользователей Статус++ исключаем дубликаты ТОЛЬКО для ежедневного кейса Статус++
           const filteredItems = (user.subscription_tier >= 3 && caseTemplateId === '44444444-4444-4444-4444-444444444444')
@@ -211,7 +215,7 @@ const getCaseTemplateItems = async (req, res) => {
         const isAlreadyDropped = droppedItemIds.includes(itemData.id);
         // isExcluded только для ежедневного кейса Статус++
         const isExcluded = isAlreadyDropped && userSubscriptionTier >= 3 && caseTemplateId === '44444444-4444-4444-4444-444444444444';
-        const correctWeight = isExcluded ? 0 : calculateCorrectWeightByPrice(price);
+        const correctWeight = isExcluded ? 0 : calculateCorrectWeightByPrice(price, caseType);
 
         itemsWithCorrectWeights.push({
           ...itemData,

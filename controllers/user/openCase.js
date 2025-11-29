@@ -409,7 +409,7 @@ async function openCase(req, res) {
           );
         } else if (userSubscriptionTier >= 3) {
           logger.info('Используем стандартный выбор с модифицированными весами для пользователя Статус++ (другой кейс)');
-          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, [], caseType);
+          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, []);
         } else if (!userCase.is_paid) {
           // Применяем обычную защиту от дубликатов только для подписочных кейсов обычных пользователей
           logger.info('Используем обычную защиту от дубликатов для подписочного кейса');
