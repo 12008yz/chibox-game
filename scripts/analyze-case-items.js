@@ -34,44 +34,59 @@ async function analyzeCaseItems() {
       console.log(`🆔 ID: ${caseTemplate.id}`);
       console.log('');
 
-      // Получаем все предметы кейса
-      const caseItems = await CaseTemplateItem.findAll({
+      // Получаем все связи предметов с кейсом
+      const caseTemplateItems = await CaseTemplateItem.findAll({
         where: { case_template_id: caseTemplate.id },
-        include: [{
-          model: Item,
-          as: 'item',
-          required: true
-        }]
+        attributes: ['case_template_id', 'item_id'],
+        raw: true
       });
 
-      if (!caseItems || caseItems.length === 0) {
+      if (!caseTemplateItems || caseTemplateItems.length === 0) {
         console.log('⚠️  Предметы не найдены!\n');
         continue;
       }
+
+      // Получаем ID всех предметов
+      const itemIds = caseTemplateItems.map(cti => cti.item_id);
+
+      // Получаем сами предметы
+      const caseItems = await Item.findAll({
+        where: {
+          id: itemIds
+        }
+      });
 
       console.log(`📋 Всего предметов в кейсе: ${caseItems.length}\n`);
 
       // Определяем тип кейса для правильного расчета весов
       let caseType = 'premium';
-      const price = caseTemplate.price;
+      const price = parseFloat(caseTemplate.price);
 
-      if (price === 17) caseType = 'bronze_17';
-      else if (price === 49) caseType = 'fluffy_49';
-      else if (price === 99) caseType = 'standard_99';
-      else if (price === 101) caseType = 'gold_101';
-      else if (price === 250) caseType = 'platinum_250';
-      else if (price === 601) caseType = 'diamond_601';
-      else if (price === 998) caseType = 'legendary_998';
-      else if (price === 2499) caseType = 'mystic_2499';
-      else if (price === 5000) caseType = 'epic_5000';
-      else if (price === 10000) caseType = 'mythic_10000';
+      // Используем типы, поддерживаемые в calculateCorrectWeightByPrice
+      if (price === 17 || price === 49 || price === 101) {
+        caseType = 'standard_99'; // Для низких цен используем стандартные веса
+      } else if (price === 99) {
+        caseType = 'standard_99';
+      } else if (price === 250) {
+        caseType = 'platinum_250';
+      } else if (price === 499 || price === 601) {
+        caseType = 'premium_499'; // Для 601 используем премиум веса
+      } else if (price === 998 || price === 1000) {
+        caseType = 'legendary_1000';
+      } else if (price === 2499 || price === 5000) {
+        caseType = 'legendary_1000'; // Для высоких цен используем легендарные веса
+      } else if (price === 10000) {
+        caseType = 'mythic_10000';
+      }
+
+      console.log(`🔧 Тип кейса для расчета: ${caseType} (цена: ${price}₽)`);
 
       // Подготавливаем данные предметов
-      const items = caseItems.map(ci => ({
-        id: ci.item.id,
-        name: ci.item.name,
-        price: parseFloat(ci.item.price) || 0,
-        rarity: ci.item.rarity
+      const items = caseItems.map(item => ({
+        id: item.id,
+        name: item.name,
+        price: parseFloat(item.price) || 0,
+        rarity: item.rarity
       }));
 
       // Рассчитываем веса для каждого предмета

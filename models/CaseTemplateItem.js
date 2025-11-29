@@ -3,14 +3,10 @@ const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
   const CaseTemplateItem = sequelize.define('CaseTemplateItem', {
-    id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
-      primaryKey: true
-    },
     case_template_id: {
       type: DataTypes.UUID,
       allowNull: false,
+      primaryKey: true,
       references: {
         model: 'case_templates',
         key: 'id'
@@ -20,6 +16,7 @@ module.exports = (sequelize) => {
     item_id: {
       type: DataTypes.UUID,
       allowNull: false,
+      primaryKey: true,
       references: {
         model: 'items',
         key: 'id'
@@ -27,15 +24,9 @@ module.exports = (sequelize) => {
       onDelete: 'CASCADE'
     }
   }, {
-    timestamps: false,
+    timestamps: true,
     underscored: true,
-    tableName: 'case_template_items',
-    indexes: [
-      {
-        unique: true,
-        fields: ['case_template_id', 'item_id']
-      }
-    ]
+    tableName: 'case_template_items'
   });
 
   CaseTemplateItem.associate = (models) => {
