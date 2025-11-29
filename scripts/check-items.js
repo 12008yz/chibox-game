@@ -7,46 +7,29 @@ async function checkItems() {
     console.log('Подключение к базе данных...\n');
     await sequelize.authenticate();
 
-    // Получаем все предметы из таблицы
     const items = await Item.findAll({
-      order: [['id', 'ASC']],
-      limit: 300 // Ограничиваем вывод первыми 100 предметами
+      order: [['price', 'ASC']],
+      attributes: ['id', 'name', 'price', 'actual_price_rub', 'rarity', 'in_stock']
     });
 
-    console.log(`Всего предметов в базе данных: ${items.length}\n`);
-    console.log('ID | Название | Редкость | Цена (RUB) | Цена (USD) | В наличии | Торгуемый');
-    console.log('─'.repeat(100));
+    console.log(`Всего предметов: ${items.length}\n`);
+    console.log('ID | Название | Цена (USD) | Цена (RUB) | Редкость | В наличии');
+    console.log('─'.repeat(130));
 
     items.forEach(item => {
       console.log(
-        `${String(item.id).padEnd(36)} | ` +
-        `${String(item.name).substring(0, 30).padEnd(30)} | ` +
+        `${String(item.id).substring(0, 36).padEnd(36)} | ` +
+        `${String(item.name).substring(0, 35).padEnd(35)} | ` +
+        `${String(item.price || 'N/A').padStart(10)} | ` +
+        `${String(item.actual_price_rub || 'N/A').padStart(10)} | ` +
         `${String(item.rarity || 'N/A').padEnd(10)} | ` +
-        `${String(item.price_rub || 'N/A').padEnd(12)} | ` +
-        `${String(item.price_usd || 'N/A').padEnd(12)} | ` +
-        `${String(item.in_stock ? 'Да' : 'Нет').padEnd(10)} | ` +
-        `${String(item.is_tradable ? 'Да' : 'Нет')}`
+        `${String(item.in_stock ? 'Да' : 'Нет')}`
       );
-    });
-
-    // Статистика по редкости
-    console.log('\n' + '─'.repeat(100));
-    console.log('\nСтатистика по редкости:');
-    const rarityStats = await Item.findAll({
-      attributes: [
-        'rarity',
-        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
-      ],
-      group: ['rarity']
-    });
-
-    rarityStats.forEach(stat => {
-      console.log(`${stat.rarity}: ${stat.dataValues.count} предметов`);
     });
 
     process.exit(0);
   } catch (error) {
-    console.error('Ошибка при проверке предметов:', error);
+    console.error('Ошибка:', error);
     process.exit(1);
   }
 }
