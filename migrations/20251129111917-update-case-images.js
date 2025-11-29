@@ -35,8 +35,8 @@ module.exports = {
       },
       { 
         id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 
-        name: 'Чешуйчатый кейс',
-        image_url: '/images/cases/croko.png' 
+        name: 'Ледяной кейс',
+        image_url: '/images/cases/led.png' 
       },
       { 
         id: 'ffffffff-ffff-ffff-ffff-ffffffffffff', 
