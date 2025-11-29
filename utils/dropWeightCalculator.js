@@ -43,55 +43,165 @@ function filterExcludedItems(items, userSubscriptionTier = 0) {
  */
 
 /**
- * КЕЙС ЗА 499₽ - Премиум кейс (главный источник дохода)
- * Целевой RTP: 60% (средний выигрыш ~300₽) - БОЛЕЕ ЩЕДРЫЙ!
- * После продажи: игрок получит ~195₽ (39%)
+ * ═══════════════════════════════════════════════════════════════════════════
+ * НОВАЯ СИСТЕМА: РЕНТАБЕЛЬНОСТЬ 20% (RTP 80%)
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Игрок выигрывает предметы на 80% от цены кейса
+ * При продаже за 65%: игрок получает ~52% обратно
+ * Прибыль казино: 20%
+ *
+ * СТРАТЕГИЯ АЗАРТА:
+ * - 60% шанс: мелкие предметы (40-70% от цены) - частые проигрыши
+ * - 30% шанс: средние предметы (70-100% от цены) - "почти окуп"
+ * - 8% шанс: хорошие предметы (100-200% от цены) - окуп и выигрыш
+ * - 2% шанс: джекпоты (200-1000%+ от цены) - большой выигрыш
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * УНИВЕРСАЛЬНАЯ ФУНКЦИЯ для всех платных кейсов
+ * Работает пропорционально цене кейса
+ */
+function calculateWeightForPaidCase(price, casePrice) {
+  price = parseFloat(price) || 0;
+  const ratio = price / casePrice; // Во сколько раз предмет дороже кейса
+
+  // МЕГА ДЖЕКПОТЫ (0.1% общий) - x20+ от цены кейса
+  if (ratio >= 50) return 0.01;         // 0.001% - x50+ (ультра джекпот)
+  if (ratio >= 30) return 0.02;         // 0.002% - x30-50
+  if (ratio >= 20) return 0.05;         // 0.005% - x20-30
+
+  // СУПЕР ДЖЕКПОТЫ (0.4% общий) - x10-20 от цены
+  if (ratio >= 15) return 0.08;         // 0.008% - x15-20
+  if (ratio >= 10) return 0.15;         // 0.015% - x10-15
+  if (ratio >= 8) return 0.25;          // 0.025% - x8-10
+
+  // БОЛЬШИЕ ДЖЕКПОТЫ (1.5% общий) - x4-8 от цены
+  if (ratio >= 6) return 0.5;           // 0.05% - x6-8
+  if (ratio >= 5) return 0.8;           // 0.08% - x5-6
+  if (ratio >= 4) return 1.2;           // 0.12% - x4-5
+
+  // СРЕДНИЕ ДЖЕКПОТЫ (3% общий) - x2-4 от цены
+  if (ratio >= 3) return 3;             // 0.3% - x3-4
+  if (ratio >= 2.5) return 5;           // 0.5% - x2.5-3
+  if (ratio >= 2) return 8;             // 0.8% - x2-2.5
+
+  // ХОРОШИЕ ВЫИГРЫШИ (5% общий) - x1.5-2 от цены
+  if (ratio >= 1.8) return 12;          // 1.2% - x1.8-2
+  if (ratio >= 1.6) return 15;          // 1.5% - x1.6-1.8
+  if (ratio >= 1.4) return 18;          // 1.8% - x1.4-1.6
+  if (ratio >= 1.2) return 12;          // 1.2% - x1.2-1.4
+
+  // ОКУП И ВЫШЕ (15% общий) - x1-1.2 от цены (АЗАРТ!)
+  if (ratio >= 1.1) return 40;          // 4% - x1.1-1.2
+  if (ratio >= 1.0) return 50;          // 5% - точный окуп
+  if (ratio >= 0.95) return 60;         // 6% - почти окуп
+
+  // БЛИЗКО К ОКУПУ (25% общий) - x0.7-0.95
+  if (ratio >= 0.9) return 70;          // 7% - x0.9-0.95
+  if (ratio >= 0.8) return 80;          // 8% - x0.8-0.9
+  if (ratio >= 0.7) return 100;         // 10% - x0.7-0.8
+
+  // СРЕДНИЙ УБЫТОК (35% общий) - x0.4-0.7
+  if (ratio >= 0.6) return 120;         // 12% - x0.6-0.7
+  if (ratio >= 0.5) return 130;         // 13% - x0.5-0.6
+  if (ratio >= 0.4) return 100;         // 10% - x0.4-0.5
+
+  // БОЛЬШОЙ УБЫТОК (15% общий) - x0.2-0.4
+  if (ratio >= 0.3) return 80;          // 8% - x0.3-0.4
+  if (ratio >= 0.2) return 70;          // 7% - x0.2-0.3
+
+  // МУСОР (меньше 20% от цены)
+  if (ratio >= 0.1) return 40;          // 4% - x0.1-0.2
+  return 20;                            // 2% - меньше x0.1
+}
+
+/**
+ * БРОНЗОВЫЙ КЕЙС - 17₽
+ * RTP: 80% (средний выигрыш ~13.6₽)
+ */
+function calculateWeightForBronze17(price) {
+  return calculateWeightForPaidCase(price, 17);
+}
+
+/**
+ * ПУШИСТЫЙ КЕЙС - 49₽
+ * RTP: 80% (средний выигрыш ~39₽)
+ */
+function calculateWeightForFluffy49(price) {
+  return calculateWeightForPaidCase(price, 49);
+}
+
+/**
+ * СТАНДАРТНЫЙ КЕЙС - 99₽
+ * RTP: 80% (средний выигрыш ~79₽)
+ */
+function calculateWeightForStandard99(price) {
+  return calculateWeightForPaidCase(price, 99);
+}
+
+/**
+ * ЗОЛОТОЙ КЕЙС - 101₽
+ * RTP: 80% (средний выигрыш ~81₽)
+ */
+function calculateWeightForGold101(price) {
+  return calculateWeightForPaidCase(price, 101);
+}
+
+/**
+ * ПЛАТИНОВЫЙ КЕЙС - 250₽
+ * RTP: 80% (средний выигрыш ~200₽)
+ */
+function calculateWeightForPlatinum250(price) {
+  return calculateWeightForPaidCase(price, 250);
+}
+
+/**
+ * ПРЕМИУМ КЕЙС - 499₽
+ * RTP: 80% (средний выигрыш ~399₽)
  */
 function calculateWeightForPremium499(price) {
-  price = parseFloat(price) || 0;
+  return calculateWeightForPaidCase(price, 499);
+}
 
-  // СУПЕР ДЖЕКПОТЫ - ОЧЕНЬ ЩЕДРЫЕ веса для дорогих предметов (>499₽)
-  if (price >= 50000) return 0.05;      // УВЕЛИЧЕНО x4 - ультра мега джекпот (x100)
-  if (price >= 30000) return 0.1;       // УВЕЛИЧЕНО x4 - супер мега джекпот (x60)
-  if (price >= 20000) return 0.2;       // УВЕЛИЧЕНО x4 - мега джекпот++ (x40)
-  if (price >= 15000) return 0.5;       // УВЕЛИЧЕНО x4 - мега джекпот+ (x30)
-  if (price >= 10000) return 1;         // УВЕЛИЧЕНО x4 - мега джекпот (x20)
-  if (price >= 8000) return 2;          // УВЕЛИЧЕНО x4 - огромный джекпот (x16)
-  if (price >= 6000) return 3;          // УВЕЛИЧЕНО x4 - очень большой джекпот (x12)
-  if (price >= 5000) return 5;          // УВЕЛИЧЕНО x4 - большой джекпот (x10)
-  if (price >= 4000) return 8;          // УВЕЛИЧЕНО x4 - крупный джекпот (x8)
-  if (price >= 3000) return 12;         // УВЕЛИЧЕНО x4 - джекпот (x6)
-  if (price >= 2500) return 20;         // УВЕЛИЧЕНО x4 - мини джекпот+ (x5)
-  if (price >= 2000) return 28;         // УВЕЛИЧЕНО x4 - мини джекпот (x4)
-  if (price >= 1500) return 48;         // УВЕЛИЧЕНО x4 - отличный выигрыш (x3)
+/**
+ * АЛМАЗНЫЙ КЕЙС - 601₽
+ * RTP: 80% (средний выигрыш ~481₽)
+ */
+function calculateWeightForDiamond601(price) {
+  return calculateWeightForPaidCase(price, 601);
+}
 
-  // ХОРОШИЕ ВЫИГРЫШИ - БОЛЕЕ ЩЕДРЫЕ - удвоение и больше
-  if (price >= 1200) return 72;         // УВЕЛИЧЕНО x4 - x2.4 выигрыш
-  if (price >= 1000) return 112;        // УВЕЛИЧЕНО x4 - x2 выигрыш
+/**
+ * ЛЕГЕНДАРНЫЙ КЕЙС - 998₽
+ * RTP: 80% (средний выигрыш ~798₽)
+ */
+function calculateWeightForLegendary998(price) {
+  return calculateWeightForPaidCase(price, 998);
+}
 
-  // СРЕДНИЕ ВЫИГРЫШИ - БОЛЕЕ ЩЕДРЫЕ - выше стоимости кейса
-  if (price >= 800) return 140;         // УВЕЛИЧЕНО x4 - x1.6 выигрыш
-  if (price >= 600) return 180;         // УВЕЛИЧЕНО x4 - x1.2 выигрыш
-  if (price >= 500) return 220;         // УВЕЛИЧЕНО x4 - окуп+ (x1)
+/**
+ * МИСТИЧЕСКИЙ КЕЙС - 2499₽
+ * RTP: 80% (средний выигрыш ~1999₽)
+ */
+function calculateWeightForMystic2499(price) {
+  return calculateWeightForPaidCase(price, 2499);
+}
 
-  // ОКУП - возврат 80-100% стоимости кейса
-  if (price >= 450) return 100;         // почти окуп
-  if (price >= 400) return 120;         // близко к окупу
+/**
+ * ЭПИЧЕСКИЙ КЕЙС - 5000₽
+ * RTP: 80% (средний выигрыш ~4000₽)
+ */
+function calculateWeightForEpic5000(price) {
+  return calculateWeightForPaidCase(price, 5000);
+}
 
-  // СРЕДНИЙ УБЫТОК - возврат 50-80%
-  if (price >= 350) return 150;         // небольшой убыток
-  if (price >= 300) return 180;         // средний убыток
-  if (price >= 250) return 200;         // заметный убыток
-  if (price >= 200) return 150;         // большой убыток
-
-  // БОЛЬШОЙ УБЫТОК - возврат 20-50% (УМЕНЬШЕНО)
-  if (price >= 150) return 120;         // УМЕНЬШЕНО - очень большой убыток
-  if (price >= 120) return 100;         // УМЕНЬШЕНО - огромный убыток
-  if (price >= 100) return 80;          // УМЕНЬШЕНО - сильный убыток
-
-  // МУСОР (очень дешевые предметы) - УМЕНЬШЕНО
-  if (price >= 50) return 60;           // УМЕНЬШЕНО - дешевка
-  return 40;                            // УМЕНЬШЕНО - базовый мусор
+/**
+ * МИФИЧЕСКИЙ КЕЙС - 10000₽
+ * RTP: 80% (средний выигрыш ~8000₽)
+ */
+function calculateWeightForMythic10000(price) {
+  return calculateWeightForPaidCase(price, 10000);
 }
 
 /**
