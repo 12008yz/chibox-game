@@ -64,7 +64,28 @@ const { uploadAvatar, deleteAvatar, uploadMiddleware } = require('../controllers
 const authMiddleware = require('../middleware/auth');
 const optionalAuthMiddleware = require('../middleware/optionalAuth');
 const { requireEmailVerification } = require('../middleware/emailVerification');
+const rateLimit = require('express-rate-limit');
 
+// Rate limiter для авторизованных пользователей (по user_id)
+const createUserRateLimit = (windowMs, max, message) => rateLimit({
+  windowMs,
+  max,
+  message,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    // Используем user_id после аутентификации
+    return req.user && req.user.id ? `user_${req.user.id}` : req.ip;
+  },
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      message: message,
+      error: 'RATE_LIMIT_EXCEEDED',
+      retryAfter: Math.ceil(windowMs / 1000)
+    });
+  }
+});
 
 const router = express.Router();
 
@@ -125,7 +146,8 @@ router.delete('/profile/avatar', authMiddleware, deleteAvatar); // Delete avatar
 router.post('/logout', authMiddleware, logout); //+
 
 router.get('/inventory', authMiddleware, getInventory); //+
-router.post('/open-case', authMiddleware, openCase); //+
+// ИСПРАВЛЕНИЕ: добавлен rate limiter по user_id (60 запросов в минуту на пользователя)
+router.post('/open-case', authMiddleware, createUserRateLimit(60 * 1000, 60, 'Слишком быстро открываете кейсы'), openCase); //+
 router.post('/sell-item', authMiddleware, sellItem);
 router.post('/withdraw-item', authMiddleware, /* requireEmailVerification, */ withdrawItem);
 router.get('/withdraw-item/:withdrawalId', authMiddleware, getWithdrawalStatus);
@@ -174,7 +196,8 @@ router.get('/free-case/status', authMiddleware, getFreeCaseStatus); // Полу�
 router.get('/achievements/progress', authMiddleware, getAchievementsProgress); //+
 
 // Case purchase routes
-router.post('/cases/buy', authMiddleware, buyCase); //+
+// ИСПРАВЛЕНИЕ: добавлен rate limiter по user_id (15 запросов в минуту на пользователя)
+router.post('/cases/buy', authMiddleware, createUserRateLimit(60 * 1000, 15, 'Слишком много покупок'), buyCase); //+
 router.get('/cases/purchase-info', authMiddleware, getCasePurchaseInfo); //+
 
 // Steam bot routes

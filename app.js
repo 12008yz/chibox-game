@@ -29,13 +29,29 @@ app.use(compression());
 // CORS middleware
 app.use(corsMiddleware);
 
-const createRateLimit = (windowMs, max, message) => rateLimit({
+const createRateLimit = (windowMs, max, message, useUserId = false) => rateLimit({
   windowMs,
   max,
   message,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.ip === '127.0.0.1' // Пропускать localhost
+  skip: (req) => req.ip === '127.0.0.1', // Пропускать localhost
+  // ИСПРАВЛЕНИЕ: для авторизованных запросов используем user_id вместо IP
+  keyGenerator: (req) => {
+    if (useUserId && req.user && req.user.id) {
+      return `user_${req.user.id}`;
+    }
+    return req.ip;
+  },
+  // ИСПРАВЛЕНИЕ: возвращаем JSON вместо текста
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      message: message,
+      error: 'RATE_LIMIT_EXCEEDED',
+      retryAfter: Math.ceil(windowMs / 1000)
+    });
+  }
 });
 
 // Общий лимит - более щедрый
@@ -46,9 +62,11 @@ const authLimiter = createRateLimit(10 * 60 * 1000, 50, 'Слишком мног
 app.use('/api/v1/login', authLimiter);
 app.use('/api/v1/register', createRateLimit(10 * 60 * 1000, 7, 'Слишком много регистраций'));
 
-// Лимиты для игровых действий
-app.use('/api/v1/openCase', createRateLimit(60 * 1000, 30, 'Слишком быстро открываете кейсы'));
-app.use('/api/v1/buyCase', createRateLimit(60 * 1000, 10, 'Слишком много покупок'));
+// Лимиты для игровых действий (по IP, применяются до аутентификации)
+// ИСПРАВЛЕНИЕ: увеличен лимит для openCase и убран для buyCase (пусть покупают)
+app.use('/api/v1/open-case', createRateLimit(60 * 1000, 200, 'Слишком быстро открываете кейсы'));
+// Для покупки - очень высокий лимит (защита только от DDoS)
+app.use('/api/v1/cases/buy', createRateLimit(60 * 1000, 500, 'Слишком много покупок'));
 
 // Настройка движка представлений
 app.set('views', path.join(__dirname, 'views'));
