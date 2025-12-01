@@ -72,38 +72,10 @@ app.use('/api/v1/cases/buy', createRateLimit(60 * 1000, 500, 'Слишком м�
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
 
-// Увеличиваем лимит для загрузки файлов
-// Пропускаем multipart/form-data запросы (для загрузки файлов, например аватары)
-app.use((req, res, next) => {
-  // Пропускаем парсинг для роута загрузки аватара
-  if (req.path === '/api/v1/profile/avatar' && req.method === 'POST') {
-    console.log('🔧 Skipping JSON parser for avatar upload');
-    return next();
-  }
-  express.json({ limit: '10mb' })(req, res, next);
-});
-app.use((req, res, next) => {
-  // Пропускаем парсинг для роута загрузки аватара
-  if (req.path === '/api/v1/profile/avatar' && req.method === 'POST') {
-    console.log('🔧 Skipping URL-encoded parser for avatar upload');
-    return next();
-  }
-  express.urlencoded({ extended: false, limit: '10mb' })(req, res, next);
-});
+// JSON и URL-encoded парсинг
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 app.use(cookieParser());
-
-// Отладка запросов к avatar
-app.use((req, res, next) => {
-  if (req.path.includes('avatar')) {
-    console.log('🔍 Avatar-related request:', {
-      path: req.path,
-      url: req.url,
-      method: req.method,
-      contentType: req.get('content-type')
-    });
-  }
-  next();
-});
 
 // Добавляем CORS заголовки для статических файлов
 app.use('/images', (req, res, next) => {
