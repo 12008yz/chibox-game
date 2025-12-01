@@ -20,6 +20,7 @@ async function updateAvatar(req, res) {
     // Валидация
     if (!avatar_url || typeof avatar_url !== 'string') {
       return res.status(400).json({
+        success: false,
         message: 'avatar_url обязателен и должен быть строкой'
       });
     }
@@ -27,6 +28,7 @@ async function updateAvatar(req, res) {
     // Проверка что URL начинается с /avatars/
     if (!avatar_url.startsWith('/avatars/')) {
       return res.status(400).json({
+        success: false,
         message: 'Некорректный путь к аватару. Должен начинаться с /avatars/'
       });
     }
@@ -34,6 +36,7 @@ async function updateAvatar(req, res) {
     // Проверка длины
     if (avatar_url.length > 500) {
       return res.status(400).json({
+        success: false,
         message: 'URL аватара слишком длинный'
       });
     }
@@ -41,7 +44,10 @@ async function updateAvatar(req, res) {
     // Находим пользователя
     const user = await db.User.findByPk(userId);
     if (!user) {
-      return res.status(404).json({ message: 'Пользователь не найден' });
+      return res.status(404).json({
+        success: false,
+        message: 'Пользователь не найден'
+      });
     }
 
     // Обновляем аватар
@@ -52,12 +58,15 @@ async function updateAvatar(req, res) {
     return res.status(200).json({
       success: true,
       message: 'Аватар успешно обновлен',
-      avatar_url,
-      fullUrl: `${process.env.BASE_URL || 'http://localhost:3000'}${avatar_url}`
+      data: {
+        avatar_url,
+        fullUrl: `${process.env.BASE_URL || 'http://localhost:3000'}${avatar_url}`
+      }
     });
   } catch (error) {
     logger.error('❌ Ошибка при обновлении аватара:', error);
     return res.status(500).json({
+      success: false,
       message: 'Не удалось обновить аватар',
       error: error.message
     });

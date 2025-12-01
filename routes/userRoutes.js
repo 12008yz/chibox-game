@@ -128,6 +128,10 @@ router.get('/live-drops', getLiveDrops); // + Публичное API для жи
 router.get('/profile', authMiddleware, getProfile);
 router.put('/profile', authMiddleware, updateProfile); //+
 
+// Avatar routes
+router.get('/avatars', getAvatars); // Получение списка доступных аватаров
+router.put('/avatar', authMiddleware, updateAvatar); // Обновление аватара пользователя
+
 // Avatar upload with error handling - DISABLED (only Steam avatars allowed)
 // router.post('/profile/avatar', authMiddleware, (req, res, next) => {
 //   console.log('🔍 Avatar upload route hit');

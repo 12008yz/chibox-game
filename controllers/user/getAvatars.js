@@ -8,8 +8,11 @@ async function getAvatars(req, res) {
     // Проверяем существование папки
     if (!fs.existsSync(avatarsPath)) {
       return res.status(404).json({
+        success: false,
         message: 'Папка с аватарами не найдена',
-        avatars: []
+        data: {
+          avatars: []
+        }
       });
     }
 
@@ -30,11 +33,14 @@ async function getAvatars(req, res) {
 
     return res.status(200).json({
       success: true,
-      avatars
+      data: {
+        avatars
+      }
     });
   } catch (error) {
     console.error('❌ Ошибка при получении списка аватаров:', error);
     return res.status(500).json({
+      success: false,
       message: 'Не удалось получить список аватаров',
       error: error.message
     });
