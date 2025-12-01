@@ -60,7 +60,7 @@ const { createGame: createTicTacToeGame, getCurrentGame: getCurrentTicTacToeGame
 const { getUpgradeableItems, getUpgradeOptions, performUpgrade } = require('../controllers/user/upgradeItem');
 const { topUpBalance } = require('../controllers/user/topUpBalance');
 const getCurrency = require('../controllers/user/getCurrency');
-const { uploadAvatar, deleteAvatar, uploadMiddleware } = require('../controllers/user/uploadAvatar');
+// const { uploadAvatar, deleteAvatar, uploadMiddleware } = require('../controllers/user/uploadAvatar'); // DISABLED - only Steam avatars
 const authMiddleware = require('../middleware/auth');
 const optionalAuthMiddleware = require('../middleware/optionalAuth');
 const { requireEmailVerification } = require('../middleware/emailVerification');
@@ -126,23 +126,23 @@ router.get('/live-drops', getLiveDrops); // + Публичное API для жи
 router.get('/profile', authMiddleware, getProfile);
 router.put('/profile', authMiddleware, updateProfile); //+
 
-// Avatar upload with error handling
-router.post('/profile/avatar', authMiddleware, (req, res, next) => {
-  console.log('🔍 Avatar upload route hit');
-  console.log('Content-Type:', req.get('content-type'));
-  uploadMiddleware(req, res, (err) => {
-    if (err) {
-      console.error('❌ Multer error:', err);
-      return res.status(400).json({
-        success: false,
-        message: err.message || 'Ошибка при загрузке файла'
-      });
-    }
-    next();
-  });
-}, uploadAvatar);
+// Avatar upload with error handling - DISABLED (only Steam avatars allowed)
+// router.post('/profile/avatar', authMiddleware, (req, res, next) => {
+//   console.log('🔍 Avatar upload route hit');
+//   console.log('Content-Type:', req.get('content-type'));
+//   uploadMiddleware(req, res, (err) => {
+//     if (err) {
+//       console.error('❌ Multer error:', err);
+//       return res.status(400).json({
+//         success: false,
+//         message: err.message || 'Ошибка при загрузке файла'
+//       });
+//     }
+//     next();
+//   });
+// }, uploadAvatar);
 
-router.delete('/profile/avatar', authMiddleware, deleteAvatar); // Delete avatar
+// router.delete('/profile/avatar', authMiddleware, deleteAvatar); // Delete avatar
 router.post('/logout', authMiddleware, logout); //+
 
 router.get('/inventory', authMiddleware, getInventory); //+
