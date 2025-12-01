@@ -104,7 +104,7 @@ async function sendVerificationEmail(email, code, username) {
     }
 
     const mailOptions = {
-      from: process.env.SMTP_FROM || 'ChiBox <noreply@chibox.com>',
+      from: process.env.SMTP_FROM || 'ChiBox <noreply@chibox-game.ru>',
       to: email,
       subject: 'Подтверждение регистрации - ChiBox',
       html: `
@@ -163,7 +163,7 @@ async function sendPasswordResetEmail(email, resetToken, username) {
     const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
 
     const mailOptions = {
-      from: process.env.SMTP_FROM || 'ChiBox <noreply@chibox.com>',
+      from: process.env.SMTP_FROM || 'ChiBox <noreply@chibox-game.ru>',
       to: email,
       subject: 'Сброс пароля - ChiBox',
       html: `
