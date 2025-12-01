@@ -60,7 +60,7 @@ async function updateAvatar(req, res) {
       message: 'Аватар успешно обновлен',
       data: {
         avatar_url,
-        fullUrl: `${process.env.BASE_URL || 'http://localhost:3000'}${avatar_url}`
+        fullUrl: `${process.env.BASE_URL || 'https://chibox-game.ru'}${avatar_url}`
       }
     });
   } catch (error) {

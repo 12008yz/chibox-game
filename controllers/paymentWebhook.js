@@ -388,7 +388,7 @@ async function robokassaSuccessURL(req, res) {
     const { InvId, OutSum } = req.query;
 
     if (!InvId) {
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}?payment=error`);
+      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
     }
 
     // Можно проверить статус платежа в БД по invoice_number
@@ -396,10 +396,10 @@ async function robokassaSuccessURL(req, res) {
 
     if (payment && payment.status === 'completed') {
       logger.info(`Payment ${InvId} completed successfully, redirecting to success page`);
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}?payment=success&amount=${OutSum}`);
+      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=success&amount=${OutSum}`);
     } else {
       logger.info(`Payment ${InvId} pending or failed, redirecting to pending page`);
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}?payment=pending`);
+      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=pending`);
     }
   } catch (error) {
     logger.error('Error processing Robokassa SuccessURL:', error);
@@ -427,7 +427,7 @@ async function robokassaFailURL(req, res) {
       }
     }
 
-    return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}?payment=failed`);
+    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=failed`);
   } catch (error) {
     logger.error('Error processing Robokassa FailURL:', error);
     return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}?payment=error`);

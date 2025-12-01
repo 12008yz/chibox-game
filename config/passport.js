@@ -8,8 +8,8 @@ const { updateUserBonuses } = require('../utils/userBonusCalculator');
 
 // Настройки Steam OAuth
 const STEAM_API_KEY = process.env.STEAM_API_KEY;
-const STEAM_RETURN_URL = process.env.STEAM_RETURN_URL || 'http://localhost:3000/api/v1/auth/steam/return';
-const STEAM_REALM = process.env.STEAM_REALM || 'http://localhost:3000/';
+const STEAM_RETURN_URL = process.env.STEAM_RETURN_URL || 'https://chibox-game.ru/api/v1/auth/steam/return';
+const STEAM_REALM = process.env.STEAM_REALM || 'https://chibox-game.ru/';
 
 if (!STEAM_API_KEY) {
   logger.warn('STEAM_API_KEY не установлен. Steam авторизация недоступна.');
@@ -245,7 +245,7 @@ if (STEAM_API_KEY) {
 
   // Steam OAuth стратегия для привязки аккаунтов
   passport.use('steam-link', new SteamStrategy({
-    returnURL: process.env.STEAM_LINK_RETURN_URL || 'http://localhost:3000/api/v1/auth/link-steam/return',
+    returnURL: process.env.STEAM_LINK_RETURN_URL || 'https://chibox-game.ru/api/v1/auth/link-steam/return',
     realm: STEAM_REALM,
     apiKey: STEAM_API_KEY,
     passReqToCallback: true

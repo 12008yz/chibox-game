@@ -17,8 +17,8 @@ router.get('/steam', (req, res, next) => {
   }
 
   // Используем минимальный набор параметров для максимальной скорости
-  const returnURL = encodeURIComponent(process.env.STEAM_RETURN_URL || 'http://localhost:3000/api/v1/auth/steam/return');
-  const realm = encodeURIComponent(process.env.STEAM_REALM || 'http://localhost:3000/');
+  const returnURL = encodeURIComponent(process.env.STEAM_RETURN_URL || 'https://chibox-game.ru/api/v1/auth/steam/return');
+  const realm = encodeURIComponent(process.env.STEAM_REALM || 'https://chibox-game.ru/');
 
   // МИНИМАЛЬНЫЙ URL - убираем все необязательные параметры
   const steamLoginUrl = `https://steamcommunity.com/openid/login?` +
@@ -61,7 +61,7 @@ router.get('/steam/return',
       logger.info(`Steam авторизация успешна для пользователя ${req.user.username}`);
 
       // Перенаправляем на фронтенд с токеном
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://chibox-game.ru';
       console.log(`Redirecting to: ${frontendUrl}/auth/success?token=${token}&provider=steam`);
       res.redirect(`${frontendUrl}/auth/success?token=${token}&provider=steam`);
 
@@ -143,7 +143,7 @@ router.get('/link-steam', auth, (req, res, next) => {
 // Callback для привязки Steam аккаунта
 router.get('/link-steam/return',
   passport.authenticate('steam-link', {
-    failureRedirect: 'http://localhost:5173/profile?error=steam_link_failed'
+    failureRedirect: 'https://chibox-game.ru/profile?error=steam_link_failed'
   }),
   async (req, res) => {
     try {
@@ -165,7 +165,7 @@ router.get('/link-steam/return',
           sessionData: req.session,
           userData: req.user
         });
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const frontendUrl = process.env.FRONTEND_URL || 'https://chibox-game.ru';
         return res.redirect(`${frontendUrl}/profile?error=session_expired`);
       }
 
@@ -180,7 +180,7 @@ router.get('/link-steam/return',
           sessionData: req.session,
           userData: req.user
         });
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const frontendUrl = process.env.FRONTEND_URL || 'https://chibox-game.ru';
         return res.redirect(`${frontendUrl}/profile?error=steam_data_missing`);
       }
 
@@ -204,7 +204,7 @@ router.get('/link-steam/return',
           existingUserId: existingUser.id,
           linkUserId
         });
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+        const frontendUrl = process.env.FRONTEND_URL || 'https://chibox-game.ru';
         return res.redirect(`${frontendUrl}/profile?error=steam_already_linked`);
       }
 
@@ -279,7 +279,7 @@ router.get('/link-steam/return',
       delete req.session.linkUserId;
       delete req.session.steamLinkData;
 
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://chibox-game.ru';
       const redirectUrl = `${frontendUrl}/profile?success=steam_linked&token=${encodeURIComponent(newToken)}`;
 
       logger.info('Перенаправляем на фронтенд:', redirectUrl);
@@ -294,7 +294,7 @@ router.get('/link-steam/return',
           hasSteamLinkData: !!req.session?.steamLinkData
         }
       });
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://chibox-game.ru';
       res.redirect(`${frontendUrl}/profile?error=link_failed`);
     }
   }
