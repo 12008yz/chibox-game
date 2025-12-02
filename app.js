@@ -86,8 +86,8 @@ app.use('/api/v1/login', authLimiter);
 app.use('/api/v1/register', createRateLimit(60 * 60 * 1000, 3, 'Слишком много регистраций. Попробуйте через час.'));
 
 // Лимиты для игровых действий - баланс между UX и защитой (ПО ПОЛЬЗОВАТЕЛЮ!)
-app.use('/api/v1/open-case', createRateLimit(60 * 1000, 150, 'Слишком быстро открываете кейсы. Максимум 150 в минуту.', true));
-app.use('/api/v1/cases/buy', createRateLimit(60 * 1000, 100, 'Слишком много покупок. Максимум 100 в минуту.', true));
+//app.use('/api/v1/open-case', createRateLimit(60 * 1000, 150, 'Слишком быстро открываете кейсы. Максимум 150 в минуту.', true));
+//app.use('/api/v1/cases/buy', createRateLimit(60 * 1000, 100, 'Слишком много покупок. Максимум 100 в минуту.', true));
 
 // Настройка движка представлений
 app.set('views', path.join(__dirname, 'views'));
