@@ -77,17 +77,17 @@ const createRateLimit = (windowMs, max, message, useUserId = false) => rateLimit
   }
 });
 
-// Общий лимит - защита от DDoS (100 запросов в минуту с одного IP)
-app.use(createRateLimit(1 * 60 * 1000, 100, 'Слишком много запросов. Попробуйте через минуту.'));
+// Общий лимит - защита от DDoS (500 запросов в минуту с одного IP)
+app.use(createRateLimit(1 * 60 * 1000, 500, 'Слишком много запросов. Попробуйте через минуту.'));
 
 // Строгие лимиты для аутентификации (защита от brute-force)
 const authLimiter = createRateLimit(15 * 60 * 1000, 5, 'Слишком много попыток входа. Попробуйте через 15 минут.');
 app.use('/api/v1/login', authLimiter);
 app.use('/api/v1/register', createRateLimit(60 * 60 * 1000, 3, 'Слишком много регистраций. Попробуйте через час.'));
 
-// Лимиты для игровых действий - баланс между UX и защитой
-app.use('/api/v1/open-case', createRateLimit(60 * 1000, 30, 'Слишком быстро открываете кейсы. Максимум 30 в минуту.'));
-app.use('/api/v1/cases/buy', createRateLimit(60 * 1000, 20, 'Слишком много покупок. Максимум 20 в минуту.'));
+// Лимиты для игровых действий - баланс между UX и защитой (ПО ПОЛЬЗОВАТЕЛЮ!)
+app.use('/api/v1/open-case', createRateLimit(60 * 1000, 150, 'Слишком быстро открываете кейсы. Максимум 150 в минуту.', true));
+app.use('/api/v1/cases/buy', createRateLimit(60 * 1000, 100, 'Слишком много покупок. Максимум 100 в минуту.', true));
 
 // Настройка движка представлений
 app.set('views', path.join(__dirname, 'views'));
@@ -215,10 +215,6 @@ const userRoutes = require('./routes/userRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const authRoutes = require('./routes/authRoutes');
 const { requestLogger, logLoginAttempt, logPayment } = require('./utils/logger');
-
-// Монтируем лимит к отдельным маршрутам:
-app.use('/api/v1/login', authLimiter);
-app.use('/api/v1/register', authLimiter);
 
 // Логирование попыток входа
 // Умное логирование запросов (только важные события)
