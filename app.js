@@ -18,6 +18,29 @@ const app = express();
 
 app.set('trust proxy', 1);
 
+// Проверка разрешенных хостов (защита от Host header injection)
+app.use((req, res, next) => {
+  const allowedHosts = [
+    'api.chibox-game.ru',
+    'chibox-game.ru',
+    'www.chibox-game.ru',
+    'localhost',
+    '127.0.0.1'
+  ];
+
+  const host = req.hostname || req.get('host')?.split(':')[0];
+
+  if (!allowedHosts.includes(host)) {
+    logger.warn(`Blocked request from unauthorized host: ${host}`);
+    return res.status(403).json({
+      success: false,
+      message: 'Forbidden: Invalid host'
+    });
+  }
+
+  next();
+});
+
 // Защитные миддлвары
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
@@ -54,19 +77,17 @@ const createRateLimit = (windowMs, max, message, useUserId = false) => rateLimit
   }
 });
 
-// Общий лимит - более щедрый
-app.use(createRateLimit(15 * 60 * 1000, 1000, 'Общий лимит превышен'));
+// Общий лимит - защита от DDoS (100 запросов в минуту с одного IP)
+app.use(createRateLimit(1 * 60 * 1000, 100, 'Слишком много запросов. Попробуйте через минуту.'));
 
-// Строгие лимиты для аутентификации
-const authLimiter = createRateLimit(10 * 60 * 1000, 50, 'Слишком много попыток, попробуйте через 10 минут.');
+// Строгие лимиты для аутентификации (защита от brute-force)
+const authLimiter = createRateLimit(15 * 60 * 1000, 5, 'Слишком много попыток входа. Попробуйте через 15 минут.');
 app.use('/api/v1/login', authLimiter);
-app.use('/api/v1/register', createRateLimit(10 * 60 * 1000, 7, 'Слишком много регистраций'));
+app.use('/api/v1/register', createRateLimit(60 * 60 * 1000, 3, 'Слишком много регистраций. Попробуйте через час.'));
 
-// Лимиты для игровых действий (по IP, применяются до аутентификации)
-// ИСПРАВЛЕНИЕ: увеличен лимит для openCase и убран для buyCase (пусть покупают)
-app.use('/api/v1/open-case', createRateLimit(60 * 1000, 200, 'Слишком быстро открываете кейсы'));
-// Для покупки - очень высокий лимит (защита только от DDoS)
-app.use('/api/v1/cases/buy', createRateLimit(60 * 1000, 500, 'Слишком много покупок'));
+// Лимиты для игровых действий - баланс между UX и защитой
+app.use('/api/v1/open-case', createRateLimit(60 * 1000, 30, 'Слишком быстро открываете кейсы. Максимум 30 в минуту.'));
+app.use('/api/v1/cases/buy', createRateLimit(60 * 1000, 20, 'Слишком много покупок. Максимум 20 в минуту.'));
 
 // Настройка движка представлений
 app.set('views', path.join(__dirname, 'views'));
