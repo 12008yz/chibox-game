@@ -19,6 +19,7 @@ const logger = winston.createLogger({
 
 let instance = null;
 let hasLoggedIn = false;
+let loggingIn = false;
 
 class SteamBot {
   constructor(accountName, password, sharedSecret, identitySecret, steamApiKey = null) {
@@ -811,6 +812,9 @@ class SteamBot {
       }
     }
 
+    loggingIn = false;
+    hasLoggedIn = false;
+
     return true;
   }
 
@@ -1015,6 +1019,28 @@ class SteamBot {
       logger.info('Already logged in, skipping login.');
       return;
     }
+    
+    if (loggingIn) {
+      logger.warn('Login already in progress, waiting...');
+      return new Promise((resolve) => {
+        const checkInterval = setInterval(() => {
+          if (hasLoggedIn) {
+            clearInterval(checkInterval);
+            logger.info('Login completed by another process');
+            resolve();
+          }
+        }, 1000);
+        
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          logger.warn('Login wait timeout');
+          resolve();
+        }, 30000);
+      });
+    }
+    
+    loggingIn = true;
+    
     return new Promise(async (resolve, reject) => {
       const twoFactorCode = SteamTotp.generateAuthCode(this.sharedSecret);
       const logOnOptions = {
@@ -1063,15 +1089,19 @@ class SteamBot {
         await this.waitForConfirmationChecker(15000);
 
         logger.info('✅ Steam bot полностью готов к работе с подтверждениями');
+        
+        loggingIn = false;
         resolve();
       });
 
       this.client.once('error', (err) => {
         logger.error('Steam login error:', err);
+        loggingIn = false;
+        hasLoggedIn = false;
         reject(err);
       });
 
-      this.client.on('steamGuard', (domain, callback) => {
+      this.client.once('steamGuard', (domain, callback) => {
         if (!domain) {
           const code = SteamTotp.generateAuthCode(this.sharedSecret);
           logger.info('Generated Steam Guard (2FA Mobile) code:');
@@ -1079,26 +1109,8 @@ class SteamBot {
         } else {
           logger.error('Steam Guard requires code from email:', domain);
           callback(null);
+          loggingIn = false;
         }
-      });
-    });
-  }
-
-  async getTradeOfferStatus(offerId) {
-    return new Promise((resolve, reject) => {
-      this.manager.getOffer(offerId, (err, offer) => {
-        if (err) {
-          logger.error(`Ошибка получения статуса трейда #${offerId}: ${err.message}`);
-          return reject(err);
-        }
-
-        logger.info(`Статус трейда #${offerId}: ${offer.state} (${this.getTradeStateText(offer.state)})`);
-
-        resolve({
-          state: offer.state,
-          stateText: this.getTradeStateText(offer.state),
-          offer: offer
-        });
       });
     });
   }

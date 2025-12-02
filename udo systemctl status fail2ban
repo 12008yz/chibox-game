@@ -1,0 +1,15 @@
+[0;1;32m●[0m nginx.service - A high performance web server and a reverse proxy server
+     Loaded: loaded (]8;;file://cv5497401.novalocal/usr/lib/systemd/system/nginx.service/usr/lib/systemd/system/nginx.service]8;;; [0;1;32menabled[0m; preset: [0;1;32menabled[0m)
+     Active: [0;1;32mactive (running)[0m since Tue 2025-12-02 18:46:36 MSK; 34min ago
+       Docs: ]8;;man:nginx(8)man:nginx(8)]8;;
+   Main PID: 1432963 (nginx)
+      Tasks: 3 (limit: 2331)
+     Memory: 5.2M (peak: 6.9M)
+        CPU: 997ms
+     CGroup: /system.slice/nginx.service
+             ├─[0;38;5;245m1432963 "nginx: master process /usr/sbin/nginx -g daemon on; master_process on;"[0m
+             ├─[0;38;5;245m1432964 "nginx: worker process"[0m
+             └─[0;38;5;245m1432965 "nginx: worker process"[0m
+
+Dec 02 18:46:35 cv5497401.novalocal systemd[1]: Starting nginx.service - A high performance web server and a reverse proxy server...
+Dec 02 18:46:36 cv5497401.novalocal systemd[1]: Started nginx.service - A high performance web server and a reverse proxy server.
