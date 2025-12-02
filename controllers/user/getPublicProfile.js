@@ -359,7 +359,7 @@ async function getPublicProfile(req, res) {
 
     // Формируем полный URL для пользовательского аватара
     const avatarUrl = user.avatar_url
-      ? `${process.env.BASE_URL || 'https://chibox-game.ru'}/api${user.avatar_url}`
+      ? `${process.env.BASE_URL || 'https://chibox-game.ru'}${user.avatar_url}`
       : null;
 
     return res.json({

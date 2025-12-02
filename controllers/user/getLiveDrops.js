@@ -45,7 +45,7 @@ async function getLiveDrops(req, res) {
         level: drop.user.level,
         // Приоритет: кастомный аватар > Steam аватар
         avatar: drop.user.avatar_url
-          ? `${process.env.BASE_URL || 'https://chibox-game.ru'}/api${drop.user.avatar_url}`
+          ? `${process.env.BASE_URL || 'https://chibox-game.ru'}${drop.user.avatar_url}`
           : drop.user.steam_avatar_url || null
       },
       item: {

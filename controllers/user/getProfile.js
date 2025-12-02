@@ -159,7 +159,7 @@ async function getProfile(req, res) {
 
     // Формируем полный URL для пользовательского аватара
     const avatarUrl = userJson.avatar_url
-      ? `${process.env.BASE_URL || 'https://chibox-game.ru'}/api${userJson.avatar_url}`
+      ? `${process.env.BASE_URL || 'https://chibox-game.ru'}${userJson.avatar_url}`
       : null;
 
     const userWithTotalValue = {
