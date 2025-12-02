@@ -38,13 +38,19 @@ async function initializeTransporter() {
           host: process.env.SMTP_HOST,
           port: parseInt(process.env.SMTP_PORT) || 587,
           secure: process.env.SMTP_SECURE === 'true',
-          requireTLS: true, // Обязательно для рег.ру
           auth: {
             user: process.env.SMTP_USER,
             pass: process.env.SMTP_PASS
           },
-          connectionTimeout: 5000,
-          greetingTimeout: 5000
+          tls: {
+            rejectUnauthorized: false,
+            minVersion: 'TLSv1.2'
+          },
+          connectionTimeout: 10000,
+          greetingTimeout: 10000,
+          socketTimeout: 10000,
+          debug: true, // Включаем отладку
+          logger: true // Включаем логирование
         });
 
         // Проверяем соединение с таймаутом
@@ -107,7 +113,24 @@ async function sendVerificationEmail(email, code, username) {
     const mailOptions = {
       from: process.env.SMTP_FROM || 'ChiBox <noreply@chibox-game.ru>',
       to: email,
+      replyTo: process.env.SMTP_FROM || 'ChiBox <noreply@chibox-game.ru>',
       subject: 'Подтверждение регистрации - ChiBox',
+      text: `
+Добро пожаловать в ChiBox!
+
+Здравствуйте, ${username}!
+
+Для завершения регистрации введите код подтверждения:
+
+${code}
+
+Код действителен в течение 15 минут.
+
+Если вы не регистрировались на нашем сайте, просто проигнорируйте это письмо.
+
+С уважением,
+Команда ChiBox
+      `,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Добро пожаловать в ChiBox!</h2>
@@ -121,7 +144,12 @@ async function sendVerificationEmail(email, code, username) {
           <br>
           <p>С уважением,<br>Команда ChiBox</p>
         </div>
-      `
+      `,
+      headers: {
+        'X-Mailer': 'ChiBox Mailer',
+        'X-Priority': '1',
+        'Importance': 'high'
+      }
     };
 
     const info = await transporter.sendMail(mailOptions);
@@ -166,7 +194,26 @@ async function sendPasswordResetEmail(email, resetToken, username) {
     const mailOptions = {
       from: process.env.SMTP_FROM || 'ChiBox <noreply@chibox-game.ru>',
       to: email,
+      replyTo: process.env.SMTP_FROM || 'ChiBox <noreply@chibox-game.ru>',
       subject: 'Сброс пароля - ChiBox',
+      text: `
+Сброс пароля
+
+Здравствуйте, ${username}!
+
+Вы запросили сброс пароля для вашего аккаунта.
+
+Перейдите по ссылке ниже для создания нового пароля:
+
+${resetLink}
+
+Ссылка действительна в течение 1 часа.
+
+Если вы не запрашивали сброс пароля, просто проигнорируйте это письмо.
+
+С уважением,
+Команда ChiBox
+      `,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Сброс пароля</h2>
@@ -185,7 +232,12 @@ async function sendPasswordResetEmail(email, resetToken, username) {
           <br>
           <p>С уважением,<br>Команда ChiBox</p>
         </div>
-      `
+      `,
+      headers: {
+        'X-Mailer': 'ChiBox Mailer',
+        'X-Priority': '1',
+        'Importance': 'high'
+      }
     };
 
     const info = await transporter.sendMail(mailOptions);
