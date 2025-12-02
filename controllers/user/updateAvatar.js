@@ -25,11 +25,11 @@ async function updateAvatar(req, res) {
       });
     }
 
-    // Проверка что URL начинается с /avatars/
-    if (!avatar_url.startsWith('/avatars/')) {
+    // Проверка что URL начинается с /public/avatars/
+    if (!avatar_url.startsWith('/public/avatars/')) {
       return res.status(400).json({
         success: false,
-        message: 'Некорректный путь к аватару. Должен начинаться с /avatars/'
+        message: 'Некорректный путь к аватару. Должен начинаться с /public/avatars/'
       });
     }
 

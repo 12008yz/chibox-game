@@ -27,8 +27,8 @@ async function getAvatars(req, res) {
       })
       .map(file => ({
         filename: file,
-        url: `/avatars/${file}`,
-        fullUrl: `${process.env.BASE_URL || 'https://chibox-game.ru'}/avatars/${file}`
+        url: `/public/avatars/${file}`,
+        fullUrl: `${process.env.BASE_URL || 'https://chibox-game.ru'}/public/avatars/${file}`
       }));
 
     return res.status(200).json({
