@@ -405,11 +405,12 @@ async function openCase(req, res) {
           selectedItem = selectItemWithFullDuplicateProtection(
             modifiedItems,
             droppedItemIds,
-            userSubscriptionTier
+            userSubscriptionTier,
+            caseType
           );
         } else if (userSubscriptionTier >= 3) {
           logger.info('Используем стандартный выбор с модифицированными весами для пользователя Статус++ (другой кейс)');
-          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, []);
+          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, [], caseType);
         } else if (!userCase.is_paid) {
           // Применяем обычную защиту от дубликатов только для подписочных кейсов обычных пользователей
           logger.info('Используем обычную защиту от дубликатов для подписочного кейса');
@@ -417,11 +418,12 @@ async function openCase(req, res) {
             modifiedItems,
             droppedItemIds,
             5, // duplicateProtectionCount
-            userSubscriptionTier
+            userSubscriptionTier,
+            caseType
           );
         } else {
           logger.info('Используем стандартный выбор с модифицированными весами (покупной кейс)');
-          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, droppedItemIds);
+          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, droppedItemIds, caseType);
         }
 
         // Логируем использование бонуса для статистики
@@ -450,7 +452,8 @@ async function openCase(req, res) {
           selectedItem = selectItemWithFullDuplicateProtection(
             items,
             droppedItemIds,
-            userSubscriptionTier
+            userSubscriptionTier,
+            caseType
           );
         } else if (userSubscriptionTier >= 3) {
           logger.info(`Пользователь Статус++ ${userId} открывает другой кейс ${userCase.template_id} (без защиты от дубликатов)`);
@@ -914,9 +917,13 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
 
       logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс)`);
 
+      // Определяем тип кейса для правильного расчета весов
+      const caseType = determineCaseType(inventoryCase.case_template, false);
+      logger.info(`Тип инвентарного кейса определен как: ${caseType}`);
+
       if (userDropBonus > 0) {
         // Используем модифицированную систему весов
-        const modifiedItems = calculateModifiedDropWeights(filteredItems, userDropBonus);
+        const modifiedItems = calculateModifiedDropWeights(filteredItems, userDropBonus, caseType);
 
         // Для пользователей Статус++ используем полную защиту от дубликатов ТОЛЬКО для ежедневного кейса Статус++
         if (userSubscriptionTier >= 3 && inventoryCase.case_template_id === '44444444-4444-4444-4444-444444444444') {
@@ -924,18 +931,20 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
           selectedItem = selectItemWithFullDuplicateProtection(
             modifiedItems,
             droppedItemIds,
-            userSubscriptionTier
+            userSubscriptionTier,
+            caseType
           );
         } else if (userSubscriptionTier >= 3) {
           logger.info('Используем стандартный выбор с модифицированными весами для пользователя Статус++ (другой инвентарный кейс)');
-          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, []);
+          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, [], caseType);
         } else {
           logger.info('Используем обычную защиту от дубликатов для кейса из инвентаря');
           selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
             modifiedItems,
             droppedItemIds,
             5, // duplicateProtectionCount
-            userSubscriptionTier
+            userSubscriptionTier,
+            caseType
           );
         }
       } else {
@@ -946,17 +955,20 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
           selectedItem = selectItemWithFullDuplicateProtection(
             filteredItems,
             droppedItemIds,
-            userSubscriptionTier
+            userSubscriptionTier,
+            caseType
           );
         } else if (userSubscriptionTier >= 3) {
           logger.info(`Пользователь Статус++ ${userId} открывает другой инвентарный кейс ${inventoryCase.case_template_id} (без защиты от дубликатов)`);
-          selectedItem = selectItemWithCorrectWeights(filteredItems, userSubscriptionTier, []);
+          selectedItem = selectItemWithCorrectWeights(filteredItems, userSubscriptionTier, [], caseType);
         } else {
           logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
           selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
             filteredItems,
             droppedItemIds,
-            droppedItemIds.length
+            droppedItemIds.length,
+            0,
+            caseType
           );
         }
       }

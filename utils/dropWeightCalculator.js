@@ -944,8 +944,8 @@ function calculateModifiedDropWeights(items, userBonuses = {}, caseType = 'premi
  * @param {Array} excludedItemIds - ID исключенных предметов (для Статус++)
  * @returns {Object|null} выбранный предмет
  */
-function selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier = 0, excludedItemIds = []) {
-  console.log(`[selectItemWithModifiedWeights] Получено предметов: ${itemsWithWeights ? itemsWithWeights.length : 'null/undefined'}`);
+function selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier = 0, excludedItemIds = [], caseType = 'premium') {
+  console.log(`[selectItemWithModifiedWeights] Получено предметов: ${itemsWithWeights ? itemsWithWeights.length : 'null/undefined'}, caseType: ${caseType}`);
 
   if (!itemsWithWeights || itemsWithWeights.length === 0) {
     console.log(`[selectItemWithModifiedWeights] Массив предметов пуст или не существует`);
@@ -970,7 +970,7 @@ function selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier = 
 
   // Рассчитываем общий вес
   const totalWeight = availableItems.reduce((sum, item) => {
-    const weight = item.modifiedWeight || calculateCorrectWeightByPrice(parseFloat(item.price) || 0);
+    const weight = item.modifiedWeight || calculateCorrectWeightByPrice(parseFloat(item.price) || 0, caseType);
     return sum + weight;
   }, 0);
 
@@ -992,7 +992,7 @@ function selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier = 
 
   // Находим предмет, соответствующий случайному числу
   for (const item of availableItems) {
-    const itemWeight = item.modifiedWeight || calculateCorrectWeightByPrice(parseFloat(item.price) || 0);
+    const itemWeight = item.modifiedWeight || calculateCorrectWeightByPrice(parseFloat(item.price) || 0, caseType);
     currentWeight += itemWeight;
     console.log(`[selectItemWithModifiedWeights] Предмет ${item.id}, вес: ${itemWeight}, текущий вес: ${currentWeight}`);
 
@@ -1019,7 +1019,8 @@ function selectItemWithModifiedWeightsAndDuplicateProtection(
   itemsWithWeights,
   recentItems = [],
   duplicateProtectionCount = 5,
-  userSubscriptionTier = 0
+  userSubscriptionTier = 0,
+  caseType = 'premium'
 ) {
   if (!itemsWithWeights || itemsWithWeights.length === 0) {
     return null;
@@ -1034,7 +1035,7 @@ function selectItemWithModifiedWeightsAndDuplicateProtection(
   // Если все предметы в списке недавних, используем все
   const itemsToSelect = availableItems.length > 0 ? availableItems : itemsWithWeights;
 
-  return selectItemWithModifiedWeights(itemsToSelect, userSubscriptionTier, []);
+  return selectItemWithModifiedWeights(itemsToSelect, userSubscriptionTier, [], caseType);
 }
 
 /**
@@ -1047,11 +1048,13 @@ function selectItemWithModifiedWeightsAndDuplicateProtection(
 function selectItemWithFullDuplicateProtection(
   itemsWithWeights,
   excludedItems = [],
-  userSubscriptionTier = 0
+  userSubscriptionTier = 0,
+  caseType = 'premium'
 ) {
   console.log(`[selectItemWithFullDuplicateProtection] Получено предметов: ${itemsWithWeights ? itemsWithWeights.length : 'null'}`);
   console.log(`[selectItemWithFullDuplicateProtection] Исключено предметов: ${excludedItems.length}`);
   console.log(`[selectItemWithFullDuplicateProtection] Уровень подписки: ${userSubscriptionTier}`);
+  console.log(`[selectItemWithFullDuplicateProtection] Тип кейса: ${caseType}`);
 
   if (!itemsWithWeights || itemsWithWeights.length === 0) {
     return null;
@@ -1083,11 +1086,11 @@ function selectItemWithFullDuplicateProtection(
       return null;
     }
 
-    return selectItemWithModifiedWeights(availableItems, userSubscriptionTier, []);
+    return selectItemWithModifiedWeights(availableItems, userSubscriptionTier, [], caseType);
   }
 
   // Для обычных пользователей используем стандартную логику (без исключений)
-  return selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier, []);
+  return selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier, [], caseType);
 }
 
 /**
@@ -1278,3 +1281,4 @@ module.exports = {
   calculateCorrectWeightByPrice,
   determineCaseType
 };
+
