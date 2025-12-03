@@ -58,9 +58,9 @@ async function sellItem(req, res) {
 
     const user = await db.User.findByPk(userId, { transaction });
     if (user) {
-      // Цена продажи = 65% от рыночной стоимости (оптимизация для рентабельности)
+      // Цена продажи = 85% от рыночной стоимости (оптимизация для рентабельности)
       const itemPrice = parseFloat(item.price) || 0;
-      const sellPrice = Math.round(itemPrice * 0.65);
+      const sellPrice = Math.round(itemPrice * 0.85);
       user.balance = (parseFloat(user.balance) || 0) + sellPrice;
       await user.save({ transaction });
 

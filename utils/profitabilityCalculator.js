@@ -123,10 +123,10 @@ class ProfitabilityCalculator {
   analyzeTradingSystem() {
     return {
       itemSales: {
-        sellRate: 0.65, // 65% от рыночной стоимости (АКТУАЛЬНО из sellItem.js)
-        profitMargin: 0.35, // 35% маржа для сайта
+        sellRate: 0.85, // 85% от рыночной стоимости (АКТУАЛЬНО из sellItem.js)
+        profitMargin: 0.15, // 15% маржа для сайта
         isOptimal: true,
-        recommendation: "Оптимально - коэффициент уже снижен до 65%"
+        recommendation: "Оптимально - коэффициент повышен до 85%"
       },
       itemExchange: {
         tier1_2: { pricePerDay: 150, isOptimal: false },
@@ -283,9 +283,9 @@ class ProfitabilityCalculator {
   getTradingOptimizations(tradingAnalysis) {
     return {
       sellRate: {
-        current: 0.65,
-        recommended: 0.65,
-        reasoning: "УЖЕ ОПТИМИЗИРОВАНО - коэффициент уже снижен до 65%"
+        current: 0.85,
+        recommended: 0.85,
+        reasoning: "УЖЕ ОПТИМИЗИРОВАНО - коэффициент повышен до 85%"
       },
       exchangeRates: {
         tier1_2: {
@@ -372,7 +372,7 @@ class ProfitabilityCalculator {
         priority: "✅ ЧАСТИЧНО ВЫПОЛНЕНО",
         effort: "Низкий",
         files: ["sellItem.js", "exchangeItemForSubscription.js"],
-        impact: "Коэффициент продажи 65% применен, нужно проверить обменные курсы"
+        impact: "Коэффициент продажи 85% применен, нужно проверить обменные курсы"
       },
       {
         step: 5,

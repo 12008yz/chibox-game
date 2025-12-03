@@ -279,12 +279,12 @@ class EconomyAnalyzer {
     // Изменения в sellItem.js
     changes.push({
       file: 'controllers/user/sellItem.js',
-      description: 'Снижение процента продажи предметов',
+      description: 'Повышение процента продажи предметов',
       changes: [
         {
           line: '63',
-          current: 'const sellPrice = Math.round(itemPrice * 0.7);',
-          recommended: 'const sellPrice = Math.round(itemPrice * 0.65);'
+          current: 'const sellPrice = Math.round(itemPrice * 0.65);',
+          recommended: 'const sellPrice = Math.round(itemPrice * 0.85);'
         }
       ]
     });
