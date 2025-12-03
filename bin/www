@@ -137,13 +137,9 @@ io.on('connection', (socket) => {
   // Отправляем приветственное сообщение новому пользователю
   socket.emit('hello', { message: 'Привет через WebSocket!' });
 
-  // Отправляем текущее количество пользователей
-  if (isNewUser) {
-    broadcastOnlineUsers();
-  } else {
-    // Для переподключений отправляем только текущему сокету
-    socket.emit('onlineUsersUpdate', { count: userSessions.size });
-  }
+  // Отправляем текущее количество пользователей ТОЛЬКО новому подключению
+  // Убираем broadcast, чтобы не вызывать ре-рендер у всех пользователей
+  socket.emit('onlineUsersUpdate', { count: userSessions.size });
 
   // Обработка отключения
   socket.on('disconnect', (reason) => {
@@ -235,3 +231,4 @@ const { initNotificationSender } = require('../utils/notificationHelper');
 initNotificationSender(sendNotificationToUser);
 
 // Экспортируем io и функции для использования в других модулях
+module.exports = { io, broadcastOnlineUsers, broadcastLiveDrop, sendNotificationToUser };
