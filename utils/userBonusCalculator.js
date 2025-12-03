@@ -43,8 +43,21 @@ async function updateUserBonuses(userId) {
     const levelBonus = calculateLevelBonus(user.level || 1);
     user.level_bonus_percentage = levelBonus;
 
+    // Проверяем актуальность подписки перед расчётом бонуса
+    const now = new Date();
+    let subscriptionTier = user.subscription_tier || 0;
+
+    // Если подписка истекла, сбрасываем её
+    if (user.subscription_expiry_date && user.subscription_expiry_date <= now && subscriptionTier > 0) {
+        subscriptionTier = 0;
+        user.subscription_tier = 0;
+        user.subscription_days_left = 0;
+        user.max_daily_cases = 0;
+        user.cases_available = 0;
+    }
+
     // Рассчитываем бонус от подписки
-    const subscriptionBonus = calculateSubscriptionBonus(user.subscription_tier || 0);
+    const subscriptionBonus = calculateSubscriptionBonus(subscriptionTier);
     user.subscription_bonus_percentage = subscriptionBonus;
 
     // Бонус от достижений уже должен быть установлен в achievementService
@@ -64,7 +77,7 @@ async function updateUserBonuses(userId) {
         subscriptionBonus,
         totalBonus,
         level: user.level,
-        subscriptionTier: user.subscription_tier
+        subscriptionTier
     };
 }
 
@@ -155,19 +168,55 @@ async function getUserBonusInfo(userId) {
         throw new Error('Пользователь не найден');
     }
 
+    // Проверяем, не истекла ли подписка
+    const now = new Date();
+    let subscriptionBonus = user.subscription_bonus_percentage || 0;
+    let subscriptionTier = user.subscription_tier || 0;
+
+    // Если есть дата истечения и она в прошлом, сбрасываем бонус подписки
+    if (user.subscription_expiry_date && user.subscription_expiry_date <= now) {
+        subscriptionBonus = 0;
+        subscriptionTier = 0;
+
+        // Если бонус в БД не обнулён, обновляем его
+        if (user.subscription_bonus_percentage > 0 || user.subscription_tier > 0) {
+            await user.update({
+                subscription_tier: 0,
+                subscription_bonus_percentage: 0,
+                subscription_days_left: 0,
+                max_daily_cases: 0,
+                cases_available: 0
+            });
+
+            // Пересчитываем total_drop_bonus_percentage
+            const achievementsBonus = Math.min(user.achievements_bonus_percentage || 0, 17.0);
+            const levelBonus = user.level_bonus_percentage || 0;
+            user.total_drop_bonus_percentage = Math.min(
+                achievementsBonus + levelBonus,
+                25.0
+            );
+            await user.save();
+            // Перезагружаем объект user после обновления
+            await user.reload();
+        }
+    }
+
+    // Вычисляем актуальный totalBonus с учетом обновлений
+    const actualTotalBonus = user.total_drop_bonus_percentage || 0;
+
     return {
         userId,
         level: user.level,
-        subscriptionTier: user.subscription_tier,
+        subscriptionTier,
         achievementsBonus: user.achievements_bonus_percentage || 0,
         levelBonus: user.level_bonus_percentage || 0,
-        subscriptionBonus: user.subscription_bonus_percentage || 0,
-        totalBonus: user.total_drop_bonus_percentage || 0,
+        subscriptionBonus,
+        totalBonus: actualTotalBonus,
         bonusBreakdown: {
             achievements: `+${(user.achievements_bonus_percentage || 0).toFixed(2)}%`,
             level: `+${(user.level_bonus_percentage || 0).toFixed(2)}%`,
-            subscription: `+${(user.subscription_bonus_percentage || 0).toFixed(2)}%`,
-            total: `+${(user.total_drop_bonus_percentage || 0).toFixed(2)}%`
+            subscription: `+${subscriptionBonus.toFixed(2)}%`,
+            total: `+${actualTotalBonus.toFixed(2)}%`
         }
     };
 }

@@ -5,6 +5,7 @@ const { addJob } = require('../../services/queueService');
 const { calculateModifiedDropWeights, selectItemWithModifiedWeights, selectItemWithModifiedWeightsAndDuplicateProtection, selectItemWithFullDuplicateProtection, selectItemWithCorrectWeights, determineCaseType } = require('../../utils/dropWeightCalculator');
 const { broadcastDrop } = require('../../services/liveDropService');
 const { FREE_CASE_TEMPLATE_ID, checkFreeCaseAvailability, updateFreeCaseCounters } = require('../../utils/freeCaseHelper');
+const { updateUserBonuses } = require('../../utils/userBonusCalculator');
 
 async function openCase(req, res) {
   try {
@@ -84,6 +85,11 @@ async function openCase(req, res) {
             console.log('Это бесплатный кейс для новых пользователей, проверяем доступность');
 
             const user = await db.User.findByPk(userId);
+
+            // Проверяем и обновляем подписку
+            await updateUserBonuses(userId);
+            await user.reload();
+
             const availability = checkFreeCaseAvailability(user);
 
             console.log('Проверка доступности бесплатного кейса:', availability);
@@ -149,6 +155,11 @@ async function openCase(req, res) {
             console.log('Это ежедневный кейс, проверяем права пользователя');
 
             const user = await db.User.findByPk(userId);
+
+            // Проверяем и обновляем подписку перед проверкой доступа к ежедневному кейсу
+            await updateUserBonuses(userId);
+            await user.reload();
+
             console.log('Данные пользователя:', {
               id: user?.id,
               subscription_tier: user?.subscription_tier,
@@ -238,6 +249,11 @@ async function openCase(req, res) {
     if (!user) {
       return res.status(404).json({ success: false, message: 'Пользователь не найден' });
     }
+
+    // Проверяем и обновляем подписку при каждом открытии кейса
+    await updateUserBonuses(userId);
+    // Перезагружаем пользователя после обновления бонусов
+    await user.reload();
 
     let userCase;
 
@@ -821,6 +837,11 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
     if (!user) {
       return res.status(404).json({ success: false, message: 'Пользователь не найден' });
     }
+
+    // Проверяем и обновляем подписку при каждом открытии кейса
+    await updateUserBonuses(userId);
+    // Перезагружаем пользователя после обновления бонусов
+    await user.reload();
 
     // Находим кейс в инвентаре пользователя
     const inventoryCase = await db.UserInventory.findOne({

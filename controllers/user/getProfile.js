@@ -1,6 +1,7 @@
 const db = require('../../models');
 const { logger } = require('../../middleware/logger');
 const cache = require('../../middleware/cache');
+const { updateUserBonuses } = require('../../utils/userBonusCalculator');
 
 async function getProfile(req, res) {
   // Защита от IDOR: только если указан конкретный ID в параметрах
@@ -70,6 +71,10 @@ async function getProfile(req, res) {
       return res.status(404).json({ message: 'Пользователь не найден' });
     }
 
+    // Проверяем и обновляем подписку при каждом запросе профиля
+    await updateUserBonuses(userId);
+    // Перезагружаем пользователя после обновления бонусов
+    await user.reload();
 
     const validItems = allUserItems.filter(inventoryItem => inventoryItem.item !== null);
 
