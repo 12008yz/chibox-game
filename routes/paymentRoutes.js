@@ -4,7 +4,10 @@ const {
   yoomoneyWebhook,
   robokassaResultURL,
   robokassaSuccessURL,
-  robokassaFailURL
+  robokassaFailURL,
+  freekassaResultURL,
+  freekassaSuccessURL,
+  freekassaFailURL
 } = require('../controllers/paymentWebhook');
 
 // Middleware для захвата raw body (нужно для проверки подписи ЮKassa)
@@ -34,5 +37,16 @@ router.get('/robokassa/success', robokassaSuccessURL);
 
 // FailURL - для редиректа пользователя после неудачной оплаты
 router.get('/robokassa/fail', robokassaFailURL);
+
+// Роуты для Freekassa
+// ResultURL - для серверного уведомления о платеже (обязательный)
+router.post('/freekassa/result', freekassaResultURL);
+router.get('/freekassa/result', freekassaResultURL);
+
+// SuccessURL - для редиректа пользователя после успешной оплаты
+router.get('/freekassa/success', freekassaSuccessURL);
+
+// FailURL - для редиректа пользователя после неудачной оплаты
+router.get('/freekassa/fail', freekassaFailURL);
 
 module.exports = router;

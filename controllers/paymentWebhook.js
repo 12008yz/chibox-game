@@ -434,9 +434,235 @@ async function robokassaFailURL(req, res) {
   }
 }
 
+/**
+ * Обработчик Result URL для Freekassa
+ * Этот URL вызывается для уведомления магазина о результате оплаты
+ */
+async function freekassaResultURL(req, res) {
+  try {
+    logger.info('=== FREEKASSA RESULT URL RECEIVED ===');
+    logger.info('Query params:', req.query);
+    logger.info('Body:', req.body);
+
+    const { verifySignature } = require('../services/freekassaService');
+
+    // Параметры могут приходить как в query, так и в body
+    const params = { ...req.query, ...req.body };
+
+    const {
+      MERCHANT_ID,
+      AMOUNT,
+      intid,
+      MERCHANT_ORDER_ID,
+      SIGN,
+      us_user_id,
+      us_purpose,
+      us_chicoins
+    } = params;
+
+    // Проверка обязательных параметров
+    if (!MERCHANT_ID || !AMOUNT || !MERCHANT_ORDER_ID || !SIGN) {
+      logger.warn('Missing required parameters');
+      return res.status(400).send('BAD REQUEST');
+    }
+
+    logger.info(`Processing Freekassa payment: OrderID=${MERCHANT_ORDER_ID}, Amount=${AMOUNT}`);
+
+    // Проверяем подпись
+    const isValidSignature = verifySignature(
+      MERCHANT_ID,
+      parseFloat(AMOUNT),
+      process.env.FREEKASSA_SECRET_WORD_2,
+      parseInt(MERCHANT_ORDER_ID),
+      SIGN
+    );
+
+    if (!isValidSignature) {
+      logger.warn('Invalid signature in Freekassa ResultURL');
+      return res.status(400).send('BAD SIGN');
+    }
+
+    logger.info('✅ Freekassa signature verification passed');
+
+    // Находим платеж в БД по invoice_number
+    const payment = await Payment.findOne({ where: { invoice_number: parseInt(MERCHANT_ORDER_ID) } });
+    if (!payment) {
+      logger.warn(`Payment not found: OrderID=${MERCHANT_ORDER_ID}`);
+      return res.status(404).send('ORDER NOT FOUND');
+    }
+
+    logger.info(`Found payment:`, {
+      id: payment.id,
+      current_status: payment.status,
+      amount: payment.amount,
+      user_id: payment.user_id
+    });
+
+    // Обновляем статус платежа на completed
+    if (payment.status !== 'completed') {
+      payment.status = 'completed';
+      payment.webhook_received = true;
+      payment.payment_id = intid ? intid.toString() : MERCHANT_ORDER_ID.toString();
+      payment.webhook_data = params;
+      payment.completed_at = new Date();
+      await payment.save();
+
+      logger.info(`✅ Payment status updated to completed for OrderID=${MERCHANT_ORDER_ID}`);
+
+      // Обрабатываем успешный платеж
+      const user = await require('../models').User.findByPk(payment.user_id);
+      if (!user) {
+        logger.warn(`User not found for payment user_id=${payment.user_id}`);
+        return res.status(404).send('USER NOT FOUND');
+      }
+
+      logger.info(`Processing completed payment for user:`, {
+        user_id: user.id,
+        username: user.username,
+        current_balance: user.balance,
+        payment_purpose: payment.purpose,
+        payment_amount: payment.amount
+      });
+
+      // Определяем сумму для транзакции
+      let transactionAmount = parseFloat(payment.amount);
+      if (payment.purpose === 'deposit' && payment.metadata && payment.metadata.chicoins) {
+        transactionAmount = parseFloat(payment.metadata.chicoins);
+      }
+
+      // Создаем запись транзакции
+      const transaction = await require('../models').Transaction.create({
+        user_id: user.id,
+        type: payment.purpose === 'subscription' ? 'subscription_purchase' : 'balance_add',
+        amount: transactionAmount,
+        description: payment.description,
+        status: 'completed',
+        related_entity_id: payment.id,
+        related_entity_type: 'Payment',
+        balance_before: user.balance,
+        balance_after: payment.purpose === 'subscription' ? user.balance : (user.balance + transactionAmount),
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent'],
+        is_system: false,
+        payment_id: payment.id
+      });
+
+      logger.info(`✅ Transaction created:`, {
+        transaction_id: transaction.id,
+        type: transaction.type,
+        amount: transaction.amount
+      });
+
+      if (payment.purpose === 'subscription') {
+        logger.info(`Activating subscription for user ${user.id} from payment ${payment.id}`);
+        const tierId = payment.metadata && payment.metadata.tierId ? payment.metadata.tierId : 1;
+        await activateSubscription(user.id, tierId);
+        logger.info(`✅ Subscription activated for user ${user.id}`);
+      } else if (payment.purpose === 'deposit') {
+        const oldBalance = user.balance;
+
+        // Получаем количество ChiCoins из metadata
+        let chicoinsToAdd = parseFloat(payment.amount);
+
+        if (payment.metadata && payment.metadata.chicoins) {
+          chicoinsToAdd = parseFloat(payment.metadata.chicoins);
+          logger.info(`Using ChiCoins from metadata: ${chicoinsToAdd}`);
+        }
+
+        user.balance = (user.balance || 0) + chicoinsToAdd;
+        await user.save();
+
+        logger.info(`✅ Balance updated for user ${user.id}:`, {
+          old_balance: oldBalance,
+          added: chicoinsToAdd,
+          new_balance: user.balance
+        });
+
+        // Начисляем опыт за пополнение
+        try {
+          await addExperience(user.id, chicoinsToAdd, 'deposit');
+          logger.info(`✅ Experience added for deposit`);
+        } catch (expError) {
+          logger.error('Failed to add experience for deposit:', expError);
+        }
+      }
+    } else {
+      logger.info(`Payment ${MERCHANT_ORDER_ID} already completed, skipping processing`);
+    }
+
+    // Freekassa требует ответ "YES"
+    return res.send('YES');
+  } catch (error) {
+    logger.error('❌ Error processing Freekassa ResultURL:', error);
+    logger.error('Error stack:', error.stack);
+    return res.status(500).send('ERROR');
+  }
+}
+
+/**
+ * Обработчик Success URL для Freekassa
+ * Этот URL для редиректа пользователя после успешной оплаты
+ */
+async function freekassaSuccessURL(req, res) {
+  try {
+    logger.info('=== FREEKASSA SUCCESS URL RECEIVED ===');
+    logger.info('Query params:', req.query);
+
+    const { MERCHANT_ORDER_ID, AMOUNT } = req.query;
+
+    if (!MERCHANT_ORDER_ID) {
+      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+    }
+
+    // Проверяем статус платежа в БД по invoice_number
+    const payment = await Payment.findOne({ where: { invoice_number: parseInt(MERCHANT_ORDER_ID) } });
+
+    if (payment && payment.status === 'completed') {
+      logger.info(`Payment ${MERCHANT_ORDER_ID} completed successfully, redirecting to success page`);
+      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=success&amount=${AMOUNT || payment.amount}`);
+    } else {
+      logger.info(`Payment ${MERCHANT_ORDER_ID} pending or failed, redirecting to pending page`);
+      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=pending`);
+    }
+  } catch (error) {
+    logger.error('Error processing Freekassa SuccessURL:', error);
+    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+  }
+}
+
+/**
+ * Обработчик Fail URL для Freekassa
+ * Этот URL для редиректа пользователя после неудачной оплаты
+ */
+async function freekassaFailURL(req, res) {
+  try {
+    logger.info('=== FREEKASSA FAIL URL RECEIVED ===');
+    logger.info('Query params:', req.query);
+
+    const { MERCHANT_ORDER_ID } = req.query;
+
+    if (MERCHANT_ORDER_ID) {
+      const payment = await Payment.findOne({ where: { invoice_number: parseInt(MERCHANT_ORDER_ID) } });
+      if (payment && payment.status !== 'completed') {
+        payment.status = 'failed';
+        await payment.save();
+        logger.info(`Payment ${MERCHANT_ORDER_ID} marked as failed`);
+      }
+    }
+
+    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=failed`);
+  } catch (error) {
+    logger.error('Error processing Freekassa FailURL:', error);
+    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+  }
+}
+
 module.exports = {
   yoomoneyWebhook,
   robokassaResultURL,
   robokassaSuccessURL,
-  robokassaFailURL
+  robokassaFailURL,
+  freekassaResultURL,
+  freekassaSuccessURL,
+  freekassaFailURL
 };
