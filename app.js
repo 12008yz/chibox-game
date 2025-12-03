@@ -205,11 +205,48 @@ setInterval(() => {
   cleanupSessions().catch(err => logger.error('Ошибка очистки сессий:', err));
 }, 60 * 60 * 1000); // 1 час
 
-// CSRF защита убрана, так как пакет csurf deprecated
-// Для API используем JWT токены, что более безопасно
+// ============================================
+// CSRF ЗАЩИТА
+// ============================================
+const { doubleCsrf } = require('csrf-csrf');
 
-// CSRF защита удалена - используем JWT для API
-// Для веб-форм можно добавить альтернативную защиту при необходимости
+const {
+  generateToken, // Генерация CSRF токена
+  doubleCsrfProtection, // CSRF middleware
+} = doubleCsrf({
+  getSecret: () => process.env.CSRF_SECRET || process.env.SESSION_SECRET || 'your-csrf-secret-change-in-production',
+  cookieName: '__Host-psifi.x-csrf-token',
+  cookieOptions: {
+    sameSite: 'lax',
+    path: '/',
+    secure: process.env.NODE_ENV === 'production', // HTTPS только в продакшене
+    httpOnly: true,
+  },
+  size: 64,
+  ignoredMethods: ['GET', 'HEAD', 'OPTIONS'],
+  getTokenFromRequest: (req) => req.headers['x-csrf-token'] || req.body?._csrf,
+});
+
+// Эндпоинт для получения CSRF токена (публичный)
+app.get('/api/v1/csrf-token', (req, res) => {
+  const csrfToken = generateToken(req, res);
+  res.json({ csrfToken });
+});
+
+// Применяем CSRF защиту ко всем POST/PUT/DELETE/PATCH запросам к API
+// Исключаем публичные эндпоинты (логин, регистрация)
+app.use('/api/v1', (req, res, next) => {
+  // Пропускаем CSRF проверку для публичных эндпоинтов
+  const publicEndpoints = ['/login', '/register', '/csrf-token', '/auth/steam', '/auth/steam/callback'];
+  const isPublic = publicEndpoints.some(endpoint => req.path.startsWith(endpoint));
+
+  if (isPublic || ['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
+  }
+
+  // Применяем CSRF защиту
+  doubleCsrfProtection(req, res, next);
+});
 
 const userRoutes = require('./routes/userRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');

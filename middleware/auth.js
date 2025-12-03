@@ -9,13 +9,20 @@ const revokedTokens = new Set();
 const authMiddleware = (req, res, next) => {
   let token = null;
 
-  // Получаем токен из заголовка Authorization
-  const authHeader = req.headers['authorization'];
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    token = authHeader.split(' ')[1];
+  // ПРИОРИТЕТ 1: Получаем токен из httpOnly cookie (безопасный метод)
+  if (req.cookies && req.cookies.auth_token) {
+    token = req.cookies.auth_token;
   }
 
-  // Если токен не найден в заголовке, проверяем query параметры (для Steam ссылок)
+  // ПРИОРИТЕТ 2: Получаем токен из заголовка Authorization (обратная совместимость)
+  if (!token) {
+    const authHeader = req.headers['authorization'];
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+  }
+
+  // ПРИОРИТЕТ 3: Если токен не найден, проверяем query параметры (для Steam ссылок)
   if (!token && req.query.token) {
     token = req.query.token;
   }
@@ -24,7 +31,8 @@ const authMiddleware = (req, res, next) => {
   if (req.path.includes('steam') || req.path.includes('link-steam')) {
     console.log('Auth middleware для Steam маршрута:', {
       path: req.path,
-      hasAuthHeader: !!authHeader,
+      hasCookie: !!req.cookies?.auth_token,
+      hasAuthHeader: !!req.headers['authorization'],
       hasQueryToken: !!req.query.token,
       hasToken: !!token
     });
