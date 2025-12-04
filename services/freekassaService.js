@@ -4,7 +4,7 @@ const { Payment } = require('../models');
 const FREEKASSA_MERCHANT_ID = process.env.FREEKASSA_MERCHANT_ID || '';
 const FREEKASSA_SECRET_WORD_1 = process.env.FREEKASSA_SECRET_WORD_1 || '';
 const FREEKASSA_SECRET_WORD_2 = process.env.FREEKASSA_SECRET_WORD_2 || '';
-const FREEKASSA_PAYMENT_URL = 'https://pay.freekassa.ru/';
+const FREEKASSA_PAYMENT_URL = 'https://pay.fk.money/';
 
 /**
  * Генерация MD5 подписи для Freekassa (при создании платежа)
@@ -16,7 +16,8 @@ const FREEKASSA_PAYMENT_URL = 'https://pay.freekassa.ru/';
  */
 function generateSignature(merchantId, amount, secretWord, orderId) {
   // Формула: MD5(shop_id:amount:secret:order_id)
-  const signatureString = `${merchantId}:${amount}:${secretWord}:${orderId}`;
+  const formattedAmount = parseFloat(amount).toFixed(2);
+  const signatureString = `${merchantId}:${formattedAmount}:${secretWord}:${orderId}`;
   console.log('Freekassa signature string:', signatureString);
   return crypto.createHash('md5').update(signatureString).digest('hex');
 }
@@ -32,7 +33,8 @@ function generateSignature(merchantId, amount, secretWord, orderId) {
  */
 function verifySignature(merchantId, amount, secretWord, orderId, receivedSignature) {
   // Формула: MD5(shop_id:amount:secret:order_id)
-  const signatureString = `${merchantId}:${amount}:${secretWord}:${orderId}`;
+  const formattedAmount = parseFloat(amount).toFixed(2);
+  const signatureString = `${merchantId}:${formattedAmount}:${secretWord}:${orderId}`;
   const calculatedSignature = crypto.createHash('md5').update(signatureString).digest('hex');
 
   console.log('Verify Freekassa Signature:', {
@@ -110,7 +112,6 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
       o: orderId.toString(),
       s: signature,
       currency: 'RUB',
-      i: '', // Дополнительная информация (опционально)
       lang: 'ru',
       us_user_id: userId.toString(),
       us_purpose: purpose,

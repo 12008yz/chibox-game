@@ -61,7 +61,7 @@ const paymentParams = new URLSearchParams({
   us_chicoins: testAmount
 });
 
-const paymentUrl = `https://pay.freekassa.ru/?${paymentParams.toString()}`;
+const paymentUrl = `https://pay.fk.money/?${paymentParams.toString()}`;
 console.log(`   ${paymentUrl}`);
 
 // Симуляция вебхука (Result URL) с SECRET_WORD_2
