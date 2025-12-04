@@ -1,7 +1,7 @@
 const axios = require('axios');
 const { Payment } = require('../models');
 const crypto = require('crypto');
-const robokassaService = require('./robokassaService');
+const freekassaService = require('./freekassaService');
 
 const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID;
 const YOOKASSA_CLIENT_SECRET = process.env.YOOKASSA_CLIENT_SECRET;
@@ -99,13 +99,13 @@ async function createYooKassaPayment({ amount, description, userId, purpose = 'd
  * @param {number} params.userId
  * @param {string} params.purpose
  * @param {object} params.metadata
- * @param {string} params.paymentMethod - 'yookassa' или 'robokassa'
+ * @param {string} params.paymentMethod - 'yookassa' или 'freekassa'
  */
 async function createPayment({ amount, description, userId, purpose = 'deposit', metadata = {}, paymentMethod = 'yookassa' }) {
   console.log(`Creating payment with method: ${paymentMethod}`);
 
-  if (paymentMethod === 'robokassa') {
-    return await robokassaService.createPayment({ amount, description, userId, purpose, metadata });
+  if (paymentMethod === 'freekassa') {
+    return await freekassaService.createPayment({ amount, description, userId, purpose, metadata });
   } else {
     return await createYooKassaPayment({ amount, description, userId, purpose, metadata });
   }

@@ -100,22 +100,19 @@ async function topUpBalance(req, res) {
       }
 
       logger.info(`YooKassa credentials check: shopId=${shopId ? 'present' : 'missing'}, clientSecret=${clientSecret ? 'present' : 'missing'}`);
-    } else if (payment_method === 'robokassa') {
-      const merchantLogin = process.env.ROBOKASSA_MERCHANT_LOGIN;
-      const password1 = process.env.ROBOKASSA_PASSWORD1;
+    } else if (payment_method === 'freekassa') {
+      const merchantId = process.env.FREEKASSA_MERCHANT_ID;
+      const secretWord1 = process.env.FREEKASSA_SECRET_WORD_1;
 
-      // Для тестового режима используем дефолтные значения
-      const isTest = process.env.ROBOKASSA_TEST_MODE === 'true';
-
-      if (!isTest && (!merchantLogin || !password1)) {
-        logger.error('Robokassa credentials not configured');
+      if (!merchantId || !secretWord1) {
+        logger.error('Freekassa credentials not configured');
         return res.status(500).json({
           success: false,
-          message: 'Robokassa временно недоступна'
+          message: 'Freekassa временно недоступна'
         });
       }
 
-      logger.info(`Robokassa credentials check: merchantLogin=${merchantLogin || 'Test1999'}, isTest=${isTest}`);
+      logger.info(`Freekassa credentials check: merchantId=${merchantId ? 'present' : 'missing'}`);
     }
 
     // Создаем платеж (всегда в рублях)

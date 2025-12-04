@@ -2,9 +2,6 @@ const express = require('express');
 const router = express.Router();
 const {
   yoomoneyWebhook,
-  robokassaResultURL,
-  robokassaSuccessURL,
-  robokassaFailURL,
   freekassaResultURL,
   freekassaSuccessURL,
   freekassaFailURL
@@ -26,17 +23,6 @@ const captureRawBody = (req, res, next) => {
 // Роут для обработки webhook от YooMoney
 // Важно: используем captureRawBody ДО express.json()
 router.post('/webhook', captureRawBody, express.json(), yoomoneyWebhook);
-
-// Роуты для Robokassa
-// ResultURL - для серверного уведомления о платеже (обязательный)
-router.post('/robokassa/result', robokassaResultURL);
-router.get('/robokassa/result', robokassaResultURL);
-
-// SuccessURL - для редиректа пользователя после успешной оплаты
-router.get('/robokassa/success', robokassaSuccessURL);
-
-// FailURL - для редиректа пользователя после неудачной оплаты
-router.get('/robokassa/fail', robokassaFailURL);
 
 // Роуты для Freekassa
 // ResultURL - для серверного уведомления о платеже (обязательный)
