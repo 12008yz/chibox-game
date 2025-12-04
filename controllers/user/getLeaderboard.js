@@ -148,26 +148,20 @@ async function getLeaderboardByCasesOpened(limit, leaderboardData) {
       'avatar_url',
       'steam_avatar_url',
       'steam_profile',
-      [
-        db.Sequelize.literal(`(
-          SELECT COUNT(*)
-          FROM cases
-          WHERE cases.user_id = "User".id
-          AND cases.is_opened = true
-        )`),
-        'cases_opened'
-      ]
+      'total_cases_opened' // Используем поле total_cases_opened для точного подсчета
     ],
     where: {
       is_active: true,
-      is_banned: false
+      is_banned: false,
+      total_cases_opened: {
+        [Op.gt]: 0 // Только пользователи с открытыми кейсами
+      }
     },
     order: [
-      [db.Sequelize.literal('cases_opened'), 'DESC'],
+      ['total_cases_opened', 'DESC'],
       [db.Sequelize.fn('RANDOM')] // Рандомизация при одинаковом количестве кейсов
     ],
-    limit: limit * 2,
-    subQuery: false
+    limit: limit * 2
   });
 
   leaderboardData.push(...usersWithCases.map(user => ({
@@ -179,8 +173,8 @@ async function getLeaderboardByCasesOpened(limit, leaderboardData) {
     avatar_url: user.avatar_url ? `${process.env.BASE_URL || 'https://chibox-game.ru'}${user.avatar_url}` : null,
     steam_avatar: user.steam_avatar_url,
     steam_profile: user.steam_profile,
-    cases_opened: parseInt(user.dataValues.cases_opened) || 0,
-    score: parseInt(user.dataValues.cases_opened) || 0, // Для сортировки
+    cases_opened: user.total_cases_opened || 0,
+    score: user.total_cases_opened || 0, // Для сортировки
   })));
 }
 

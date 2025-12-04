@@ -39,8 +39,10 @@ async function getGlobalStatistics(req, res) {
     // Получаем общее количество пользователей
     const totalUsers = await db.User.count();
 
-    // Получаем общее количество открытых кейсов
-    const totalCasesOpened = await db.Case.count();
+    // Получаем общее количество открытых кейсов - суммируем total_cases_opened всех пользователей
+    // Это правильнее чем считать записи в таблице Cases, так как учитывает все открытия
+    const totalCasesOpenedResult = await db.User.sum('total_cases_opened');
+    const totalCasesOpened = totalCasesOpenedResult || 0;
 
     // Получаем количество апгрейдов (все попытки - успешные и неудачные)
     const totalUpgrades = await db.Transaction.count({
