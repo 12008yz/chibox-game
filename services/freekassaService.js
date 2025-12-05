@@ -8,14 +8,16 @@ const FREEKASSA_PAYMENT_URL = 'https://pay.fk.money/';
 
 /**
  * Генерация MD5 подписи для Freekassa (при создании платежа)
+ * ВАЖНО: Для создания платежа используется формула С currency!
  * @param {string} merchantId
  * @param {number} amount
  * @param {string} secretWord
+ * @param {string} currency
  * @param {number} orderId
  * @returns {string}
  */
 function generateSignature(merchantId, amount, secretWord, currency, orderId) {
-  // Формула: MD5(shop_id:amount:secret:currency:order_id)
+  // Формула ДЛЯ СОЗДАНИЯ ПЛАТЕЖА: MD5(shop_id:amount:secret:currency:order_id)
   const formattedAmount = parseFloat(amount).toFixed(2);
   const signatureString = `${merchantId}:${formattedAmount}:${secretWord}:${currency}:${orderId}`;
   console.log('Freekassa signature string:', signatureString);
@@ -24,6 +26,7 @@ function generateSignature(merchantId, amount, secretWord, currency, orderId) {
 
 /**
  * Проверка подписи от Freekassa (webhook)
+ * ВАЖНО: Для вебхука (Result URL) используется формула БЕЗ currency!
  * @param {string} merchantId
  * @param {number} amount
  * @param {string} secretWord
@@ -32,7 +35,7 @@ function generateSignature(merchantId, amount, secretWord, currency, orderId) {
  * @returns {boolean}
  */
 function verifySignature(merchantId, amount, secretWord, orderId, receivedSignature) {
-  // Формула: MD5(shop_id:amount:secret:order_id)
+  // Формула ДЛЯ ВЕБХУКА (Result URL): MD5(shop_id:amount:secret:order_id) БЕЗ CURRENCY!
   const formattedAmount = parseFloat(amount).toFixed(2);
   const signatureString = `${merchantId}:${formattedAmount}:${secretWord}:${orderId}`;
   const calculatedSignature = crypto.createHash('md5').update(signatureString).digest('hex');
@@ -95,7 +98,7 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
     const orderId = paymentRecord.invoice_number;
     const amountFormatted = amount.toFixed(2);
 
-    // Генерируем подпись
+    // Генерируем подпись (ДЛЯ СОЗДАНИЯ ПЛАТЕЖА - с currency!)
     const signature = generateSignature(
       FREEKASSA_MERCHANT_ID,
       amountFormatted,
