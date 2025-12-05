@@ -36,20 +36,42 @@ function generateSignature(merchantId, amount, secretWord, currency, orderId) {
  */
 function verifySignature(merchantId, amount, secretWord, orderId, receivedSignature) {
   // Формула ДЛЯ ВЕБХУКА (Result URL): MD5(shop_id:amount:secret:order_id) БЕЗ CURRENCY!
+
+  // Пробуем оба варианта форматирования суммы
+  // Вариант 1: с .00 (например, 10.00)
   const formattedAmount = parseFloat(amount).toFixed(2);
-  const signatureString = `${merchantId}:${formattedAmount}:${secretWord}:${orderId}`;
-  const calculatedSignature = crypto.createHash('md5').update(signatureString).digest('hex');
+  const signatureString1 = `${merchantId}:${formattedAmount}:${secretWord}:${orderId}`;
+  const calculatedSignature1 = crypto.createHash('md5').update(signatureString1).digest('hex');
+
+  // Вариант 2: без .00 (например, 10)
+  const amountStr = String(amount);
+  const signatureString2 = `${merchantId}:${amountStr}:${secretWord}:${orderId}`;
+  const calculatedSignature2 = crypto.createHash('md5').update(signatureString2).digest('hex');
 
   console.log('Verify Freekassa Signature:', {
     merchantId,
     amount,
     orderId,
-    signatureString,
-    calculated: calculatedSignature,
+    signatureString1,
+    calculated1: calculatedSignature1,
+    signatureString2,
+    calculated2: calculatedSignature2,
     received: receivedSignature
   });
 
-  return calculatedSignature === receivedSignature;
+  // Проверяем оба варианта
+  if (calculatedSignature1 === receivedSignature) {
+    console.log('✅ Signature matched with variant 1 (formatted amount)');
+    return true;
+  }
+
+  if (calculatedSignature2 === receivedSignature) {
+    console.log('✅ Signature matched with variant 2 (raw amount)');
+    return true;
+  }
+
+  console.log('❌ Signature verification failed with both variants');
+  return false;
 }
 
 /**
