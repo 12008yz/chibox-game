@@ -139,12 +139,16 @@ async function yoomoneyWebhook(req, res) {
         } else if (payment.purpose === 'deposit') {
           const oldBalance = user.balance;
 
-          // Получаем количество ChiCoins из metadata
+          // Получаем количество ChiCoins из metadata или из webhook данных
           let chicoinsToAdd = parseFloat(payment.amount); // По умолчанию = рубли
 
           if (payment.metadata && payment.metadata.chicoins) {
             chicoinsToAdd = parseFloat(payment.metadata.chicoins);
             logger.info(`Using ChiCoins from metadata: ${chicoinsToAdd}`);
+          } else if (paymentData.metadata && paymentData.metadata.chicoins) {
+            // Пробуем получить из webhook данных YooKassa
+            chicoinsToAdd = parseFloat(paymentData.metadata.chicoins);
+            logger.info(`Using ChiCoins from webhook metadata: ${chicoinsToAdd}`);
           }
 
           user.balance = (user.balance || 0) + chicoinsToAdd;
@@ -307,12 +311,15 @@ async function freekassaResultURL(req, res) {
       } else if (payment.purpose === 'deposit') {
         const oldBalance = user.balance;
 
-        // Получаем количество ChiCoins из metadata
+        // Получаем количество ChiCoins из metadata или из параметров webhook (us_chicoins для Freekassa)
         let chicoinsToAdd = parseFloat(payment.amount);
 
         if (payment.metadata && payment.metadata.chicoins) {
           chicoinsToAdd = parseFloat(payment.metadata.chicoins);
           logger.info(`Using ChiCoins from metadata: ${chicoinsToAdd}`);
+        } else if (us_chicoins) {
+          chicoinsToAdd = parseFloat(us_chicoins);
+          logger.info(`Using ChiCoins from webhook params (us_chicoins): ${chicoinsToAdd}`);
         }
 
         user.balance = (user.balance || 0) + chicoinsToAdd;
