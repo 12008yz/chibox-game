@@ -151,7 +151,7 @@ async function yoomoneyWebhook(req, res) {
             logger.info(`Using ChiCoins from webhook metadata: ${chicoinsToAdd}`);
           }
 
-          user.balance = (user.balance || 0) + chicoinsToAdd;
+          user.balance = parseFloat(user.balance || 0) + chicoinsToAdd;
           await user.save();
 
           logger.info(`✅ User balance updated:`, {
@@ -322,7 +322,7 @@ async function freekassaResultURL(req, res) {
           logger.info(`Using ChiCoins from webhook params (us_chicoins): ${chicoinsToAdd}`);
         }
 
-        user.balance = (user.balance || 0) + chicoinsToAdd;
+        user.balance = parseFloat(user.balance || 0) + chicoinsToAdd;
         await user.save();
 
         logger.info(`✅ Balance updated for user ${user.id}:`, {
