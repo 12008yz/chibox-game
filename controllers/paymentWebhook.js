@@ -229,6 +229,12 @@ async function freekassaResultURL(req, res) {
     // Параметры могут приходить как в query, так и в body
     const params = { ...req.query, ...req.body };
 
+    // Обработка тестового запроса от Freekassa
+    if (params.status_check === '1' || params.status_check === 1) {
+      logger.info('Status check request from Freekassa - returning YES');
+      return res.status(200).send('YES');
+    }
+
     const {
       MERCHANT_ID,
       AMOUNT,
