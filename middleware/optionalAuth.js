@@ -7,12 +7,23 @@ const jwt = require('jsonwebtoken');
  * Если ничего нет, продолжает без ошибки
  */
 const optionalAuthMiddleware = (req, res, next) => {
-  const authHeader = req.headers.authorization;
+  let token = null;
+
+  // ПРИОРИТЕТ 1: Проверяем httpOnly cookie (безопасный метод)
+  if (req.cookies && req.cookies.auth_token) {
+    token = req.cookies.auth_token;
+  }
+
+  // ПРИОРИТЕТ 2: Проверяем Authorization header (обратная совместимость)
+  if (!token) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    }
+  }
 
   // Сначала проверяем JWT токен
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-
+  if (token) {
     try {
       if (!process.env.JWT_SECRET) {
         console.log('JWT_SECRET не настроен');
