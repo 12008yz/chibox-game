@@ -107,16 +107,9 @@ async function yoomoneyWebhook(req, res) {
     logger.debug(`Current payment status: ${payment.status}, new status: ${newStatus}`);
 
     if (payment.status !== newStatus) {
-      payment.status = newStatus;
-      payment.webhook_received = true;
-      payment.webhook_data = paymentData;
-      payment.completed_at = newStatus === 'completed' ? new Date() : null;
-      await payment.save();
-
-      logger.info(`✅ Payment status updated to ${newStatus} for paymentId=${paymentData.id}`);
-
       // Если платеж завершен успешно, активируем подписку или пополняем баланс
       if (newStatus === 'completed') {
+        // Сначала проверяем пользователя ПЕРЕД обновлением статуса
         const user = await User.findByPk(payment.user_id);
         if (!user) {
           logger.warn(`User not found for payment user_id=${payment.user_id}`);
@@ -137,29 +130,7 @@ async function yoomoneyWebhook(req, res) {
           transactionAmount = parseFloat(payment.metadata.chicoins);
         }
 
-        // Создаем запись транзакции
-        const transaction = await require('../models').Transaction.create({
-          user_id: user.id,
-          type: payment.purpose === 'subscription' ? 'subscription_purchase' : 'balance_add',
-          amount: transactionAmount,
-          description: payment.description,
-          status: 'completed',
-          related_entity_id: payment.id,
-          related_entity_type: 'Payment',
-          balance_before: user.balance,
-          balance_after: payment.purpose === 'subscription' ? user.balance : (user.balance + transactionAmount),
-          ip_address: req.ip,
-          user_agent: req.headers['user-agent'],
-          is_system: false,
-          payment_id: payment.id
-        });
-
-        logger.info(`✅ Transaction created:`, {
-          transaction_id: transaction.id,
-          type: transaction.type,
-          amount: transaction.amount
-        });
-
+        // Обрабатываем платёж в зависимости от назначения
         if (payment.purpose === 'subscription') {
           logger.info(`Activating subscription for user ${user.id} from payment ${payment.id}`);
           const tierId = payment.metadata && payment.metadata.tierId ? payment.metadata.tierId : 1;
@@ -168,15 +139,19 @@ async function yoomoneyWebhook(req, res) {
         } else if (payment.purpose === 'deposit') {
           const oldBalance = user.balance;
 
-          // Получаем количество ChiCoins из metadata
+          // Получаем количество ChiCoins из metadata или из webhook данных
           let chicoinsToAdd = parseFloat(payment.amount); // По умолчанию = рубли
 
           if (payment.metadata && payment.metadata.chicoins) {
             chicoinsToAdd = parseFloat(payment.metadata.chicoins);
             logger.info(`Using ChiCoins from metadata: ${chicoinsToAdd}`);
+          } else if (paymentData.metadata && paymentData.metadata.chicoins) {
+            // Пробуем получить из webhook данных YooKassa
+            chicoinsToAdd = parseFloat(paymentData.metadata.chicoins);
+            logger.info(`Using ChiCoins from webhook metadata: ${chicoinsToAdd}`);
           }
 
-          user.balance = (user.balance || 0) + chicoinsToAdd;
+          user.balance = parseFloat(user.balance || 0) + chicoinsToAdd;
           await user.save();
 
           logger.info(`✅ User balance updated:`, {
@@ -192,7 +167,40 @@ async function yoomoneyWebhook(req, res) {
           await addExperience(user.id, 40, 'deposit', null, 'Пополнение баланса');
           logger.info(`✅ Experience added for deposit`);
         }
+
+        // Создаем запись транзакции ПОСЛЕ успешного обновления баланса
+        const balanceBefore = payment.purpose === 'subscription' ? user.balance : (user.balance - transactionAmount);
+        const transaction = await require('../models').Transaction.create({
+          user_id: user.id,
+          type: payment.purpose === 'subscription' ? 'subscription_purchase' : 'balance_add',
+          amount: transactionAmount,
+          description: payment.description,
+          status: 'completed',
+          related_entity_id: payment.id,
+          related_entity_type: 'Payment',
+          balance_before: balanceBefore,
+          balance_after: user.balance,
+          ip_address: req.ip,
+          user_agent: req.headers['user-agent'],
+          is_system: false,
+          payment_id: payment.id
+        });
+
+        logger.info(`✅ Transaction created:`, {
+          transaction_id: transaction.id,
+          type: transaction.type,
+          amount: transaction.amount
+        });
       }
+
+      // ТОЛЬКО ПОСЛЕ успешного обновления баланса сохраняем статус платежа
+      payment.status = newStatus;
+      payment.webhook_received = true;
+      payment.webhook_data = paymentData;
+      payment.completed_at = newStatus === 'completed' ? new Date() : null;
+      await payment.save();
+
+      logger.info(`✅ Payment status updated to ${newStatus} for paymentId=${paymentData.id}`)
     } else {
       logger.debug('Payment status unchanged, no action needed');
     }
@@ -220,6 +228,12 @@ async function freekassaResultURL(req, res) {
 
     // Параметры могут приходить как в query, так и в body
     const params = { ...req.query, ...req.body };
+
+    // Обработка тестового запроса от Freekassa
+    if (params.status_check === '1' || params.status_check === 1) {
+      logger.info('Status check request from Freekassa - returning YES');
+      return res.status(200).send('YES');
+    }
 
     const {
       MERCHANT_ID,
@@ -270,18 +284,10 @@ async function freekassaResultURL(req, res) {
       user_id: payment.user_id
     });
 
-    // Обновляем статус платежа на completed
+    // Проверяем, не обработан ли уже этот платеж
     if (payment.status !== 'completed') {
-      payment.status = 'completed';
-      payment.webhook_received = true;
-      payment.payment_id = intid ? intid.toString() : MERCHANT_ORDER_ID.toString();
-      payment.webhook_data = params;
-      payment.completed_at = new Date();
-      await payment.save();
 
-      logger.info(`✅ Payment status updated to completed for OrderID=${MERCHANT_ORDER_ID}`);
-
-      // Обрабатываем успешный платеж
+      // Сначала проверяем пользователя ПЕРЕД обновлением статуса
       const user = await require('../models').User.findByPk(payment.user_id);
       if (!user) {
         logger.warn(`User not found for payment user_id=${payment.user_id}`);
@@ -302,29 +308,7 @@ async function freekassaResultURL(req, res) {
         transactionAmount = parseFloat(payment.metadata.chicoins);
       }
 
-      // Создаем запись транзакции
-      const transaction = await require('../models').Transaction.create({
-        user_id: user.id,
-        type: payment.purpose === 'subscription' ? 'subscription_purchase' : 'balance_add',
-        amount: transactionAmount,
-        description: payment.description,
-        status: 'completed',
-        related_entity_id: payment.id,
-        related_entity_type: 'Payment',
-        balance_before: user.balance,
-        balance_after: payment.purpose === 'subscription' ? user.balance : (user.balance + transactionAmount),
-        ip_address: req.ip,
-        user_agent: req.headers['user-agent'],
-        is_system: false,
-        payment_id: payment.id
-      });
-
-      logger.info(`✅ Transaction created:`, {
-        transaction_id: transaction.id,
-        type: transaction.type,
-        amount: transaction.amount
-      });
-
+      // Обрабатываем платёж в зависимости от назначения
       if (payment.purpose === 'subscription') {
         logger.info(`Activating subscription for user ${user.id} from payment ${payment.id}`);
         const tierId = payment.metadata && payment.metadata.tierId ? payment.metadata.tierId : 1;
@@ -333,15 +317,18 @@ async function freekassaResultURL(req, res) {
       } else if (payment.purpose === 'deposit') {
         const oldBalance = user.balance;
 
-        // Получаем количество ChiCoins из metadata
+        // Получаем количество ChiCoins из metadata или из параметров webhook (us_chicoins для Freekassa)
         let chicoinsToAdd = parseFloat(payment.amount);
 
         if (payment.metadata && payment.metadata.chicoins) {
           chicoinsToAdd = parseFloat(payment.metadata.chicoins);
           logger.info(`Using ChiCoins from metadata: ${chicoinsToAdd}`);
+        } else if (us_chicoins) {
+          chicoinsToAdd = parseFloat(us_chicoins);
+          logger.info(`Using ChiCoins from webhook params (us_chicoins): ${chicoinsToAdd}`);
         }
 
-        user.balance = (user.balance || 0) + chicoinsToAdd;
+        user.balance = parseFloat(user.balance || 0) + chicoinsToAdd;
         await user.save();
 
         logger.info(`✅ Balance updated for user ${user.id}:`, {
@@ -358,6 +345,40 @@ async function freekassaResultURL(req, res) {
           logger.error('Failed to add experience for deposit:', expError);
         }
       }
+
+      // Создаем запись транзакции ПОСЛЕ успешного обновления баланса
+      const balanceBefore = payment.purpose === 'subscription' ? user.balance : (user.balance - transactionAmount);
+      const transaction = await require('../models').Transaction.create({
+        user_id: user.id,
+        type: payment.purpose === 'subscription' ? 'subscription_purchase' : 'balance_add',
+        amount: transactionAmount,
+        description: payment.description,
+        status: 'completed',
+        related_entity_id: payment.id,
+        related_entity_type: 'Payment',
+        balance_before: balanceBefore,
+        balance_after: user.balance,
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent'],
+        is_system: false,
+        payment_id: payment.id
+      });
+
+      logger.info(`✅ Transaction created:`, {
+        transaction_id: transaction.id,
+        type: transaction.type,
+        amount: transaction.amount
+      });
+
+      // ТОЛЬКО ПОСЛЕ успешного обновления баланса сохраняем статус платежа
+      payment.status = 'completed';
+      payment.webhook_received = true;
+      payment.payment_id = intid ? intid.toString() : MERCHANT_ORDER_ID.toString();
+      payment.webhook_data = params;
+      payment.completed_at = new Date();
+      await payment.save();
+
+      logger.info(`✅ Payment status updated to completed for OrderID=${MERCHANT_ORDER_ID}`)
     } else {
       logger.info(`Payment ${MERCHANT_ORDER_ID} already completed, skipping processing`);
     }

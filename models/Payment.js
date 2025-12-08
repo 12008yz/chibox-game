@@ -219,6 +219,11 @@ module.exports = (sequelize) => {
       unique: true,
       allowNull: true,
       comment: "Числовой номер счета для платежных систем (например, Robokassa)"
+    },
+    metadata: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      comment: "Дополнительные данные платежа (например, chicoins, tierId)"
     }
   }, {
     timestamps: true,

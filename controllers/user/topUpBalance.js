@@ -49,7 +49,7 @@ async function topUpBalance(req, res) {
     }
 
     // Проверяем минимум и максимум в ChiCoins
-    const minChiCoins = 100;
+    const minChiCoins = 10;
     const maxChiCoins = 100000;
 
     if (amount < minChiCoins) {
