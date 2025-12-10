@@ -53,6 +53,7 @@ const { getLiveDrops } = require('../controllers/user/getLiveDrops');
 const { fetchSteamTradeUrl, getTradeUrlStatus } = require('../controllers/user/fetchSteamTradeUrl');
 const { claimSubscriptionCase, getSubscriptionCaseStatus } = require('../controllers/user/claimSubscriptionCase');
 const { createGame: createTicTacToeGame, getCurrentGame: getCurrentTicTacToeGame, makeMove: makeTicTacToeMove } = require('../controllers/user/ticTacToeController');
+const { getStatus: getTowerDefenseStatus, createGame: createTowerDefenseGame, completeGame: completeTowerDefenseGame, getStatistics: getTowerDefenseStatistics } = require('../controllers/user/towerDefenseController');
 const { getUpgradeableItems, getUpgradeOptions, performUpgrade } = require('../controllers/user/upgradeItem');
 const { topUpBalance } = require('../controllers/user/topUpBalance');
 const getCurrency = require('../controllers/user/getCurrency');
@@ -210,6 +211,12 @@ router.get('/subscription/case-status', authMiddleware, getSubscriptionCaseStatu
 router.post('/tic-tac-toe/new-game', authMiddleware, createTicTacToeGame); // Создание новой игры крестики-нолики
 router.get('/tic-tac-toe/current-game', authMiddleware, getCurrentTicTacToeGame); // Получение текущей игры
 router.post('/tic-tac-toe/move', authMiddleware, makeTicTacToeMove); // Совершение хода
+
+// Tower Defense game routes
+router.get('/tower-defense/status', authMiddleware, getTowerDefenseStatus); // Получение статуса Tower Defense
+router.post('/tower-defense/new-game', authMiddleware, createTowerDefenseGame); // Создание новой игры Tower Defense
+router.post('/tower-defense/complete', authMiddleware, completeTowerDefenseGame); // Завершение игры Tower Defense
+router.get('/tower-defense/statistics', authMiddleware, getTowerDefenseStatistics); // Статистика Tower Defense
 
 // Upgrade routes
 router.get('/upgrade/items', authMiddleware, getUpgradeableItems); // Получение предметов для апгрейда
