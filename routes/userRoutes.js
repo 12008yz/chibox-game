@@ -50,9 +50,6 @@ const { resendValidation, resendVerificationCode } = require('../controllers/use
 const { getWithdrawalStatus, cancelWithdrawal } = require('../controllers/user/withdrawItem');
 const playSafeCracker = require('../controllers/user/playSafeCracker');
 const getSafeCrackerStatus = require('../controllers/user/getSafeCrackerStatus');
-const playSlot = require('../controllers/user/playSlot');
-const { getSlotItems } = require('../controllers/user/getSlotItems');
-const getSlotStatus = require('../controllers/user/getSlotStatus');
 const { getLiveDrops } = require('../controllers/user/getLiveDrops');
 const { fetchSteamTradeUrl, getTradeUrlStatus } = require('../controllers/user/fetchSteamTradeUrl');
 const { claimSubscriptionCase, getSubscriptionCaseStatus } = require('../controllers/user/claimSubscriptionCase');
@@ -185,14 +182,6 @@ router.get('/subscription/tiers', getSubscriptionTiers); // Public route for sub
 router.post('/items/exchange-for-subscription', authMiddleware, exchangeItemForSubscription); //+
 router.post('/games/play-safe-cracker', authMiddleware, playSafeCracker); // Игра Safe Cracker
 router.get('/games/safe-cracker-status', authMiddleware, getSafeCrackerStatus); // Статус игры Safe Cracker
-router.post('/games/play-slot', authMiddleware, (req, res, next) => {
-  console.log('[ROUTE DEBUG] /games/play-slot endpoint hit');
-  console.log('[ROUTE DEBUG] User:', req.user?.id);
-  console.log('[ROUTE DEBUG] Headers:', req.headers);
-  next();
-}, playSlot); // Игра в слот
-router.get('/games/slot-items', getSlotItems); // Получение предметов для слота (публичный endpoint)
-router.get('/games/slot-status', authMiddleware, getSlotStatus); // Получение статуса слота для пользователя
 router.get('/bonus/status', authMiddleware, getBonusStatus); //+
 router.post('/bonus/reset-cooldown', authMiddleware, resetBonusCooldown); //+ Сброс кулдауна бонуса
 router.get('/cases/available', getCasesAvailable); // Доступно всем для просмотра доступных кейсов
