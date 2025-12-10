@@ -168,8 +168,8 @@ module.exports = {
       },
       {
         id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
-        name: 'Игрок в слоты',
-        description: 'Сыграйте в слоты 50 раз',
+        name: 'Любитель игр',
+        description: 'Сыграйте в мини-игры 50 раз',
         xp_reward: 300,
         icon_url: '/Achievements/игрок в слоты-no-bg-preview.png',
         requirement_type: 'slot_plays',

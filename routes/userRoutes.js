@@ -14,7 +14,6 @@ const {
   getBalance,
   applyPromo,
   getTransactions,
-  withdrawBalance,
   getAchievements,
   getMissions,
   getStatistics,
@@ -162,7 +161,6 @@ router.get('/currency', getCurrency); // Получить информацию �
 router.post('/promo', authMiddleware, applyPromo);
 router.get('/transactions', authMiddleware, getTransactions);
 
-router.post('/withdraw-balance', authMiddleware, withdrawBalance);
 router.get('/achievements', authMiddleware, getAchievements); //+
 router.get('/missions', authMiddleware, getMissions);
 router.get('/statistics', authMiddleware, getStatistics); //+
