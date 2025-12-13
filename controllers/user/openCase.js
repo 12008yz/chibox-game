@@ -722,7 +722,7 @@ async function openCase(req, res) {
         logger.info(`Обновлено достижение rare_items_found для пользователя ${userId}`);
       }
 
-      // 5. Проверяем дорогие предметы (от 100 руб)
+      // 5. Проверяем дорогие предметы (от 100 ChiCoins)
       if (selectedItem.price && selectedItem.price >= 100) {
         await updateUserAchievementProgress(userId, 'premium_items_found', 1);
         logger.info(`Обновлено достижение premium_items_found для пользователя ${userId}`);
@@ -904,17 +904,17 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
     logger.info(`Открытие кейса из инвентаря. Предметов в кейсе: ${items.length}, userDropBonus: ${userDropBonus}%, userSubscriptionTier: ${userSubscriptionTier}`);
     logger.info(`Бонусы пользователя для инвентарного кейса: итого=${user.total_drop_bonus_percentage || 0}%`);
 
-    // Ограничиваем стоимость предметов для "Бонусного кейса" до 50₽ согласно анализу экономики
+    // Ограничиваем стоимость предметов для "Бонусного кейса" до 50 ChiCoins согласно анализу экономики
     let filteredItems = items;
     if (inventoryCase.case_template.name === 'Бонусный кейс') {
       filteredItems = items.filter(item => {
         const price = parseFloat(item.price) || 0;
         return price <= 50;
       });
-      logger.info(`Бонусный кейс: отфильтровано предметов по цене ≤50₽: ${items.length} -> ${filteredItems.length}`);
+      logger.info(`Бонусный кейс: отфильтровано предметов по цене ≤50 ChiCoins: ${items.length} -> ${filteredItems.length}`);
 
       if (filteredItems.length === 0) {
-        logger.warn('Бонусный кейс: нет предметов стоимостью ≤50₽, используем все предметы');
+        logger.warn('Бонусный кейс: нет предметов стоимостью ≤50 ChiCoins, используем все предметы');
         filteredItems = items;
       }
     }
@@ -1182,7 +1182,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
           logger.info(`Обновлено достижение rare_items_found для пользователя ${userId} (из инвентаря)`);
         }
 
-        // 5. Проверяем дорогие предметы (от 100 руб)
+        // 5. Проверяем дорогие предметы (от 100 ChiCoins)
         if (selectedItem.price && selectedItem.price >= 100) {
           await updateUserAchievementProgress(userId, 'premium_items_found', 1);
           logger.info(`Обновлено достижение premium_items_found для пользователя ${userId} (из инвентаря)`);

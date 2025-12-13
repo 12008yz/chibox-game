@@ -6,7 +6,7 @@ const { updateUserAchievementProgress } = require('../../services/achievementSer
 const { activateSubscription } = require('../../services/subscriptionService');
 const { addExperience } = require('../../services/xpService');
 
-// Цены в ChiCoins (1 ChiCoin = 1₽)
+// Цены в ChiCoins
 const subscriptionTiers = {
   1: { days: 30, max_daily_cases: 1, bonus_percentage: 2.0, name: 'Статус', price: 1811 },      // 1800 ChiCoins
   2: { days: 30, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус+', price: 3666 },     // 3600 ChiCoins

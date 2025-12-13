@@ -36,25 +36,25 @@ async function exchangeItemForSubscription(req, res) {
     // Получить пользователя и определить тариф
     const user = await User.findByPk(userId, { transaction });
 
-    // Получить стоимость предмета в рублях
+    // Получить стоимость предмета в ChiCoins
     const itemPrice = parseFloat(inventoryItem.item.price || 0);
-    console.log(`Item price: ${itemPrice} rubles`);
+    console.log(`Item price: ${itemPrice} ChiCoins`);
 
     // Определяем цену за день в зависимости от текущего тарифа подписки
     let pricePerDay;
     const currentTier = user.subscription_tier || 1; // По умолчанию тариф 1
 
     if (currentTier === 3) {
-      pricePerDay = 350; // 350₽ за день для тарифа "Статус++" (оптимизировано)
+      pricePerDay = 350; // 350 ChiCoins за день для тарифа "Статус++" (оптимизировано)
     } else {
-      pricePerDay = 200; // 200₽ за день для тарифов "Статус" и "Статус+" (оптимизировано)
+      pricePerDay = 200; // 200 ChiCoins за день для тарифов "Статус" и "Статус+" (оптимизировано)
     }
 
-    console.log(`Using price per day: ${pricePerDay}₽ for tier ${currentTier}`);
+    console.log(`Using price per day: ${pricePerDay} ChiCoins for tier ${currentTier}`);
 
     // Вычисляем количество дней подписки с правильной логикой (оптимизировано)
-    // Для тарифа 3: 330-350₽ = 1 день, 680-700₽ = 2 дня и т.д.
-    // Для тарифов 1,2: 190-200₽ = 1 день, 390-400₽ = 2 дня и т.д.
+    // Для тарифа 3: 330-350 ChiCoins = 1 день, 680-700 ChiCoins = 2 дня и т.д.
+    // Для тарифов 1,2: 190-200 ChiCoins = 1 день, 390-400 ChiCoins = 2 дня и т.д.
     const subscriptionDays = Math.floor((itemPrice + pricePerDay * 0.067) / pricePerDay);
 
     console.log(`Calculated subscription days: ${subscriptionDays} for item price ${itemPrice} (formula: floor((${itemPrice} + ${pricePerDay * 0.067}) / ${pricePerDay})) for tier ${currentTier}`);
@@ -65,7 +65,7 @@ async function exchangeItemForSubscription(req, res) {
       await transaction.rollback();
       return res.status(400).json({
         success: false,
-        message: `Предмет слишком дешевый для обмена. Минимальная стоимость для тарифа ${currentTier}: ${minPrice}₽ (стоимость предмета: ${itemPrice}₽)`,
+        message: `Предмет слишком дешевый для обмена. Минимальная стоимость для тарифа ${currentTier}: ${minPrice} ChiCoins (стоимость предмета: ${itemPrice} ChiCoins)`,
         required_price: minPrice,
         item_price: itemPrice,
         tier: currentTier,

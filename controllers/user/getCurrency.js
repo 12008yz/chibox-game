@@ -47,7 +47,7 @@ async function getCurrency(req, res) {
         topUpPackages,
         conversionInfo: {
           base: 'ChiCoins базируются на российском рубле',
-          formula: '1₽ = 1 ChiCoin ⚡',
+          formula: '1 ChiCoin = 1 ChiCoin ⚡',
           note: 'Курсы обновляются ежечасно'
         }
       }

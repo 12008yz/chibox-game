@@ -77,11 +77,11 @@ async function sellItem(req, res) {
       // Добавление опыта за продажу предмета (после коммита)
       await addExperience(userId, 15, 'sell_item', null, 'Продажа предмета');
 
-      logger.info(`Пользователь ${userId} продал 1 экземпляр предмета ${item.name} (inventory ID: ${effectiveItemId}, item ID: ${inventoryItem.item_id}) за ${sellPrice}₽`);
+      logger.info(`Пользователь ${userId} продал 1 экземпляр предмета ${item.name} (inventory ID: ${effectiveItemId}, item ID: ${inventoryItem.item_id}) за ${sellPrice} ChiCoins`);
 
       return res.json({
         success: true,
-        message: `Предмет продан за ${sellPrice}₽`,
+        message: `Предмет продан за ${sellPrice} ChiCoins`,
         data: { new_balance: parseFloat(user.balance) }
       });
     }

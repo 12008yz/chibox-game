@@ -104,7 +104,7 @@ async function buyCase(req, res) {
           logger.error('Ошибка при добавлении опыта:', err);
         });
 
-        logger.info(`Пользователь ${userId} купил ${allowedQuantity} кейсов за баланс (${totalPrice}₽)`);
+        logger.info(`Пользователь ${userId} купил ${allowedQuantity} кейсов за баланс (${totalPrice} ChiCoins)`);
 
         return res.json({
           success: true,
@@ -148,7 +148,7 @@ async function buyCase(req, res) {
           }
         });
 
-        logger.info(`Платеж добавлен в очередь для покупки ${allowedQuantity} кейсов на сумму ${totalPrice}₽`);
+        logger.info(`Платеж добавлен в очередь для покупки ${allowedQuantity} кейсов на сумму ${totalPrice} ChiCoins`);
 
         // Пока что возвращаем временную ссылку, в реальности нужно дождаться обработки
         const paymentUrl = `payment-processing-${paymentJob.id}`;

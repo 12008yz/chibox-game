@@ -41,7 +41,7 @@ function countMatches(secretCode, userCode) {
 function determinePrize() {
   const random = Math.random() * 100;
 
-  // 5% шанс выиграть деньги (от 15 до 50 рублей)
+  // 5% шанс выиграть ChiCoins (от 15 до 50 ChiCoins)
   if (random < 5) {
     const amount = Math.floor(Math.random() * (50 - 15 + 1)) + 15;
     return { type: 'money', value: amount, matches: 3 };
@@ -128,7 +128,7 @@ async function validateSafeCrackerItems() {
 
     // Проверяем каждый предмет
     items.forEach(item => {
-      logger.info(`SafeCracker Item: ID=${item.id}, Name="${item.name}", Price=${item.price}₽, Rarity=${item.rarity}, Available=${item.is_available}`);
+      logger.info(`SafeCracker Item: ID=${item.id}, Name="${item.name}", Price=${item.price} ChiCoins, Rarity=${item.rarity}, Available=${item.is_available}`);
 
       // Проверяем наличие всех необходимых полей для операций
       const hasAllFields = item.id && item.name && item.price && item.rarity && item.image_url;
@@ -188,7 +188,7 @@ async function selectRandomItem() {
     }
 
     const randomItem = items[Math.floor(Math.random() * items.length)];
-    logger.info(`SafeCracker: Выбран предмет "${randomItem.name}" (ID: ${randomItem.id}, Price: ${randomItem.price}₽)`);
+    logger.info(`SafeCracker: Выбран предмет "${randomItem.name}" (ID: ${randomItem.id}, Price: ${randomItem.price} ChiCoins)`);
     return randomItem;
   } catch (error) {
     logger.error('SafeCracker: Ошибка при выборе предмета:', error);
@@ -280,9 +280,9 @@ const playSafeCracker = async (req, res) => {
       user.balance = balanceAfter;
       user.has_won_safecracker = true;
 
-      message = `🎉 Поздравляем! ${matches} совпадения! Вы выиграли ${prize.value}₽ на баланс!`;
+      message = `🎉 Поздравляем! ${matches} совпадения! Вы выиграли ${prize.value} ChiCoins на баланс!`;
 
-      logger.info(`Пользователь ${user.username} выиграл ${prize.value}₽ в SafeCracker. Баланс: ${balanceBefore} -> ${balanceAfter}`);
+      logger.info(`Пользователь ${user.username} выиграл ${prize.value} ChiCoins в SafeCracker. Баланс: ${balanceBefore} -> ${balanceAfter}`);
 
       // Создаем транзакцию
       await Transaction.create({
@@ -291,7 +291,7 @@ const playSafeCracker = async (req, res) => {
         amount: prize.value,
         balance_before: balanceBefore,
         balance_after: balanceAfter,
-        description: `Выигрыш в Safe Cracker: ${prize.value}₽`,
+        description: `Выигрыш в Safe Cracker: ${prize.value} ChiCoins`,
         status: 'completed'
       });
 
