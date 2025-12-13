@@ -1,7 +1,8 @@
-const { TowerDefenseGame, User, Transaction } = require('../../models');
+const { TowerDefenseGame, User, Transaction, UserInventory, Item } = require('../../models');
 const { Op } = require('sequelize');
 const { logger } = require('../../utils/logger');
 const sequelize = require('../../config/database');
+const { selectRewardItem } = require('../../services/towerDefenseRewardService');
 
 // Лимиты попыток для разных уровней подписки
 const TOWER_DEFENSE_LIMITS = {
@@ -124,8 +125,8 @@ const getStatus = async (req, res) => {
     const limit = getTowerDefenseLimit(user.subscription_tier);
 
     res.json({
-      canPlay: user.tower_defense_attempts_left > 0,
-      attemptsLeft: user.tower_defense_attempts_left,
+      canPlay: true, // Бесконечные попытки
+      attemptsLeft: 999999, // Показываем большое число для UI
       maxAttempts: limit,
       currentGame: currentGame,
       hasSubscription: user.subscription_tier > 0,
@@ -146,6 +147,7 @@ const createGame = async (req, res) => {
 
   try {
     const userId = req.user.id;
+    const { inventoryItemId } = req.body; // ID предмета из инвентаря для ставки
 
     const user = await User.findByPk(userId, { transaction });
     if (!user) {
@@ -153,16 +155,9 @@ const createGame = async (req, res) => {
       return res.status(404).json({ error: 'Пользователь не найден' });
     }
 
-    await checkAndResetUserAttempts(user);
-
-    // Проверяем наличие попыток
-    if (user.tower_defense_attempts_left <= 0) {
-      await transaction.rollback();
-      return res.status(403).json({
-        error: 'Нет доступных попыток',
-        attemptsLeft: 0
-      });
-    }
+    // Убрана проверка попыток - бесконечные попытки
+    // await checkAndResetUserAttempts(user);
+    // if (user.tower_defense_attempts_left <= 0) { ... }
 
     // Проверяем, нет ли уже активной игры
     const existingGame = await TowerDefenseGame.findOne({
@@ -181,6 +176,48 @@ const createGame = async (req, res) => {
       });
     }
 
+    let betItem = null;
+    let betInventoryItem = null;
+    let rewardItem = null;
+
+    // Если указан предмет для ставки, проверяем его
+    if (inventoryItemId) {
+      betInventoryItem = await UserInventory.findOne({
+        where: {
+          id: inventoryItemId,
+          user_id: userId,
+          status: 'inventory',
+          item_type: 'item'
+        },
+        include: [{
+          model: Item,
+          as: 'item'
+        }],
+        transaction
+      });
+
+      if (!betInventoryItem || !betInventoryItem.item) {
+        await transaction.rollback();
+        return res.status(404).json({ error: 'Предмет для ставки не найден в вашем инвентаре' });
+      }
+
+      betItem = betInventoryItem.item;
+
+      // Выбираем предмет-награду
+      rewardItem = await selectRewardItem(betItem.price);
+      if (!rewardItem) {
+        await transaction.rollback();
+        return res.status(500).json({ error: 'Не удалось подобрать предмет-награду. Попробуйте позже.' });
+      }
+
+      // Удаляем предмет ставки из инвентаря
+      betInventoryItem.status = 'used';
+      betInventoryItem.transaction_date = new Date();
+      await betInventoryItem.save({ transaction });
+
+      logger.info(`[TOWER_DEFENSE] Пользователь ${user.username} поставил предмет ${betItem.name} (${betItem.price}) на кон`);
+    }
+
     // Создаем новую игру
     const game = await TowerDefenseGame.create({
       user_id: userId,
@@ -189,20 +226,35 @@ const createGame = async (req, res) => {
       enemies_killed: 0,
       towers_built: 0,
       score: 0,
-      result: 'in_progress'
+      result: 'in_progress',
+      bet_item_id: betItem ? betItem.id : null,
+      bet_inventory_id: betInventoryItem ? betInventoryItem.id : null,
+      reward_item_id: rewardItem ? rewardItem.id : null
     }, { transaction });
 
-    // Уменьшаем количество попыток
-    user.tower_defense_attempts_left -= 1;
-    await user.save({ transaction });
+    // Убрано уменьшение попыток - бесконечные попытки
+    // user.tower_defense_attempts_left -= 1;
+    // await user.save({ transaction });
 
     await transaction.commit();
 
-    logger.info(`[TOWER_DEFENSE] Игра создана для пользователя ${user.username}, осталось попыток: ${user.tower_defense_attempts_left}`);
+    logger.info(`[TOWER_DEFENSE] Игра создана для пользователя ${user.username} (бесконечные попытки)`);
 
     res.json({
       game: game,
-      attemptsLeft: user.tower_defense_attempts_left,
+      betItem: betItem ? {
+        id: betItem.id,
+        name: betItem.name,
+        price: betItem.price,
+        image_url: betItem.image_url
+      } : null,
+      rewardItem: rewardItem ? {
+        id: rewardItem.id,
+        name: rewardItem.name,
+        price: rewardItem.price,
+        image_url: rewardItem.image_url
+      } : null,
+      attemptsLeft: 999999, // Бесконечные попытки
       message: 'Игра создана успешно'
     });
 
@@ -271,20 +323,52 @@ const completeGame = async (req, res) => {
     await game.save({ transaction });
 
     // Выдаем награду, если победа
-    if (result === 'win' && rewardAmount > 0) {
-      user.balance = parseFloat(user.balance || 0) + rewardAmount;
-      await user.save({ transaction });
+    let rewardItemData = null;
+    if (result === 'win') {
+      // Если была ставка предметом, выдаем предмет-награду
+      if (game.reward_item_id) {
+        const rewardItem = await Item.findByPk(game.reward_item_id, { transaction });
+        if (rewardItem) {
+          // Добавляем предмет-награду в инвентарь
+          const rewardInventoryItem = await UserInventory.create({
+            user_id: userId,
+            item_id: rewardItem.id,
+            item_type: 'item',
+            source: 'tower_defense',
+            status: 'inventory',
+            acquisition_date: new Date()
+          }, { transaction });
 
-      // Создаем транзакцию
-      await Transaction.create({
-        user_id: userId,
-        type: 'bonus',
-        amount: rewardAmount,
-        description: `Награда за Tower Defense (волны: ${game.waves_completed}/${game.total_waves})`,
-        status: 'completed'
-      }, { transaction });
+          rewardItemData = {
+            id: rewardItem.id,
+            name: rewardItem.name,
+            price: rewardItem.price,
+            image_url: rewardItem.image_url
+          };
 
-      logger.info(`[TOWER_DEFENSE] Пользователь ${user.username} получил награду ${rewardAmount} за победу`);
+          logger.info(`[TOWER_DEFENSE] Пользователь ${user.username} получил предмет-награду ${rewardItem.name} (${rewardItem.price}) за победу`);
+        }
+      }
+
+      // Также выдаем денежную награду, если она есть
+      if (rewardAmount > 0) {
+        user.balance = parseFloat(user.balance || 0) + rewardAmount;
+        await user.save({ transaction });
+
+        // Создаем транзакцию
+        await Transaction.create({
+          user_id: userId,
+          type: 'bonus',
+          amount: rewardAmount,
+          description: `Награда за Tower Defense (волны: ${game.waves_completed}/${game.total_waves})`,
+          status: 'completed'
+        }, { transaction });
+
+        logger.info(`[TOWER_DEFENSE] Пользователь ${user.username} получил денежную награду ${rewardAmount} за победу`);
+      }
+    } else {
+      // При поражении предмет ставки теряется (уже удален при создании игры)
+      logger.info(`[TOWER_DEFENSE] Пользователь ${user.username} проиграл, предмет ставки потерян`);
     }
 
     await transaction.commit();
@@ -292,8 +376,11 @@ const completeGame = async (req, res) => {
     res.json({
       game: game,
       reward: rewardAmount,
+      rewardItem: rewardItemData,
       newBalance: user.balance,
-      message: result === 'win' ? 'Победа! Награда получена!' : 'Поражение. Попробуйте снова!'
+      message: result === 'win' 
+        ? (rewardItemData ? 'Победа! Предмет-награда получен!' : 'Победа! Награда получена!')
+        : 'Поражение. Предмет ставки потерян.'
     });
 
   } catch (error) {

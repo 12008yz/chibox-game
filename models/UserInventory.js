@@ -32,7 +32,7 @@ module.exports = (sequelize) => {
       comment: "Дата получения предмета"
     },
     source: {
-      type: DataTypes.ENUM('case', 'bonus', 'achievement', 'purchase', 'system', 'upgrade', 'subscription', 'free_case'),
+      type: DataTypes.ENUM('case', 'bonus', 'achievement', 'purchase', 'system', 'upgrade', 'subscription', 'free_case', 'tower_defense'),
       allowNull: false,
       defaultValue: 'case',
       comment: "Источник получения предмета"

@@ -43,15 +43,42 @@ module.exports = (sequelize, DataTypes) => {
        defaultValue: 'in_progress',
        allowNull: false
      },
-     reward_amount: {
-       type: DataTypes.DECIMAL(10, 2),
-       defaultValue: 0,
-       allowNull: true
-     },
-     game_data: {
-       type: DataTypes.JSONB,
-       allowNull: true
-     },
+    reward_amount: {
+      type: DataTypes.DECIMAL(10, 2),
+      defaultValue: 0,
+      allowNull: true
+    },
+    bet_item_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'items',
+        key: 'id'
+      },
+      comment: "ID предмета, поставленного на кон"
+    },
+    bet_inventory_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'user_inventory',
+        key: 'id'
+      },
+      comment: "ID записи инвентаря с предметом ставки"
+    },
+    reward_item_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'items',
+        key: 'id'
+      },
+      comment: "ID предмета-награды за победу"
+    },
+    game_data: {
+      type: DataTypes.JSONB,
+      allowNull: true
+    },
      completed_at: {
        type: DataTypes.DATE,
        allowNull: true
@@ -63,6 +90,21 @@ module.exports = (sequelize, DataTypes) => {
      createdAt: 'created_at',
      updatedAt: 'updated_at'
    });
+
+   TowerDefenseGame.associate = (models) => {
+     TowerDefenseGame.belongsTo(models.Item, {
+       foreignKey: 'bet_item_id',
+       as: 'bet_item'
+     });
+     TowerDefenseGame.belongsTo(models.Item, {
+       foreignKey: 'reward_item_id',
+       as: 'reward_item'
+     });
+     TowerDefenseGame.belongsTo(models.UserInventory, {
+       foreignKey: 'bet_inventory_id',
+       as: 'bet_inventory'
+     });
+   };
    
      return TowerDefenseGame;
    };
