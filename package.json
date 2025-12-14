@@ -24,7 +24,6 @@
     "playerok:dev": "nodemon ./scripts/playerok-arbitrage.js"
   },
   "dependencies": {
-    "@fastify/csrf-protection": "^6.0.0",
     "@playwright/test": "^1.52.0",
     "argon2": "^0.43.0",
     "axios": "^1.9.0",
@@ -33,12 +32,13 @@
     "compression": "^1.8.0",
     "connect-session-sequelize": "^7.1.7",
     "cookie-parser": "~1.4.4",
+    "csrf-csrf": "^4.0.3",
     "debug": "~2.6.9",
     "dotenv": "^16.5.0",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
     "express-session": "^1.18.1",
-    "express-validator": "^7.2.1",
+    "express-validator": "^7.3.0",
     "helmet": "^8.1.0",
     "http-errors": "~1.6.3",
     "jsonwebtoken": "^9.0.2",
