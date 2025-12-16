@@ -6,6 +6,7 @@ const { revokedTokens } = require('../../middleware/auth');
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
+const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
   throw new Error('JWT_SECRET must be at least 32 characters long');
@@ -16,6 +17,10 @@ if (!JWT_REFRESH_SECRET || JWT_REFRESH_SECRET.length < 32) {
 
 function generateToken(user) {
   return jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+}
+
+function generateRefreshToken(user) {
+  return jwt.sign({ id: user.id, email: user.email, type: 'refresh' }, JWT_REFRESH_SECRET, { expiresIn: JWT_REFRESH_EXPIRES_IN });
 }
 
 async function refreshToken(req, res) {
@@ -70,15 +75,38 @@ async function refreshToken(req, res) {
       });
     }
 
-    // Генерируем новый access token
-    const newAccessToken = generateToken(user);
+    // Отзываем старый refresh token (token rotation для безопасности)
+    revokedTokens.add(refreshToken);
+    logger.info('[REFRESH] Old refresh token revoked');
 
-    logger.info('[REFRESH] New access token generated for user:', user.id);
+    // Генерируем новые access и refresh токены
+    const newAccessToken = generateToken(user);
+    const newRefreshToken = generateRefreshToken(user);
+
+    // Устанавливаем новый access token в httpOnly cookie
+    res.cookie('accessToken', newAccessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000, // 15 минут
+      path: '/'
+    });
+
+    // Устанавливаем новый refresh token в httpOnly cookie
+    res.cookie('refreshToken', newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 дней
+      path: '/'
+    });
+
+    logger.info('[REFRESH] New tokens generated and set in cookies for user:', user.id);
 
     return res.json({
       success: true,
-      token: newAccessToken,
-      message: 'Токен успешно обновлен'
+      token: newAccessToken, // Оставляем для обратной совместимости
+      message: 'Токены успешно обновлены'
     });
 
   } catch (error) {

@@ -6,13 +6,22 @@ const { updateUserBonuses } = require('../../utils/userBonusCalculator');
 const { addExperience } = require('../../services/xpService');
 
 const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
   throw new Error('JWT_SECRET must be at least 32 characters long');
 }
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1d';
+if (!JWT_REFRESH_SECRET || JWT_REFRESH_SECRET.length < 32) {
+  throw new Error('JWT_REFRESH_SECRET must be at least 32 characters long');
+}
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
+const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
 function generateToken(user) {
   return jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+}
+
+function generateRefreshToken(user) {
+  return jwt.sign({ id: user.id, email: user.email, type: 'refresh' }, JWT_REFRESH_SECRET, { expiresIn: JWT_REFRESH_EXPIRES_IN });
 }
 
 // Используем Map для безопасного хранения неудачных попыток входа (защита от Prototype Pollution)
@@ -150,13 +159,32 @@ async function login(req, res) {
     const achievements = userWithDetails ? userWithDetails.achievements : [];
     const inventory = userWithDetails ? userWithDetails.inventory : [];
 
-    logger.info('[LOGIN] Generating JWT token for user:', user.id);
-    const token = generateToken(user);
+    logger.info('[LOGIN] Generating JWT tokens for user:', user.id);
+    const accessToken = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    // Устанавливаем access token в httpOnly cookie
+    res.cookie('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60 * 1000, // 15 минут
+      path: '/'
+    });
+
+    // Устанавливаем refresh token в httpOnly cookie
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 дней
+      path: '/'
+    });
 
     logger.info('[LOGIN] Preparing response data...');
     const response = {
       success: true,
-      token,
+      token: accessToken, // Оставляем для обратной совместимости с frontend
       user: {
         id: user.id,
         email: user.email,
