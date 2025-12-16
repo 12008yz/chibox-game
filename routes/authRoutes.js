@@ -92,13 +92,35 @@ router.get('/status', auth, (req, res) => {
 
 // Разлогин
 router.post('/logout', (req, res) => {
-  req.logout((err) => {
-    if (err) {
-      logger.error('Ошибка при выходе:', err);
-      return res.status(500).json({ message: 'Ошибка при выходе' });
-    }
-    res.json({ message: 'Выход выполнен успешно' });
+  // Очищаем httpOnly cookies с токенами
+  res.clearCookie('accessToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/'
   });
+
+  res.clearCookie('refreshToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/'
+  });
+
+  // Выполняем стандартный logout если есть сессия
+  if (req.logout) {
+    req.logout((err) => {
+      if (err) {
+        logger.error('Ошибка при выходе из сессии:', err);
+        // Не возвращаем ошибку, так как cookies уже очищены
+      }
+      logger.info('Logout выполнен успешно');
+      res.json({ success: true, message: 'Выход выполнен успешно' });
+    });
+  } else {
+    logger.info('Logout выполнен успешно (без сессии)');
+    res.json({ success: true, message: 'Выход выполнен успешно' });
+  }
 });
 
 // Привязка Steam аккаунта к существующему пользователю

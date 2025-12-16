@@ -84,19 +84,20 @@ async function refreshToken(req, res) {
     const newRefreshToken = generateRefreshToken(user);
 
     // Устанавливаем новый access token в httpOnly cookie
+    // БЕЗОПАСНОСТЬ: httpOnly=true - защита от XSS, secure=true - только HTTPS, sameSite='strict' - защита от CSRF
     res.cookie('accessToken', newAccessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      httpOnly: true, // JavaScript не может получить доступ к cookie
+      secure: process.env.NODE_ENV === 'production', // Только HTTPS в продакшене
+      sameSite: 'strict', // Защита от CSRF атак
       maxAge: 15 * 60 * 1000, // 15 минут
       path: '/'
     });
 
     // Устанавливаем новый refresh token в httpOnly cookie
     res.cookie('refreshToken', newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      httpOnly: true, // JavaScript не может получить доступ к cookie
+      secure: process.env.NODE_ENV === 'production', // Только HTTPS в продакшене
+      sameSite: 'strict', // Защита от CSRF атак
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 дней
       path: '/'
     });
@@ -105,7 +106,8 @@ async function refreshToken(req, res) {
 
     return res.json({
       success: true,
-      token: newAccessToken, // Оставляем для обратной совместимости
+      // БЕЗОПАСНОСТЬ: Токены теперь только в httpOnly cookies, НЕ в теле ответа
+      // Это защищает от XSS атак - JavaScript не может получить доступ к токенам
       message: 'Токены успешно обновлены'
     });
 

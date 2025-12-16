@@ -164,19 +164,20 @@ async function login(req, res) {
     const refreshToken = generateRefreshToken(user);
 
     // Устанавливаем access token в httpOnly cookie
+    // БЕЗОПАСНОСТЬ: httpOnly=true - защита от XSS, secure=true - только HTTPS, sameSite='strict' - защита от CSRF
     res.cookie('accessToken', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      httpOnly: true, // JavaScript не может получить доступ к cookie
+      secure: process.env.NODE_ENV === 'production', // Только HTTPS в продакшене
+      sameSite: 'strict', // Защита от CSRF атак
       maxAge: 15 * 60 * 1000, // 15 минут
       path: '/'
     });
 
     // Устанавливаем refresh token в httpOnly cookie
     res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      httpOnly: true, // JavaScript не может получить доступ к cookie
+      secure: process.env.NODE_ENV === 'production', // Только HTTPS в продакшене
+      sameSite: 'strict', // Защита от CSRF атак
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 дней
       path: '/'
     });
@@ -184,7 +185,8 @@ async function login(req, res) {
     logger.info('[LOGIN] Preparing response data...');
     const response = {
       success: true,
-      token: accessToken, // Оставляем для обратной совместимости с frontend
+      // БЕЗОПАСНОСТЬ: Токены теперь только в httpOnly cookies, НЕ в теле ответа
+      // Это защищает от XSS атак - JavaScript не может получить доступ к токенам
       user: {
         id: user.id,
         email: user.email,
@@ -234,7 +236,7 @@ async function login(req, res) {
       id: user.id,
       username: user.username,
       email: user.email,
-      hasToken: !!token
+      hasToken: !!accessToken
     });
     return res.json(response);
 
