@@ -5,8 +5,12 @@ const { logger } = require('../utils/logger');
 const auth = require('../middleware/auth');
 const db = require('../models');
 const { getTradeUrlFromSteam, getTradePrivacyUrl } = require('../utils/steamTradeHelper');
+const { refreshToken } = require('../controllers/user/refreshToken');
 
 const router = express.Router();
+
+// Обновление access токена через refresh token
+router.post('/refresh', refreshToken);
 
 // Steam OAuth - начало авторизации (быстрый метод с прямым редиректом)
 router.get('/steam', (req, res, next) => {

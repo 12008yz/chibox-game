@@ -15,13 +15,22 @@ const logger = winston.createLogger({
 });
 
 const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 if (!JWT_SECRET || JWT_SECRET.length < 32) {
   throw new Error('JWT_SECRET must be at least 32 characters long');
 }
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1d';
+if (!JWT_REFRESH_SECRET || JWT_REFRESH_SECRET.length < 32) {
+  throw new Error('JWT_REFRESH_SECRET must be at least 32 characters long');
+}
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
+const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
 function generateToken(user) {
   return jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+}
+
+function generateRefreshToken(user) {
+  return jwt.sign({ id: user.id, email: user.email, type: 'refresh' }, JWT_REFRESH_SECRET, { expiresIn: JWT_REFRESH_EXPIRES_IN });
 }
 
 const verifyEmailValidation = [
@@ -107,8 +116,18 @@ async function verifyEmail(req, res) {
       include: [{ model: db.Item, as: 'item' }]
     });
 
-    // Генерируем JWT токен
-    const token = generateToken(user);
+    // Генерируем JWT токены
+    const accessToken = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    // Устанавливаем refresh token в httpOnly cookie
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 дней
+      path: '/'
+    });
 
     logger.info('Email verified successfully', {
       userId: user.id,
@@ -118,7 +137,7 @@ async function verifyEmail(req, res) {
     return res.status(200).json({
       success: true,
       message: 'Email успешно подтвержден. Добро пожаловать в ChiBox Game!',
-      token,
+      token: accessToken,
       user: {
         id: user.id,
         email: user.email,
