@@ -105,6 +105,28 @@ async function applyPromo(req, res) {
         logger.info(`Баланс пользователя ${userId}: ${balanceBefore} -> ${balanceAfter} (промокод ${code})`);
         break;
 
+      case 'balance_percentage':
+        // Процентный бонус применяется к текущему балансу (для промокодов пополнения)
+        // Можно также привязать к сумме последнего пополнения, но это сложнее
+        const percentageBonus = (balanceBefore * value) / 100;
+        balanceAfter = balanceBefore + percentageBonus;
+        user.balance = balanceAfter;
+        message = `Промокод применён! Вы получили +${value}% к балансу (${percentageBonus.toFixed(2)} ChiCoins)`;
+
+        // Создаем транзакцию
+        await db.Transaction.create({
+          user_id: userId,
+          type: 'promo_code',
+          amount: percentageBonus,
+          balance_before: balanceBefore,
+          balance_after: balanceAfter,
+          description: `Промокод ${code}: +${value}% к балансу`,
+          status: 'completed'
+        }, { transaction });
+
+        logger.info(`Баланс пользователя ${userId}: ${balanceBefore} -> ${balanceAfter} (промокод ${code}, +${value}%)`);
+        break;
+
       case 'subscription_extend':
         user.subscription_days_left = (user.subscription_days_left || 0) + Math.floor(value);
         if (user.subscription_tier === 0) {

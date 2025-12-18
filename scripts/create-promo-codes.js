@@ -5,17 +5,65 @@ async function createPromoCodes() {
     console.log('🎁 Создание тестовых промокодов...\n');
 
     const promoCodes = [
+      // Промокоды для пополнения баланса (процентные бонусы)
+      {
+        code: 'DEPOSIT15',
+        description: '+15% к пополнению баланса',
+        type: 'balance_percentage',
+        value: 15,
+        is_percentage: true,
+        is_active: true,
+        max_usages: null,
+        max_usages_per_user: 5, // Можно использовать несколько раз
+        usage_count: 0,
+        required_user_type: 'any',
+        min_user_level: 0,
+        min_payment_amount: 100,
+        category: 'deposit' // Для пополнения
+      },
+      {
+        code: 'DEPOSIT10',
+        description: '+10% к пополнению баланса',
+        type: 'balance_percentage',
+        value: 10,
+        is_percentage: true,
+        is_active: true,
+        max_usages: null,
+        max_usages_per_user: 10,
+        usage_count: 0,
+        required_user_type: 'any',
+        min_user_level: 0,
+        min_payment_amount: 50,
+        category: 'deposit'
+      },
+      {
+        code: 'DEPOSIT5',
+        description: '+5% к пополнению баланса',
+        type: 'balance_percentage',
+        value: 5,
+        is_percentage: true,
+        is_active: true,
+        max_usages: null,
+        max_usages_per_user: 20,
+        usage_count: 0,
+        required_user_type: 'any',
+        min_user_level: 0,
+        min_payment_amount: 10,
+        category: 'deposit'
+      },
+      // Обычные промокоды (для профиля)
       {
         code: 'WELCOME100',
         description: 'Приветственный промокод - 100 ChiCoins',
         type: 'balance_add',
         value: 100,
         is_active: true,
-        max_usages: null, // Неограниченно
+        max_usages: null,
         max_usages_per_user: 1,
         usage_count: 0,
         required_user_type: 'any',
-        min_user_level: 0
+        min_user_level: 0,
+        category: 'general'
       },
       {
         code: 'BONUS500',
@@ -23,11 +71,12 @@ async function createPromoCodes() {
         type: 'balance_add',
         value: 500,
         is_active: true,
-        max_usages: 100, // Максимум 100 использований
+        max_usages: 100,
         max_usages_per_user: 1,
         usage_count: 0,
         required_user_type: 'any',
-        min_user_level: 0
+        min_user_level: 0,
+        category: 'general'
       },
       {
         code: 'VIP7DAYS',
@@ -40,7 +89,8 @@ async function createPromoCodes() {
         usage_count: 0,
         subscription_tier: 1,
         required_user_type: 'any',
-        min_user_level: 0
+        min_user_level: 0,
+        category: 'general'
       },
       {
         code: 'MEGA1000',
@@ -48,11 +98,12 @@ async function createPromoCodes() {
         type: 'balance_add',
         value: 1000,
         is_active: true,
-        max_usages: 20, // Ограниченное количество
+        max_usages: 20,
         max_usages_per_user: 1,
         usage_count: 0,
         required_user_type: 'any',
-        min_user_level: 5 // Только для пользователей с уровнем 5+
+        min_user_level: 5,
+        category: 'general'
       },
       {
         code: 'LEVEL10GIFT',
@@ -64,7 +115,8 @@ async function createPromoCodes() {
         max_usages_per_user: 1,
         usage_count: 0,
         required_user_type: 'any',
-        min_user_level: 10
+        min_user_level: 10,
+        category: 'general'
       },
       {
         code: 'VIP30DAYS',
@@ -77,7 +129,8 @@ async function createPromoCodes() {
         usage_count: 0,
         subscription_tier: 2,
         required_user_type: 'any',
-        min_user_level: 0
+        min_user_level: 0,
+        category: 'general'
       },
       {
         code: 'TEST50',
@@ -89,7 +142,8 @@ async function createPromoCodes() {
         max_usages_per_user: 1,
         usage_count: 0,
         required_user_type: 'any',
-        min_user_level: 0
+        min_user_level: 0,
+        category: 'general'
       }
     ];
 

@@ -18,7 +18,13 @@ module.exports = {
         }
 
         // Пересоздаем enum без 'completed'
-        // Сначала создаем новый тип
+        // Сначала удаляем значение по умолчанию
+        await queryInterface.sequelize.query(
+          `ALTER TABLE promo_code_usages ALTER COLUMN status DROP DEFAULT`,
+          { transaction }
+        );
+
+        // Создаем новый тип
         await queryInterface.sequelize.query(
           `CREATE TYPE enum_promo_code_usages_status_new AS ENUM ('applied', 'cancelled', 'refunded', 'expired')`,
           { transaction }
@@ -44,9 +50,9 @@ module.exports = {
           { transaction }
         );
 
-        // Устанавливаем значение по умолчанию
+        // Устанавливаем значение по умолчанию с правильным приведением типа
         await queryInterface.sequelize.query(
-          `ALTER TABLE promo_code_usages ALTER COLUMN status SET DEFAULT 'applied'`,
+          `ALTER TABLE promo_code_usages ALTER COLUMN status SET DEFAULT 'applied'::enum_promo_code_usages_status`,
           { transaction }
         );
 

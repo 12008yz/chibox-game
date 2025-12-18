@@ -27,7 +27,8 @@ module.exports = (sequelize) => {
         'withdrawal_fee',        // Комиссия за вывод
         'system',                // Системная транзакция
         'referral_bonus',        // Реферальный бонус
-        'achievement_reward'     // Награда за достижение
+        'achievement_reward',    // Награда за достижение
+        'promo_code'             // Применение промокода
       ),
       allowNull: false,
       comment: "Тип транзакции"

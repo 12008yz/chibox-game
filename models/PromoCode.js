@@ -127,6 +127,11 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: true,
       comment: "URL иконки промокода"
+    },
+    category: {
+      type: DataTypes.ENUM('deposit', 'general'),
+      defaultValue: 'general',
+      comment: "Категория промокода: deposit - для пополнения баланса, general - обычные промокоды"
     }
   }, {
     timestamps: true,
@@ -161,12 +166,12 @@ module.exports = (sequelize) => {
       foreignKey: 'promo_code_id',
       as: 'usages'
     });
-    
+
     PromoCode.hasMany(models.Payment, {
       foreignKey: 'promo_code_id',
       as: 'payments'
     });
-    
+
     // Если у вас будет модель для связи промокодов с конкретными пользователями
     PromoCode.hasMany(models.PromoCodeUser, {
       foreignKey: 'promo_code_id',
