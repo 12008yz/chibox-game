@@ -70,6 +70,13 @@ async function verifyEmail(req, res) {
     email = email.trim().toLowerCase();
     verificationCode = verificationCode.trim();
 
+    // Проверяем, что это не Steam email
+    if (email.endsWith('@steam.local')) {
+      return res.status(400).json({
+        message: 'Steam email не может быть подтвержден. Измените email в настройках профиля на свой реальный адрес.'
+      });
+    }
+
     // Находим пользователя
     const user = await db.User.findOne({
       where: {
