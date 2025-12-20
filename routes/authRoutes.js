@@ -48,8 +48,8 @@ router.get('/steam/return',
   }),
   async (req, res) => {
     try {
-      // Генерируем JWT токен для пользователя
-      const token = jwt.sign(
+      // Генерируем JWT токены для пользователя
+      const accessToken = jwt.sign(
         {
           id: req.user.id,
           username: req.user.username,
@@ -59,15 +59,42 @@ router.get('/steam/return',
           steam_id: req.user.steam_id
         },
         process.env.JWT_SECRET || 'your-secret-key',
+        { expiresIn: '15m' }
+      );
+
+      const refreshToken = jwt.sign(
+        {
+          id: req.user.id,
+          email: req.user.email,
+          type: 'refresh'
+        },
+        process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
         { expiresIn: '7d' }
       );
 
       logger.info(`Steam авторизация успешна для пользователя ${req.user.username}`);
 
-      // Перенаправляем на фронтенд с токеном
+      // БЕЗОПАСНОСТЬ: Устанавливаем токены в httpOnly cookies вместо URL
+      res.cookie('accessToken', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 15 * 60 * 1000, // 15 минут
+        path: '/'
+      });
+
+      res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 дней
+        path: '/'
+      });
+
+      // Перенаправляем на фронтенд БЕЗ токена в URL (он теперь в httpOnly cookie)
       const frontendUrl = process.env.FRONTEND_URL || 'https://chibox-game.ru';
-      console.log(`Redirecting to: ${frontendUrl}/auth/success?token=${token}&provider=steam`);
-      res.redirect(`${frontendUrl}/auth/success?token=${token}&provider=steam`);
+      console.log(`Redirecting to: ${frontendUrl}/auth/steam-success?provider=steam`);
+      res.redirect(`${frontendUrl}/auth/steam-success?provider=steam`);
 
     } catch (error) {
       logger.error('Ошибка при генерации токена после Steam авторизации:', error);
