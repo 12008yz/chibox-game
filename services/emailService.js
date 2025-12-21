@@ -102,12 +102,14 @@ async function sendVerificationEmail(email, code, username) {
   try {
     // Убеждаемся, что транспорт инициализирован
     if (!transporter) {
+      logger.info('Транспорт не инициализирован, инициализируем...');
       await initializeTransporter();
     }
 
     if (!transporter) {
-      logger.warn(`[DEV MODE] Транспорт не инициализирован. Код подтверждения для ${email}: ${code}`);
-      return { success: true, message: 'Код выведен в консоль (dev mode)' };
+      const errorMsg = 'Email транспорт не настроен. Проверьте SMTP настройки в .env файле.';
+      logger.error(errorMsg);
+      throw new Error(errorMsg);
     }
 
     const mailOptions = {

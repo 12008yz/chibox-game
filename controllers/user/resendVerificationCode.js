@@ -73,25 +73,22 @@ async function resendVerificationCode(req, res) {
 
     // Проверяем, не слишком ли часто запрашивается код
     // Ограничение: не чаще чем раз в 1 минуту
-    // НО разрешаем первую отправку сразу после регистрации
-    // Для этого проверяем: если createdAt и updatedAt почти одинаковые (разница меньше 5 секунд),
-    // значит это только что зарегистрированный пользователь и код ещё ни разу не отправлялся
-    if (user.updatedAt && user.createdAt) {
-      const timeSinceCreation = new Date(user.updatedAt).getTime() - new Date(user.createdAt).getTime();
-      const isFirstCodeRequest = timeSinceCreation < 5000; // Меньше 5 секунд = это регистрация, не обновление
+    // НО разрешаем первую отправку сразу после регистрации или изменения email
+    if (user.email_verification_expires) {
+      // Проверяем, когда был сгенерирован последний код верификации
+      // email_verification_expires устанавливается на 15 минут вперед от момента генерации кода
+      const codeGeneratedAt = new Date(user.email_verification_expires).getTime() - (15 * 60 * 1000);
+      const oneMinuteAgo = Date.now() - 60 * 1000;
 
-      if (!isFirstCodeRequest) {
-        // Это не первый запрос, проверяем rate limit
-        const oneMinuteAgo = new Date(Date.now() - 60 * 1000);
-        const lastUpdate = new Date(user.updatedAt);
+      // Если код был сгенерирован меньше минуты назад
+      if (codeGeneratedAt > oneMinuteAgo) {
+        const timeSinceGeneration = Date.now() - codeGeneratedAt;
+        const remainingTime = Math.ceil((60000 - timeSinceGeneration) / 1000);
 
-        if (lastUpdate > oneMinuteAgo) {
-          const remainingTime = Math.ceil((lastUpdate.getTime() + 60000 - Date.now()) / 1000);
-          if (remainingTime > 0) {
-            return res.status(429).json({
-              message: `Код был отправлен недавно. Повторить запрос можно через ${remainingTime} секунд.`
-            });
-          }
+        if (remainingTime > 0) {
+          return res.status(429).json({
+            message: `Код был отправлен недавно. Повторить запрос можно через ${remainingTime} секунд.`
+          });
         }
       }
     }

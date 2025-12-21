@@ -104,19 +104,24 @@ async function updateProfile(req, res) {
       const verificationCode = emailService.generateVerificationCode();
       const verificationExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 минут
 
-      user.email = trimmedEmail;
-      user.is_email_verified = false; // Сбрасываем статус верификации
-      user.verification_code = verificationCode;
-      user.email_verification_expires = verificationExpires;
-      emailChanged = true;
-
-      // Отправляем код подтверждения на новый email
+      // Отправляем код подтверждения на новый email ПЕРЕД сохранением в базу
       try {
         await emailService.sendVerificationCode(trimmedEmail, user.username, verificationCode);
         logger.info('Verification code sent to new email:', trimmedEmail);
+
+        // Если отправка успешна, обновляем данные пользователя
+        user.email = trimmedEmail;
+        user.is_email_verified = false; // Сбрасываем статус верификации
+        user.verification_code = verificationCode;
+        user.email_verification_expires = verificationExpires;
+        emailChanged = true;
       } catch (emailError) {
         logger.error('Failed to send verification email:', emailError);
-        // Продолжаем выполнение, но логируем ошибку
+        // Возвращаем ошибку пользователю вместо продолжения
+        return res.status(500).json({
+          message: 'Не удалось отправить код подтверждения на новый email. Пожалуйста, проверьте правильность email адреса и попробуйте позже.',
+          error: 'EMAIL_SEND_FAILED'
+        });
       }
     }
 
