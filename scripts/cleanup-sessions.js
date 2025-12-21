@@ -1,5 +1,5 @@
 const { sequelize } = require('../config/database');
-const logger = require('../utils/logger');
+const { logger } = require('../utils/logger');
 
 async function cleanupSessions() {
   try {
