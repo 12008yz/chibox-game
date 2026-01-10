@@ -227,7 +227,7 @@ app.use(logPayment);
 
 // Регистрация маршрутов
 app.use('/api/v1', userRoutes);
-app.use('/api/payment', paymentRoutes);
+app.use('/api/payments', paymentRoutes);
 app.use('/api/v1/auth', authRoutes);
 
 // Проверка подключений к базе данных и Redis
