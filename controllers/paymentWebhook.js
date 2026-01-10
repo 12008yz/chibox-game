@@ -545,6 +545,29 @@ async function alfabankCallback(req, res) {
           payment_id: mdOrder.toString() 
         } 
       });
+      if (payment) {
+        logger.info(`Found payment by mdOrder (payment_id): ${mdOrder}`);
+      }
+    }
+    
+    // Если не нашли, пробуем найти по mdOrder в payment_details (для платежей, где mdOrder был сохранен при статусе 1)
+    if (!payment && mdOrder) {
+      const payments = await Payment.findAll({
+        where: {
+          payment_system: 'alfabank',
+          status: ['pending', 'processing']
+        },
+        order: [['created_at', 'DESC']],
+        limit: 10
+      });
+      
+      for (const p of payments) {
+        if (p.payment_details && typeof p.payment_details === 'object' && p.payment_details.mdOrder === mdOrder.toString()) {
+          payment = p;
+          logger.info(`Found payment by mdOrder (payment_details): ${mdOrder}, invoice_number=${p.invoice_number}`);
+          break;
+        }
+      }
     }
     
     // Если все еще не нашли, пробуем найти по orderId
@@ -616,13 +639,28 @@ async function alfabankCallback(req, res) {
     if (status === '1') {
       // Статус 1 - предавторизованная сумма захолдирована (холд)
       logger.info(`⚠️ Payment ${payment.invoice_number} has status 1 (hold) - waiting for status 2`);
-      // Обновляем payment_id если пришел mdOrder
-      if (mdOrder && !payment.payment_id) {
+      // Обновляем payment_id и payment_details если пришел mdOrder
+      if (mdOrder) {
         payment.payment_id = mdOrder.toString();
+        if (!payment.payment_details || typeof payment.payment_details !== 'object') {
+          payment.payment_details = {};
+        }
+        payment.payment_details.mdOrder = mdOrder.toString();
+        payment.payment_details.alfabankOrderNumber = orderNumber;
         payment.webhook_received = true;
         payment.webhook_data = params;
         await payment.save();
-        logger.info(`Updated payment_id to ${mdOrder} for payment ${payment.invoice_number}`);
+        logger.info(`✅ Updated payment ${payment.invoice_number}: payment_id=${mdOrder}, orderNumber=${orderNumber}`);
+      } else if (orderNumber && orderNumber !== payment.invoice_number.toString()) {
+        // Если нет mdOrder, но есть orderNumber от Альфа-Банка, сохраняем его
+        if (!payment.payment_details || typeof payment.payment_details !== 'object') {
+          payment.payment_details = {};
+        }
+        payment.payment_details.alfabankOrderNumber = orderNumber;
+        payment.webhook_received = true;
+        payment.webhook_data = params;
+        await payment.save();
+        logger.info(`✅ Updated payment ${payment.invoice_number}: saved alfabankOrderNumber=${orderNumber}`);
       }
       return res.send('OK');
     } else if (status === '2') {
