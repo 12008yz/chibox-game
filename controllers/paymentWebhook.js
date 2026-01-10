@@ -588,19 +588,42 @@ async function alfabankCallback(req, res) {
       });
     }
     
-    // Последняя попытка - ищем по последним платежам Альфа-Банка (для отладки)
+    // 6. Если не нашли и пришел статус 2, ищем по payment_details.alfabankOrderNumber
+    if (!payment && status === '2' && orderNumber) {
+      const payments = await Payment.findAll({
+        where: {
+          payment_system: 'alfabank',
+          status: ['pending', 'processing']
+        },
+        order: [['created_at', 'DESC']],
+        limit: 20
+      });
+      
+      for (const p of payments) {
+        if (p.payment_details && typeof p.payment_details === 'object') {
+          if (p.payment_details.alfabankOrderNumber === orderNumber.toString() || 
+              (mdOrder && p.payment_details.mdOrder === mdOrder.toString())) {
+            payment = p;
+            logger.info(`✅ Found payment by alfabankOrderNumber/mdOrder in payment_details: invoice_number=${p.invoice_number}, orderNumber=${orderNumber}, mdOrder=${mdOrder}`);
+            break;
+          }
+        }
+      }
+    }
+    
+    // 7. Последняя попытка - ищем по последним pending платежам Альфа-Банка (fallback)
     if (!payment) {
       const recentPayment = await Payment.findOne({
         where: {
           payment_system: 'alfabank',
-          status: 'pending'
+          status: ['pending', 'processing']
         },
         order: [['created_at', 'DESC']],
         limit: 1
       });
       
       if (recentPayment) {
-        logger.warn(`Using recent pending payment as fallback: invoice_number=${recentPayment.invoice_number}`);
+        logger.warn(`⚠️ Using recent pending payment as fallback: invoice_number=${recentPayment.invoice_number}, orderNumber=${orderNumber}, mdOrder=${mdOrder}, status=${status}`);
         payment = recentPayment;
       }
     }
@@ -629,8 +652,40 @@ async function alfabankCallback(req, res) {
 
     // Проверяем, не обработан ли уже этот платеж
     logger.info(`Payment status check: payment.status=${payment.status}, callback.status=${status}`);
+    logger.info(`Payment details:`, {
+      invoice_number: payment.invoice_number,
+      payment_id: payment.payment_id,
+      payment_details: payment.payment_details,
+      mdOrder_from_callback: mdOrder,
+      orderNumber_from_callback: orderNumber
+    });
     
+    // Если платеж уже завершен, но пришел callback со статусом 2, проверяем баланс
     if (payment.status === 'completed') {
+      logger.info(`⚠️ Payment ${payment.invoice_number} already completed, but received status ${status}`);
+      
+      // Если пришел статус 2, но платеж уже completed, проверяем баланс пользователя
+      if (status === '2') {
+        const user = await require('../models').User.findByPk(payment.user_id);
+        if (user) {
+          logger.info(`Checking user balance:`, {
+            user_id: user.id,
+            current_balance: user.balance,
+            payment_amount: payment.amount,
+            payment_metadata: payment.metadata
+          });
+          
+          // Проверяем, был ли баланс пополнен
+          let expectedChicoins = parseFloat(payment.amount);
+          if (payment.metadata && payment.metadata.chicoins) {
+            expectedChicoins = parseFloat(payment.metadata.chicoins);
+          }
+          
+          const currentBalance = parseFloat(user.balance || 0);
+          logger.info(`Balance check: current=${currentBalance}, expected_to_add=${expectedChicoins}`);
+        }
+      }
+      
       logger.info(`Payment ${orderNumber} already completed, skipping processing`);
       return res.send('OK');
     }
