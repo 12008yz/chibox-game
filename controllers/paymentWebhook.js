@@ -479,25 +479,45 @@ async function alfabankCallback(req, res) {
       status,
       checksum,
       orderId,
-      mdOrder, // Внутренний номер заказа от Альфа-Банка
+      mdOrder, // Внутренний номер заказа от Альфа-Банка (для динамических callback'ов)
+      operation, // Тип операции (для динамических callback'ов)
+      templateId, // ID шаблона (для динамических callback'ов)
       amount,
       cardId,
       pan,
       expiration,
       cardholderName
     } = params;
+    
+    logger.info(`Callback type detection:`, {
+      has_mdOrder: !!mdOrder,
+      has_operation: !!operation,
+      has_templateId: !!templateId,
+      callback_type: mdOrder ? 'dynamic' : 'static'
+    });
 
     // Проверка обязательных параметров
-    if (!orderNumber || !status) {
-      logger.warn('Missing required parameters in Alfabank callback');
+    // При динамическом callback может не быть orderNumber, но должен быть mdOrder
+    // При статическом callback должен быть orderNumber
+    if (!status) {
+      logger.warn('Missing required parameter: status');
       logger.warn('Received params:', JSON.stringify(params, null, 2));
-      
-      // Если нет checksum, но есть orderNumber и status, пробуем обработать
-      if (!checksum && orderNumber && status) {
-        logger.warn('No checksum provided, but orderNumber and status present. Processing without signature verification.');
-      } else {
-        return res.status(400).send('BAD REQUEST');
-      }
+      return res.status(400).send('BAD REQUEST: Missing status');
+    }
+    
+    if (!orderNumber && !mdOrder) {
+      logger.warn('Missing required parameters: neither orderNumber nor mdOrder provided');
+      logger.warn('Received params:', JSON.stringify(params, null, 2));
+      return res.status(400).send('BAD REQUEST: Missing orderNumber or mdOrder');
+    }
+    
+    // Логируем тип callback
+    if (mdOrder && !orderNumber) {
+      logger.info('Dynamic callback detected: mdOrder present, orderNumber missing');
+    } else if (orderNumber && !mdOrder) {
+      logger.info('Static callback detected: orderNumber present, mdOrder missing');
+    } else {
+      logger.info('Mixed callback: both orderNumber and mdOrder present');
     }
 
     logger.info(`Processing Alfabank payment: OrderNumber=${orderNumber}, Status=${status}`);
@@ -531,11 +551,28 @@ async function alfabankCallback(req, res) {
     }
 
     // Находим платеж в БД
-    // Альфа-Банк может отправлять либо orderNumber (наш invoice_number), либо mdOrder (внутренний номер Альфа-Банка)
+    // При динамическом callback Альфа-Банк отправляет mdOrder (внутренний номер), а orderNumber может быть другим
+    // При статическом callback orderNumber = наш invoice_number
     let payment = null;
     
-    if (orderNumber) {
+    // 1. Сначала пробуем найти по mdOrder (приоритет для динамических callback'ов)
+    if (mdOrder) {
+      payment = await Payment.findOne({ 
+        where: { 
+          payment_id: mdOrder.toString() 
+        } 
+      });
+      if (payment) {
+        logger.info(`✅ Found payment by mdOrder (payment_id): ${mdOrder}, invoice_number=${payment.invoice_number}`);
+      }
+    }
+    
+    // 2. Если не нашли по mdOrder, пробуем найти по orderNumber (наш invoice_number)
+    if (!payment && orderNumber) {
       payment = await Payment.findOne({ where: { invoice_number: parseInt(orderNumber) } });
+      if (payment) {
+        logger.info(`✅ Found payment by invoice_number: ${orderNumber}`);
+      }
     }
     
     // Если не нашли по orderNumber, пробуем найти по mdOrder (внутренний номер Альфа-Банка)
@@ -860,15 +897,123 @@ async function alfabankSuccessURL(req, res) {
     // Проверяем статус платежа в БД по invoice_number
     const payment = await Payment.findOne({ where: { invoice_number: parseInt(orderNumber) } });
 
-    if (payment && payment.status === 'completed') {
+    if (!payment) {
+      logger.warn(`Payment ${orderNumber} not found`);
+      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+    }
+
+    // Если платеж уже завершен
+    if (payment.status === 'completed') {
       logger.info(`Payment ${orderNumber} completed successfully, redirecting to success page`);
       return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=success&orderNumber=${orderNumber}`);
-    } else {
-      logger.info(`Payment ${orderNumber} pending or failed, redirecting to pending page`);
-      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=pending&orderNumber=${orderNumber}`);
     }
+
+    // Если платеж pending и есть mdOrder (был callback со статусом 1), обрабатываем платеж
+    if (payment.status === 'pending' && payment.payment_details && payment.payment_details.mdOrder) {
+      const mdOrder = payment.payment_details.mdOrder;
+      const webhookData = payment.webhook_data;
+      const webhookStatus = webhookData?.status;
+
+      logger.info(`Processing pending payment ${orderNumber} with mdOrder ${mdOrder}, webhook status: ${webhookStatus}`);
+
+      // Если был callback со статусом 1 и прошло достаточно времени (1 минута), обрабатываем как успешный
+      if (webhookStatus === '1') {
+        const createdAt = new Date(payment.created_at);
+        const now = new Date();
+        const minutesSinceCreation = (now - createdAt) / (1000 * 60);
+
+        // Если прошло больше 1 минуты после создания и был callback со статусом 1, обрабатываем платеж
+        if (minutesSinceCreation >= 1) {
+          logger.info(`Processing payment ${orderNumber} as completed (status 1 received, ${minutesSinceCreation.toFixed(2)} minutes passed)`);
+          
+          // Используем ту же логику, что и в callback со статусом 2
+          const user = await require('../models').User.findByPk(payment.user_id);
+          if (!user) {
+            logger.warn(`User not found for payment user_id=${payment.user_id}`);
+            return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+          }
+
+          // Определяем сумму для транзакции
+          let transactionAmount = parseFloat(payment.amount);
+          if (payment.purpose === 'deposit' && payment.metadata && payment.metadata.chicoins) {
+            transactionAmount = parseFloat(payment.metadata.chicoins);
+          }
+
+          // Обрабатываем платёж в зависимости от назначения
+          if (payment.purpose === 'subscription') {
+            logger.info(`Activating subscription for user ${user.id} from payment ${payment.id}`);
+            const tierId = payment.metadata && payment.metadata.tierId ? payment.metadata.tierId : 1;
+            await activateSubscription(user.id, tierId);
+            logger.info(`✅ Subscription activated for user ${user.id}`);
+          } else if (payment.purpose === 'deposit') {
+            const oldBalance = parseFloat(user.balance || 0);
+            let chicoinsToAdd = parseFloat(payment.amount);
+            if (payment.metadata && payment.metadata.chicoins) {
+              chicoinsToAdd = parseFloat(payment.metadata.chicoins);
+              logger.info(`Using ChiCoins from metadata: ${chicoinsToAdd}`);
+            }
+
+            user.balance = oldBalance + chicoinsToAdd;
+            await user.save();
+            await user.reload();
+
+            logger.info(`✅ Balance updated for user ${user.id}:`, {
+              old_balance: oldBalance,
+              added: chicoinsToAdd,
+              new_balance: user.balance
+            });
+
+            // Начисляем опыт
+            try {
+              const { addExperience } = require('../services/xpService');
+              await addExperience(user.id, 40, 'deposit', null, 'Пополнение баланса');
+            } catch (expError) {
+              logger.error('Failed to add experience for deposit:', expError);
+            }
+          }
+
+          // Создаем транзакцию
+          const balanceBefore = payment.purpose === 'subscription' ? user.balance : (user.balance - transactionAmount);
+          const transaction = await require('../models').Transaction.create({
+            user_id: user.id,
+            type: payment.purpose === 'subscription' ? 'subscription_purchase' : 'balance_add',
+            amount: transactionAmount,
+            description: payment.description,
+            status: 'completed',
+            related_entity_id: payment.id,
+            related_entity_type: 'Payment',
+            balance_before: balanceBefore,
+            balance_after: user.balance,
+            ip_address: req.ip,
+            user_agent: req.headers['user-agent'],
+            is_system: false,
+            payment_id: payment.id
+          });
+
+          // Обновляем статус платежа
+          payment.status = 'completed';
+          payment.webhook_received = true;
+          payment.completed_at = new Date();
+          if (!payment.webhook_data) {
+            payment.webhook_data = { status: '2', processed_via_success_url: true };
+          } else {
+            payment.webhook_data.processed_via_success_url = true;
+            payment.webhook_data.status = '2';
+          }
+          await payment.save();
+
+          logger.info(`✅ Payment ${orderNumber} processed and completed via success URL`);
+          return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=success&orderNumber=${orderNumber}`);
+        }
+      }
+    }
+
+    // Если платеж еще pending, редиректим на pending страницу
+    logger.info(`Payment ${orderNumber} pending or failed, redirecting to pending page`);
+    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=pending&orderNumber=${orderNumber}`);
   } catch (error) {
     logger.error('Error processing Alfabank SuccessURL:', error);
+    logger.error('Error stack:', error.stack);
     return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
   }
 }
