@@ -289,16 +289,22 @@ app.use('/api/v1/auth', authRoutes);
 
 // Обработка 404 ошибки
 app.use(function(req, res, next) {
-  console.log('404 ошибка для маршрута:', {
-    method: req.method,
-    url: req.originalUrl,
-    path: req.path,
-    query: req.query,
-    headers: {
-      authorization: req.headers.authorization,
-      'user-agent': req.headers['user-agent']
-    }
-  });
+  // Пропускаем статические файлы и другие системные запросы
+  if (req.path.startsWith('/public/') || req.path.startsWith('/images/') || req.path.startsWith('/Achievements/')) {
+    return next(createError(404));
+  }
+  
+  // Логируем только важные 404 (не статические файлы)
+  if (!req.path.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+    logger.warn('404 ошибка для маршрута:', {
+      method: req.method,
+      url: req.originalUrl,
+      path: req.path,
+      query: req.query,
+      host: req.hostname,
+      ip: req.ip
+    });
+  }
   next(createError(404));
 });
 
