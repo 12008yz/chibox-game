@@ -479,6 +479,7 @@ async function alfabankCallback(req, res) {
       status,
       checksum,
       orderId,
+      mdOrder, // Внутренний номер заказа от Альфа-Банка
       amount,
       cardId,
       pan,
@@ -529,10 +530,61 @@ async function alfabankCallback(req, res) {
       logger.warn('No checksum provided in callback - processing without signature verification');
     }
 
-    // Находим платеж в БД по invoice_number (orderNumber)
-    const payment = await Payment.findOne({ where: { invoice_number: parseInt(orderNumber) } });
+    // Находим платеж в БД
+    // Альфа-Банк может отправлять либо orderNumber (наш invoice_number), либо mdOrder (внутренний номер Альфа-Банка)
+    let payment = null;
+    
+    if (orderNumber) {
+      payment = await Payment.findOne({ where: { invoice_number: parseInt(orderNumber) } });
+    }
+    
+    // Если не нашли по orderNumber, пробуем найти по mdOrder (внутренний номер Альфа-Банка)
+    if (!payment && mdOrder) {
+      payment = await Payment.findOne({ 
+        where: { 
+          payment_id: mdOrder.toString() 
+        } 
+      });
+    }
+    
+    // Если все еще не нашли, пробуем найти по orderId
+    if (!payment && orderId) {
+      payment = await Payment.findOne({ 
+        where: { 
+          payment_id: orderId.toString() 
+        } 
+      });
+    }
+    
+    // Если все еще не нашли, пробуем найти по orderNumber как payment_id (для статических платежей)
+    if (!payment && orderNumber) {
+      payment = await Payment.findOne({ 
+        where: { 
+          payment_id: orderNumber.toString() 
+        } 
+      });
+    }
+    
+    // Последняя попытка - ищем по последним платежам Альфа-Банка (для отладки)
     if (!payment) {
-      logger.warn(`Payment not found: OrderNumber=${orderNumber}`);
+      const recentPayment = await Payment.findOne({
+        where: {
+          payment_system: 'alfabank',
+          status: 'pending'
+        },
+        order: [['created_at', 'DESC']],
+        limit: 1
+      });
+      
+      if (recentPayment) {
+        logger.warn(`Using recent pending payment as fallback: invoice_number=${recentPayment.invoice_number}`);
+        payment = recentPayment;
+      }
+    }
+    
+    if (!payment) {
+      logger.warn(`Payment not found: OrderNumber=${orderNumber}, mdOrder=${mdOrder}, orderId=${orderId}`);
+      logger.warn('All params:', JSON.stringify(params, null, 2));
       return res.status(404).send('ORDER NOT FOUND');
     }
 
@@ -560,9 +612,22 @@ async function alfabankCallback(req, res) {
       return res.send('OK');
     }
 
-    if (status === '2') {
+    // Обрабатываем статусы
+    if (status === '1') {
+      // Статус 1 - предавторизованная сумма захолдирована (холд)
+      logger.info(`⚠️ Payment ${payment.invoice_number} has status 1 (hold) - waiting for status 2`);
+      // Обновляем payment_id если пришел mdOrder
+      if (mdOrder && !payment.payment_id) {
+        payment.payment_id = mdOrder.toString();
+        payment.webhook_received = true;
+        payment.webhook_data = params;
+        await payment.save();
+        logger.info(`Updated payment_id to ${mdOrder} for payment ${payment.invoice_number}`);
+      }
+      return res.send('OK');
+    } else if (status === '2') {
       // Статус 2 означает успешную оплату
-      logger.info(`✅ Payment ${orderNumber} has status 2 (successful payment), processing...`);
+      logger.info(`✅ Payment ${payment.invoice_number} has status 2 (successful payment), processing...`);
 
       // Сначала проверяем пользователя ПЕРЕД обновлением статуса
       const user = await require('../models').User.findByPk(payment.user_id);
