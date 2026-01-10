@@ -40,7 +40,8 @@ router.get('/freekassa/fail', freekassaFailURL);
 
 // Роуты для Альфа-Банка
 // Callback URL - для серверного уведомления о платеже (обязательный)
-router.post('/alfabank/callback', alfabankCallback);
+// При статическом callback параметры приходят в body, нужен парсинг
+router.post('/alfabank/callback', express.urlencoded({ extended: true }), express.json(), alfabankCallback);
 router.get('/alfabank/callback', alfabankCallback);
 
 // SuccessURL - для редиректа пользователя после успешной оплаты

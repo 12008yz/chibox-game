@@ -69,8 +69,11 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
   try {
     console.log('Alfabank createPayment called with:', { amount, description, userId, purpose, metadata });
 
-    if (!ALFABANK_PAYMENT_URL) {
-      throw new Error('Alfabank payment URL not configured');
+    // Проверяем наличие API credentials для динамических платежей
+    const useApi = ALFABANK_API_LOGIN && ALFABANK_API_PASSWORD;
+    
+    if (!useApi && !ALFABANK_PAYMENT_URL && !ALFABANK_QR_URL) {
+      throw new Error('Alfabank payment URL or API credentials not configured');
     }
 
     // Создаем запись в БД для получения ID
@@ -105,29 +108,94 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
     // Используем обработчик на бэкенде, который проверит статус и перенаправит на фронтенд
     const returnUrl = `${process.env.BACKEND_URL || process.env.FRONTEND_URL || 'https://chibox-game.ru'}/api/payments/alfabank/success?orderNumber=${orderNumber}`;
     const failUrl = `${process.env.BACKEND_URL || process.env.FRONTEND_URL || 'https://chibox-game.ru'}/api/payments/alfabank/fail?orderNumber=${orderNumber}`;
+    
+    // Callback URL для динамических уведомлений
+    const callbackUrl = `${process.env.BACKEND_URL || process.env.FRONTEND_URL || 'https://chibox-game.ru'}/api/payments/alfabank/callback`;
 
-    // Используем готовую ссылку на оплату и добавляем параметры заказа
-    // Если используется статическая ссылка, параметры могут передаваться через GET или через форму
-    const paymentUrlParams = new URLSearchParams({
-      orderNumber: orderNumber,
-      amount: amountInKopecks.toString(),
-      returnUrl: returnUrl,
-      failUrl: failUrl,
-      description: description || `Payment for ${purpose} by user ${userId}`
-    });
-
-    // Формируем URL для оплаты
-    const paymentUrl = `${ALFABANK_PAYMENT_URL}?${paymentUrlParams.toString()}`;
-
-    console.log('Using Alfabank payment URL:', {
-      orderNumber,
-      amount: amountInKopecks,
-      paymentUrl: ALFABANK_PAYMENT_URL,
-      returnUrl
-    });
-
-    // Формируем QR-ссылку для СБП
+    let paymentUrl = null;
     let qrUrl = null;
+    let alfabankOrderId = null;
+
+    // Если есть API credentials, используем динамические платежи через API
+    if (useApi) {
+      console.log('Using Alfabank API for dynamic payment creation...');
+      
+      try {
+        // Для Альфа-Банка API данные отправляются в body как form-urlencoded
+        const formData = new URLSearchParams();
+        formData.append('userName', ALFABANK_API_LOGIN);
+        formData.append('password', ALFABANK_API_PASSWORD);
+        formData.append('orderNumber', orderNumber);
+        formData.append('amount', amountInKopecks.toString());
+        formData.append('returnUrl', returnUrl);
+        formData.append('failUrl', failUrl);
+        formData.append('description', description || `Payment for ${purpose} by user ${userId}`);
+        
+        // Для динамических callback указываем callback URL через jsonParams
+        formData.append('jsonParams', JSON.stringify({
+          callbackUrl: callbackUrl
+        }));
+
+        const response = await axios.post(`${ALFABANK_PAYMENT_GATEWAY_URL}/register.do`, formData.toString(), {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        });
+
+        console.log('Alfabank API register.do response:', response.data);
+
+        if (response.data && response.data.errorCode) {
+          throw new Error(`Alfabank API error: ${response.data.errorMessage || response.data.errorCode}`);
+        }
+
+        if (response.data && response.data.formUrl) {
+          paymentUrl = response.data.formUrl;
+          alfabankOrderId = response.data.orderId;
+          
+          console.log('✅ Dynamic payment created via API:', {
+            orderNumber,
+            alfabankOrderId,
+            paymentUrl,
+            returnUrl
+          });
+        } else {
+          throw new Error('No formUrl in Alfabank API response');
+        }
+      } catch (apiError) {
+        console.error('Error creating dynamic payment via API:', apiError.message);
+        if (apiError.response) {
+          console.error('API Response status:', apiError.response.status);
+          console.error('API Response data:', apiError.response.data);
+          console.error('API Request URL:', apiError.config?.url);
+        }
+        if (apiError.request) {
+          console.error('API Request made but no response received');
+        }
+        // Если API не работает, продолжаем со статическими ссылками
+        console.warn('Falling back to static payment URLs');
+      }
+    }
+
+    // Если API не использовался или не сработал, используем статические ссылки
+    if (!paymentUrl && ALFABANK_PAYMENT_URL) {
+      const paymentUrlParams = new URLSearchParams({
+        orderNumber: orderNumber,
+        amount: amountInKopecks.toString(),
+        returnUrl: returnUrl,
+        failUrl: failUrl,
+        description: description || `Payment for ${purpose} by user ${userId}`
+      });
+      paymentUrl = `${ALFABANK_PAYMENT_URL}?${paymentUrlParams.toString()}`;
+      
+      console.log('Using static Alfabank payment URL:', {
+        orderNumber,
+        amount: amountInKopecks,
+        paymentUrl: ALFABANK_PAYMENT_URL,
+        returnUrl
+      });
+    }
+
+    // Формируем QR-ссылку для СБП (если не используется динамический платеж через API)
     
     if (purpose === 'subscription' && metadata.tierId) {
       // Для подписок используем специальные QR-ссылки для каждого статуса
@@ -197,15 +265,18 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
     }
 
     // Обновляем запись платежа
-    // Для Альфа-Банка используем только QR-код, paymentUrl не нужен
     paymentRecord.payment_url = qrUrl || paymentUrl; // Используем QR как основной URL
-    paymentRecord.payment_id = orderNumber;
+    paymentRecord.payment_id = alfabankOrderId || orderNumber; // Используем orderId от API если есть
     paymentRecord.payment_details = {
       orderNumber: orderNumber,
+      alfabankOrderId: alfabankOrderId,
       amount: amountInKopecks,
+      paymentUrl: paymentUrl,
       qrUrl: qrUrl,
       returnUrl: returnUrl,
-      failUrl: failUrl
+      failUrl: failUrl,
+      callbackUrl: callbackUrl,
+      isDynamic: !!useApi && !!alfabankOrderId // Флаг что это динамический платеж
     };
     await paymentRecord.save();
 

@@ -457,15 +457,22 @@ async function freekassaFailURL(req, res) {
 async function alfabankCallback(req, res) {
   try {
     logger.info('=== ALFABANK CALLBACK RECEIVED ===');
+    logger.info('Method:', req.method);
+    logger.info('URL:', req.url);
     logger.info('Headers:', JSON.stringify(req.headers, null, 2));
     logger.info('Query params:', JSON.stringify(req.query, null, 2));
     logger.info('Body:', JSON.stringify(req.body, null, 2));
+    logger.info('Body type:', typeof req.body);
+    logger.info('Body keys:', req.body ? Object.keys(req.body) : 'no body');
     logger.info('Raw body:', req.rawBody || 'N/A');
 
     const { verifyCallbackChecksum } = require('../services/alfabankService');
 
     // Параметры могут приходить как в query, так и в body
+    // При статическом callback параметры приходят в body
     const params = { ...req.query, ...req.body };
+    
+    logger.info('Combined params:', JSON.stringify(params, null, 2));
 
     const {
       orderNumber,
@@ -546,8 +553,16 @@ async function alfabankCallback(req, res) {
     // 6 - авторизация отклонена
 
     // Проверяем, не обработан ли уже этот платеж
-    if (payment.status !== 'completed' && status === '2') {
+    logger.info(`Payment status check: payment.status=${payment.status}, callback.status=${status}`);
+    
+    if (payment.status === 'completed') {
+      logger.info(`Payment ${orderNumber} already completed, skipping processing`);
+      return res.send('OK');
+    }
+
+    if (status === '2') {
       // Статус 2 означает успешную оплату
+      logger.info(`✅ Payment ${orderNumber} has status 2 (successful payment), processing...`);
 
       // Сначала проверяем пользователя ПЕРЕД обновлением статуса
       const user = await require('../models').User.findByPk(payment.user_id);
@@ -561,7 +576,8 @@ async function alfabankCallback(req, res) {
         username: user.username,
         current_balance: user.balance,
         payment_purpose: payment.purpose,
-        payment_amount: payment.amount
+        payment_amount: payment.amount,
+        payment_metadata: payment.metadata
       });
 
       // Определяем сумму для транзакции
@@ -577,22 +593,29 @@ async function alfabankCallback(req, res) {
         await activateSubscription(user.id, tierId);
         logger.info(`✅ Subscription activated for user ${user.id}`);
       } else if (payment.purpose === 'deposit') {
-        const oldBalance = user.balance;
+        const oldBalance = parseFloat(user.balance || 0);
 
         // Получаем количество ChiCoins из metadata
         let chicoinsToAdd = parseFloat(payment.amount);
         if (payment.metadata && payment.metadata.chicoins) {
           chicoinsToAdd = parseFloat(payment.metadata.chicoins);
           logger.info(`Using ChiCoins from metadata: ${chicoinsToAdd}`);
+        } else {
+          logger.warn(`⚠️ No chicoins in metadata, using payment.amount: ${chicoinsToAdd}`);
         }
 
-        user.balance = parseFloat(user.balance || 0) + chicoinsToAdd;
+        const newBalance = oldBalance + chicoinsToAdd;
+        user.balance = newBalance;
         await user.save();
+
+        // Перезагружаем пользователя для проверки
+        await user.reload();
 
         logger.info(`✅ Balance updated for user ${user.id}:`, {
           old_balance: oldBalance,
           added: chicoinsToAdd,
-          new_balance: user.balance
+          new_balance: user.balance,
+          verified_balance: parseFloat(user.balance || 0)
         });
 
         // Начисляем опыт за пополнение
@@ -639,6 +662,7 @@ async function alfabankCallback(req, res) {
       logger.info(`✅ Payment status updated to completed for OrderNumber=${orderNumber}`);
     } else if (status === '3' || status === '6') {
       // Статус 3 - авторизация отменена, 6 - авторизация отклонена
+      logger.warn(`Payment ${orderNumber} failed or cancelled: status=${status}`);
       if (payment.status !== 'failed' && payment.status !== 'cancelled') {
         payment.status = status === '3' ? 'cancelled' : 'failed';
         payment.webhook_received = true;
@@ -647,7 +671,8 @@ async function alfabankCallback(req, res) {
         logger.info(`Payment ${orderNumber} marked as ${payment.status}`);
       }
     } else {
-      logger.info(`Payment ${orderNumber} status is ${status}, no action needed`);
+      logger.warn(`⚠️ Payment ${orderNumber} has unexpected status: ${status}. Expected status '2' for successful payment.`);
+      logger.info(`Payment ${orderNumber} status is ${status}, no action needed (waiting for status '2')`);
     }
 
     // Альфа-Банк требует ответ "OK"
