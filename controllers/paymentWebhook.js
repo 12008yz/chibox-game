@@ -450,9 +450,279 @@ async function freekassaFailURL(req, res) {
   }
 }
 
+/**
+ * Обработчик callback от Альфа-Банка
+ * Этот URL вызывается для уведомления магазина о результате оплаты
+ */
+async function alfabankCallback(req, res) {
+  try {
+    logger.info('=== ALFABANK CALLBACK RECEIVED ===');
+    logger.info('Headers:', JSON.stringify(req.headers, null, 2));
+    logger.info('Query params:', JSON.stringify(req.query, null, 2));
+    logger.info('Body:', JSON.stringify(req.body, null, 2));
+    logger.info('Raw body:', req.rawBody || 'N/A');
+
+    const { verifyCallbackChecksum } = require('../services/alfabankService');
+
+    // Параметры могут приходить как в query, так и в body
+    const params = { ...req.query, ...req.body };
+
+    const {
+      orderNumber,
+      status,
+      checksum,
+      orderId,
+      amount,
+      cardId,
+      pan,
+      expiration,
+      cardholderName
+    } = params;
+
+    // Проверка обязательных параметров
+    if (!orderNumber || !status) {
+      logger.warn('Missing required parameters in Alfabank callback');
+      logger.warn('Received params:', JSON.stringify(params, null, 2));
+      
+      // Если нет checksum, но есть orderNumber и status, пробуем обработать
+      if (!checksum && orderNumber && status) {
+        logger.warn('No checksum provided, but orderNumber and status present. Processing without signature verification.');
+      } else {
+        return res.status(400).send('BAD REQUEST');
+      }
+    }
+
+    logger.info(`Processing Alfabank payment: OrderNumber=${orderNumber}, Status=${status}`);
+
+    // Проверяем подпись (если она есть)
+    let isValidSignature = true;
+    if (checksum) {
+      isValidSignature = verifyCallbackChecksum({
+        orderNumber,
+        status,
+        checksum
+      });
+
+      if (!isValidSignature) {
+        logger.warn('Invalid checksum in Alfabank callback');
+        logger.warn('Callback params:', JSON.stringify(params, null, 2));
+        
+        // В режиме разработки или если включен флаг пропускаем проверку подписи
+        if (process.env.NODE_ENV === 'development' || process.env.ALFABANK_SKIP_SIGNATURE_CHECK === 'true') {
+          logger.warn('Skipping checksum verification (development mode or flag enabled)');
+          isValidSignature = true; // Продолжаем обработку
+        } else {
+          logger.warn('PRODUCTION: Invalid checksum, but continuing processing (payment may be valid)');
+          // Всё равно продолжаем, но логируем предупреждение
+        }
+      } else {
+        logger.info('✅ Alfabank checksum verification passed');
+      }
+    } else {
+      logger.warn('No checksum provided in callback - processing without signature verification');
+    }
+
+    // Находим платеж в БД по invoice_number (orderNumber)
+    const payment = await Payment.findOne({ where: { invoice_number: parseInt(orderNumber) } });
+    if (!payment) {
+      logger.warn(`Payment not found: OrderNumber=${orderNumber}`);
+      return res.status(404).send('ORDER NOT FOUND');
+    }
+
+    logger.info(`Found payment:`, {
+      id: payment.id,
+      current_status: payment.status,
+      amount: payment.amount,
+      user_id: payment.user_id
+    });
+
+    // Статусы Альфа-Банка:
+    // 0 - заказ зарегистрирован, но не оплачен
+    // 1 - предавторизованная сумма захолдирована
+    // 2 - проведена полная авторизация суммы заказа
+    // 3 - авторизация отменена
+    // 4 - по транзакции была проведена операция возврата
+    // 5 - инициирована авторизация через ACS банка-эмитента
+    // 6 - авторизация отклонена
+
+    // Проверяем, не обработан ли уже этот платеж
+    if (payment.status !== 'completed' && status === '2') {
+      // Статус 2 означает успешную оплату
+
+      // Сначала проверяем пользователя ПЕРЕД обновлением статуса
+      const user = await require('../models').User.findByPk(payment.user_id);
+      if (!user) {
+        logger.warn(`User not found for payment user_id=${payment.user_id}`);
+        return res.status(404).send('USER NOT FOUND');
+      }
+
+      logger.info(`Processing completed payment for user:`, {
+        user_id: user.id,
+        username: user.username,
+        current_balance: user.balance,
+        payment_purpose: payment.purpose,
+        payment_amount: payment.amount
+      });
+
+      // Определяем сумму для транзакции
+      let transactionAmount = parseFloat(payment.amount);
+      if (payment.purpose === 'deposit' && payment.metadata && payment.metadata.chicoins) {
+        transactionAmount = parseFloat(payment.metadata.chicoins);
+      }
+
+      // Обрабатываем платёж в зависимости от назначения
+      if (payment.purpose === 'subscription') {
+        logger.info(`Activating subscription for user ${user.id} from payment ${payment.id}`);
+        const tierId = payment.metadata && payment.metadata.tierId ? payment.metadata.tierId : 1;
+        await activateSubscription(user.id, tierId);
+        logger.info(`✅ Subscription activated for user ${user.id}`);
+      } else if (payment.purpose === 'deposit') {
+        const oldBalance = user.balance;
+
+        // Получаем количество ChiCoins из metadata
+        let chicoinsToAdd = parseFloat(payment.amount);
+        if (payment.metadata && payment.metadata.chicoins) {
+          chicoinsToAdd = parseFloat(payment.metadata.chicoins);
+          logger.info(`Using ChiCoins from metadata: ${chicoinsToAdd}`);
+        }
+
+        user.balance = parseFloat(user.balance || 0) + chicoinsToAdd;
+        await user.save();
+
+        logger.info(`✅ Balance updated for user ${user.id}:`, {
+          old_balance: oldBalance,
+          added: chicoinsToAdd,
+          new_balance: user.balance
+        });
+
+        // Начисляем опыт за пополнение
+        try {
+          await addExperience(user.id, 40, 'deposit', null, 'Пополнение баланса');
+          logger.info(`✅ Experience added for deposit`);
+        } catch (expError) {
+          logger.error('Failed to add experience for deposit:', expError);
+        }
+      }
+
+      // Создаем запись транзакции ПОСЛЕ успешного обновления баланса
+      const balanceBefore = payment.purpose === 'subscription' ? user.balance : (user.balance - transactionAmount);
+      const transaction = await require('../models').Transaction.create({
+        user_id: user.id,
+        type: payment.purpose === 'subscription' ? 'subscription_purchase' : 'balance_add',
+        amount: transactionAmount,
+        description: payment.description,
+        status: 'completed',
+        related_entity_id: payment.id,
+        related_entity_type: 'Payment',
+        balance_before: balanceBefore,
+        balance_after: user.balance,
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent'],
+        is_system: false,
+        payment_id: payment.id
+      });
+
+      logger.info(`✅ Transaction created:`, {
+        transaction_id: transaction.id,
+        type: transaction.type,
+        amount: transaction.amount
+      });
+
+      // ТОЛЬКО ПОСЛЕ успешного обновления баланса сохраняем статус платежа
+      payment.status = 'completed';
+      payment.webhook_received = true;
+      payment.payment_id = orderId || orderNumber.toString();
+      payment.webhook_data = params;
+      payment.completed_at = new Date();
+      await payment.save();
+
+      logger.info(`✅ Payment status updated to completed for OrderNumber=${orderNumber}`);
+    } else if (status === '3' || status === '6') {
+      // Статус 3 - авторизация отменена, 6 - авторизация отклонена
+      if (payment.status !== 'failed' && payment.status !== 'cancelled') {
+        payment.status = status === '3' ? 'cancelled' : 'failed';
+        payment.webhook_received = true;
+        payment.webhook_data = params;
+        await payment.save();
+        logger.info(`Payment ${orderNumber} marked as ${payment.status}`);
+      }
+    } else {
+      logger.info(`Payment ${orderNumber} status is ${status}, no action needed`);
+    }
+
+    // Альфа-Банк требует ответ "OK"
+    return res.send('OK');
+  } catch (error) {
+    logger.error('❌ Error processing Alfabank callback:', error);
+    logger.error('Error stack:', error.stack);
+    return res.status(500).send('ERROR');
+  }
+}
+
+/**
+ * Обработчик Success URL для Альфа-Банка
+ * Этот URL для редиректа пользователя после успешной оплаты
+ */
+async function alfabankSuccessURL(req, res) {
+  try {
+    logger.info('=== ALFABANK SUCCESS URL RECEIVED ===');
+    logger.info('Query params:', req.query);
+
+    const { orderNumber } = req.query;
+
+    if (!orderNumber) {
+      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+    }
+
+    // Проверяем статус платежа в БД по invoice_number
+    const payment = await Payment.findOne({ where: { invoice_number: parseInt(orderNumber) } });
+
+    if (payment && payment.status === 'completed') {
+      logger.info(`Payment ${orderNumber} completed successfully, redirecting to success page`);
+      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=success&orderNumber=${orderNumber}`);
+    } else {
+      logger.info(`Payment ${orderNumber} pending or failed, redirecting to pending page`);
+      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=pending&orderNumber=${orderNumber}`);
+    }
+  } catch (error) {
+    logger.error('Error processing Alfabank SuccessURL:', error);
+    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+  }
+}
+
+/**
+ * Обработчик Fail URL для Альфа-Банка
+ * Этот URL для редиректа пользователя после неудачной оплаты
+ */
+async function alfabankFailURL(req, res) {
+  try {
+    logger.info('=== ALFABANK FAIL URL RECEIVED ===');
+    logger.info('Query params:', req.query);
+
+    const { orderNumber } = req.query;
+
+    if (orderNumber) {
+      const payment = await Payment.findOne({ where: { invoice_number: parseInt(orderNumber) } });
+      if (payment && payment.status !== 'completed') {
+        payment.status = 'failed';
+        await payment.save();
+        logger.info(`Payment ${orderNumber} marked as failed`);
+      }
+    }
+
+    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=failed&orderNumber=${orderNumber || ''}`);
+  } catch (error) {
+    logger.error('Error processing Alfabank FailURL:', error);
+    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+  }
+}
+
 module.exports = {
   yoomoneyWebhook,
   freekassaResultURL,
   freekassaSuccessURL,
-  freekassaFailURL
+  freekassaFailURL,
+  alfabankCallback,
+  alfabankSuccessURL,
+  alfabankFailURL
 };

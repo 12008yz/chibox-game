@@ -4,7 +4,10 @@ const {
   yoomoneyWebhook,
   freekassaResultURL,
   freekassaSuccessURL,
-  freekassaFailURL
+  freekassaFailURL,
+  alfabankCallback,
+  alfabankSuccessURL,
+  alfabankFailURL
 } = require('../controllers/paymentWebhook');
 
 // Middleware для захвата raw body (нужно для проверки подписи ЮKassa)
@@ -34,5 +37,16 @@ router.get('/freekassa/success', freekassaSuccessURL);
 
 // FailURL - для редиректа пользователя после неудачной оплаты
 router.get('/freekassa/fail', freekassaFailURL);
+
+// Роуты для Альфа-Банка
+// Callback URL - для серверного уведомления о платеже (обязательный)
+router.post('/alfabank/callback', alfabankCallback);
+router.get('/alfabank/callback', alfabankCallback);
+
+// SuccessURL - для редиректа пользователя после успешной оплаты
+router.get('/alfabank/success', alfabankSuccessURL);
+
+// FailURL - для редиректа пользователя после неудачной оплаты
+router.get('/alfabank/fail', alfabankFailURL);
 
 module.exports = router;

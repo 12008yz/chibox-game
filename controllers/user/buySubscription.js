@@ -117,9 +117,9 @@ async function buySubscription(req, res) {
         return res.json({
           success: true,
           data: {
-            paymentUrl: paymentResult.paymentUrl
+            qrUrl: paymentResult.qrUrl
           },
-          message: 'Перенаправьте пользователя для оплаты',
+          message: 'QR-код для оплаты готов',
           subscription_purchase_date: updatedUser.subscription_purchase_date,
           subscription_expiry_date: updatedUser.subscription_expiry_date,
           subscription_tier: updatedUser.subscription_tier

@@ -139,7 +139,7 @@ async function topUpBalance(req, res) {
       return res.json({
         success: true,
         data: {
-          paymentUrl: paymentResult.paymentUrl,
+          qrUrl: paymentResult.qrUrl,
           paymentId: paymentResult.paymentId
         }
       });

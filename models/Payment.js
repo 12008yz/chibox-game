@@ -24,7 +24,7 @@ module.exports = (sequelize) => {
       comment: "Сумма платежа"
     },
     payment_system: {
-      type: DataTypes.ENUM('ukassa', 'freekassa', 'paypal', 'stripe', 'qiwi', 'webmoney', 'crypto', 'bank_card', 'sbp', 'mir', 'other'),
+      type: DataTypes.ENUM('ukassa', 'freekassa', 'alfabank', 'paypal', 'stripe', 'qiwi', 'webmoney', 'crypto', 'bank_card', 'sbp', 'mir', 'other'),
       allowNull: false,
       comment: "Платежная система, через которую совершается платеж"
     },
