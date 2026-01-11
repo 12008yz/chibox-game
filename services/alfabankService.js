@@ -16,19 +16,26 @@ const ALFABANK_QR_SUBSCRIPTION_TIER_3 = process.env.ALFABANK_QR_SUBSCRIPTION_TIE
 
 /**
  * Генерация подписи для проверки callback от Альфа-Банка
- * Формула: MD5(orderNumber + status + callbackToken)
+ * Альфа-Банк может использовать MD5 или SHA256 в зависимости от настроек
+ * Формула MD5: MD5(orderNumber + status + callbackToken)
+ * Формула SHA256: SHA256(orderNumber + status + callbackToken)
  * @param {string} orderNumber - номер заказа
  * @param {string} status - статус заказа
  * @param {string} callbackToken - токен для callback
+ * @param {string} algorithm - алгоритм хеширования ('md5' или 'sha256')
  * @returns {string}
  */
-function generateCallbackChecksum(orderNumber, status, callbackToken) {
+function generateCallbackChecksum(orderNumber, status, callbackToken, algorithm = 'md5') {
   const signatureString = `${orderNumber}${status}${callbackToken}`;
+  if (algorithm === 'sha256') {
+    return crypto.createHash('sha256').update(signatureString).digest('hex').toUpperCase();
+  }
   return crypto.createHash('md5').update(signatureString).digest('hex').toUpperCase();
 }
 
 /**
  * Проверка подписи callback от Альфа-Банка
+ * Поддерживает как MD5 (32 символа), так и SHA256 (64 символа)
  * @param {object} params - параметры callback
  * @param {string} params.orderNumber - номер заказа
  * @param {string} params.status - статус заказа
@@ -41,14 +48,41 @@ function verifyCallbackChecksum({ orderNumber, status, checksum }) {
     return false;
   }
 
-  const calculatedChecksum = generateCallbackChecksum(orderNumber, status, ALFABANK_CALLBACK_TOKEN);
-  const isValid = calculatedChecksum === checksum.toUpperCase();
+  if (!ALFABANK_CALLBACK_TOKEN) {
+    console.warn('ALFABANK_CALLBACK_TOKEN not configured, skipping checksum verification');
+    return true; // Если токен не настроен, пропускаем проверку
+  }
+
+  // Определяем алгоритм по длине checksum
+  // MD5 = 32 символа, SHA256 = 64 символа
+  const checksumLength = checksum.length;
+  let isValid = false;
+  let calculatedChecksum = '';
+
+  if (checksumLength === 64) {
+    // SHA256 (64 символа)
+    calculatedChecksum = generateCallbackChecksum(orderNumber, status, ALFABANK_CALLBACK_TOKEN, 'sha256');
+    isValid = calculatedChecksum === checksum.toUpperCase();
+  } else if (checksumLength === 32) {
+    // MD5 (32 символа)
+    calculatedChecksum = generateCallbackChecksum(orderNumber, status, ALFABANK_CALLBACK_TOKEN, 'md5');
+    isValid = calculatedChecksum === checksum.toUpperCase();
+  } else {
+    console.warn(`Unexpected checksum length: ${checksumLength}, expected 32 (MD5) or 64 (SHA256)`);
+    // Пробуем оба варианта
+    const md5Checksum = generateCallbackChecksum(orderNumber, status, ALFABANK_CALLBACK_TOKEN, 'md5');
+    const sha256Checksum = generateCallbackChecksum(orderNumber, status, ALFABANK_CALLBACK_TOKEN, 'sha256');
+    isValid = md5Checksum === checksum.toUpperCase() || sha256Checksum === checksum.toUpperCase();
+    calculatedChecksum = `${md5Checksum} (MD5) or ${sha256Checksum} (SHA256)`;
+  }
 
   console.log('Alfabank checksum verification:', {
     orderNumber,
     status,
     received: checksum,
+    receivedLength: checksumLength,
     calculated: calculatedChecksum,
+    algorithm: checksumLength === 64 ? 'SHA256' : checksumLength === 32 ? 'MD5' : 'UNKNOWN',
     isValid
   });
 
@@ -131,10 +165,9 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
         formData.append('failUrl', failUrl);
         formData.append('description', description || `Payment for ${purpose} by user ${userId}`);
         
-        // Для динамических callback указываем callback URL через jsonParams
-        formData.append('jsonParams', JSON.stringify({
-          callbackUrl: callbackUrl
-        }));
+        // Для динамических callback указываем callback URL напрямую
+        // По документации Альфа-Банка параметр callbackUrl должен быть указан отдельно
+        formData.append('callbackUrl', callbackUrl);
 
         const response = await axios.post(`${ALFABANK_PAYMENT_GATEWAY_URL}/register.do`, formData.toString(), {
           headers: {

@@ -553,9 +553,10 @@ async function alfabankCallback(req, res) {
     // Находим платеж в БД
     // При динамическом callback Альфа-Банк отправляет mdOrder (внутренний номер), а orderNumber может быть другим
     // При статическом callback orderNumber = наш invoice_number
+    // ВАЖНО: Альфа-Банк может отправлять свой внутренний orderNumber, который отличается от нашего invoice_number
     let payment = null;
     
-    // 1. Сначала пробуем найти по mdOrder (приоритет для динамических callback'ов)
+    // 1. Сначала пробуем найти по mdOrder в payment_id (приоритет для динамических callback'ов)
     if (mdOrder) {
       payment = await Payment.findOne({ 
         where: { 
@@ -567,84 +568,84 @@ async function alfabankCallback(req, res) {
       }
     }
     
-    // 2. Если не нашли по mdOrder, пробуем найти по orderNumber (наш invoice_number)
-    if (!payment && orderNumber) {
-      payment = await Payment.findOne({ where: { invoice_number: parseInt(orderNumber) } });
-      if (payment) {
-        logger.info(`✅ Found payment by invoice_number: ${orderNumber}`);
-      }
-    }
-    
-    // Если не нашли по orderNumber, пробуем найти по mdOrder (внутренний номер Альфа-Банка)
-    if (!payment && mdOrder) {
-      payment = await Payment.findOne({ 
-        where: { 
-          payment_id: mdOrder.toString() 
-        } 
-      });
-      if (payment) {
-        logger.info(`Found payment by mdOrder (payment_id): ${mdOrder}`);
-      }
-    }
-    
-    // Если не нашли, пробуем найти по mdOrder в payment_details (для платежей, где mdOrder был сохранен при статусе 1)
+    // 2. Если не нашли, пробуем найти по mdOrder в payment_details
     if (!payment && mdOrder) {
       const payments = await Payment.findAll({
         where: {
           payment_system: 'alfabank',
-          status: ['pending', 'processing']
+          status: ['pending', 'processing', 'completed']
         },
         order: [['created_at', 'DESC']],
-        limit: 10
+        limit: 50
       });
       
       for (const p of payments) {
-        if (p.payment_details && typeof p.payment_details === 'object' && p.payment_details.mdOrder === mdOrder.toString()) {
-          payment = p;
-          logger.info(`Found payment by mdOrder (payment_details): ${mdOrder}, invoice_number=${p.invoice_number}`);
-          break;
+        if (p.payment_details && typeof p.payment_details === 'object') {
+          if (p.payment_details.mdOrder === mdOrder.toString()) {
+            payment = p;
+            logger.info(`✅ Found payment by mdOrder (payment_details): ${mdOrder}, invoice_number=${p.invoice_number}`);
+            break;
+          }
         }
       }
     }
     
-    // Если все еще не нашли, пробуем найти по orderId
+    // 3. Пробуем найти по orderNumber как invoice_number (наш номер заказа)
+    if (!payment && orderNumber) {
+      // Сначала пробуем как число
+      const orderNum = parseInt(orderNumber);
+      if (!isNaN(orderNum)) {
+        payment = await Payment.findOne({ where: { invoice_number: orderNum } });
+        if (payment) {
+          logger.info(`✅ Found payment by invoice_number: ${orderNumber}`);
+        }
+      }
+    }
+    
+    // 4. Пробуем найти по orderNumber в payment_details.alfabankOrderNumber
+    // (Альфа-Банк может отправлять свой внутренний orderNumber)
+    if (!payment && orderNumber) {
+      const payments = await Payment.findAll({
+        where: {
+          payment_system: 'alfabank',
+          status: ['pending', 'processing', 'completed']
+        },
+        order: [['created_at', 'DESC']],
+        limit: 50
+      });
+      
+      for (const p of payments) {
+        if (p.payment_details && typeof p.payment_details === 'object') {
+          if (p.payment_details.alfabankOrderNumber === orderNumber.toString()) {
+            payment = p;
+            logger.info(`✅ Found payment by alfabankOrderNumber in payment_details: invoice_number=${p.invoice_number}, orderNumber=${orderNumber}`);
+            break;
+          }
+        }
+      }
+    }
+    
+    // 5. Пробуем найти по orderId
     if (!payment && orderId) {
       payment = await Payment.findOne({ 
         where: { 
           payment_id: orderId.toString() 
         } 
       });
+      if (payment) {
+        logger.info(`✅ Found payment by orderId: ${orderId}`);
+      }
     }
     
-    // Если все еще не нашли, пробуем найти по orderNumber как payment_id (для статических платежей)
+    // 6. Пробуем найти по orderNumber как payment_id (для статических платежей)
     if (!payment && orderNumber) {
       payment = await Payment.findOne({ 
         where: { 
           payment_id: orderNumber.toString() 
         } 
       });
-    }
-    
-    // 6. Если не нашли и пришел статус 2, ищем по payment_details.alfabankOrderNumber
-    if (!payment && status === '2' && orderNumber) {
-      const payments = await Payment.findAll({
-        where: {
-          payment_system: 'alfabank',
-          status: ['pending', 'processing']
-        },
-        order: [['created_at', 'DESC']],
-        limit: 20
-      });
-      
-      for (const p of payments) {
-        if (p.payment_details && typeof p.payment_details === 'object') {
-          if (p.payment_details.alfabankOrderNumber === orderNumber.toString() || 
-              (mdOrder && p.payment_details.mdOrder === mdOrder.toString())) {
-            payment = p;
-            logger.info(`✅ Found payment by alfabankOrderNumber/mdOrder in payment_details: invoice_number=${p.invoice_number}, orderNumber=${orderNumber}, mdOrder=${mdOrder}`);
-            break;
-          }
-        }
+      if (payment) {
+        logger.info(`✅ Found payment by orderNumber as payment_id: ${orderNumber}`);
       }
     }
     
@@ -731,29 +732,39 @@ async function alfabankCallback(req, res) {
     if (status === '1') {
       // Статус 1 - предавторизованная сумма захолдирована (холд)
       logger.info(`⚠️ Payment ${payment.invoice_number} has status 1 (hold) - waiting for status 2`);
-      // Обновляем payment_id и payment_details если пришел mdOrder
+      
+      // Обновляем payment_details с данными от Альфа-Банка
+      // ВАЖНО: Сохраняем все данные для последующего сопоставления
+      if (!payment.payment_details || typeof payment.payment_details !== 'object') {
+        payment.payment_details = {};
+      }
+      
+      // Сохраняем mdOrder если есть
       if (mdOrder) {
         payment.payment_id = mdOrder.toString();
-        if (!payment.payment_details || typeof payment.payment_details !== 'object') {
-          payment.payment_details = {};
-        }
         payment.payment_details.mdOrder = mdOrder.toString();
-        payment.payment_details.alfabankOrderNumber = orderNumber;
-        payment.webhook_received = true;
-        payment.webhook_data = params;
-        await payment.save();
-        logger.info(`✅ Updated payment ${payment.invoice_number}: payment_id=${mdOrder}, orderNumber=${orderNumber}`);
-      } else if (orderNumber && orderNumber !== payment.invoice_number.toString()) {
-        // Если нет mdOrder, но есть orderNumber от Альфа-Банка, сохраняем его
-        if (!payment.payment_details || typeof payment.payment_details !== 'object') {
-          payment.payment_details = {};
-        }
-        payment.payment_details.alfabankOrderNumber = orderNumber;
-        payment.webhook_received = true;
-        payment.webhook_data = params;
-        await payment.save();
-        logger.info(`✅ Updated payment ${payment.invoice_number}: saved alfabankOrderNumber=${orderNumber}`);
+        logger.info(`Saved mdOrder: ${mdOrder}`);
       }
+      
+      // Сохраняем orderNumber от Альфа-Банка (может отличаться от нашего invoice_number)
+      if (orderNumber) {
+        payment.payment_details.alfabankOrderNumber = orderNumber.toString();
+        logger.info(`Saved alfabankOrderNumber: ${orderNumber}`);
+      }
+      
+      // Сохраняем другие параметры для отладки
+      if (operation) {
+        payment.payment_details.operation = operation;
+      }
+      if (templateId) {
+        payment.payment_details.templateId = templateId;
+      }
+      
+      payment.webhook_received = true;
+      payment.webhook_data = params;
+      await payment.save();
+      
+      logger.info(`✅ Updated payment ${payment.invoice_number}: payment_id=${payment.payment_id}, alfabankOrderNumber=${orderNumber}, mdOrder=${mdOrder}`);
       return res.send('OK');
     } else if (status === '2') {
       // Статус 2 означает успешную оплату
