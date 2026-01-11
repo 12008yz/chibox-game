@@ -1019,6 +1019,134 @@ async function alfabankSuccessURL(req, res) {
       }
     }
 
+    // Если платеж еще pending, пробуем проверить статус через API (если доступен)
+    if (payment.status === 'pending') {
+      logger.info(`Payment ${orderNumber} is pending, checking status via API...`);
+      
+      try {
+        const { getOrderStatus } = require('../services/alfabankService');
+        
+        // Пробуем проверить статус через API
+        // Используем payment_id если есть (mdOrder), иначе invoice_number
+        const orderIdToCheck = payment.payment_id || payment.invoice_number.toString();
+        const statusResult = await getOrderStatus(orderIdToCheck);
+        
+        if (statusResult.success && statusResult.data) {
+          const orderStatus = statusResult.data.orderStatus;
+          logger.info(`API status check result for ${orderIdToCheck}:`, {
+            orderStatus: orderStatus,
+            orderNumber: statusResult.data.orderNumber,
+            amount: statusResult.data.amount,
+            errorCode: statusResult.data.errorCode,
+            errorMessage: statusResult.data.errorMessage
+          });
+          
+          // Статус 2 = успешная оплата
+          if (orderStatus === 2 && payment.status !== 'completed') {
+            logger.info(`✅ Payment ${orderNumber} confirmed as paid via API, processing...`);
+            
+            // Обрабатываем платеж так же, как в callback со статусом 2
+            const user = await require('../models').User.findByPk(payment.user_id);
+            if (!user) {
+              logger.warn(`User not found for payment user_id=${payment.user_id}`);
+              return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+            }
+
+            // Определяем сумму для транзакции
+            let transactionAmount = parseFloat(payment.amount);
+            if (payment.purpose === 'deposit' && payment.metadata && payment.metadata.chicoins) {
+              transactionAmount = parseFloat(payment.metadata.chicoins);
+            }
+
+            // Обрабатываем платёж в зависимости от назначения
+            if (payment.purpose === 'subscription') {
+              logger.info(`Activating subscription for user ${user.id} from payment ${payment.id}`);
+              const tierId = payment.metadata && payment.metadata.tierId ? payment.metadata.tierId : 1;
+              await activateSubscription(user.id, tierId);
+              logger.info(`✅ Subscription activated for user ${user.id}`);
+            } else if (payment.purpose === 'deposit') {
+              const oldBalance = parseFloat(user.balance || 0);
+              let chicoinsToAdd = parseFloat(payment.amount);
+              if (payment.metadata && payment.metadata.chicoins) {
+                chicoinsToAdd = parseFloat(payment.metadata.chicoins);
+                logger.info(`Using ChiCoins from metadata: ${chicoinsToAdd}`);
+              }
+
+              const newBalance = oldBalance + chicoinsToAdd;
+              user.balance = newBalance;
+              await user.save();
+              await user.reload();
+
+              logger.info(`✅ Balance updated for user ${user.id}:`, {
+                old_balance: oldBalance,
+                added: chicoinsToAdd,
+                new_balance: user.balance
+              });
+
+              // Начисляем опыт
+              try {
+                const { addExperience } = require('../services/xpService');
+                await addExperience(user.id, 40, 'deposit', null, 'Пополнение баланса');
+              } catch (expError) {
+                logger.error('Failed to add experience for deposit:', expError);
+              }
+            }
+
+            // Создаем транзакцию
+            const balanceBefore = payment.purpose === 'subscription' ? user.balance : (user.balance - transactionAmount);
+            const transaction = await require('../models').Transaction.create({
+              user_id: user.id,
+              type: payment.purpose === 'subscription' ? 'subscription_purchase' : 'balance_add',
+              amount: transactionAmount,
+              description: payment.description,
+              status: 'completed',
+              related_entity_id: payment.id,
+              related_entity_type: 'Payment',
+              balance_before: balanceBefore,
+              balance_after: user.balance,
+              ip_address: req.ip,
+              user_agent: req.headers['user-agent'],
+              is_system: false,
+              payment_id: payment.id
+            });
+
+            // Обновляем статус платежа
+            payment.status = 'completed';
+            payment.webhook_received = true;
+            payment.completed_at = new Date();
+            if (!payment.webhook_data) {
+              payment.webhook_data = { status: '2', processed_via_success_url_api: true };
+            } else {
+              payment.webhook_data.processed_via_success_url_api = true;
+              payment.webhook_data.status = '2';
+            }
+            await payment.save();
+
+            logger.info(`✅ Payment ${orderNumber} processed and completed via success URL (API check)`);
+            return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=success&orderNumber=${orderNumber}`);
+          } else if (orderStatus === 1) {
+            // Статус 1 = холд, еще не оплачен полностью
+            logger.info(`Payment ${orderNumber} has status 1 (hold), waiting for completion...`);
+            return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=pending&orderNumber=${orderNumber}`);
+          } else if (orderStatus === 3 || orderStatus === 6) {
+            // Статус 3 = отменен, 6 = отклонен
+            logger.warn(`Payment ${orderNumber} cancelled or declined: status=${orderStatus}`);
+            payment.status = orderStatus === 3 ? 'cancelled' : 'failed';
+            payment.webhook_data = { status: orderStatus.toString(), checked_via_api: true };
+            await payment.save();
+            return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=failed&orderNumber=${orderNumber}`);
+          } else {
+            logger.info(`Payment ${orderNumber} status: ${orderStatus}, still pending...`);
+          }
+        } else {
+          logger.warn(`Failed to check payment status via API: ${statusResult.error || 'Unknown error'}`);
+        }
+      } catch (apiError) {
+        logger.error(`Error checking payment status via API: ${apiError.message}`);
+        // Продолжаем обработку даже если API недоступен
+      }
+    }
+
     // Если платеж еще pending, редиректим на pending страницу
     logger.info(`Payment ${orderNumber} pending or failed, redirecting to pending page`);
     return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=pending&orderNumber=${orderNumber}`);

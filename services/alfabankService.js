@@ -337,7 +337,7 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
 
 /**
  * Проверка статуса заказа в Альфа-Банке (getOrderStatusExtended.do)
- * @param {string} orderNumber - номер заказа
+ * @param {string} orderNumber - номер заказа (может быть orderId, mdOrder или invoice_number)
  * @returns {Promise<object>}
  */
 async function getOrderStatus(orderNumber) {
@@ -346,16 +346,38 @@ async function getOrderStatus(orderNumber) {
       throw new Error('Alfabank credentials not configured');
     }
 
-    const response = await axios.post(`${ALFABANK_PAYMENT_GATEWAY_URL}/getOrderStatusExtended.do`, null, {
-      params: {
-        userName: ALFABANK_API_LOGIN,
-        password: ALFABANK_API_PASSWORD,
-        orderId: orderNumber
-      },
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
+    // Для getOrderStatusExtended.do можно использовать как orderId, так и orderNumber
+    // Пробуем сначала как orderId (для динамических платежей)
+    let response;
+    try {
+      const formData = new URLSearchParams();
+      formData.append('userName', ALFABANK_API_LOGIN);
+      formData.append('password', ALFABANK_API_PASSWORD);
+      formData.append('orderId', orderNumber);
+      
+      response = await axios.post(`${ALFABANK_PAYMENT_GATEWAY_URL}/getOrderStatusExtended.do`, formData.toString(), {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      });
+    } catch (firstError) {
+      // Если не сработало с orderId, пробуем с orderNumber
+      if (firstError.response && firstError.response.data && firstError.response.data.errorCode) {
+        console.log(`Trying with orderNumber instead of orderId for ${orderNumber}`);
+        const formData = new URLSearchParams();
+        formData.append('userName', ALFABANK_API_LOGIN);
+        formData.append('password', ALFABANK_API_PASSWORD);
+        formData.append('orderNumber', orderNumber);
+        
+        response = await axios.post(`${ALFABANK_PAYMENT_GATEWAY_URL}/getOrderStatusExtended.do`, formData.toString(), {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        });
+      } else {
+        throw firstError;
       }
-    });
+    }
 
     return {
       success: true,
@@ -363,9 +385,13 @@ async function getOrderStatus(orderNumber) {
     };
   } catch (error) {
     console.error('Ошибка проверки статуса заказа в Альфа-Банке:', error.message);
+    if (error.response) {
+      console.error('API Response:', error.response.data);
+    }
     return {
       success: false,
-      error: error.message
+      error: error.message,
+      errorData: error.response?.data
     };
   }
 }
