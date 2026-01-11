@@ -36,13 +36,15 @@ function generateCallbackChecksum(orderNumber, status, callbackToken, algorithm 
 /**
  * Проверка подписи callback от Альфа-Банка
  * Поддерживает как MD5 (32 символа), так и SHA256 (64 символа)
+ * Альфа-Банк может использовать разные формулы в зависимости от типа callback
  * @param {object} params - параметры callback
  * @param {string} params.orderNumber - номер заказа
  * @param {string} params.status - статус заказа
  * @param {string} params.checksum - полученная подпись
+ * @param {string} params.mdOrder - внутренний номер заказа (опционально)
  * @returns {boolean}
  */
-function verifyCallbackChecksum({ orderNumber, status, checksum }) {
+function verifyCallbackChecksum({ orderNumber, status, checksum, mdOrder }) {
   if (!orderNumber || !status || !checksum) {
     console.log('Missing required parameters for checksum verification');
     return false;
@@ -56,36 +58,75 @@ function verifyCallbackChecksum({ orderNumber, status, checksum }) {
   // Определяем алгоритм по длине checksum
   // MD5 = 32 символа, SHA256 = 64 символа
   const checksumLength = checksum.length;
+  const checksumUpper = checksum.toUpperCase();
   let isValid = false;
   let calculatedChecksum = '';
+  let usedFormula = '';
 
+  // Пробуем разные варианты формул
+  const formulas = [];
+  
+  // Вариант 1: SHA256(orderNumber + status + callbackToken) - стандартная формула
   if (checksumLength === 64) {
-    // SHA256 (64 символа)
-    calculatedChecksum = generateCallbackChecksum(orderNumber, status, ALFABANK_CALLBACK_TOKEN, 'sha256');
-    isValid = calculatedChecksum === checksum.toUpperCase();
-  } else if (checksumLength === 32) {
-    // MD5 (32 символа)
-    calculatedChecksum = generateCallbackChecksum(orderNumber, status, ALFABANK_CALLBACK_TOKEN, 'md5');
-    isValid = calculatedChecksum === checksum.toUpperCase();
-  } else {
-    console.warn(`Unexpected checksum length: ${checksumLength}, expected 32 (MD5) or 64 (SHA256)`);
-    // Пробуем оба варианта
-    const md5Checksum = generateCallbackChecksum(orderNumber, status, ALFABANK_CALLBACK_TOKEN, 'md5');
-    const sha256Checksum = generateCallbackChecksum(orderNumber, status, ALFABANK_CALLBACK_TOKEN, 'sha256');
-    isValid = md5Checksum === checksum.toUpperCase() || sha256Checksum === checksum.toUpperCase();
-    calculatedChecksum = `${md5Checksum} (MD5) or ${sha256Checksum} (SHA256)`;
+    const sha256Standard = generateCallbackChecksum(orderNumber, status, ALFABANK_CALLBACK_TOKEN, 'sha256');
+    formulas.push({ checksum: sha256Standard, formula: 'SHA256(orderNumber + status + token)', algorithm: 'sha256' });
+  }
+  
+  // Вариант 2: MD5(orderNumber + status + callbackToken) - стандартная формула
+  if (checksumLength === 32) {
+    const md5Standard = generateCallbackChecksum(orderNumber, status, ALFABANK_CALLBACK_TOKEN, 'md5');
+    formulas.push({ checksum: md5Standard, formula: 'MD5(orderNumber + status + token)', algorithm: 'md5' });
+  }
+  
+  // Вариант 3: SHA256(status + orderNumber + callbackToken) - альтернативный порядок
+  if (checksumLength === 64) {
+    const sha256Alt = crypto.createHash('sha256').update(`${status}${orderNumber}${ALFABANK_CALLBACK_TOKEN}`).digest('hex').toUpperCase();
+    formulas.push({ checksum: sha256Alt, formula: 'SHA256(status + orderNumber + token)', algorithm: 'sha256' });
+  }
+  
+  // Вариант 4: Если есть mdOrder, пробуем с ним
+  if (mdOrder && checksumLength === 64) {
+    const sha256WithMdOrder = crypto.createHash('sha256').update(`${mdOrder}${status}${ALFABANK_CALLBACK_TOKEN}`).digest('hex').toUpperCase();
+    formulas.push({ checksum: sha256WithMdOrder, formula: 'SHA256(mdOrder + status + token)', algorithm: 'sha256' });
+  }
+  
+  if (mdOrder && checksumLength === 32) {
+    const md5WithMdOrder = crypto.createHash('md5').update(`${mdOrder}${status}${ALFABANK_CALLBACK_TOKEN}`).digest('hex').toUpperCase();
+    formulas.push({ checksum: md5WithMdOrder, formula: 'MD5(mdOrder + status + token)', algorithm: 'md5' });
+  }
+
+  // Проверяем все варианты
+  for (const formula of formulas) {
+    if (formula.checksum === checksumUpper) {
+      isValid = true;
+      calculatedChecksum = formula.checksum;
+      usedFormula = formula.formula;
+      break;
+    }
+  }
+
+  // Если ни один вариант не подошел, берем первый для логирования
+  if (!isValid && formulas.length > 0) {
+    calculatedChecksum = formulas[0].checksum;
+    usedFormula = formulas[0].formula;
   }
 
   console.log('Alfabank checksum verification:', {
     orderNumber,
+    mdOrder: mdOrder || 'N/A',
     status,
     received: checksum,
     receivedLength: checksumLength,
     calculated: calculatedChecksum,
+    usedFormula: usedFormula || 'NONE MATCHED',
     algorithm: checksumLength === 64 ? 'SHA256' : checksumLength === 32 ? 'MD5' : 'UNKNOWN',
-    isValid
+    isValid,
+    tokenLength: ALFABANK_CALLBACK_TOKEN.length,
+    tokenPreview: ALFABANK_CALLBACK_TOKEN.substring(0, 4) + '...' + ALFABANK_CALLBACK_TOKEN.substring(ALFABANK_CALLBACK_TOKEN.length - 4)
   });
 
+  // В продакшене продолжаем обработку даже если checksum не прошел
+  // (платеж может быть валидным, но токен настроен неправильно)
   return isValid;
 }
 

@@ -528,7 +528,8 @@ async function alfabankCallback(req, res) {
       isValidSignature = verifyCallbackChecksum({
         orderNumber,
         status,
-        checksum
+        checksum,
+        mdOrder
       });
 
       if (!isValidSignature) {
