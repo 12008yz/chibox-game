@@ -24,8 +24,7 @@ const logger = winston.createLogger({
  */
 async function unitpayHandler(req, res) {
   try {
-    logger.info('=== UNITPAY HANDLER RECEIVED ===');
-    logger.info('Query:', req.query);
+    logger.info('Unitpay handler received', { method: req.query.method, account: req.query.params ? '(present)' : '(missing)' });
 
     const {
       verifyHandlerSignature,
@@ -51,7 +50,7 @@ async function unitpayHandler(req, res) {
       return res.status(400).json({ error: { message: 'Invalid signature' } });
     }
 
-    logger.info('Unitpay: signature OK', { method, account: params.account, unitpayId: params.unitpayId, paramsKeys: Object.keys(params) });
+    logger.info('Unitpay: signature OK', { method, account: params.account });
 
     const account = params.account;
     const orderSum = parseFloat(params.orderSum);

@@ -20,21 +20,7 @@ const authMiddleware = (req, res, next) => {
     token = req.cookies.accessToken;
   }
 
-  // Приоритет 3: Проверяем query параметры (для Steam ссылок)
-  if (!token && req.query.token) {
-    token = req.query.token;
-  }
-
-  // Логирование для Steam маршрутов
-  if (req.path.includes('steam') || req.path.includes('link-steam')) {
-    console.log('Auth middleware для Steam маршрута:', {
-      path: req.path,
-      hasAuthHeader: !!authHeader,
-      hasCookie: !!req.cookies?.accessToken,
-      hasQueryToken: !!req.query.token,
-      hasToken: !!token
-    });
-  }
+  // Токен из query не принимаем — попадает в логи, историю, referrer
 
   if (!token) {
     console.log('Токен не найден для маршрута:', req.path);

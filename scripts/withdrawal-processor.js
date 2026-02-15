@@ -314,7 +314,7 @@ class WithdrawalProcessor {
         throw new Error(urlValidation.error || 'Неверный Trade URL');
       }
 
-      logger.info(`✅ Trade URL валиден. Partner ID: ${urlValidation.partnerId}, Token: ${urlValidation.token}`);
+      logger.info('Trade URL валиден', { partnerId: urlValidation.partnerId });
 
       const tradeResult = await this.steamBot.sendTradeOfferWithToken(
         urlValidation.partnerSteamId,

@@ -312,8 +312,8 @@ router.get('/link-steam/return',
         steamId: updatedUser.steam_id
       });
 
-      // Генерируем новый JWT токен с обновленными данными Steam
-      const newToken = jwt.sign(
+      // Генерируем токены и кладём в httpOnly cookies (как при обычном логине)
+      const accessToken = jwt.sign(
         {
           id: updatedUser.id,
           username: updatedUser.username,
@@ -323,20 +323,38 @@ router.get('/link-steam/return',
           steam_id: updatedUser.steam_id
         },
         process.env.JWT_SECRET,
+        { expiresIn: '15m' }
+      );
+      const refreshToken = jwt.sign(
+        { id: updatedUser.id, email: updatedUser.email, type: 'refresh' },
+        process.env.JWT_REFRESH_SECRET,
         { expiresIn: '7d' }
       );
 
-      logger.info('Сгенерирован новый JWT токен');
+      res.cookie('accessToken', accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 15 * 60 * 1000,
+        path: '/'
+      });
+      res.cookie('refreshToken', refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/'
+      });
+
+      logger.info('Сгенерирован новый JWT, установлены cookies для userId:', updatedUser.id);
 
       // Очищаем временные данные из сессии
       delete req.session.linkUserId;
       delete req.session.steamLinkData;
 
       const frontendUrl = process.env.FRONTEND_URL || 'https://chibox-game.ru';
-      const redirectUrl = `${frontendUrl}/profile?success=steam_linked&token=${encodeURIComponent(newToken)}`;
-
-      logger.info('Перенаправляем на фронтенд:', redirectUrl);
-      res.redirect(redirectUrl);
+      // БЕЗОПАСНОСТЬ: не передаём токен в URL (не попадает в логи, историю, referrer)
+      res.redirect(`${frontendUrl}/profile?success=steam_linked`);
 
     } catch (error) {
       logger.error('Ошибка при привязке Steam аккаунта:', {

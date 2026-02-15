@@ -26,9 +26,7 @@ async function topUpBalance(req, res) {
     const userId = req.user?.id;
     const { amount, currency = 'RUB', payment_method = 'unitpay', unitpay_system } = req.body;
 
-    logger.info(`topUpBalance called with userId=${userId}, amount=${amount}, currency=${currency}, payment_method=${payment_method}`);
-    logger.info(`Request body:`, req.body);
-    logger.info(`User:`, req.user);
+    logger.info('topUpBalance called', { userId, amount, currency, payment_method });
 
     // Проверяем авторизацию
     if (!userId) {
