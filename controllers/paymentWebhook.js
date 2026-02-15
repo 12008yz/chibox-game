@@ -1227,6 +1227,11 @@ async function unitpayHandler(req, res) {
     const unitpayId = params.unitpayId;
 
     const accountNum = parseInt(account, 10);
+    if (account == null || account === '' || Number.isNaN(accountNum) || accountNum < 1) {
+      logger.info(`Unitpay: invalid or test account=${account}, returning Order not found`);
+      return res.status(200).json({ error: { message: 'Order not found' } });
+    }
+
     const payment = await Payment.findOne({
       where: {
         invoice_number: accountNum,
@@ -1235,7 +1240,7 @@ async function unitpayHandler(req, res) {
     });
 
     if (!payment) {
-      logger.warn(`Unitpay: payment not found for account=${account} (num=${accountNum}). Укажите URL обработчика в ЛК Unitpay: https://ваш-домен/api/payment/unitpay/handler`);
+      logger.warn(`Unitpay: payment not found for account=${account} (num=${accountNum})`);
       return res.status(200).json({ error: { message: 'Order not found' } });
     }
 
