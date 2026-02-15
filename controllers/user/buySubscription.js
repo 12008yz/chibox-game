@@ -28,7 +28,7 @@ async function buySubscription(req, res) {
   logger.info('buySubscription start');
   try {
     const userId = req.user.id;
-    const { tierId, method, itemId, promoCode, paymentMethod } = req.body;
+    const { tierId, method, itemId, promoCode, paymentMethod, unitpay_system } = req.body;
     logger.info(`buySubscription called with userId=${userId}, tierId=${tierId}, method=${method}, itemId=${itemId}, promoCode=${promoCode}, paymentMethod=${paymentMethod}`);
     const user = await db.User.findByPk(userId);
     logger.info(`User loaded: ${JSON.stringify(user)}`);
@@ -97,7 +97,10 @@ async function buySubscription(req, res) {
           description: `Статус ${tier.name} на ${tier.days} дней`,
           userId: userId,
           purpose: 'subscription',
-          metadata: { tierId },
+          metadata: {
+            tierId,
+            ...(selectedPaymentMethod === 'unitpay' && unitpay_system ? { unitpay_system } : {})
+          },
           paymentMethod: selectedPaymentMethod
         });
 
@@ -117,9 +120,10 @@ async function buySubscription(req, res) {
         return res.json({
           success: true,
           data: {
-            qrUrl: paymentResult.qrUrl
+            qrUrl: paymentResult.qrUrl,
+            paymentUrl: paymentResult.paymentUrl
           },
-          message: 'QR-код для оплаты готов',
+          message: paymentResult.paymentUrl ? 'Переход к оплате' : 'QR-код для оплаты готов',
           subscription_purchase_date: updatedUser.subscription_purchase_date,
           subscription_expiry_date: updatedUser.subscription_expiry_date,
           subscription_tier: updatedUser.subscription_tier

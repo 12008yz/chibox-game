@@ -3,6 +3,7 @@ const { Payment } = require('../models');
 const crypto = require('crypto');
 const freekassaService = require('./freekassaService');
 const alfabankService = require('./alfabankService');
+const unitpayService = require('./unitpayService');
 
 const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID;
 const YOOKASSA_CLIENT_SECRET = process.env.YOOKASSA_CLIENT_SECRET;
@@ -100,7 +101,7 @@ async function createYooKassaPayment({ amount, description, userId, purpose = 'd
  * @param {number} params.userId
  * @param {string} params.purpose
  * @param {object} params.metadata
- * @param {string} params.paymentMethod - 'yookassa', 'freekassa' или 'alfabank'
+ * @param {string} params.paymentMethod - 'yookassa', 'freekassa', 'alfabank' или 'unitpay'
  */
 async function createPayment({ amount, description, userId, purpose = 'deposit', metadata = {}, paymentMethod = 'yookassa' }) {
   console.log(`Creating payment with method: ${paymentMethod}`);
@@ -109,6 +110,9 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
     return await freekassaService.createPayment({ amount, description, userId, purpose, metadata });
   } else if (paymentMethod === 'alfabank') {
     return await alfabankService.createPayment({ amount, description, userId, purpose, metadata });
+  } else if (paymentMethod === 'unitpay') {
+    const unitpaySystem = metadata?.unitpay_system || null;
+    return await unitpayService.createPayment({ amount, description, userId, purpose, metadata, systemCode: unitpaySystem });
   } else {
     return await createYooKassaPayment({ amount, description, userId, purpose, metadata });
   }

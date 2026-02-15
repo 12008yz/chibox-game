@@ -24,7 +24,7 @@ async function topUpBalance(req, res) {
   logger.info('topUpBalance start');
   try {
     const userId = req.user?.id;
-    const { amount, currency = 'RUB', payment_method = 'yookassa' } = req.body;
+    const { amount, currency = 'RUB', payment_method = 'yookassa', unitpay_system } = req.body;
 
     logger.info(`topUpBalance called with userId=${userId}, amount=${amount}, currency=${currency}, payment_method=${payment_method}`);
     logger.info(`Request body:`, req.body);
@@ -125,10 +125,10 @@ async function topUpBalance(req, res) {
       paymentMethod: payment_method,
       metadata: {
         chicoins: chicoins,
-        // Остальные данные сохраняем в БД, но не передаем в Shp_ параметры
         amount_in_rubles: amountInRubles,
         display_currency: currency,
-        display_amount: amountInUserCurrency
+        display_amount: amountInUserCurrency,
+        ...(payment_method === 'unitpay' && unitpay_system ? { unitpay_system } : {})
       }
     });
 
@@ -140,7 +140,8 @@ async function topUpBalance(req, res) {
         success: true,
         data: {
           qrUrl: paymentResult.qrUrl,
-          paymentId: paymentResult.paymentId
+          paymentId: paymentResult.paymentId,
+          paymentUrl: paymentResult.paymentUrl
         }
       });
     } else {

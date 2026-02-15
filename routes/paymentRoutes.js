@@ -7,7 +7,10 @@ const {
   freekassaFailURL,
   alfabankCallback,
   alfabankSuccessURL,
-  alfabankFailURL
+  alfabankFailURL,
+  unitpayHandler,
+  unitpaySuccessURL,
+  unitpayFailURL
 } = require('../controllers/paymentWebhook');
 
 // Middleware для захвата raw body (нужно для проверки подписи ЮKassa)
@@ -49,5 +52,11 @@ router.get('/alfabank/success', alfabankSuccessURL);
 
 // FailURL - для редиректа пользователя после неудачной оплаты
 router.get('/alfabank/fail', alfabankFailURL);
+
+// Unitpay: обработчик уведомлений (CHECK, PAY, ERROR) — GET
+router.get('/unitpay/handler', unitpayHandler);
+// Редиректы после оплаты (настраиваются в ЛК Unitpay)
+router.get('/unitpay/success', unitpaySuccessURL);
+router.get('/unitpay/fail', unitpayFailURL);
 
 module.exports = router;
