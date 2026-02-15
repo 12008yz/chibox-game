@@ -63,7 +63,7 @@ class WithdrawalProcessor {
         await this.steamBot.login();
         return true;
       } catch (err) {
-        const isThrottle = err.message && (err.message.includes('AccountLoginDeniedThrottle') || err.eresult === 87);
+        const isThrottle = (err.message && (err.message.includes('AccountLoginDeniedThrottle') || err.message.includes('RateLimitExceeded'))) || err.eresult === 87 || err.eresult === 84;
         if (isThrottle && attempt < maxAttempts) {
           logger.warn(`⚠️ Steam throttle (слишком частые входы). Ждём ${throttleWaitMs / 60000} мин перед попыткой ${attempt + 1}/${maxAttempts}...`);
           await new Promise(r => setTimeout(r, throttleWaitMs));

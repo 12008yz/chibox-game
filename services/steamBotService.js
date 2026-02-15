@@ -1101,10 +1101,16 @@ class SteamBot {
         reject(err);
       });
 
+      let steamGuardCallbackDone = false;
       this.client.once('steamGuard', (domain, callback) => {
+        if (steamGuardCallbackDone) {
+          logger.warn('Steam Guard callback already invoked, skipping duplicate');
+          return;
+        }
+        steamGuardCallbackDone = true;
         if (!domain) {
           const code = SteamTotp.generateAuthCode(this.sharedSecret);
-          logger.info('Generated Steam Guard (2FA Mobile) code:');
+          logger.info('Generated Steam Guard (2FA Mobile) code');
           callback(code);
         } else {
           logger.error('Steam Guard requires code from email:', domain);
