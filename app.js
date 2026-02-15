@@ -1,4 +1,20 @@
 require('dotenv').config();
+
+// В production обязательны секреты (без дефолтов)
+if (process.env.NODE_ENV === 'production') {
+  const required = [
+    { name: 'SESSION_SECRET', value: process.env.SESSION_SECRET, minLen: 32 },
+    { name: 'JWT_SECRET', value: process.env.JWT_SECRET, minLen: 32 },
+    { name: 'JWT_REFRESH_SECRET', value: process.env.JWT_REFRESH_SECRET, minLen: 32 }
+  ];
+  for (const { name, value, minLen } of required) {
+    if (!value || value.length < minLen) {
+      console.error(`[FATAL] In production ${name} must be set and at least ${minLen} characters.`);
+      process.exit(1);
+    }
+  }
+}
+
 const createError = require('http-errors');
 const express = require('express');
 const path = require('path');
@@ -173,7 +189,7 @@ const sessionStore = new SequelizeStore({
 sessionStore.sync();
 
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-session-secret',
+  secret: process.env.SESSION_SECRET || 'dev-session-secret',
   store: sessionStore,
   resave: false,
   saveUninitialized: false, // ВАЖНО: false для предотвращения создания лишних сессий
@@ -317,12 +333,21 @@ app.use(function(err, req, res, next) {
     return next(err);
   }
 
-  // Настройка локальных переменных, предоставление ошибки только в среде разработки
+  const status = err.status || 500;
+  res.status(status);
+
+  // Для API-запросов всегда отдаём JSON (фронт ожидает JSON)
+  if (req.path.startsWith('/api/')) {
+    return res.json({
+      success: false,
+      message: err.message || 'Внутренняя ошибка сервера',
+      ...(req.app.get('env') === 'development' && { error: err.stack }),
+    });
+  }
+
+  // Для остальных запросов — HTML (страница ошибки)
   res.locals.message = err.message;
   res.locals.error = req.app.get('env') === 'development' ? err : {};
-
-  // Рендеринг страницы ошибки с передачей title
-  res.status(err.status || 500);
   res.render('error', { title: 'Ошибка' });
 });
 

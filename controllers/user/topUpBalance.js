@@ -24,7 +24,7 @@ async function topUpBalance(req, res) {
   logger.info('topUpBalance start');
   try {
     const userId = req.user?.id;
-    const { amount, currency = 'RUB', payment_method = 'yookassa', unitpay_system } = req.body;
+    const { amount, currency = 'RUB', payment_method = 'unitpay', unitpay_system } = req.body;
 
     logger.info(`topUpBalance called with userId=${userId}, amount=${amount}, currency=${currency}, payment_method=${payment_method}`);
     logger.info(`Request body:`, req.body);
@@ -68,7 +68,7 @@ async function topUpBalance(req, res) {
       });
     }
 
-    // amount - это ChiCoins, конвертируем в рубли для YooKassa
+    // amount - это ChiCoins (1 ChiCoin = 1 рубль)
     const chicoins = amount;
     const amountInRubles = chicoins; // 1 ChiCoin = 1 рубль
     const amountInUserCurrency = convertFromChiCoins(chicoins, currency);
@@ -86,33 +86,13 @@ async function topUpBalance(req, res) {
 
     logger.info(`User loaded: ${user.username}`);
 
-    // Проверяем настройки платежной системы
-    if (payment_method === 'yookassa') {
-      const shopId = process.env.YOOKASSA_SHOP_ID;
-      const clientSecret = process.env.YOOKASSA_CLIENT_SECRET;
-
-      if (!shopId || !clientSecret) {
-        logger.error('YooKassa credentials not configured');
-        return res.status(500).json({
-          success: false,
-          message: 'ЮКасса временно недоступна'
-        });
-      }
-
-      logger.info(`YooKassa credentials check: shopId=${shopId ? 'present' : 'missing'}, clientSecret=${clientSecret ? 'present' : 'missing'}`);
-    } else if (payment_method === 'freekassa') {
-      const merchantId = process.env.FREEKASSA_MERCHANT_ID;
-      const secretWord1 = process.env.FREEKASSA_SECRET_WORD_1;
-
-      if (!merchantId || !secretWord1) {
-        logger.error('Freekassa credentials not configured');
-        return res.status(500).json({
-          success: false,
-          message: 'Freekassa временно недоступна'
-        });
-      }
-
-      logger.info(`Freekassa credentials check: merchantId=${merchantId ? 'present' : 'missing'}`);
+    // Проверяем настройки UnitPay
+    if (!process.env.UNITPAY_PUBLIC_KEY || !process.env.UNITPAY_SECRET_KEY) {
+      logger.error('UnitPay credentials not configured');
+      return res.status(500).json({
+        success: false,
+        message: 'Платёжная система временно недоступна'
+      });
     }
 
     // Создаем платеж (всегда в рублях)

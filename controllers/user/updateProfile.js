@@ -154,7 +154,7 @@ async function updateProfile(req, res) {
         role: updatedUser.role,
         steam_id: updatedUser.steam_id
       },
-      process.env.JWT_SECRET || 'your-secret-key',
+      process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 

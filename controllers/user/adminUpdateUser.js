@@ -71,8 +71,3 @@ module.exports = {
   adminUpdateUser,
   validateUpdateData
 };
-
-module.exports = {
-  adminUpdateUser,
-  validateUpdateData
-};

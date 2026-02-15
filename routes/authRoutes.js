@@ -58,7 +58,7 @@ router.get('/steam/return',
           role: req.user.role,
           steam_id: req.user.steam_id
         },
-        process.env.JWT_SECRET || 'your-secret-key',
+        process.env.JWT_SECRET,
         { expiresIn: '15m' }
       );
 
@@ -68,7 +68,7 @@ router.get('/steam/return',
           email: req.user.email,
           type: 'refresh'
         },
-        process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
+        process.env.JWT_REFRESH_SECRET,
         { expiresIn: '7d' }
       );
 
@@ -322,7 +322,7 @@ router.get('/link-steam/return',
           role: updatedUser.role,
           steam_id: updatedUser.steam_id
         },
-        process.env.JWT_SECRET || 'your-secret-key',
+        process.env.JWT_SECRET,
         { expiresIn: '7d' }
       );
 
