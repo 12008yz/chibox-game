@@ -54,6 +54,31 @@ class WithdrawalProcessor {
   }
 
   /**
+   * Логин в Steam с повторными попытками при AccountLoginDeniedThrottle (eresult 87).
+   * Steam блокирует частые попытки входа — ждём 10 минут и пробуем снова.
+   */
+  async steamLoginWithThrottleRetry(maxAttempts = 3, throttleWaitMs = 10 * 60 * 1000) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await this.steamBot.login();
+        return true;
+      } catch (err) {
+        const isThrottle = err.message && (err.message.includes('AccountLoginDeniedThrottle') || err.eresult === 87);
+        if (isThrottle && attempt < maxAttempts) {
+          logger.warn(`⚠️ Steam throttle (слишком частые входы). Ждём ${throttleWaitMs / 60000} мин перед попыткой ${attempt + 1}/${maxAttempts}...`);
+          await new Promise(r => setTimeout(r, throttleWaitMs));
+        } else if (isThrottle && attempt === maxAttempts) {
+          logger.error(`❌ Steam throttle: все ${maxAttempts} попытки исчерпаны. Steam бот отключён до следующего перезапуска.`);
+          return false;
+        } else {
+          throw err;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
    * Запуск процессора
    */
   async start() {
@@ -71,14 +96,17 @@ class WithdrawalProcessor {
           steamBotConfig.steamApiKey
         );
 
-        await this.steamBot.login();
-        logger.info('✅ Steam бот авторизован');
-
-        // Проверяем ограничения
-        const restrictions = await this.steamBot.getTradeRestrictions();
-        if (restrictions.error || !restrictions.canTrade) {
-          logger.error('❌ Steam бот имеет ограничения на торговлю!');
+        const steamLoginOk = await this.steamLoginWithThrottleRetry();
+        if (!steamLoginOk) {
+          logger.error('❌ Не удалось авторизовать Steam бота после повторных попыток');
           CONFIG.STEAM_BOT_ENABLED = false;
+        } else {
+          logger.info('✅ Steam бот авторизован');
+          const restrictions = await this.steamBot.getTradeRestrictions();
+          if (restrictions.error || !restrictions.canTrade) {
+            logger.error('❌ Steam бот имеет ограничения на торговлю!');
+            CONFIG.STEAM_BOT_ENABLED = false;
+          }
         }
       }
 

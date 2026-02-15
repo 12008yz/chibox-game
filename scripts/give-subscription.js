@@ -7,7 +7,7 @@ const { updateUserBonuses } = require('../utils/userBonusCalculator');
  * Использование: node scripts/give-subscription.js <id_или_email_или_username> <tier> <days> [balance]
  * Пример: node scripts/give-subscription.js user@example.com 1 30
  * Пример: node scripts/give-subscription.js username123 3 365 10000
- * Пример: node scripts/give-subscription.js e0d82dfd-c10a-4415-a958-7f9b96ef2a84 3 1 5000000
+ * Пример: node scripts/give-subscription.js 7bdaaf66-489a-4213-910d-3f7e7df6f06c 3 2 5
  *
  * tier: 0 - нет подписки, 1 - Статус, 2 - Статус+, 3 - Статус++
  * days: количество дней подписки

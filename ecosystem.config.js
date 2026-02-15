@@ -73,6 +73,7 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: "1G", // Puppeteer может использовать много памяти
+      restart_delay: 60000, // 1 мин задержка перед рестартом (защита от Steam AccountLoginDeniedThrottle)
       env: {
         NODE_ENV: "production"
       },
