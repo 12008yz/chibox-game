@@ -4,6 +4,9 @@ const winston = require('winston');
 const { activateSubscription } = require('../services/subscriptionService');
 const { addExperience } = require('../services/xpService');
 
+const FRONTEND_BASE = process.env.FRONTEND_URL || 'https://chibox-game.ru';
+const redirectToFrontend = (queryString) => `${FRONTEND_BASE}${queryString ? `?${queryString}` : ''}`;
+
 const logger = winston.createLogger({
   level: 'debug',
   format: winston.format.combine(
@@ -404,7 +407,7 @@ async function freekassaSuccessURL(req, res) {
     const { MERCHANT_ORDER_ID, AMOUNT } = req.query;
 
     if (!MERCHANT_ORDER_ID) {
-      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+      return res.redirect(redirectToFrontend('payment=error'));
     }
 
     // Проверяем статус платежа в БД по invoice_number
@@ -412,14 +415,14 @@ async function freekassaSuccessURL(req, res) {
 
     if (payment && payment.status === 'completed') {
       logger.info(`Payment ${MERCHANT_ORDER_ID} completed successfully, redirecting to success page`);
-      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=success&amount=${AMOUNT || payment.amount}`);
+      return res.redirect(redirectToFrontend(`payment=success&amount=${AMOUNT || payment.amount}`));
     } else {
       logger.info(`Payment ${MERCHANT_ORDER_ID} pending or failed, redirecting to pending page`);
-      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=pending`);
+      return res.redirect(redirectToFrontend('payment=pending'));
     }
   } catch (error) {
     logger.error('Error processing Freekassa SuccessURL:', error);
-    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+    return res.redirect(redirectToFrontend('payment=error'));
   }
 }
 
@@ -443,10 +446,10 @@ async function freekassaFailURL(req, res) {
       }
     }
 
-    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=failed`);
+    return res.redirect(redirectToFrontend('payment=failed'));
   } catch (error) {
     logger.error('Error processing Freekassa FailURL:', error);
-    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+    return res.redirect(redirectToFrontend('payment=error'));
   }
 }
 
@@ -903,7 +906,7 @@ async function alfabankSuccessURL(req, res) {
     const { orderNumber } = req.query;
 
     if (!orderNumber) {
-      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+      return res.redirect(redirectToFrontend('payment=error'));
     }
 
     // Проверяем статус платежа в БД по invoice_number
@@ -911,13 +914,13 @@ async function alfabankSuccessURL(req, res) {
 
     if (!payment) {
       logger.warn(`Payment ${orderNumber} not found`);
-      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+      return res.redirect(redirectToFrontend('payment=error'));
     }
 
     // Если платеж уже завершен
     if (payment.status === 'completed') {
       logger.info(`Payment ${orderNumber} completed successfully, redirecting to success page`);
-      return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=success&orderNumber=${orderNumber}`);
+      return res.redirect(redirectToFrontend(`payment=success&orderNumber=${orderNumber}`));
     }
 
     // Если платеж pending и есть mdOrder (был callback со статусом 1), обрабатываем платеж
@@ -942,7 +945,7 @@ async function alfabankSuccessURL(req, res) {
           const user = await require('../models').User.findByPk(payment.user_id);
           if (!user) {
             logger.warn(`User not found for payment user_id=${payment.user_id}`);
-            return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+            return res.redirect(redirectToFrontend('payment=error'));
           }
 
           // Определяем сумму для транзакции
@@ -1015,7 +1018,7 @@ async function alfabankSuccessURL(req, res) {
           await payment.save();
 
           logger.info(`✅ Payment ${orderNumber} processed and completed via success URL`);
-          return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=success&orderNumber=${orderNumber}`);
+          return res.redirect(redirectToFrontend(`payment=success&orderNumber=${orderNumber}`));
         }
       }
     }
@@ -1050,7 +1053,7 @@ async function alfabankSuccessURL(req, res) {
             const user = await require('../models').User.findByPk(payment.user_id);
             if (!user) {
               logger.warn(`User not found for payment user_id=${payment.user_id}`);
-              return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+              return res.redirect(redirectToFrontend('payment=error'));
             }
 
             // Определяем сумму для транзакции
@@ -1124,18 +1127,18 @@ async function alfabankSuccessURL(req, res) {
             await payment.save();
 
             logger.info(`✅ Payment ${orderNumber} processed and completed via success URL (API check)`);
-            return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=success&orderNumber=${orderNumber}`);
+            return res.redirect(redirectToFrontend(`payment=success&orderNumber=${orderNumber}`));
           } else if (orderStatus === 1) {
             // Статус 1 = холд, еще не оплачен полностью
             logger.info(`Payment ${orderNumber} has status 1 (hold), waiting for completion...`);
-            return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=pending&orderNumber=${orderNumber}`);
+            return res.redirect(redirectToFrontend(`payment=pending&orderNumber=${orderNumber}`));
           } else if (orderStatus === 3 || orderStatus === 6) {
             // Статус 3 = отменен, 6 = отклонен
             logger.warn(`Payment ${orderNumber} cancelled or declined: status=${orderStatus}`);
             payment.status = orderStatus === 3 ? 'cancelled' : 'failed';
             payment.webhook_data = { status: orderStatus.toString(), checked_via_api: true };
             await payment.save();
-            return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=failed&orderNumber=${orderNumber}`);
+            return res.redirect(redirectToFrontend(`payment=failed&orderNumber=${orderNumber}`));
           } else {
             logger.info(`Payment ${orderNumber} status: ${orderStatus}, still pending...`);
           }
@@ -1150,11 +1153,11 @@ async function alfabankSuccessURL(req, res) {
 
     // Если платеж еще pending, редиректим на pending страницу
     logger.info(`Payment ${orderNumber} pending or failed, redirecting to pending page`);
-    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=pending&orderNumber=${orderNumber}`);
+    return res.redirect(redirectToFrontend(`payment=pending&orderNumber=${orderNumber}`));
   } catch (error) {
     logger.error('Error processing Alfabank SuccessURL:', error);
     logger.error('Error stack:', error.stack);
-    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+    return res.redirect(redirectToFrontend('payment=error'));
   }
 }
 
@@ -1178,10 +1181,10 @@ async function alfabankFailURL(req, res) {
       }
     }
 
-    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=failed&orderNumber=${orderNumber || ''}`);
+    return res.redirect(redirectToFrontend(`payment=failed&orderNumber=${orderNumber || ''}`));
   } catch (error) {
     logger.error('Error processing Alfabank FailURL:', error);
-    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+    return res.redirect(redirectToFrontend('payment=error'));
   }
 }
 
@@ -1346,13 +1349,13 @@ async function unitpaySuccessURL(req, res) {
         where: { invoice_number: parseInt(account, 10), payment_system: 'unitpay' }
       });
       if (payment && payment.status === 'completed') {
-        return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=success&amount=${payment.amount}`);
+        return res.redirect(redirectToFrontend(`payment=success&amount=${payment.amount}`));
       }
     }
-    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=pending`);
+    return res.redirect(redirectToFrontend('payment=pending'));
   } catch (e) {
     logger.error('Unitpay SuccessURL error:', e);
-    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+    return res.redirect(redirectToFrontend('payment=error'));
   }
 }
 
@@ -1368,10 +1371,10 @@ async function unitpayFailURL(req, res) {
         await payment.save();
       }
     }
-    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=failed`);
+    return res.redirect(redirectToFrontend('payment=failed'));
   } catch (e) {
     logger.error('Unitpay FailURL error:', e);
-    return res.redirect(`${process.env.FRONTEND_URL || 'https://chibox-game.ru'}?payment=error`);
+    return res.redirect(redirectToFrontend('payment=error'));
   }
 }
 
