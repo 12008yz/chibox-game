@@ -14,7 +14,7 @@ const logger = winston.createLogger({
 
 // Базовая валюта - рубль (1₽ = 1 ChiCoin)
 const BASE_CURRENCY = 'RUB';
-const CHICOINS_SYMBOL = '⚡';
+const CHICOINS_SYMBOL = 'ChiCoins';
 
 // Кэш курсов валют (обновляется каждый час)
 let exchangeRatesCache = {
