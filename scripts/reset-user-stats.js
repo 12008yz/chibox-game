@@ -137,55 +137,77 @@ async function resetOneUser(userId) {
   }
 
   const t = await db.sequelize.transaction();
+  const step = (name, fn) => fn().catch((err) => {
+    console.error(`  ❌ Шаг "${name}":`, err.message);
+    if (err.original && err.original.message) console.error('  SQL/DB:', err.original.message);
+    throw err;
+  });
+
   try {
-    // 1. Активные выводы: вернуть предметы в инвентарь и отменить заявку
-    const withdrawals = await Withdrawal.findAll({
-      where: { user_id: userId, status: { [Op.notIn]: TERMINAL_WITHDRAWAL_STATUSES } },
-      transaction: t
+    await step('Активные выводы', async () => {
+      const withdrawals = await Withdrawal.findAll({
+        where: { user_id: userId, status: { [Op.notIn]: TERMINAL_WITHDRAWAL_STATUSES } },
+        transaction: t
+      });
+      for (const w of withdrawals) {
+        await UserInventory.update(
+          { status: 'inventory', withdrawal_id: null, transaction_date: null },
+          { where: { withdrawal_id: w.id }, transaction: t }
+        );
+        await w.update({
+          status: 'cancelled',
+          cancellation_reason: 'Обнуление аккаунта (скрипт reset-user-stats)',
+          cancellation_date: new Date()
+        }, { transaction: t });
+      }
     });
-    for (const w of withdrawals) {
-      await UserInventory.update(
-        { status: 'inventory', withdrawal_id: null, transaction_date: null },
-        { where: { withdrawal_id: w.id }, transaction: t }
-      );
-      await w.update({
-        status: 'cancelled',
-        cancellation_reason: 'Обнуление аккаунта (скрипт reset-user-stats)',
-        cancellation_date: new Date()
-      }, { transaction: t });
+
+    await step('Удаление инвентаря', () =>
+      UserInventory.destroy({ where: { user_id: userId }, transaction: t }));
+
+    await step('Withdrawal.notification_id = null', () =>
+      Withdrawal.update(
+        { notification_id: null },
+        { where: { user_id: userId }, transaction: t }
+      ));
+
+    await step('CaseItemDrop', () =>
+      CaseItemDrop.destroy({ where: { user_id: userId }, transaction: t }));
+    await step('Case', () =>
+      Case.destroy({ where: { user_id: userId }, transaction: t }));
+    await step('UserAchievement', () =>
+      UserAchievement.destroy({ where: { user_id: userId }, transaction: t }));
+    await step('UserMission', () =>
+      UserMission.destroy({ where: { user_id: userId }, transaction: t }));
+    await step('UserUnlockableContent', () =>
+      UserUnlockableContent.destroy({ where: { user_id: userId }, transaction: t }));
+    await step('LeaderboardEntry', () =>
+      LeaderboardEntry.destroy({ where: { user_id: userId }, transaction: t }));
+    await step('Notification', () =>
+      Notification.destroy({ where: { user_id: userId }, transaction: t }));
+    await step('LiveDrop', () =>
+      LiveDrop.destroy({ where: { user_id: userId }, transaction: t }));
+    if (TowerDefenseGame) {
+      await step('TowerDefenseGame', () =>
+        TowerDefenseGame.destroy({ where: { user_id: userId }, transaction: t }));
+    }
+    if (TicTacToeGame) {
+      await step('TicTacToeGame', () =>
+        TicTacToeGame.destroy({ where: { user_id: userId }, transaction: t }));
+    }
+    if (BonusMiniGameHistory) {
+      await step('BonusMiniGameHistory', () =>
+        BonusMiniGameHistory.destroy({ where: { user_id: userId }, transaction: t }));
     }
 
-    // 2. Удалить весь инвентарь
-    await UserInventory.destroy({ where: { user_id: userId }, transaction: t });
-
-    // 3. Удалить связанные данные (в порядке зависимостей)
-    // Снять ссылки на уведомления, чтобы можно было удалить notifications (FK: withdrawals.notification_id)
-    await Withdrawal.update(
-      { notification_id: null },
-      { where: { user_id: userId }, transaction: t }
-    );
-    await CaseItemDrop.destroy({ where: { user_id: userId }, transaction: t });
-    await Case.destroy({ where: { user_id: userId }, transaction: t });
-    await UserAchievement.destroy({ where: { user_id: userId }, transaction: t });
-    await UserMission.destroy({ where: { user_id: userId }, transaction: t });
-    await UserUnlockableContent.destroy({ where: { user_id: userId }, transaction: t });
-    await LeaderboardEntry.destroy({ where: { user_id: userId }, transaction: t });
-    await Notification.destroy({ where: { user_id: userId }, transaction: t });
-    await LiveDrop.destroy({ where: { user_id: userId }, transaction: t });
-    if (TowerDefenseGame) await TowerDefenseGame.destroy({ where: { user_id: userId }, transaction: t });
-    if (TicTacToeGame) await TicTacToeGame.destroy({ where: { user_id: userId }, transaction: t });
-    if (BonusMiniGameHistory) await BonusMiniGameHistory.destroy({ where: { user_id: userId }, transaction: t });
-
-    // 4. Обнулить поля пользователя
-    await user.update(USER_RESET_FIELDS, { transaction: t });
+    await step('User update (обнуление полей)', () =>
+      user.update(USER_RESET_FIELDS, { transaction: t }));
 
     await t.commit();
     console.log(`  ✅ Аккаунт обнулён: ${user.username}\n`);
     return true;
   } catch (err) {
     await t.rollback();
-    console.error(`  ❌ Ошибка для ${user.username}:`, err.message);
-    if (err.original) console.error('  Подробности:', err.original.message || err.original);
     return false;
   }
 }
