@@ -56,6 +56,7 @@ const { createGame: createTicTacToeGame, getCurrentGame: getCurrentTicTacToeGame
 const { getStatus: getTowerDefenseStatus, createGame: createTowerDefenseGame, completeGame: completeTowerDefenseGame, getStatistics: getTowerDefenseStatistics } = require('../controllers/user/towerDefenseController');
 const { getUpgradeableItems, getUpgradeOptions, performUpgrade } = require('../controllers/user/upgradeItem');
 const { topUpBalance } = require('../controllers/user/topUpBalance');
+const { getPaymentHistory } = require('../controllers/user/getPaymentHistory');
 const getCurrency = require('../controllers/user/getCurrency');
 // const { uploadAvatar, deleteAvatar, uploadMiddleware } = require('../controllers/user/uploadAvatar'); // DISABLED - only Steam avatars
 const getAvatars = require('../controllers/user/getAvatars');
@@ -159,6 +160,7 @@ router.post('/withdrawals/check-status', authMiddleware, checkWithdrawalStatuses
 router.get('/cases', getCases); // Доступно всем для просмотра кейсов
 router.get('/balance', authMiddleware, getBalance); //+
 router.post('/balance/top-up', authMiddleware, topUpBalance); //+
+router.get('/balance/payment-history', authMiddleware, getPaymentHistory); // История пополнений и покупок статусов
 router.get('/currency', getCurrency); // Получить информацию о валютах и курсах
 router.post('/promo', authMiddleware, applyPromo);
 router.get('/transactions', authMiddleware, getTransactions);
