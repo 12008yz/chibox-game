@@ -151,7 +151,9 @@ async function getTradeOfferStateFromApi(apiKey, tradeOfferId) {
     if (!data || !data.response) {
       return { error: 'Invalid API response' };
     }
-    const state = data.response.trade_offer_state;
+    // GetTradeOffer возвращает оффер в response.offer, не в корне response
+    const offer = data.response.offer || data.response;
+    const state = offer.trade_offer_state;
     if (state === undefined) {
       return { error: 'trade_offer_state missing' };
     }
