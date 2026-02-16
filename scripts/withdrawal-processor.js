@@ -230,19 +230,32 @@ class WithdrawalProcessor {
    */
   async checkSentTradesAccepted() {
     const apiKey = process.env.STEAM_API_KEY || (steamBotConfig && steamBotConfig.steamApiKey);
-    if (!apiKey) return;
+    if (!apiKey) {
+      logger.warn('⚠️ Проверка принятых трейдов пропущена: STEAM_API_KEY не задан');
+      return;
+    }
 
     const sent = await Withdrawal.findAll({
       where: { status: 'direct_trade_sent' },
       attributes: ['id', 'status', 'tracking_data', 'steam_trade_offer_id'],
     });
 
+    if (sent.length === 0) return;
+
+    logger.info(`🔍 Проверка принятых трейдов: ${sent.length} заявок direct_trade_sent`);
+
     for (const w of sent) {
       const offerId = w.tracking_data?.trade_offer_id || w.steam_trade_offer_id;
-      if (!offerId) continue;
+      if (!offerId) {
+        logger.warn(`⚠️ Withdrawal ${w.id}: нет trade_offer_id (tracking_data: ${!!w.tracking_data?.trade_offer_id}, steam_trade_offer_id: ${w.steam_trade_offer_id ?? 'null'}), пропуск`);
+        continue;
+      }
 
-      const resolved = await getTradeOfferStateFromApi(apiKey, offerId);
-      if (resolved.error) continue;
+      const resolved = await getTradeOfferStateFromApi(apiKey, String(offerId));
+      if (resolved.error) {
+        logger.warn(`⚠️ Withdrawal ${w.id} offer #${offerId}: Steam API — ${resolved.error}`);
+        continue;
+      }
 
       const state = resolved.state;
       // 3 = Accepted, 6 = Canceled/Expired, 7 = Declined
@@ -260,6 +273,7 @@ class WithdrawalProcessor {
           logger.info(`❌ Withdrawal ${w.id}: трейд #${offerId} — ${msg}`);
         }
       }
+      // state 2 = Accepted (в другой нумерации) или ещё в ожидании — не логируем
     }
   }
 
