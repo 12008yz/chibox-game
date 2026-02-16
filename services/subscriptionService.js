@@ -78,6 +78,7 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
     user.max_daily_cases = tier.max_daily_cases;
     user.cases_available = Math.max(user.cases_available || 0, 1);
 
+    // Обновляем попытки игр и сбросы, чтобы после покупки статуса пользователь сразу мог снова играть и открыть кейс (даже если уже использовал бесплатные попытки сегодня)
     // Устанавливаем попытки для крестиков-ноликов при активации подписки
     const tictactoeLimit = TICTACTOE_LIMITS[tierId] || 0;
     user.tictactoe_attempts_left = tictactoeLimit;
@@ -89,6 +90,8 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
     // Устанавливаем попытки для Safe Cracker при активации подписки
     const safecrackerLimit = SAFECRACKER_LIMITS[tierId] || 0;
     user.game_attempts = safecrackerLimit;
+    // Сбрасываем флаг выигрыша, чтобы после покупки статуса можно было снова играть и выигрывать
+    user.has_won_safecracker = false;
 
     // Устанавливаем время последнего сброса на последнее плановое время сброса (16:00 МСК = 13:00 UTC)
     const resetTime = new Date();

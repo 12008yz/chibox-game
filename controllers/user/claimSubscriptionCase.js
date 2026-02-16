@@ -118,6 +118,17 @@ async function getSubscriptionCaseStatus(req, res) {
     let timeRemaining = null;
     let nextAvailableTime = null;
 
+    // Проверяем, есть ли у пользователя неоткрытый подписной кейс в инвентаре
+    const subscriptionCasesInInventory = await db.UserInventory.count({
+      where: {
+        user_id: userId,
+        item_type: 'case',
+        status: 'inventory',
+        source: 'subscription'
+      }
+    });
+    const hasSubscriptionCaseInInventory = subscriptionCasesInInventory > 0;
+
     if (hasActiveSubscription) {
       if (!user.next_case_available_time || user.next_case_available_time <= now) {
         canClaim = true;
@@ -132,6 +143,7 @@ async function getSubscriptionCaseStatus(req, res) {
       data: {
         has_active_subscription: hasActiveSubscription,
         can_claim: canClaim,
+        has_subscription_case_in_inventory: hasSubscriptionCaseInInventory,
         subscription_tier: user.subscription_tier,
         next_available_time: nextAvailableTime,
         time_remaining: timeRemaining,
