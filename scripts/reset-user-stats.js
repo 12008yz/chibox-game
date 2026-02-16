@@ -173,6 +173,9 @@ async function resetOneUser(userId) {
 
     await step('CaseItemDrop', () =>
       CaseItemDrop.destroy({ where: { user_id: userId }, transaction: t }));
+    // LiveDrop имеет case_id → Case, удаляем до Case
+    await step('LiveDrop', () =>
+      LiveDrop.destroy({ where: { user_id: userId }, transaction: t }));
     await step('Case', () =>
       Case.destroy({ where: { user_id: userId }, transaction: t }));
     await step('UserAchievement', () =>
@@ -185,8 +188,6 @@ async function resetOneUser(userId) {
       LeaderboardEntry.destroy({ where: { user_id: userId }, transaction: t }));
     await step('Notification', () =>
       Notification.destroy({ where: { user_id: userId }, transaction: t }));
-    await step('LiveDrop', () =>
-      LiveDrop.destroy({ where: { user_id: userId }, transaction: t }));
     if (TowerDefenseGame) {
       await step('TowerDefenseGame', () =>
         TowerDefenseGame.destroy({ where: { user_id: userId }, transaction: t }));
