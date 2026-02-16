@@ -159,6 +159,11 @@ async function resetOneUser(userId) {
     await UserInventory.destroy({ where: { user_id: userId }, transaction: t });
 
     // 3. Удалить связанные данные (в порядке зависимостей)
+    // Снять ссылки на уведомления, чтобы можно было удалить notifications (FK: withdrawals.notification_id)
+    await Withdrawal.update(
+      { notification_id: null },
+      { where: { user_id: userId }, transaction: t }
+    );
     await CaseItemDrop.destroy({ where: { user_id: userId }, transaction: t });
     await Case.destroy({ where: { user_id: userId }, transaction: t });
     await UserAchievement.destroy({ where: { user_id: userId }, transaction: t });
@@ -180,6 +185,7 @@ async function resetOneUser(userId) {
   } catch (err) {
     await t.rollback();
     console.error(`  ❌ Ошибка для ${user.username}:`, err.message);
+    if (err.original) console.error('  Подробности:', err.original.message || err.original);
     return false;
   }
 }
