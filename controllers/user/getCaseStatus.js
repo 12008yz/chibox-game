@@ -77,7 +77,21 @@ async function getCaseStatus(req, res) {
         return res.json({ success: true, data: status });
       }
 
-      // Проверяем cooldown
+      // Если у пользователя уже есть этот кейс в инвентаре — можно открыть из превью (как в инвентаре)
+      const inventoryCase = await db.UserInventory.findOne({
+        where: {
+          user_id: userId,
+          case_template_id: caseTemplateId,
+          item_type: 'case',
+          status: 'inventory'
+        }
+      });
+      if (inventoryCase) {
+        status.canOpen = true;
+        return res.json({ success: true, data: status });
+      }
+
+      // Проверяем cooldown (когда кейса в инвентаре нет — следующий доступен по таймеру)
       if (user.next_case_available_time && user.next_case_available_time > now) {
         status.reason = 'Кейс еще недоступен';
         status.nextAvailableTime = user.next_case_available_time;
