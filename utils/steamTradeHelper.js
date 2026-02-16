@@ -133,10 +133,41 @@ function isTradeUrlForSteamId(tradeUrl, steamId) {
   }
 }
 
+/**
+ * Проверяет статус трейд-оффера через Steam Web API (без бота).
+ * IEconService GetTradeOffer: https://api.steampowered.com/IEconService/GetTradeOffer/v1/
+ * @param {string} apiKey - Steam API ключ (бота)
+ * @param {string|number} tradeOfferId - ID трейд-оффера
+ * @returns {Promise<{ state: number }|{ error: string }>} state: 3 = Accepted, 7 = Declined, 6 = Expired/Canceled
+ */
+async function getTradeOfferStateFromApi(apiKey, tradeOfferId) {
+  if (!apiKey || !tradeOfferId) {
+    return { error: 'apiKey and tradeOfferId required' };
+  }
+  try {
+    const url = `https://api.steampowered.com/IEconService/GetTradeOffer/v1/?key=${encodeURIComponent(apiKey)}&tradeofferid=${encodeURIComponent(String(tradeOfferId))}`;
+    const response = await axios.get(url, { timeout: 10000 });
+    const data = response.data;
+    if (!data || !data.response) {
+      return { error: 'Invalid API response' };
+    }
+    const state = data.response.trade_offer_state;
+    if (state === undefined) {
+      return { error: 'trade_offer_state missing' };
+    }
+    return { state: Number(state) };
+  } catch (error) {
+    const message = error.response?.data?.message || error.message;
+    logger.warn(`Steam GetTradeOffer failed for offer ${tradeOfferId}:`, message);
+    return { error: message };
+  }
+}
+
 module.exports = {
   getTradeUrlFromSteam,
   getTradePrivacyUrl,
   isValidTradeUrl,
   extractPartnerFromTradeUrl,
-  isTradeUrlForSteamId
+  isTradeUrlForSteamId,
+  getTradeOfferStateFromApi
 };

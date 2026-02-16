@@ -4,6 +4,7 @@ const { Op } = require('sequelize');
 const { updateUserAchievementProgress } = require('../../services/achievementService');
 const { addExperience } = require('../../services/xpService');
 const { addJob } = require('../../services/queueService');
+const { getTradeOfferStateFromApi } = require('../../utils/steamTradeHelper');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -540,8 +541,93 @@ async function cancelWithdrawal(req, res) {
   }
 }
 
+/** Обновляет заявку и инвентарь при успешном/неуспешном завершении (как в send-steam-withdrawals) */
+async function applyWithdrawalOutcome(withdrawal, status, message) {
+  const trackingData = withdrawal.tracking_data || {};
+  await withdrawal.update({
+    status,
+    steam_trade_status: status === 'completed' ? 'accepted' : withdrawal.steam_trade_status,
+    completion_date: new Date(),
+    failed_reason: status === 'failed' ? message : null,
+    tracking_data: {
+      ...trackingData,
+      last_update: new Date().toISOString(),
+      message
+    }
+  });
+  if (status === 'completed') {
+    await db.UserInventory.update(
+      { status: 'withdrawn', transaction_date: new Date() },
+      { where: { withdrawal_id: withdrawal.id, status: 'pending_withdrawal' }, validate: false }
+    );
+    logger.info(`Статус предметов обновлен на withdrawn для withdrawal ${withdrawal.id}`);
+  }
+  if (status === 'failed') {
+    await db.UserInventory.update(
+      { status: 'inventory', withdrawal_id: null, transaction_date: null },
+      { where: { withdrawal_id: withdrawal.id, status: 'pending_withdrawal' }, validate: false }
+    );
+    logger.info(`Предметы возвращены в inventory для failed withdrawal ${withdrawal.id}`);
+  }
+}
+
+/**
+ * Проверяет статусы отправленных трейдов через Steam API и обновляет заявки,
+ * если пользователь уже принял предмет в Steam (state 3 = Accepted).
+ * Вызывается при открытии профиля/вкладки «Выведенные», чтобы без крона показать «Успешно».
+ */
+async function checkWithdrawalStatuses(req, res) {
+  try {
+    const userId = req.user.id;
+    const apiKey = process.env.STEAM_API_KEY;
+    if (!apiKey) {
+      return res.json({ success: true, updated: 0, message: 'Steam API не настроен' });
+    }
+
+    const withdrawals = await db.Withdrawal.findAll({
+      where: {
+        user_id: userId,
+        status: 'direct_trade_sent'
+      },
+      attributes: ['id', 'status', 'tracking_data']
+    });
+
+    let updated = 0;
+    for (const w of withdrawals) {
+      const offerId = w.tracking_data?.trade_offer_id;
+      if (!offerId) continue;
+
+      const resolved = await getTradeOfferStateFromApi(apiKey, offerId);
+      if (resolved.error) continue;
+
+      const state = resolved.state;
+      // 3 = Accepted, 6 = Canceled/Expired, 7 = Declined
+      if (state === 3) {
+        const withdrawal = await db.Withdrawal.findByPk(w.id);
+        if (withdrawal && withdrawal.status === 'direct_trade_sent') {
+          await applyWithdrawalOutcome(withdrawal, 'completed', 'Трейд принят пользователем');
+          updated++;
+        }
+      } else if (state === 6 || state === 7) {
+        const withdrawal = await db.Withdrawal.findByPk(w.id);
+        if (withdrawal && withdrawal.status === 'direct_trade_sent') {
+          const msg = state === 7 ? 'Трейд отклонен пользователем' : 'Трейд истек или отменен';
+          await applyWithdrawalOutcome(withdrawal, 'failed', msg);
+          updated++;
+        }
+      }
+    }
+
+    return res.json({ success: true, updated });
+  } catch (error) {
+    logger.error('Ошибка проверки статусов выводов:', error);
+    return res.status(500).json({ success: false, message: 'Ошибка проверки статусов' });
+  }
+}
+
 module.exports = {
   withdrawItem,
   getWithdrawalStatus,
-  cancelWithdrawal
+  cancelWithdrawal,
+  checkWithdrawalStatuses
 };
