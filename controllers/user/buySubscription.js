@@ -8,9 +8,9 @@ const { addExperience } = require('../../services/xpService');
 
 // Цены в ChiCoins
 const subscriptionTiers = {
-  1: { days: 30, max_daily_cases: 1, bonus_percentage: 2.0, name: 'Статус', price: 1811 },      // 1800 ChiCoins
-  2: { days: 30, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус+', price: 3666 },     // 3600 ChiCoins
-  3: { days: 30, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус++', price: 7580 }     // 7500 ChiCoins
+  1: { days: 30, max_daily_cases: 1, bonus_percentage: 2.0, name: 'Статус', price: 10 },
+  2: { days: 30, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус+', price: 10 },
+  3: { days: 30, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус++', price: 10 }
 };
 
 const logger = winston.createLogger({
