@@ -14,7 +14,7 @@
  *
  * Запуск:
  *   node scripts/reset-user-stats.js <USER_ID>                    # dry-run (показать, что будет сделано)
- *   node scripts/reset-user-stats.js <USER_ID> --confirm            # выполнить сброс
+ *   node scripts/reset-user-stats.js e0d82dfd-c10a-4415-a958-7f9b96ef2a84 --confirm            # выполнить сброс
  *   node scripts/reset-user-stats.js <ID1> <ID2> <ID3> --confirm    # несколько пользователей
  *
  * USER_ID — UUID пользователя (из таблицы users).
