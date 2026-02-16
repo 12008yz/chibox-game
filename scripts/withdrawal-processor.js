@@ -19,6 +19,8 @@ const steamPriceService = require('../services/steamPriceService');
 const steamBotConfig = require('../config/steam_bot.js');
 const winston = require('winston');
 const { Op } = require('sequelize');
+const { getTradeOfferStateFromApi } = require('../utils/steamTradeHelper');
+const { applyWithdrawalOutcome } = require('../services/withdrawalOutcomeService');
 
 // Настройка логгера
 const logger = winston.createLogger({
@@ -203,6 +205,9 @@ class WithdrawalProcessor {
           }
         }
 
+        // Проверяем заявки в статусе direct_trade_sent: принят ли трейд в Steam (state 3)
+        await this.checkSentTradesAccepted();
+
         // Очищаем Set если стал большим
         if (this.processedWithdrawals.size > 1000) {
           this.processedWithdrawals.clear();
@@ -215,6 +220,45 @@ class WithdrawalProcessor {
       } catch (error) {
         logger.error('❌ Ошибка в цикле обработки:', error);
         await this.sleep(10000);
+      }
+    }
+  }
+
+  /**
+   * Проверяет заявки direct_trade_sent через Steam API: если трейд принят (state 3) или
+   * отклонён/истёк (6, 7) — обновляет заявку и инвентарь.
+   */
+  async checkSentTradesAccepted() {
+    const apiKey = process.env.STEAM_API_KEY || (steamBotConfig && steamBotConfig.steamApiKey);
+    if (!apiKey) return;
+
+    const sent = await Withdrawal.findAll({
+      where: { status: 'direct_trade_sent' },
+      attributes: ['id', 'status', 'tracking_data', 'steam_trade_offer_id'],
+    });
+
+    for (const w of sent) {
+      const offerId = w.tracking_data?.trade_offer_id || w.steam_trade_offer_id;
+      if (!offerId) continue;
+
+      const resolved = await getTradeOfferStateFromApi(apiKey, offerId);
+      if (resolved.error) continue;
+
+      const state = resolved.state;
+      // 3 = Accepted, 6 = Canceled/Expired, 7 = Declined
+      if (state === 3) {
+        const withdrawal = await Withdrawal.findByPk(w.id);
+        if (withdrawal && withdrawal.status === 'direct_trade_sent') {
+          await applyWithdrawalOutcome(withdrawal, 'completed', 'Трейд принят пользователем');
+          logger.info(`✅ Withdrawal ${w.id}: трейд #${offerId} принят, заявка завершена`);
+        }
+      } else if (state === 6 || state === 7) {
+        const withdrawal = await Withdrawal.findByPk(w.id);
+        if (withdrawal && withdrawal.status === 'direct_trade_sent') {
+          const msg = state === 7 ? 'Трейд отклонен пользователем' : 'Трейд истек или отменен';
+          await applyWithdrawalOutcome(withdrawal, 'failed', msg);
+          logger.info(`❌ Withdrawal ${w.id}: трейд #${offerId} — ${msg}`);
+        }
       }
     }
   }

@@ -5,6 +5,7 @@ const { updateUserAchievementProgress } = require('../../services/achievementSer
 const { addExperience } = require('../../services/xpService');
 const { addJob } = require('../../services/queueService');
 const { getTradeOfferStateFromApi } = require('../../utils/steamTradeHelper');
+const { applyWithdrawalOutcome } = require('../../services/withdrawalOutcomeService');
 
 const logger = winston.createLogger({
   level: 'info',
@@ -538,36 +539,6 @@ async function cancelWithdrawal(req, res) {
       message: 'Внутренняя ошибка сервера',
       error: error.message
     });
-  }
-}
-
-/** Обновляет заявку и инвентарь при успешном/неуспешном завершении (как в send-steam-withdrawals) */
-async function applyWithdrawalOutcome(withdrawal, status, message) {
-  const trackingData = withdrawal.tracking_data || {};
-  await withdrawal.update({
-    status,
-    steam_trade_status: status === 'completed' ? 'accepted' : withdrawal.steam_trade_status,
-    completion_date: new Date(),
-    failed_reason: status === 'failed' ? message : null,
-    tracking_data: {
-      ...trackingData,
-      last_update: new Date().toISOString(),
-      message
-    }
-  });
-  if (status === 'completed') {
-    await db.UserInventory.update(
-      { status: 'withdrawn', transaction_date: new Date() },
-      { where: { withdrawal_id: withdrawal.id, status: 'pending_withdrawal' }, validate: false }
-    );
-    logger.info(`Статус предметов обновлен на withdrawn для withdrawal ${withdrawal.id}`);
-  }
-  if (status === 'failed') {
-    await db.UserInventory.update(
-      { status: 'inventory', withdrawal_id: null, transaction_date: null },
-      { where: { withdrawal_id: withdrawal.id, status: 'pending_withdrawal' }, validate: false }
-    );
-    logger.info(`Предметы возвращены в inventory для failed withdrawal ${withdrawal.id}`);
   }
 }
 
