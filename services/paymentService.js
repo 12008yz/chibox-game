@@ -11,7 +11,7 @@ const unitpayService = require('./unitpayService');
  * @param {object} params.metadata
  * @param {string} params.paymentMethod - игнорируется, всегда 'unitpay'
  */
-async function createPayment({ amount, description, userId, purpose = 'deposit', metadata = {}, paymentMethod = 'unitpay' }) {
+async function createPayment({ amount, description, userId, purpose = 'deposit', metadata = {}, paymentMethod = 'unitpay', promoCodeId }) {
   const unitpaySystem = metadata?.unitpay_system || null;
   return await unitpayService.createPayment({
     amount,
@@ -19,7 +19,8 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
     userId,
     purpose,
     metadata,
-    systemCode: unitpaySystem
+    systemCode: unitpaySystem,
+    promoCodeId
   });
 }
 

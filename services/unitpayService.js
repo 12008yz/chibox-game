@@ -62,7 +62,7 @@ function parseParamsFromRequest(req) {
  * systemCode — код способа оплаты (card, sbp и т.д.): подставляется в путь, форма сразу открывается с этим методом.
  * См. https://help.unitpay.ru/book-of-reference/payment-system-codes
  */
-async function createPayment({ amount, description, userId, purpose = 'deposit', metadata = {}, systemCode = null }) {
+async function createPayment({ amount, description, userId, purpose = 'deposit', metadata = {}, systemCode = null, promoCodeId = null }) {
   if (!UNITPAY_PUBLIC_KEY || !UNITPAY_SECRET_KEY) {
     throw new Error('Unitpay credentials not configured (UNITPAY_PUBLIC_KEY, UNITPAY_SECRET_KEY)');
   }
@@ -87,7 +87,8 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
     currency: 'RUB',
     payment_method: 'unitpay',
     payment_details: {},
-    metadata: metadata
+    metadata: metadata,
+    ...(promoCodeId ? { promo_code_id: promoCodeId } : {})
   });
 
   await paymentRecord.reload();

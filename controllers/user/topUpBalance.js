@@ -24,9 +24,9 @@ async function topUpBalance(req, res) {
   logger.info('topUpBalance start');
   try {
     const userId = req.user?.id;
-    const { amount, currency = 'RUB', payment_method = 'unitpay', unitpay_system } = req.body;
+    const { amount, currency = 'RUB', payment_method = 'unitpay', unitpay_system, promo_code } = req.body;
 
-    logger.info('topUpBalance called', { userId, amount, currency, payment_method });
+    logger.info('topUpBalance called', { userId, amount, currency, payment_method, hasPromoCode: !!promo_code });
 
     // Проверяем авторизацию
     if (!userId) {
@@ -84,6 +84,35 @@ async function topUpBalance(req, res) {
 
     logger.info(`User loaded: ${user.username}`);
 
+    let promoCodeId = null;
+    if (promo_code && typeof promo_code === 'string' && promo_code.trim()) {
+      const code = promo_code.trim().toUpperCase();
+      const promo = await db.PromoCode.findOne({
+        where: { code, is_active: true, type: 'balance_percentage', category: 'deposit' }
+      });
+      if (promo) {
+        const now = new Date();
+        if (promo.start_date && new Date(promo.start_date) > now) {
+          logger.warn('Deposit promo not yet active');
+        } else if (promo.end_date && new Date(promo.end_date) < now) {
+          logger.warn('Deposit promo expired');
+        } else if (promo.max_usages != null && promo.usage_count >= promo.max_usages) {
+          logger.warn('Deposit promo usage limit reached');
+        } else {
+          const minPayment = promo.min_payment_amount != null ? parseFloat(promo.min_payment_amount) : 0;
+          if (chicoins >= minPayment) {
+            const usageCount = await db.PromoCodeUsage.count({
+              where: { user_id: userId, promo_code_id: promo.id }
+            });
+            if (usageCount < (promo.max_usages_per_user || 1)) {
+              promoCodeId = promo.id;
+              logger.info(`Deposit promo ${code} applied to payment, +${promo.value}%`);
+            }
+          }
+        }
+      }
+    }
+
     // Проверяем настройки UnitPay
     if (!process.env.UNITPAY_PUBLIC_KEY || !process.env.UNITPAY_SECRET_KEY) {
       logger.error('UnitPay credentials not configured');
@@ -101,6 +130,7 @@ async function topUpBalance(req, res) {
       userId: userId,
       purpose: 'deposit',
       paymentMethod: payment_method,
+      promoCodeId: promoCodeId || undefined,
       metadata: {
         chicoins: chicoins,
         amount_in_rubles: amountInRubles,

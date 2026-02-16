@@ -26,7 +26,7 @@ async function applyPromo(req, res) {
 
     const code = promo_code.trim().toUpperCase();
 
-    // Проверка активности промокода
+    // Проверка активности промокода (включая category для deposit-промокодов)
     const promo = await db.PromoCode.findOne({ where: { code, is_active: true }, transaction });
     if (!promo) {
       await transaction.rollback();
@@ -106,14 +106,28 @@ async function applyPromo(req, res) {
         break;
 
       case 'balance_percentage':
-        // Процентный бонус применяется к текущему балансу (для промокодов пополнения)
-        // Можно также привязать к сумме последнего пополнения, но это сложнее
+        // Промокоды пополнения (category === 'deposit'): не списываем и не потребляем — бонус % применится при успешной оплате
+        if (promo.category === 'deposit') {
+          const minPayment = promo.min_payment_amount != null ? parseFloat(promo.min_payment_amount) : 0;
+          await transaction.commit();
+          return res.json({
+            success: true,
+            message: `Промокод активирован! При пополнении от ${minPayment} ChiCoins вы получите +${value}% к сумме пополнения.`,
+            data: {
+              is_deposit_bonus: true,
+              bonus_percent: value,
+              min_payment_amount: minPayment,
+              newBalance: balanceBefore,
+              addedAmount: 0
+            }
+          });
+        }
+        // Старое поведение для не-deposit: процент от текущего баланса
         const percentageBonus = (balanceBefore * value) / 100;
         balanceAfter = balanceBefore + percentageBonus;
         user.balance = balanceAfter;
         message = `Промокод применён! Вы получили +${value}% к балансу (${percentageBonus.toFixed(2)} ChiCoins)`;
 
-        // Создаем транзакцию
         await db.Transaction.create({
           user_id: userId,
           type: 'promo_code',

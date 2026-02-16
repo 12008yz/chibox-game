@@ -1,4 +1,5 @@
-const { Payment, User } = require('../models');
+const db = require('../models');
+const { Payment, User } = db;
 const winston = require('winston');
 const { activateSubscription } = require('../services/subscriptionService');
 const { addExperience } = require('../services/xpService');
@@ -114,6 +115,27 @@ async function unitpayHandler(req, res) {
         let chicoinsToAdd = transactionAmount;
         if (payment.metadata && payment.metadata.chicoins) {
           chicoinsToAdd = parseFloat(payment.metadata.chicoins);
+        }
+        let bonusFromPromo = 0;
+        if (payment.promo_code_id) {
+          const promo = await db.PromoCode.findByPk(payment.promo_code_id);
+          if (promo && promo.type === 'balance_percentage' && promo.category === 'deposit') {
+            const percent = parseFloat(promo.value) || 0;
+            bonusFromPromo = Math.round((chicoinsToAdd * percent) / 100);
+            chicoinsToAdd += bonusFromPromo;
+            await db.PromoCodeUsage.create({
+              user_id: user.id,
+              promo_code_id: promo.id,
+              usage_date: new Date(),
+              applied_value: percent,
+              original_amount: chicoinsToAdd - bonusFromPromo,
+              final_amount: chicoinsToAdd,
+              payment_id: payment.id,
+              status: 'applied'
+            });
+            await promo.increment('usage_count');
+            logger.info(`Unitpay: deposit promo applied for user ${user.id}, +${percent}% = +${bonusFromPromo} ChiCoins`);
+          }
         }
         user.balance = parseFloat(user.balance || 0) + chicoinsToAdd;
         await user.save();
