@@ -151,10 +151,16 @@ async function getTradeOfferStateFromApi(apiKey, tradeOfferId) {
     if (!data || !data.response) {
       return { error: 'Invalid API response' };
     }
-    // GetTradeOffer возвращает оффер в response.offer, не в корне response
+    // GetTradeOffer: оффер может быть в response.offer или в корне response; поле state — с подчёркиванием или без
     const offer = data.response.offer || data.response;
-    const state = offer.trade_offer_state;
-    if (state === undefined) {
+    const state =
+      offer.trade_offer_state ??
+      offer.tradeofferstate ??
+      offer.tradeOfferState;
+    if (state === undefined || state === null) {
+      const respKeys = Object.keys(data.response).join(', ');
+      const offerKeys = offer && typeof offer === 'object' ? Object.keys(offer).join(', ') : 'n/a';
+      logger.warn(`GetTradeOffer ${tradeOfferId}: state not found. response keys: [${respKeys}], offer keys: [${offerKeys}]`);
       return { error: 'trade_offer_state missing' };
     }
     return { state: Number(state) };

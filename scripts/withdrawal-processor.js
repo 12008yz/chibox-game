@@ -225,13 +225,14 @@ class WithdrawalProcessor {
   }
 
   /**
-   * Проверяет заявки direct_trade_sent через Steam API: если трейд принят (state 3) или
+   * Проверяет заявки direct_trade_sent: если трейд принят (state 3) или
    * отклонён/истёк (6, 7) — обновляет заявку и инвентарь.
+   * Сначала использует Steam бота (manager.getOffer), при недоступности — Web API.
    */
   async checkSentTradesAccepted() {
     const apiKey = process.env.STEAM_API_KEY || (steamBotConfig && steamBotConfig.steamApiKey);
-    if (!apiKey) {
-      logger.warn('⚠️ Проверка принятых трейдов пропущена: STEAM_API_KEY не задан');
+    if (!apiKey && !this.steamBot) {
+      logger.warn('⚠️ Проверка принятых трейдов пропущена: нет STEAM_API_KEY и бота');
       return;
     }
 
@@ -251,13 +252,21 @@ class WithdrawalProcessor {
         continue;
       }
 
-      const resolved = await getTradeOfferStateFromApi(apiKey, String(offerId));
-      if (resolved.error) {
-        logger.warn(`⚠️ Withdrawal ${w.id} offer #${offerId}: Steam API — ${resolved.error}`);
-        continue;
+      let state;
+      if (this.steamBot && this.steamBot.loggedIn) {
+        try {
+          const result = await this.steamBot.getTradeOfferStatus(String(offerId));
+          state = result != null ? result.state : undefined;
+        } catch (_) {
+          // fallback на Web API
+        }
       }
-
-      const state = resolved.state;
+      if ((state === undefined || state === null) && apiKey) {
+        const resolved = await getTradeOfferStateFromApi(apiKey, String(offerId));
+        if (!resolved.error) state = resolved.state;
+        else logger.warn(`⚠️ Withdrawal ${w.id} offer #${offerId}: ${resolved.error}`);
+      }
+      if (state === undefined || state === null) continue;
       // 3 = Accepted, 6 = Canceled/Expired, 7 = Declined
       if (state === 3) {
         const withdrawal = await Withdrawal.findByPk(w.id);
