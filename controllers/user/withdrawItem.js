@@ -589,12 +589,13 @@ async function checkWithdrawalStatuses(req, res) {
         user_id: userId,
         status: 'direct_trade_sent'
       },
-      attributes: ['id', 'status', 'tracking_data']
+      attributes: ['id', 'status', 'tracking_data', 'steam_trade_offer_id']
     });
 
     let updated = 0;
     for (const w of withdrawals) {
-      const offerId = w.tracking_data?.trade_offer_id;
+      // send-steam-withdrawals пишет в tracking_data.trade_offer_id, withdrawal-processor — в steam_trade_offer_id
+      const offerId = w.tracking_data?.trade_offer_id || w.steam_trade_offer_id;
       if (!offerId) continue;
 
       const resolved = await getTradeOfferStateFromApi(apiKey, offerId);
