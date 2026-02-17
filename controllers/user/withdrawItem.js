@@ -431,8 +431,8 @@ async function cancelWithdrawal(req, res) {
       });
     }
 
-    // Проверяем, что заявку можно отменить (только pending и queued статусы)
-    const cancellableStatuses = ['pending', 'queued'];
+    // Проверяем, что заявку можно отменить (pending, queued или item_not_in_stock — предмет не у бота, пользователь может отменить и вернуть предмет)
+    const cancellableStatuses = ['pending', 'queued', 'item_not_in_stock'];
     logger.info('🔒 [CANCEL WITHDRAWAL] Проверка статуса заявки:', {
       current_status: withdrawal.status,
       cancellableStatuses,
