@@ -1102,7 +1102,9 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
         isHighlighted: liveDropRecord.is_highlighted
       });
 
-      // Обновляем статистику пользователя
+      // Обновляем статистику пользователя. total_cases_opened пишем в БД атомарно,
+      // чтобы значение не затиралось при user.reload() в ветке обновления best_item_value.
+      await db.User.increment('total_cases_opened', { by: 1, where: { id: userId }, transaction: t });
       user.cases_opened_today = (user.cases_opened_today || 0) + 1;
       user.total_cases_opened = (user.total_cases_opened || 0) + 1;
 
