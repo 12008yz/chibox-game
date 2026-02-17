@@ -597,9 +597,123 @@ async function checkWithdrawalStatuses(req, res) {
   }
 }
 
+/**
+ * Разрешение ситуации "предмет не у бота": пользователь выбирает ChiCoins или ожидание.
+ * POST body: { action: 'chicoins' | 'wait' }
+ */
+async function resolveWithdrawalNoStock(req, res) {
+  const transaction = await db.sequelize.transaction();
+  try {
+    const userId = req.user.id;
+    const { withdrawalId } = req.params;
+    const { action } = req.body;
+
+    if (!action || !['chicoins', 'wait'].includes(action)) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: 'Укажите action: "chicoins" (получить ChiCoins) или "wait" (подождать)'
+      });
+    }
+
+    const withdrawal = await db.Withdrawal.findOne({
+      where: { id: withdrawalId, user_id: userId, status: 'item_not_in_stock' },
+      include: [{
+        model: db.UserInventory,
+        as: 'items',
+        include: [{ model: db.Item, as: 'item', attributes: ['id', 'name', 'price'] }]
+      }],
+      transaction,
+      lock: transaction.LOCK.UPDATE
+    });
+
+    if (!withdrawal) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: 'Заявка не найдена или уже обработана'
+      });
+    }
+
+    if (action === 'chicoins') {
+      const totalValue = parseFloat(withdrawal.total_items_value) || withdrawal.items?.reduce((sum, inv) => sum + (parseFloat(inv.item?.price) || 0), 0) || 0;
+      if (totalValue <= 0) {
+        await transaction.rollback();
+        return res.status(400).json({ success: false, message: 'Некорректная сумма предметов' });
+      }
+
+      const user = await db.User.findByPk(userId, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!user) {
+        await transaction.rollback();
+        return res.status(404).json({ success: false, message: 'Пользователь не найден' });
+      }
+
+      await user.increment('balance', { by: totalValue, transaction });
+      await db.UserInventory.update(
+        { status: 'withdrawn', transaction_date: new Date() },
+        { where: { withdrawal_id: withdrawal.id, status: 'pending_withdrawal' }, transaction, validate: false }
+      );
+      await withdrawal.update({
+        status: 'cancelled',
+        cancellation_reason: 'Компенсация ChiCoins за отсутствие предмета у бота',
+        cancellation_date: new Date(),
+        completion_date: new Date()
+      }, { transaction });
+
+      await transaction.commit();
+
+      await db.Notification.create({
+        user_id: userId,
+        type: 'success',
+        title: 'Компенсация ChiCoins',
+        message: `На ваш баланс зачислено ${totalValue} ChiCoins за предмет, который временно отсутствовал у бота.`,
+        category: 'withdrawal',
+        importance: 5,
+        data: { withdrawal_id: withdrawal.id, amount: totalValue }
+      });
+
+      logger.info(`Пользователь ${userId} выбрал компенсацию ChiCoins за withdrawal ${withdrawal.id}, сумма ${totalValue}`);
+      return res.json({
+        success: true,
+        message: `На баланс зачислено ${totalValue} ChiCoins`,
+        data: { withdrawal_id: withdrawal.id, balance_added: totalValue, new_balance: (parseFloat(user.balance) || 0) + totalValue }
+      });
+    }
+
+    if (action === 'wait') {
+      await withdrawal.update({ status: 'pending', failed_reason: null }, { transaction });
+      await transaction.commit();
+
+      await db.Notification.create({
+        user_id: userId,
+        type: 'info',
+        title: 'Вывод в очереди',
+        message: 'Заявка на вывод снова в очереди. Мы повторим попытку отправить предмет, когда он появится у бота.',
+        category: 'withdrawal',
+        importance: 4,
+        data: { withdrawal_id: withdrawal.id }
+      });
+      logger.info(`Пользователь ${userId} выбрал ожидание для withdrawal ${withdrawal.id}`);
+      return res.json({
+        success: true,
+        message: 'Заявка снова в очереди. Попытка вывода повторится автоматически.',
+        data: { withdrawal_id: withdrawal.id, status: 'pending' }
+      });
+    }
+
+    await transaction.rollback();
+    return res.status(400).json({ success: false, message: 'Недопустимое действие' });
+  } catch (error) {
+    if (transaction) await transaction.rollback().catch(() => {});
+    logger.error('Ошибка resolveWithdrawalNoStock:', error);
+    return res.status(500).json({ success: false, message: 'Внутренняя ошибка сервера' });
+  }
+}
+
 module.exports = {
   withdrawItem,
   getWithdrawalStatus,
   cancelWithdrawal,
-  checkWithdrawalStatuses
+  checkWithdrawalStatuses,
+  resolveWithdrawalNoStock
 };

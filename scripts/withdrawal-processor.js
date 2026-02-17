@@ -341,14 +341,44 @@ class WithdrawalProcessor {
           logger.info('⚠️ Предмет не найден на PlayerOk или слишком дорогой');
         }
 
-        // Если не нашли ни в Steam, ни на PlayerOk
-        logger.error('❌ Предмет не найден ни в одном источнике');
+        // Если не нашли ни в Steam, ни на PlayerOk — ставим статус "ожидание выбора пользователя"
+        logger.warn('⚠️ Предмет не найден у бота. Создаём уведомление с выбором: ChiCoins или ожидание.');
 
-        // Возвращаем предмет в инвентарь и обновляем статус в одной транзакции
-        await this.failWithdrawalAndReturnItems(
-          withdrawal,
-          'Предмет не найден ни в Steam боте, ни на PlayerOk по выгодной цене'
-        );
+        const itemPrice = parseFloat(item.price) || 0;
+        const itemName = item.name || 'Предмет';
+        const trackingData = withdrawal.tracking_data || {};
+        await withdrawal.update({
+          status: 'item_not_in_stock',
+          failed_reason: null,
+          tracking_data: {
+            ...trackingData,
+            item_not_in_stock_at: new Date().toISOString(),
+            item_name: itemName,
+            item_value: itemPrice,
+            item_id: item.id
+          }
+        });
+
+        const Notification = Withdrawal.sequelize.models.Notification;
+        if (Notification) {
+          await Notification.create({
+            user_id: withdrawal.user_id,
+            type: 'warning',
+            title: 'Предмет временно отсутствует у бота',
+            message: `Предмет «${itemName}» не найден в инвентаре бота. Вы можете получить ChiCoins на сумму ${itemPrice} или подождать — мы повторим попытку вывода позже.`,
+            category: 'withdrawal',
+            importance: 7,
+            data: {
+              subtype: 'withdrawal_item_not_in_stock',
+              withdrawal_id: withdrawal.id,
+              item_name: itemName,
+              item_value: itemPrice,
+              item_id: item.id
+            }
+          });
+          logger.info(`📧 Уведомление с выбором создано для пользователя ${withdrawal.user_id}, withdrawal ${withdrawal.id}`);
+        }
+        return;
       }
 
     } catch (error) {

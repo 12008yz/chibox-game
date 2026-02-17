@@ -46,7 +46,7 @@ const { loginBot, sendTrade, getSteamInventory } = require('../controllers/user/
 const { getUserBonusInfoController } = require('../controllers/user/getUserBonusInfo');
 const { verifyEmailValidation, verifyEmail } = require('../controllers/user/verifyEmail');
 const { resendValidation, resendVerificationCode } = require('../controllers/user/resendVerificationCode');
-const { getWithdrawalStatus, cancelWithdrawal, checkWithdrawalStatuses } = require('../controllers/user/withdrawItem');
+const { getWithdrawalStatus, cancelWithdrawal, checkWithdrawalStatuses, resolveWithdrawalNoStock } = require('../controllers/user/withdrawItem');
 const playSafeCracker = require('../controllers/user/playSafeCracker');
 const getSafeCrackerStatus = require('../controllers/user/getSafeCrackerStatus');
 const { getLiveDrops } = require('../controllers/user/getLiveDrops');
@@ -156,6 +156,7 @@ router.post('/sell-item', authMiddleware, sellItem);
 router.post('/withdraw-item', authMiddleware, /* requireEmailVerification, */ withdrawItem);
 router.get('/withdraw-item/:withdrawalId', authMiddleware, getWithdrawalStatus);
 router.post('/withdraw-item/:withdrawalId/cancel', authMiddleware, cancelWithdrawal);
+router.post('/withdraw-item/:withdrawalId/resolve-no-stock', authMiddleware, resolveWithdrawalNoStock);
 router.post('/withdrawals/check-status', authMiddleware, checkWithdrawalStatuses);
 router.get('/cases', getCases); // Доступно всем для просмотра кейсов
 router.get('/balance', authMiddleware, getBalance); //+
