@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { logger } = require('../../middleware/logger');
 const { updateUserBonuses } = require('../../utils/userBonusCalculator');
 const { addExperience } = require('../../services/xpService');
+const { updateUserAchievementProgress } = require('../../services/achievementService');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
@@ -118,9 +119,36 @@ async function login(req, res) {
         logger.info(`Пользователю ${user.username} начислено +15 XP за ежедневный вход`);
       }
 
+      // Ежедневная серия: +1 если заходил вчера, сброс до 1 если 2+ дня не заходил
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const lastLoginStart = lastLogin
+        ? new Date(lastLogin.getFullYear(), lastLogin.getMonth(), lastLogin.getDate())
+        : null;
+      const diffDays = lastLoginStart ? Math.round((todayStart - lastLoginStart) / (24 * 60 * 60 * 1000)) : null;
+
+      if (!lastLoginStart) {
+        user.daily_streak = 1;
+        user.max_daily_streak = Math.max(user.max_daily_streak || 0, 1);
+      } else if (diffDays === 0) {
+        // Уже заходил сегодня — серию не меняем
+      } else if (diffDays === 1) {
+        user.daily_streak = (user.daily_streak || 0) + 1;
+        user.max_daily_streak = Math.max(user.max_daily_streak || 0, user.daily_streak);
+      } else {
+        // 2+ дня не заходил — сброс, сегодня первый день новой серии
+        user.daily_streak = 1;
+        user.max_daily_streak = Math.max(user.max_daily_streak || 0, 1);
+      }
+
       // Обновляем дату последнего входа
       user.last_login_date = now;
       await user.save();
+
+      try {
+        await updateUserAchievementProgress(user.id, 'daily_streak', user.daily_streak || 0);
+      } catch (achievementErr) {
+        logger.error('Ошибка обновления достижений по daily_streak:', achievementErr);
+      }
 
       // Перезагружаем пользователя, чтобы получить обновленные XP и уровень
       await user.reload();
@@ -220,6 +248,8 @@ async function login(req, res) {
         steam_trade_url: user.steam_trade_url,
         is_email_verified: user.is_email_verified,
         role: user.role,
+        daily_streak: user.daily_streak ?? 0,
+        max_daily_streak: user.max_daily_streak ?? 0,
       },
       achievements,
       inventory

@@ -79,7 +79,14 @@ async function recalculateUserAchievements(userId = null) {
           console.log(`  ✅ subscription_purchased: 1`);
         }
 
-        // 6. Обновляем все бонусы пользователя
+        // 6. Синхронизируем достижения по ежедневной серии (Удачливый 7 дн., Марафонец 30 дн.)
+        const dailyStreak = user.daily_streak || 0;
+        if (dailyStreak > 0) {
+          await updateUserAchievementProgress(user.id, 'daily_streak', dailyStreak);
+          console.log(`  ✅ daily_streak: ${dailyStreak}`);
+        }
+
+        // 7. Обновляем все бонусы пользователя
         await updateUserBonuses(user.id);
         console.log(`  ✅ bonuses recalculated`);
 

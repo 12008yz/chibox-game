@@ -96,7 +96,7 @@ module.exports = {
       {
         id: '55555555-5555-5555-5555-555555555555',
         name: 'Удачливый',
-        description: 'Открыть кейс 7 дней подряд',
+        description: 'Заходите в приложение 7 дней подряд',
         xp_reward: 250,
         icon_url: '/Achievements/Удачливый-no-bg-preview.png',
         requirement_type: 'daily_streak',
@@ -385,10 +385,10 @@ module.exports = {
       {
         id: '70707070-7070-7070-7070-707070707070',
         name: 'Марафонец',
-        description: 'Открывайте кейсы 30 дней подряд',
+        description: 'Заходите в приложение 30 дней подряд',
         xp_reward: 600,
         icon_url: '/Achievements/Марафонец-no-bg-preview.png',
-        requirement_type: 'case_opening_streak',
+        requirement_type: 'daily_streak',
         requirement_value: 30,
         bonus_percentage: 0.7,
         min_item_price_for_bonus: 0.00,
