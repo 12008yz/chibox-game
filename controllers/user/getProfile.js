@@ -40,7 +40,7 @@ async function getProfile(req, res) {
         'drop_rate_modifier', 'achievements_bonus_percentage', 'subscription_bonus_percentage', 'total_drop_bonus_percentage',
         'balance',
         'steam_id', 'steam_profile', 'steam_avatar_url', 'avatar_url', 'steam_profile_url', 'steam_trade_url', 'auth_provider',
-        'best_item_value' // Добавляем поле лучшего предмета
+        'best_item_value', 'daily_streak', 'max_daily_streak'
       ],
       include: [
         {
