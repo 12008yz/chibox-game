@@ -602,19 +602,20 @@ async function checkWithdrawalStatuses(req, res) {
  * POST body: { action: 'chicoins' | 'wait' }
  */
 async function resolveWithdrawalNoStock(req, res) {
-  const transaction = await db.sequelize.transaction();
+  let transaction;
   try {
     const userId = req.user.id;
     const { withdrawalId } = req.params;
-    const { action } = req.body;
+    const action = req.body?.action;
 
     if (!action || !['chicoins', 'wait'].includes(action)) {
-      await transaction.rollback();
       return res.status(400).json({
         success: false,
         message: 'Укажите action: "chicoins" (получить ChiCoins) или "wait" (подождать)'
       });
     }
+
+    transaction = await db.sequelize.transaction();
 
     const withdrawal = await db.Withdrawal.findOne({
       where: { id: withdrawalId, user_id: userId, status: 'item_not_in_stock' },
@@ -636,7 +637,11 @@ async function resolveWithdrawalNoStock(req, res) {
     }
 
     if (action === 'chicoins') {
-      const totalValue = parseFloat(withdrawal.total_items_value) || withdrawal.items?.reduce((sum, inv) => sum + (parseFloat(inv.item?.price) || 0), 0) || 0;
+      const rawTotal = withdrawal.total_items_value != null ? Number(withdrawal.total_items_value) : NaN;
+      const fromItems = Array.isArray(withdrawal.items) && withdrawal.items.length > 0
+        ? withdrawal.items.reduce((sum, inv) => sum + (Number(inv.item?.price) || 0), 0)
+        : 0;
+      const totalValue = (Number.isFinite(rawTotal) ? rawTotal : 0) || fromItems || 0;
       if (totalValue <= 0) {
         await transaction.rollback();
         return res.status(400).json({ success: false, message: 'Некорректная сумма предметов' });
@@ -707,9 +712,17 @@ async function resolveWithdrawalNoStock(req, res) {
     await transaction.rollback();
     return res.status(400).json({ success: false, message: 'Недопустимое действие' });
   } catch (error) {
-    if (transaction) await transaction.rollback().catch(() => {});
-    logger.error('Ошибка resolveWithdrawalNoStock:', error);
-    return res.status(500).json({ success: false, message: 'Внутренняя ошибка сервера' });
+    if (transaction) {
+      try { await transaction.rollback(); } catch (rollbackErr) {
+        logger.error('Ошибка отката транзакции resolveWithdrawalNoStock:', rollbackErr);
+      }
+    }
+    logger.error('Ошибка resolveWithdrawalNoStock:', { message: error.message, stack: error.stack });
+    return res.status(500).json({
+      success: false,
+      message: 'Внутренняя ошибка сервера',
+      ...(process.env.NODE_ENV !== 'production' && { error: error.message })
+    });
   }
 }
 
