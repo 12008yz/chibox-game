@@ -50,8 +50,10 @@ function checkFreeGameAvailability(user, gameType) {
   const isTictactoe = gameType === 'tictactoe';
   const maxAttempts = isTictactoe ? MAX_FREE_TICTACTOE_ATTEMPTS : MAX_FREE_ATTEMPTS;
 
-  // Проверяем, в первых ли двух днях с регистрации (календарные дни по МСК)
-  if (user.createdAt) {
+  // Если пользователь ещё не использовал ни одной бесплатной попытки (новый или после сброса статистики),
+  // не проверяем «первые 2 дня с регистрации» — даём доступ к бесплатным попыткам.
+  const neverUsedFreeAttempts = claimCount === 0 && !firstClaimDate;
+  if (!neverUsedFreeAttempts && user.createdAt) {
     const registrationDate = new Date(user.createdAt);
     const moscowTimeNow = getMoscowTime(now);
     const moscowTimeRegistration = getMoscowTime(registrationDate);
@@ -75,7 +77,7 @@ function checkFreeGameAvailability(user, gameType) {
     };
   }
 
-  // Крестики-нолики: первые 2 попытки — сразу, 3-я и 4-я — после 16:00 МСК следующего дня после регистрации
+  // Крестики-нолики: первые 2 попытки — сразу, 3-я и 4-я — после 16:00 МСК следующего дня
   if (isTictactoe) {
     if (claimCount < 2) {
       return {
@@ -84,9 +86,9 @@ function checkFreeGameAvailability(user, gameType) {
         nextAvailableTime: null
       };
     }
-    // claimCount 2 или 3 — ещё 2 попытки доступны после 16:00 МСК следующего дня после регистрации
-    const registrationDate = new Date(user.createdAt);
-    const nextDay16 = getNextDay16MSK(registrationDate);
+    // claimCount 2 или 3 — ещё 2 попытки доступны после 16:00 МСК следующего дня (от даты регистрации или от первой попытки)
+    const refDate = firstClaimDate ? new Date(firstClaimDate) : new Date(user.createdAt);
+    const nextDay16 = getNextDay16MSK(refDate);
 
     if (now < nextDay16) {
       return {
