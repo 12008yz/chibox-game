@@ -672,11 +672,14 @@ async function resolveWithdrawalNoStock(req, res) {
         data: { withdrawal_id: withdrawal.id, amount: totalValue }
       });
 
+      const updatedUser = await db.User.findByPk(userId, { attributes: ['balance'] });
+      const newBalance = updatedUser ? parseFloat(updatedUser.balance) || 0 : (parseFloat(user.balance) || 0) + totalValue;
+
       logger.info(`Пользователь ${userId} выбрал компенсацию ChiCoins за withdrawal ${withdrawal.id}, сумма ${totalValue}`);
       return res.json({
         success: true,
         message: `На баланс зачислено ${totalValue} ChiCoins`,
-        data: { withdrawal_id: withdrawal.id, balance_added: totalValue, new_balance: (parseFloat(user.balance) || 0) + totalValue }
+        data: { withdrawal_id: withdrawal.id, balance_added: totalValue, new_balance: newBalance }
       });
     }
 

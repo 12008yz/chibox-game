@@ -361,22 +361,35 @@ class WithdrawalProcessor {
 
         const Notification = Withdrawal.sequelize.models.Notification;
         if (Notification) {
-          await Notification.create({
-            user_id: withdrawal.user_id,
-            type: 'warning',
-            title: 'Предмет временно отсутствует у бота',
-            message: `Предмет «${itemName}» не найден в инвентаре бота. Вы можете получить ChiCoins на сумму ${itemPrice} или подождать — мы повторим попытку вывода позже.`,
-            category: 'withdrawal',
-            importance: 7,
-            data: {
-              subtype: 'withdrawal_item_not_in_stock',
-              withdrawal_id: withdrawal.id,
-              item_name: itemName,
-              item_value: itemPrice,
-              item_id: item.id
-            }
+          const existingList = await Notification.findAll({
+            where: {
+              user_id: withdrawal.user_id,
+              is_read: false,
+              category: 'withdrawal'
+            },
+            attributes: ['id', 'data']
           });
-          logger.info(`📧 Уведомление с выбором создано для пользователя ${withdrawal.user_id}, withdrawal ${withdrawal.id}`);
+          const hasUnreadNoStock = existingList.some(n => n.data?.subtype === 'withdrawal_item_not_in_stock' && n.data?.withdrawal_id === withdrawal.id);
+          if (!hasUnreadNoStock) {
+            await Notification.create({
+              user_id: withdrawal.user_id,
+              type: 'warning',
+              title: 'Предмет временно отсутствует у бота',
+              message: `Предмет «${itemName}» не найден в инвентаре бота. Вы можете получить ChiCoins на сумму ${itemPrice} или подождать — мы повторим попытку вывода позже.`,
+              category: 'withdrawal',
+              importance: 7,
+              data: {
+                subtype: 'withdrawal_item_not_in_stock',
+                withdrawal_id: withdrawal.id,
+                item_name: itemName,
+                item_value: itemPrice,
+                item_id: item.id
+              }
+            });
+            logger.info(`📧 Уведомление с выбором создано для пользователя ${withdrawal.user_id}, withdrawal ${withdrawal.id}`);
+          } else {
+            logger.info(`📧 Пропуск дубликата уведомления для withdrawal ${withdrawal.id}`);
+          }
         }
         return;
       }
