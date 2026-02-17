@@ -606,7 +606,10 @@ async function resolveWithdrawalNoStock(req, res) {
   try {
     const userId = req.user.id;
     const { withdrawalId } = req.params;
-    const action = req.body?.action;
+    let action = req.body && typeof req.body.action !== 'undefined' ? req.body.action : req.query?.action;
+    if (typeof action === 'string') action = action.trim().toLowerCase();
+
+    logger.info('resolveWithdrawalNoStock', { withdrawalId, action: String(action), hasBody: !!req.body });
 
     if (!action || !['chicoins', 'wait'].includes(action)) {
       return res.status(400).json({
@@ -624,8 +627,7 @@ async function resolveWithdrawalNoStock(req, res) {
         as: 'items',
         include: [{ model: db.Item, as: 'item', attributes: ['id', 'name', 'price'] }]
       }],
-      transaction,
-      lock: transaction.LOCK.UPDATE
+      transaction
     });
 
     if (!withdrawal) {
@@ -641,9 +643,11 @@ async function resolveWithdrawalNoStock(req, res) {
       const fromItems = Array.isArray(withdrawal.items) && withdrawal.items.length > 0
         ? withdrawal.items.reduce((sum, inv) => sum + (Number(inv.item?.price) || 0), 0)
         : 0;
-      const totalValue = (Number.isFinite(rawTotal) ? rawTotal : 0) || fromItems || 0;
+      const fromTracking = withdrawal.tracking_data && (Number(withdrawal.tracking_data.item_value) || 0);
+      const totalValue = (Number.isFinite(rawTotal) ? rawTotal : 0) || fromItems || fromTracking || 0;
       if (totalValue <= 0) {
         await transaction.rollback();
+        logger.warn('resolveWithdrawalNoStock: некорректная сумма', { rawTotal, fromItems, fromTracking });
         return res.status(400).json({ success: false, message: 'Некорректная сумма предметов' });
       }
 
@@ -667,15 +671,19 @@ async function resolveWithdrawalNoStock(req, res) {
 
       await transaction.commit();
 
-      await db.Notification.create({
-        user_id: userId,
-        type: 'success',
-        title: 'Компенсация ChiCoins',
-        message: `На ваш баланс зачислено ${totalValue} ChiCoins за предмет, который временно отсутствовал у бота.`,
-        category: 'withdrawal',
-        importance: 5,
-        data: { withdrawal_id: withdrawal.id, amount: totalValue }
-      });
+      try {
+        await db.Notification.create({
+          user_id: userId,
+          type: 'success',
+          title: 'Компенсация ChiCoins',
+          message: `На ваш баланс зачислено ${totalValue} ChiCoins за предмет, который временно отсутствовал у бота.`,
+          category: 'withdrawal',
+          importance: 5,
+          data: { withdrawal_id: withdrawal.id, amount: totalValue }
+        });
+      } catch (notifErr) {
+        logger.warn('resolveWithdrawalNoStock: не удалось создать уведомление (chicoins)', { err: notifErr.message });
+      }
 
       const updatedUser = await db.User.findByPk(userId, { attributes: ['balance'] });
       const newBalance = updatedUser ? parseFloat(updatedUser.balance) || 0 : (parseFloat(user.balance) || 0) + totalValue;
@@ -692,15 +700,19 @@ async function resolveWithdrawalNoStock(req, res) {
       await withdrawal.update({ status: 'pending', failed_reason: null }, { transaction });
       await transaction.commit();
 
-      await db.Notification.create({
-        user_id: userId,
-        type: 'info',
-        title: 'Вывод в очереди',
-        message: 'Заявка на вывод снова в очереди. Мы повторим попытку отправить предмет, когда он появится у бота.',
-        category: 'withdrawal',
-        importance: 4,
-        data: { withdrawal_id: withdrawal.id }
-      });
+      try {
+        await db.Notification.create({
+          user_id: userId,
+          type: 'info',
+          title: 'Вывод в очереди',
+          message: 'Заявка на вывод снова в очереди. Мы повторим попытку отправить предмет, когда он появится у бота.',
+          category: 'withdrawal',
+          importance: 4,
+          data: { withdrawal_id: withdrawal.id }
+        });
+      } catch (notifErr) {
+        logger.warn('resolveWithdrawalNoStock: не удалось создать уведомление (wait)', { err: notifErr.message });
+      }
       logger.info(`Пользователь ${userId} выбрал ожидание для withdrawal ${withdrawal.id}`);
       return res.json({
         success: true,
