@@ -75,8 +75,10 @@ async function getInventory(req, res) {
       offset
     });
 
-    // Разделяем предметы и кейсы
-    const items = inventoryItems.filter(item => item.item_type === 'item');
+    // Разделяем предметы и кейсы; предметы с is_available=false не показываем нигде
+    const items = inventoryItems.filter(item =>
+      item.item_type === 'item' && (!item.item || item.item.is_available !== false)
+    );
     const cases = inventoryItems.filter(item => item.item_type === 'case');
 
     logger.info(`Получен инвентарь для пользователя ${userId}, страница ${page}, статус: ${status || 'все'}`);

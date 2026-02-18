@@ -8,6 +8,22 @@ const steamPriceService = new SteamPriceService(process.env.STEAM_API_KEY);
 const profitabilityCalculator = new ProfitabilityCalculator(0.2);
 
 /**
+ * Отключает предмет: удаляет из шаблонов кейсов и помечает is_available = false.
+ * После этого предмет нигде не показывается на фронте.
+ */
+async function disableItem(itemId, logName = '') {
+  try {
+    const deleted = await db.CaseTemplateItem.destroy({ where: { item_id: itemId } });
+    await db.Item.update({ is_available: false }, { where: { id: itemId } });
+    console.log(`🗑️ ${logName || itemId}: удалён из кейсов и отключён (цена недоступна)`);
+    return deleted;
+  } catch (err) {
+    console.error(`Ошибка при отключении предмета ${itemId}:`, err.message);
+    return 0;
+  }
+}
+
+/**
  * Обновление цен всех предметов из Steam Market
  */
 async function updateAllPrices() {
@@ -70,11 +86,13 @@ async function updateAllPrices() {
             updatedCount++;
             console.log(`✅ ${item.steam_market_hash_name}: ₽${priceData.price_rub}`);
           } else {
-            console.log(`⚠️ ${item.steam_market_hash_name}: цена недоступна`);
+            errorCount++;
+            await disableItem(item.id, item.steam_market_hash_name);
           }
         } catch (error) {
           errorCount++;
           console.error(`❌ ${item.steam_market_hash_name}: ${error.message}`);
+          await disableItem(item.id, item.steam_market_hash_name);
         }
 
         // Задержка 8 секунд между запросами (кроме последнего в батче)
@@ -272,11 +290,12 @@ async function updateSpecificItems(items) {
         console.log(`✅ ${item.steam_market_hash_name}: ₽${priceData.price_rub}`);
       } else {
         errorCount++;
-        console.log(`❌ ${item.steam_market_hash_name}: цена недоступна`);
+        await disableItem(item.id, item.steam_market_hash_name);
       }
     } catch (error) {
       errorCount++;
       console.error(`❌ ${item.steam_market_hash_name}: ${error.message}`);
+      await disableItem(item.id, item.steam_market_hash_name);
     }
 
     // Задержка 8 секунд между запросами (кроме последнего предмета)
