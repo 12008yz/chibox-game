@@ -36,7 +36,7 @@ async function updateAllPrices() {
       const batch = items.slice(i, i + batchSize);
       console.log(`\n📦 Обрабатываем batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(items.length / batchSize)}`);
 
-      // Обрабатываем предметы последовательно с задержкой 1.5 секунды
+      // Обрабатываем предметы последовательно с задержкой 8 секунд между запросами
       for (let j = 0; j < batch.length; j++) {
         const item = batch[j];
         try {
@@ -77,16 +77,16 @@ async function updateAllPrices() {
           console.error(`❌ ${item.steam_market_hash_name}: ${error.message}`);
         }
 
-        // Задержка 1.5 секунды между запросами (кроме последнего в батче)
+        // Задержка 8 секунд между запросами (кроме последнего в батче)
         if (j < batch.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1500));
+          await new Promise(resolve => setTimeout(resolve, 8000));
         }
       }
 
-      // Пауза между батчами
+      // Пауза между батчами (8 сек)
       if (i + batchSize < items.length) {
         console.log('⏳ Пауза между батчами...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 8000));
       }
     }
 
@@ -279,9 +279,9 @@ async function updateSpecificItems(items) {
       console.error(`❌ ${item.steam_market_hash_name}: ${error.message}`);
     }
 
-    // Задержка 1.5 секунды между запросами (кроме последнего предмета)
+    // Задержка 8 секунд между запросами (кроме последнего предмета)
     if (i < items.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise(resolve => setTimeout(resolve, 8000));
     }
   }
 
