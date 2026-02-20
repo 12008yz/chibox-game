@@ -52,7 +52,7 @@
     "passport-steam": "^1.0.18",
     "pg": "^8.16.0",
     "pg-hstore": "^2.3.4",
-    "playwright-core": "^1.52.0",
+    "playwright-core": "^1.53.0",
     "pug": "^3.0.3",
     "puppeteer": "^24.9.0",
     "puppeteer-extra": "^3.3.6",
