@@ -4,8 +4,8 @@
  *
  * Использование:
  *   node scripts/check-streamer-percent.js                    — показать всех стримеров и их проценты
- *   node scripts/check-streamer-percent.js <streamerId>       — показать процент конкретного стримера
- *   node scripts/check-streamer-percent.js <streamerId> --set 10 — установить процент для стримера
+ *   node scripts/check-streamer-percent.js <streamerId|userId> — показать процент (поиск по streamer.id или user_id)
+ *   node scripts/check-streamer-percent.js <streamerId|userId> --set 10 — установить процент
  *   node scripts/check-streamer-percent.js --all-to-10        — установить 10% всем стримерам
  */
 
@@ -43,30 +43,46 @@ async function main() {
         console.error('Процент должен быть числом от 0 до 100');
         process.exit(1);
       }
-      const streamer = await db.Streamer.findByPk(streamerId, {
+      // Сначала ищем по streamer.id, если не найдено - по user_id
+      let streamer = await db.Streamer.findByPk(streamerId, {
         include: [{ model: db.User, as: 'user', attributes: ['id', 'username'] }]
       });
       if (!streamer) {
-        console.error('Стример не найден:', streamerId);
+        streamer = await db.Streamer.findOne({
+          where: { user_id: streamerId },
+          include: [{ model: db.User, as: 'user', attributes: ['id', 'username'] }]
+        });
+      }
+      if (!streamer) {
+        console.error('Стример не найден по streamerId или userId:', streamerId);
         process.exit(1);
       }
       const oldPercent = streamer.percent_from_deposit;
       await streamer.update({ percent_from_deposit: percent });
-      console.log(`Стример: ${streamer.user?.username || streamerId}`);
+      console.log(`Streamer ID: ${streamer.id}`);
+      console.log(`User ID: ${streamer.user_id} (${streamer.user?.username || 'N/A'})`);
       console.log(`Процент изменён: ${oldPercent}% → ${percent}%`);
       await db.sequelize.close();
       return;
     }
 
     if (streamerId) {
-      const streamer = await db.Streamer.findByPk(streamerId, {
+      // Сначала ищем по streamer.id, если не найдено - по user_id
+      let streamer = await db.Streamer.findByPk(streamerId, {
         include: [{ model: db.User, as: 'user', attributes: ['id', 'username'] }]
       });
       if (!streamer) {
-        console.error('Стример не найден:', streamerId);
+        streamer = await db.Streamer.findOne({
+          where: { user_id: streamerId },
+          include: [{ model: db.User, as: 'user', attributes: ['id', 'username'] }]
+        });
+      }
+      if (!streamer) {
+        console.error('Стример не найден по streamerId или userId:', streamerId);
         process.exit(1);
       }
-      console.log(`Стример: ${streamer.user?.username || streamerId}`);
+      console.log(`Streamer ID: ${streamer.id}`);
+      console.log(`User ID: ${streamer.user_id} (${streamer.user?.username || 'N/A'})`);
       console.log(`Процент с депозита: ${streamer.percent_from_deposit}%`);
       await db.sequelize.close();
       return;
