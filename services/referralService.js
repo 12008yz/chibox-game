@@ -29,6 +29,7 @@ async function trackClick(code) {
 /**
  * Привязать реферера к пользователю при первом логине (Steam).
  * Вызывать после создания/поиска user в passport.
+ * Защита от двойного подсчёта: блокируем пользователя в транзакции и повторно проверяем.
  * @param {string} userId - UUID пользователя
  * @param {string} referralCode - код из cookie/session (streamer.chibox-site.com/CODE)
  * @returns {Promise<{ bound: boolean, streamer?: object, error?: string }>}
@@ -36,10 +37,6 @@ async function trackClick(code) {
 async function bindReferrer(userId, referralCode) {
   const code = normalizeCode(referralCode);
   if (!userId || !code) {
-    return { bound: false };
-  }
-  const user = await db.User.findByPk(userId);
-  if (!user || user.referred_by_streamer_id) {
     return { bound: false };
   }
   const link = await db.ReferralLink.findOne({
@@ -53,6 +50,14 @@ async function bindReferrer(userId, referralCode) {
   const streamer = link.streamer;
   const transaction = await db.sequelize.transaction();
   try {
+    const user = await db.User.findByPk(userId, {
+      lock: transaction.LOCK.UPDATE,
+      transaction
+    });
+    if (!user || user.referred_by_streamer_id) {
+      await transaction.commit();
+      return { bound: false };
+    }
     await user.update(
       {
         referred_by_streamer_id: streamer.id,
@@ -111,6 +116,11 @@ async function onReferralDeposit(userId, depositAmountChiCoins, paymentId) {
 
   const amount = parseFloat(depositAmountChiCoins) || 0;
   if (amount <= 0) return;
+
+  const alreadyProcessed = await db.StreamerEarning.count({
+    where: { streamer_id: streamer.id, payment_id: paymentId }
+  });
+  if (alreadyProcessed > 0) return;
 
   const isFirstDeposit = await db.Payment.count({
     where: {
