@@ -47,7 +47,7 @@ router.get('/me', async (req, res) => {
  */
 router.get('/links', async (req, res) => {
   const links = await db.ReferralLink.findAll({
-    where: { streamer_id: req.streamer.id },
+    where: { streamer_id: req.streamer.id, deleted_at: null },
     order: [['created_at', 'DESC']],
     attributes: ['id', 'code', 'label', 'clicks_count', 'registrations_count', 'first_deposits_count', 'created_at']
   });
@@ -110,12 +110,12 @@ router.post('/links', async (req, res) => {
 router.delete('/links/:id', async (req, res) => {
   const linkId = req.params.id;
   const link = await db.ReferralLink.findOne({
-    where: { id: linkId, streamer_id: req.streamer.id }
+    where: { id: linkId, streamer_id: req.streamer.id, deleted_at: null }
   });
   if (!link) {
     return res.status(404).json({ success: false, message: 'Ссылка не найдена' });
   }
-  await link.destroy();
+  await link.update({ deleted_at: new Date() });
   return res.json({ success: true });
 });
 

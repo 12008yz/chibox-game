@@ -39,6 +39,11 @@ module.exports = (sequelize) => {
       type: DataTypes.INTEGER,
       defaultValue: 0,
       allowNull: false
+    },
+    deleted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Мягкое удаление: ссылка скрыта, статистика сохраняется'
     }
   }, {
     timestamps: true,

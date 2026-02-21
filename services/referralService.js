@@ -16,7 +16,7 @@ async function trackClick(code) {
     return { success: false, error: 'invalid_code' };
   }
   const link = await db.ReferralLink.findOne({
-    where: { code: cleanCode },
+    where: { code: cleanCode, deleted_at: null },
     include: [{ model: db.Streamer, as: 'streamer', where: { is_active: true }, required: true }]
   });
   if (!link) {
@@ -43,7 +43,7 @@ async function bindReferrer(userId, referralCode) {
     return { bound: false };
   }
   const link = await db.ReferralLink.findOne({
-    where: { code },
+    where: { code, deleted_at: null },
     include: [{ model: db.Streamer, as: 'streamer', where: { is_active: true }, required: true }]
   });
   if (!link) {
@@ -187,7 +187,7 @@ async function getReferralInfoByCode(code) {
   const cleanCode = normalizeCode(code);
   if (!cleanCode) return null;
   const link = await db.ReferralLink.findOne({
-    where: { code: cleanCode },
+    where: { code: cleanCode, deleted_at: null },
     include: [
       {
         model: db.Streamer,
