@@ -7,7 +7,7 @@ const crypto = require('crypto');
 
 const router = express.Router();
 
-const STREAMER_SUBDOMAIN = process.env.STREAMER_SUBDOMAIN || 'streamer.chibox-site.com';
+const STREAMER_SUBDOMAIN = process.env.STREAMER_SUBDOMAIN || 'streamer.chibox-game.ru';
 const STREAMER_BASE_URL = process.env.STREAMER_BASE_URL || `https://${STREAMER_SUBDOMAIN}`;
 
 /**

@@ -80,7 +80,7 @@ async function main() {
         code: linkCode,
         label: 'Основная'
       });
-      const baseUrl = process.env.STREAMER_BASE_URL || 'https://streamer.chibox-site.com';
+      const baseUrl = process.env.STREAMER_BASE_URL || 'https://streamer.chibox-game.ru';
       console.log('Реферальная ссылка создана:', baseUrl + '/' + linkCode);
     }
 
