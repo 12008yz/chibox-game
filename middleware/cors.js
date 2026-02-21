@@ -7,15 +7,21 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',')
-  : [
-      'https://chibox-game.ru',
-      'https://www.chibox-game.ru',
-      'http://chibox-game.ru',
-      'https://streamer.chibox-game.ru',
-      'http://streamer.chibox-game.ru'
-    ];
+    let allowedOrigins = process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean)
+      : [
+          'https://chibox-game.ru',
+          'https://www.chibox-game.ru',
+          'http://chibox-game.ru',
+          'https://streamer.chibox-game.ru',
+          'http://streamer.chibox-game.ru'
+        ];
+
+    // Всегда разрешаем поддомен стримеров, если разрешён основной домен
+    const streamerOrigins = ['https://streamer.chibox-game.ru', 'http://streamer.chibox-game.ru'];
+    streamerOrigins.forEach((o) => {
+      if (allowedOrigins.indexOf(o) === -1) allowedOrigins.push(o);
+    });
 
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
