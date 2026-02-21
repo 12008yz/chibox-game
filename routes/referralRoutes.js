@@ -20,11 +20,16 @@ router.get('/redirect/:code', async (req, res) => {
   if (!code || code.length > 64) {
     return res.redirect(302, FRONTEND_URL);
   }
-  const result = await trackClick(code);
-  if (!result.success) {
-    logger.info('Referral redirect: click not counted', { code: code.substring(0, 12), error: result.error });
-  } else {
-    logger.info('Referral redirect: click counted', { code: result.link?.code });
+  // Считаем только реальный переход (document), не prefetch — иначе браузер даёт +2 за один клик
+  const isDocumentNav = req.get('Sec-Fetch-Dest') === 'document' || !req.get('Sec-Fetch-Dest');
+  const isPrefetch = req.get('Purpose') === 'prefetch' || req.get('Sec-Purpose') === 'prefetch';
+  if (isDocumentNav && !isPrefetch) {
+    const result = await trackClick(code);
+    if (!result.success) {
+      logger.info('Referral redirect: click not counted', { code: code.substring(0, 12), error: result.error });
+    } else {
+      logger.info('Referral redirect: click counted', { code: result.link?.code });
+    }
   }
   return res.redirect(302, `${FRONTEND_URL}?ref=${encodeURIComponent(code)}`);
 });
