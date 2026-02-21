@@ -40,6 +40,7 @@ app.use((req, res, next) => {
     'api.chibox-game.ru',
     'chibox-game.ru',
     'www.chibox-game.ru',
+    'streamer.chibox-game.ru',
     'localhost',
     '127.0.0.1'
   ];
