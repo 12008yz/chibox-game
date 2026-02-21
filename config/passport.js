@@ -165,12 +165,15 @@ if (STEAM_API_KEY) {
 
         if (req.session && req.session.referralCode) {
           try {
-            await bindReferrer(user.id, req.session.referralCode);
+            const result = await bindReferrer(user.id, req.session.referralCode);
+            logger.info('Referrer bind (existing user)', { userId: user.id, code: req.session.referralCode.substring(0, 8), bound: result && result.bound });
             delete req.session.referralCode;
             if (req.session.save) req.session.save(() => {});
           } catch (refErr) {
             logger.error('Ошибка привязки реферера при Steam логине:', refErr);
           }
+        } else if (req.session && !req.session.referralCode) {
+          logger.info('Steam login: no referralCode in session (existing user)', { userId: user.id });
         }
         return done(null, user);
       } else {
@@ -247,12 +250,15 @@ if (STEAM_API_KEY) {
 
         if (req.session && req.session.referralCode) {
           try {
-            await bindReferrer(user.id, req.session.referralCode);
+            const result = await bindReferrer(user.id, req.session.referralCode);
+            logger.info('Referrer bind (new user)', { userId: user.id, code: req.session.referralCode.substring(0, 8), bound: result && result.bound });
             delete req.session.referralCode;
             if (req.session.save) req.session.save(() => {});
           } catch (refErr) {
             logger.error('Ошибка привязки реферера при Steam логине (новый пользователь):', refErr);
           }
+        } else if (req.session && !req.session.referralCode) {
+          logger.info('Steam login: no referralCode in session (new user)', { userId: user.id });
         }
         return done(null, user);
       }

@@ -33,9 +33,18 @@ router.get('/steam', (req, res, next) => {
 
   res.setHeader('Cache-Control', 'no-cache');
 
-  const ref = req.query.ref;
-  if (ref && typeof ref === 'string' && ref.length <= 64 && req.session) {
-    req.session.referralCode = ref.trim();
+  // Реферальный код: из query (фронт добавляет из cookie) или из cookie напрямую
+  const refFromQuery = req.query.ref;
+  const refFromCookie = req.cookies && req.cookies.referral_ref;
+  const ref = (typeof refFromQuery === 'string' && refFromQuery.length <= 64 && refFromQuery.trim())
+    ? refFromQuery.trim()
+    : (typeof refFromCookie === 'string' && refFromCookie.length <= 64 && refFromCookie.trim())
+      ? refFromCookie.trim()
+      : null;
+
+  if (ref && req.session) {
+    req.session.referralCode = ref;
+    logger.info('Referral code saved to session for Steam login', { ref: ref.substring(0, 8) + '…' });
     req.session.save((err) => {
       if (err) logger.warn('Session save before Steam redirect failed', err);
       logger.info('Redirecting to Steam login (minimal params)');
