@@ -4,6 +4,27 @@ const { logger } = require('../utils/logger');
 
 const router = express.Router();
 
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://chibox-game.ru';
+
+/**
+ * GET /api/v1/referral/redirect/:code
+ * Учёт перехода и редирект на основной сайт с ?ref= (для ссылок streamer.domain/CODE).
+ * Вызывается при заходе по реферальной ссылке — переход считается на сервере, затем 302.
+ */
+router.get('/redirect/:code', async (req, res) => {
+  const code = (req.params.code || '').trim().replace(/\/.*$/, '');
+  if (!code || code.length > 64) {
+    return res.redirect(302, FRONTEND_URL);
+  }
+  const result = await trackClick(code);
+  if (!result.success) {
+    logger.info('Referral redirect: click not counted', { code: code.substring(0, 12), error: result.error });
+  } else {
+    logger.info('Referral redirect: click counted', { code: result.link?.code });
+  }
+  return res.redirect(302, `${FRONTEND_URL}?ref=${encodeURIComponent(code)}`);
+});
+
 /**
  * GET /api/v1/referral/click?code=XXX
  * Учёт перехода по реферальной ссылке (без авторизации).
