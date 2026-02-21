@@ -5,6 +5,7 @@ const { logger } = require('../utils/logger');
 const { createSteamLoginNotification } = require('../utils/notificationHelper');
 const { addExperience } = require('../services/xpService');
 const { updateUserBonuses } = require('../utils/userBonusCalculator');
+const { bindReferrer } = require('../services/referralService');
 
 // Настройки Steam OAuth
 const STEAM_API_KEY = process.env.STEAM_API_KEY;
@@ -162,6 +163,15 @@ if (STEAM_API_KEY) {
           logger.warn('Не удалось создать уведомление о входе через Steam:', notificationError.message);
         }
 
+        if (req.session && req.session.referralCode) {
+          try {
+            await bindReferrer(user.id, req.session.referralCode);
+            delete req.session.referralCode;
+            if (req.session.save) req.session.save(() => {});
+          } catch (refErr) {
+            logger.error('Ошибка привязки реферера при Steam логине:', refErr);
+          }
+        }
         return done(null, user);
       } else {
         // Перед созданием нового пользователя проверяем, не привязан ли уже этот Steam ID к другому аккаунту
@@ -235,6 +245,15 @@ if (STEAM_API_KEY) {
           logger.warn('Не удалось создать уведомление о входе через Steam для нового пользователя:', notificationError.message);
         }
 
+        if (req.session && req.session.referralCode) {
+          try {
+            await bindReferrer(user.id, req.session.referralCode);
+            delete req.session.referralCode;
+            if (req.session.save) req.session.save(() => {});
+          } catch (refErr) {
+            logger.error('Ошибка привязки реферера при Steam логине (новый пользователь):', refErr);
+          }
+        }
         return done(null, user);
       }
     } catch (error) {

@@ -230,6 +230,8 @@ setInterval(() => {
 const userRoutes = require('./routes/userRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const authRoutes = require('./routes/authRoutes');
+const referralRoutes = require('./routes/referralRoutes');
+const streamerRoutes = require('./routes/streamerRoutes');
 const { requestLogger, logLoginAttempt, logPayment } = require('./utils/logger');
 
 // Логирование попыток входа
@@ -246,6 +248,8 @@ app.use('/api/v1', userRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/payment', paymentRoutes); // алиас для Unitpay (в ЛК часто указывают /api/payment)
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/referral', referralRoutes);
+app.use('/api/v1/streamer', streamerRoutes);
 
 // Проверка подключений к базе данных и Redis
 (async () => {

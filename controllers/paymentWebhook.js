@@ -3,6 +3,7 @@ const { Payment, User } = db;
 const winston = require('winston');
 const { activateSubscription } = require('../services/subscriptionService');
 const { addExperience } = require('../services/xpService');
+const { onReferralDeposit } = require('../services/referralService');
 
 const FRONTEND_BASE = process.env.FRONTEND_URL || 'https://chibox-game.ru';
 const redirectToFrontend = (queryString) => `${FRONTEND_BASE}${queryString ? `?${queryString}` : ''}`;
@@ -103,6 +104,7 @@ async function unitpayHandler(req, res) {
       }
 
       let transactionAmount = parseFloat(payment.amount);
+      let chicoinsToAdd = 0;
       if (payment.purpose === 'deposit' && payment.metadata && payment.metadata.chicoins) {
         transactionAmount = parseFloat(payment.metadata.chicoins);
       }
@@ -112,7 +114,7 @@ async function unitpayHandler(req, res) {
         await activateSubscription(user.id, tierId);
         logger.info(`Unitpay: subscription activated for user ${user.id}`);
       } else if (payment.purpose === 'deposit') {
-        let chicoinsToAdd = transactionAmount;
+        chicoinsToAdd = transactionAmount;
         if (payment.metadata && payment.metadata.chicoins) {
           chicoinsToAdd = parseFloat(payment.metadata.chicoins);
         }
@@ -169,6 +171,14 @@ async function unitpayHandler(req, res) {
       payment.webhook_data = params;
       payment.completed_at = new Date();
       await payment.save();
+
+      if (payment.purpose === 'deposit' && chicoinsToAdd > 0) {
+        try {
+          await onReferralDeposit(user.id, chicoinsToAdd, payment.id);
+        } catch (refErr) {
+          logger.error('Referral onReferralDeposit error:', refErr);
+        }
+      }
 
       logger.info(`Unitpay PAY: completed for account=${account}`);
       return res.status(200).json({ result: { message: 'Request successfully processed' } });

@@ -132,6 +132,14 @@ module.exports = (sequelize) => {
       type: DataTypes.ENUM('deposit', 'general'),
       defaultValue: 'general',
       comment: "Категория промокода: deposit - для пополнения баланса, general - обычные промокоды"
+    },
+    streamer_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: { model: 'streamers', key: 'id' },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL',
+      comment: "Промокод стримера (создан для партнёрской программы)"
     }
   }, {
     timestamps: true,
@@ -176,6 +184,11 @@ module.exports = (sequelize) => {
     PromoCode.hasMany(models.PromoCodeUser, {
       foreignKey: 'promo_code_id',
       as: 'allowed_users'
+    });
+
+    PromoCode.belongsTo(models.Streamer, {
+      foreignKey: 'streamer_id',
+      as: 'streamer'
     });
   };
 

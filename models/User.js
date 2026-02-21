@@ -409,6 +409,29 @@ module.exports = (sequelize) => {
       comment: "Дата последнего входа пользователя"
     },
 
+    // Реферальная программа (стример)
+    referred_by_streamer_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: { model: 'streamers', key: 'id' },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL',
+      comment: "Стример, по ссылке которого пришёл пользователь"
+    },
+    referred_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: "Дата привязки реферера"
+    },
+    referred_by_link_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: { model: 'referral_links', key: 'id' },
+      onUpdate: 'CASCADE',
+      onDelete: 'SET NULL',
+      comment: "Ссылка, по которой пришёл пользователь (для статистики)"
+    },
+
     // Steam OAuth интеграция
     steam_id: {
       type: DataTypes.STRING,
@@ -538,6 +561,16 @@ module.exports = (sequelize) => {
     User.hasMany(models.Notification, {
       foreignKey: 'user_id',
       as: 'notifications'
+    });
+
+    User.belongsTo(models.Streamer, {
+      foreignKey: 'referred_by_streamer_id',
+      as: 'referredByStreamer'
+    });
+
+    User.belongsTo(models.ReferralLink, {
+      foreignKey: 'referred_by_link_id',
+      as: 'referredByLink'
     });
   };
 

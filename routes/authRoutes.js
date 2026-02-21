@@ -13,6 +13,7 @@ const router = express.Router();
 router.post('/refresh', refreshToken);
 
 // Steam OAuth - начало авторизации (быстрый метод с прямым редиректом)
+// Поддерживает ?ref=CODE — реферальный код сохраняется в сессию и привязывается после логина
 router.get('/steam', (req, res, next) => {
   if (!process.env.STEAM_API_KEY) {
     return res.status(500).json({
@@ -20,11 +21,8 @@ router.get('/steam', (req, res, next) => {
     });
   }
 
-  // Используем минимальный набор параметров для максимальной скорости
   const returnURL = encodeURIComponent(process.env.STEAM_RETURN_URL || 'https://chibox-game.ru/api/v1/auth/steam/return');
   const realm = encodeURIComponent(process.env.STEAM_REALM || 'https://chibox-game.ru/');
-
-  // МИНИМАЛЬНЫЙ URL - убираем все необязательные параметры
   const steamLoginUrl = `https://steamcommunity.com/openid/login?` +
     `openid.mode=checkid_setup` +
     `&openid.ns=http://specs.openid.net/auth/2.0` +
@@ -33,11 +31,20 @@ router.get('/steam', (req, res, next) => {
     `&openid.return_to=${returnURL}` +
     `&openid.realm=${realm}`;
 
-  // Устанавливаем заголовки для ускорения
   res.setHeader('Cache-Control', 'no-cache');
 
+  const ref = req.query.ref;
+  if (ref && typeof ref === 'string' && ref.length <= 64 && req.session) {
+    req.session.referralCode = ref.trim();
+    req.session.save((err) => {
+      if (err) logger.warn('Session save before Steam redirect failed', err);
+      logger.info('Redirecting to Steam login (minimal params)');
+      res.redirect(302, steamLoginUrl);
+    });
+    return;
+  }
+
   logger.info('Redirecting to Steam login (minimal params)');
-  // Используем 302 редирект для скорости
   res.redirect(302, steamLoginUrl);
 });
 
