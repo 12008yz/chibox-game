@@ -10,6 +10,7 @@ const router = express.Router();
  */
 router.get('/click', async (req, res) => {
   const code = req.query.code;
+  logger.info('Referral click request received', { code: (code || '').substring(0, 16), origin: req.get('origin') });
   const result = await trackClick(code);
   if (!result.success) {
     logger.info('Referral click not counted', { code: (code || '').substring(0, 12), error: result.error });

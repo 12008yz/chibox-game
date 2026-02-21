@@ -1095,6 +1095,10 @@ class SteamBot {
       });
 
       this.client.once('error', (err) => {
+        if (err && err.message && err.message.includes('Already attempting to log on')) {
+          logger.warn('Steam: duplicate logon attempt ignored (login may still complete)');
+          return;
+        }
         logger.error('Steam login error:', err);
         loggingIn = false;
         hasLoggedIn = false;
