@@ -6,6 +6,27 @@ const router = express.Router();
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://chibox-game.ru';
 
+// Дедупликация: один клик с одного IP по одному коду за окно (мс). Убирает двойной подсчёт из-за prefetch + навигации.
+const CLICK_DEDUPE_MS = 30 * 1000; // 30 сек
+const clickLastSeen = new Map(); // key: "ip|code" -> timestamp
+const DEDUPE_PRUNE_INTERVAL = 60 * 1000; // раз в минуту чистить старые ключи
+let lastPrune = Date.now();
+
+function shouldCountClick(ip, code) {
+  const key = `${ip || 'unknown'}|${code}`;
+  const now = Date.now();
+  if (now - lastPrune > DEDUPE_PRUNE_INTERVAL) {
+    lastPrune = now;
+    for (const [k, ts] of clickLastSeen.entries()) {
+      if (now - ts > CLICK_DEDUPE_MS) clickLastSeen.delete(k);
+    }
+  }
+  const last = clickLastSeen.get(key);
+  if (last != null && now - last < CLICK_DEDUPE_MS) return false;
+  clickLastSeen.set(key, now);
+  return true;
+}
+
 /**
  * GET /api/v1/referral/redirect/:code
  * Учёт перехода и редирект на основной сайт с ?ref= (для ссылок streamer.domain/CODE).
@@ -20,10 +41,8 @@ router.get('/redirect/:code', async (req, res) => {
   if (!code || code.length > 64) {
     return res.redirect(302, FRONTEND_URL);
   }
-  // Считаем только реальный переход (document), не prefetch — иначе браузер даёт +2 за один клик
-  const isDocumentNav = req.get('Sec-Fetch-Dest') === 'document' || !req.get('Sec-Fetch-Dest');
-  const isPrefetch = req.get('Purpose') === 'prefetch' || req.get('Sec-Purpose') === 'prefetch';
-  if (isDocumentNav && !isPrefetch) {
+  const ip = req.ip || req.connection?.remoteAddress;
+  if (shouldCountClick(ip, code)) {
     const result = await trackClick(code);
     if (!result.success) {
       logger.info('Referral redirect: click not counted', { code: code.substring(0, 12), error: result.error });
