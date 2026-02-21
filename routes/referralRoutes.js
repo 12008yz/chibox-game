@@ -13,6 +13,10 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'https://chibox-game.ru';
  */
 router.get('/redirect/:code', async (req, res) => {
   const code = (req.params.code || '').trim().replace(/\/.*$/, '');
+  // Не кешировать редирект — каждый переход должен дойти до сервера и учться
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
   if (!code || code.length > 64) {
     return res.redirect(302, FRONTEND_URL);
   }
