@@ -104,6 +104,22 @@ router.post('/links', async (req, res) => {
 });
 
 /**
+ * DELETE /api/v1/streamer/links/:id
+ * Удалить реферальную ссылку (только свою).
+ */
+router.delete('/links/:id', async (req, res) => {
+  const linkId = req.params.id;
+  const link = await db.ReferralLink.findOne({
+    where: { id: linkId, streamer_id: req.streamer.id }
+  });
+  if (!link) {
+    return res.status(404).json({ success: false, message: 'Ссылка не найдена' });
+  }
+  await link.destroy();
+  return res.json({ success: true });
+});
+
+/**
  * GET /api/v1/streamer/stats
  * Сводная статистика: переходы, регистрации, первые депозиты, сумма начислений.
  */
