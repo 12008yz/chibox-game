@@ -12,7 +12,9 @@ const corsOptions = {
   : [
       'https://chibox-game.ru',
       'https://www.chibox-game.ru',
-      'http://chibox-game.ru'
+      'http://chibox-game.ru',
+      'https://streamer.chibox-game.ru',
+      'http://streamer.chibox-game.ru'
     ];
 
     if (allowedOrigins.indexOf(origin) !== -1) {

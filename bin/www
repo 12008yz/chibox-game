@@ -41,7 +41,7 @@ console.log(`   - Таймаут заголовков: ${server.headersTimeout}m
 const io = socketIO(server, {
   cors: {
     origin: process.env.NODE_ENV === 'production'
-      ? ['https://chibox-game.ru', 'https://www.chibox-game.ru', 'https://api.chibox-game.ru']
+      ? ['https://chibox-game.ru', 'https://www.chibox-game.ru', 'https://api.chibox-game.ru', 'https://streamer.chibox-game.ru']
       : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
     methods: ['GET', 'POST'],
     credentials: true
