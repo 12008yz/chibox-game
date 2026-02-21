@@ -63,7 +63,7 @@ async function main() {
       streamer = await db.Streamer.create({
         user_id: userId,
         balance: 0,
-        percent_from_deposit: 5,
+        percent_from_deposit: 10,
         fixed_registration: 0,
         fixed_first_deposit: 0,
         is_active: true

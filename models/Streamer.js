@@ -24,7 +24,7 @@ module.exports = (sequelize) => {
     },
     percent_from_deposit: {
       type: DataTypes.DECIMAL(5, 2),
-      defaultValue: 5,
+      defaultValue: 10,
       allowNull: false
     },
     fixed_registration: {

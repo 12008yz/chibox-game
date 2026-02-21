@@ -211,6 +211,17 @@ async function getReferralInfoByCode(code) {
   if (!link) return null;
   const streamer = link.streamer;
   const user = streamer.user;
+
+  const promoCodes = await db.PromoCode.findAll({
+    where: {
+      streamer_id: streamer.id,
+      type: 'balance_add',
+      is_active: true
+    },
+    attributes: ['code', 'value'],
+    order: [['value', 'DESC']]
+  });
+
   return {
     code: link.code,
     streamer: {
@@ -221,7 +232,11 @@ async function getReferralInfoByCode(code) {
     bonuses: {
       percent_from_deposit: parseFloat(streamer.percent_from_deposit) || 0,
       fixed_registration: parseFloat(streamer.fixed_registration) || 0,
-      fixed_first_deposit: parseFloat(streamer.fixed_first_deposit) || 0
+      fixed_first_deposit: parseFloat(streamer.fixed_first_deposit) || 0,
+      promo_codes: promoCodes.map((p) => ({
+        code: p.code,
+        value: parseFloat(p.value) || 0
+      }))
     }
   };
 }
