@@ -66,7 +66,8 @@ function filterExcludedItems(items, userSubscriptionTier = 0) {
 /**
  * УНИВЕРСАЛЬНАЯ ФУНКЦИЯ для всех платных кейсов
  * Работает пропорционально цене кейса
- * ЦЕЛЬ: RTP ~75% для развлекательной игры (платформа в плюсе, но игрокам интересно)
+ * ЦЕЛЬ: RTP 65-75% для развлекательной игры (платформа в плюсе, но игрокам интересно)
+ * ИСПРАВЛЕНО: скорректированы веса для достижения целевого RTP
  */
 function calculateWeightForPaidCase(price, casePrice) {
   price = parseFloat(price) || 0;
@@ -93,44 +94,44 @@ function calculateWeightForPaidCase(price, casePrice) {
   if (ratio >= 3) return 6;             // 0.6% - x3-3.5
   if (ratio >= 2.5) return 8;           // 0.8% - x2.5-3
 
-  // ХОРОШИЕ ВЫИГРЫШИ (8% общий) - x2-2.5 от цены - НЕЧАСТО
-  if (ratio >= 2.2) return 12;          // 1.2% - x2.2-2.5
-  if (ratio >= 2) return 18;            // 1.8% - x2-2.2
-  if (ratio >= 1.8) return 25;          // 2.5% - x1.8-2
-  if (ratio >= 1.6) return 25;          // 2.5% - x1.6-1.8
+  // ХОРОШИЕ ВЫИГРЫШИ (10% общий) - x2-2.5 от цены - НЕЧАСТО (УВЕЛИЧЕНО)
+  if (ratio >= 2.2) return 15;          // 1.5% - x2.2-2.5
+  if (ratio >= 2) return 22;            // 2.2% - x2-2.2
+  if (ratio >= 1.8) return 30;          // 3% - x1.8-2
+  if (ratio >= 1.6) return 30;          // 3% - x1.6-1.8
 
-  // НЕБОЛЬШИЕ ВЫИГРЫШИ (12% общий) - x1.2-1.6 от цены
-  if (ratio >= 1.4) return 35;          // 3.5% - x1.4-1.6
-  if (ratio >= 1.2) return 45;          // 4.5% - x1.2-1.4
-  if (ratio >= 1.1) return 40;          // 4% - x1.1-1.2
+  // НЕБОЛЬШИЕ ВЫИГРЫШИ (15% общий) - x1.2-1.6 от цены (УВЕЛИЧЕНО)
+  if (ratio >= 1.4) return 45;          // 4.5% - x1.4-1.6
+  if (ratio >= 1.2) return 55;          // 5.5% - x1.2-1.4
+  if (ratio >= 1.1) return 50;          // 5% - x1.1-1.2
 
-  // ОКУП (8% общий) - x1-1.1 от цены (редкий окуп = азарт)
-  if (ratio >= 1.0) return 40;          // 4% - точный окуп
-  if (ratio >= 0.95) return 40;         // 4% - почти окуп
+  // ОКУП (12% общий) - x1-1.1 от цены (УВЕЛИЧЕНО для повышения RTP)
+  if (ratio >= 1.0) return 50;          // 5% - точный окуп
+  if (ratio >= 0.95) return 50;         // 5% - почти окуп
 
-  // ПОЧТИ ОКУП (15% общий) - x0.7-0.95 - ЧАСТЫЕ ПРОИГРЫШИ
-  if (ratio >= 0.85) return 60;         // 6% - небольшой проигрыш
-  if (ratio >= 0.75) return 70;         // 7% - средний проигрыш
-  if (ratio >= 0.7) return 20;          // 2% - заметный проигрыш
+  // ПОЧТИ ОКУП (18% общий) - x0.7-0.95 - ЧАСТЫЕ ПРОИГРЫШИ (УВЕЛИЧЕНО)
+  if (ratio >= 0.85) return 70;         // 7% - небольшой проигрыш
+  if (ratio >= 0.75) return 80;         // 8% - средний проигрыш
+  if (ratio >= 0.7) return 30;          // 3% - заметный проигрыш
 
-  // СРЕДНИЙ УБЫТОК (28% общий) - x0.4-0.7 - ЧАСТЫЕ ПРОИГРЫШИ!
-  if (ratio >= 0.6) return 90;          // 9% - большой проигрыш
-  if (ratio >= 0.5) return 100;         // 10% - очень большой проигрыш
-  if (ratio >= 0.4) return 90;          // 9% - огромный проигрыш
+  // СРЕДНИЙ УБЫТОК (25% общий) - x0.4-0.7 - ЧАСТЫЕ ПРОИГРЫШИ!
+  if (ratio >= 0.6) return 100;         // 10% - большой проигрыш
+  if (ratio >= 0.5) return 110;         // 11% - очень большой проигрыш
+  if (ratio >= 0.4) return 100;         // 10% - огромный проигрыш
 
-  // БОЛЬШОЙ УБЫТОК (20% общий) - x0.2-0.4 - ОЧЕНЬ ЧАСТЫЕ ПРОИГРЫШИ!
-  if (ratio >= 0.3) return 100;         // 10% - катастрофический проигрыш
-  if (ratio >= 0.2) return 100;         // 10% - полный проигрыш
+  // БОЛЬШОЙ УБЫТОК (15% общий) - x0.2-0.4 - ОЧЕНЬ ЧАСТЫЕ ПРОИГРЫШИ! (СНИЖЕНО)
+  if (ratio >= 0.3) return 80;          // 8% - катастрофический проигрыш
+  if (ratio >= 0.2) return 80;          // 8% - полный проигрыш
 
-  // МУСОР (5% общий) - меньше 20% от цены - мусорные предметы
-  if (ratio >= 0.1) return 50;          // 5% - абсолютный мусор
-  return 30;                            // 3% - дно
+  // МУСОР (5% общий) - меньше 20% от цены - мусорные предметы (СНИЖЕНО)
+  if (ratio >= 0.1) return 40;          // 4% - абсолютный мусор
+  return 25;                            // 2.5% - дно
 }
 
 /**
  * БРОНЗОВЫЙ КЕЙС - 17₽
- * RTP: 70% (средний выигрыш ~12₽)
- * Проигрыши в 60% случаев
+ * Целевой RTP: 65% (средний выигрыш ~11₽)
+ * Проигрыши в 60-70% случаев
  */
 function calculateWeightForBronze17(price) {
   return calculateWeightForPaidCase(price, 17);
@@ -138,8 +139,8 @@ function calculateWeightForBronze17(price) {
 
 /**
  * ПУШИСТЫЙ КЕЙС - 49₽
- * RTP: 70% (средний выигрыш ~34₽)
- * Проигрыши в 60% случаев
+ * Целевой RTP: 65% (средний выигрыш ~32₽)
+ * Проигрыши в 60-70% случаев
  */
 function calculateWeightForFluffy49(price) {
   return calculateWeightForPaidCase(price, 49);
@@ -147,7 +148,7 @@ function calculateWeightForFluffy49(price) {
 
 /**
  * ЗОЛОТОЙ КЕЙС - 101₽
- * RTP: 70% (средний выигрыш ~71₽)
+ * Целевой RTP: 70% (средний выигрыш ~71₽)
  * Проигрыши в 60% случаев
  */
 function calculateWeightForGold101(price) {
@@ -156,7 +157,8 @@ function calculateWeightForGold101(price) {
 
 /**
  * ПЛАТИНОВЫЙ КЕЙС - 250₽
- * RTP: 80% (средний выигрыш ~200₽)
+ * Целевой RTP: 70-75% (средний выигрыш ~175-187₽)
+ * ИСПРАВЛЕНО: использует универсальную функцию для правильного RTP
  */
 function calculateWeightForPlatinum250(price) {
   return calculateWeightForPaidCase(price, 250);
@@ -164,8 +166,8 @@ function calculateWeightForPlatinum250(price) {
 
 /**
  * ПРЕМИУМ КЕЙС - 499₽
- * RTP: 75% (средний выигрыш ~374₽)
- * Проигрыши в 55% случаев
+ * Целевой RTP: 70-75% (средний выигрыш ~350-375₽)
+ * ИСПРАВЛЕНО: использует универсальную функцию для правильного RTP
  */
 function calculateWeightForPremium499(price) {
   return calculateWeightForPaidCase(price, 499);
@@ -173,124 +175,60 @@ function calculateWeightForPremium499(price) {
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * РАВНОМЕРНОЕ РАСПРЕДЕЛЕНИЕ ДЛЯ ПРЕМИУМ КЕЙСОВ (от 601₽)
+ * ВЗВЕШЕННОЕ РАСПРЕДЕЛЕНИЕ ДЛЯ ПРЕМИУМ КЕЙСОВ (от 601₽)
  * ═══════════════════════════════════════════════════════════════════════════
- * Для кейсов от 601₽ и выше все предметы имеют ОДИНАКОВЫЕ шансы выпадения
- * Вес = 100 для всех предметов (равномерное распределение)
+ * Для кейсов от 601₽ используется взвешенное распределение с учетом цены
+ * Целевой RTP: 70-75% для баланса между прибылью и интересом игроков
  * ═══════════════════════════════════════════════════════════════════════════
  */
-function calculateWeightForEqualDistribution(price) {
-  // Все предметы имеют одинаковый вес независимо от цены
-  return 100;
-}
 
 /**
  * АЛМАЗНЫЙ КЕЙС - 601₽
- * РАВНОМЕРНОЕ РАСПРЕДЕЛЕНИЕ - все предметы имеют одинаковые шансы
+ * Целевой RTP: 70% (средний выигрыш ~420₽)
  */
 function calculateWeightForDiamond601(price) {
-  return calculateWeightForEqualDistribution(price);
+  return calculateWeightForPaidCase(price, 601);
 }
 
 /**
  * ЛЕГЕНДАРНЫЙ КЕЙС - 998₽
- * РАВНОМЕРНОЕ РАСПРЕДЕЛЕНИЕ - все предметы имеют одинаковые шансы
+ * Целевой RTP: 72% (средний выигрыш ~718₽)
  */
 function calculateWeightForLegendary998(price) {
-  return calculateWeightForEqualDistribution(price);
+  return calculateWeightForPaidCase(price, 998);
 }
 
 /**
  * МИСТИЧЕСКИЙ КЕЙС - 2499₽
- * РАВНОМЕРНОЕ РАСПРЕДЕЛЕНИЕ - все предметы имеют одинаковые шансы
+ * Целевой RTP: 73% (средний выигрыш ~1824₽)
  */
 function calculateWeightForMystic2499(price) {
-  return calculateWeightForEqualDistribution(price);
+  return calculateWeightForPaidCase(price, 2499);
 }
 
 /**
  * ЭПИЧЕСКИЙ КЕЙС - 5000₽
- * РАВНОМЕРНОЕ РАСПРЕДЕЛЕНИЕ - все предметы имеют одинаковые шансы
+ * Целевой RTP: 74% (средний выигрыш ~3700₽)
  */
 function calculateWeightForEpic5000(price) {
-  return calculateWeightForEqualDistribution(price);
+  return calculateWeightForPaidCase(price, 5000);
 }
 
 /**
  * МИФИЧЕСКИЙ КЕЙС - 10000₽
- * РАВНОМЕРНОЕ РАСПРЕДЕЛЕНИЕ - все предметы имеют одинаковые шансы
+ * Целевой RTP: 75% (средний выигрыш ~7500₽)
  */
 function calculateWeightForMythic10000(price) {
-  return calculateWeightForEqualDistribution(price);
+  return calculateWeightForPaidCase(price, 10000);
 }
 
 /**
  * КЕЙС ЗА 99₽ - Стандартный кейс
- * Целевой RTP: 70% (средний выигрыш ~70₽)
- * Проигрыши в 60-70% случаев, но есть шанс на джекпот
+ * Целевой RTP: 65-70% (средний выигрыш ~65-70₽)
+ * ИСПРАВЛЕНО: использует универсальную функцию для правильного RTP
  */
 function calculateWeightForStandard99(price) {
-  price = parseFloat(price) || 0;
-
-  // УЛЬТРА ДЖЕКПОТЫ (0.03% общий) - x50+ от 99₽ = 5000₽+
-  if (price >= 10000) return 0.003;     // 0.0003% - x100+ (фантастика!)
-  if (price >= 8000) return 0.005;      // 0.0005% - x80+
-  if (price >= 6000) return 0.01;       // 0.001% - x60+
-  if (price >= 5000) return 0.015;      // 0.0015% - x50+ (крайне редко)
-
-  // МЕГА ДЖЕКПОТЫ (0.15% общий) - x10-50 от 99₽ = 1000-5000₽
-  if (price >= 4000) return 0.02;       // 0.002% - x40
-  if (price >= 3000) return 0.03;       // 0.003% - x30
-  if (price >= 2000) return 0.05;       // 0.005% - x20
-  if (price >= 1500) return 0.08;       // 0.008% - x15
-  if (price >= 1000) return 0.15;       // 0.015% - x10 (очень редко)
-
-  // БОЛЬШИЕ ДЖЕКПОТЫ (0.6% общий) - x5-10 от 99₽ = 500-1000₽
-  if (price >= 900) return 0.2;         // 0.02% - x9
-  if (price >= 800) return 0.3;         // 0.03% - x8
-  if (price >= 700) return 0.4;         // 0.04% - x7
-  if (price >= 600) return 0.5;         // 0.05% - x6
-  if (price >= 500) return 0.8;         // 0.08% - x5 (редко)
-
-  // СРЕДНИЕ ДЖЕКПОТЫ (3% общий) - x3-5 от 99₽ = 300-500₽
-  if (price >= 450) return 1.5;         // 0.15% - x4.5
-  if (price >= 400) return 2;           // 0.2% - x4
-  if (price >= 350) return 3;           // 0.3% - x3.5
-  if (price >= 300) return 6;           // 0.6% - x3
-
-  // ХОРОШИЕ ВЫИГРЫШИ (8% общий) - x2-3 от 99₽ = 200-300₽
-  if (price >= 250) return 12;          // 1.2% - x2.5
-  if (price >= 200) return 20;          // 2% - x2
-  if (price >= 180) return 22;          // 2.2% - x1.8
-  if (price >= 150) return 26;          // 2.6% - x1.5
-
-  // НЕБОЛЬШИЕ ВЫИГРЫШИ (10% общий) - x1.2-1.5 от 99₽ = 120-150₽
-  if (price >= 140) return 30;          // 3% - x1.4
-  if (price >= 120) return 35;          // 3.5% - x1.2
-  if (price >= 110) return 35;          // 3.5% - x1.1
-
-  // ОКУП (7% общий) - x0.95-1.1 от 99₽ = 95-110₽
-  if (price >= 100) return 35;          // 3.5% - точный окуп
-  if (price >= 95) return 35;           // 3.5% - почти окуп
-
-  // ПОЧТИ ОКУП (12% общий) - x0.7-0.95 от 99₽ = 70-95₽
-  if (price >= 85) return 45;           // 4.5% - небольшой проигрыш
-  if (price >= 75) return 50;           // 5% - средний проигрыш
-  if (price >= 70) return 25;           // 2.5% - заметный проигрыш
-
-  // СРЕДНИЙ УБЫТОК (30% общий) - x0.4-0.7 от 99₽ = 40-70₽
-  if (price >= 60) return 90;           // 9% - большой проигрыш
-  if (price >= 50) return 110;          // 11% - очень большой проигрыш
-  if (price >= 40) return 100;          // 10% - огромный проигрыш
-
-  // БОЛЬШОЙ УБЫТОК (25% общий) - x0.2-0.4 от 99₽ = 20-40₽
-  if (price >= 35) return 100;          // 10% - катастрофа
-  if (price >= 30) return 90;           // 9% - полный проигрыш
-  if (price >= 25) return 60;           // 6% - мусор
-
-  // МУСОР (4% общий) - меньше 25₽
-  if (price >= 20) return 40;           // 4% - абсолютный мусор
-  return 20;                            // 2% - дно
+  return calculateWeightForPaidCase(price, 99);
 }
 
 /**
@@ -446,6 +384,7 @@ function calculateWeightForStatusTier3(price) {
 /**
  * БОНУСНЫЙ КЕЙС (из мини-игры Safe Cracker)
  * Целевой RTP: 55% (предметы 30-1000₽, средний ~165₽)
+ * ИСПРАВЛЕНО: предметы дешевле 30₽ получают минимальный вес вместо 0
  */
 function calculateWeightForBonus(price) {
   price = parseFloat(price) || 0;
@@ -472,8 +411,11 @@ function calculateWeightForBonus(price) {
   if (price >= 40) return 140;          // 14% - очень дешевые
   if (price >= 30) return 220;          // 22% - базовые предметы
 
-  // Предметы дешевле 30₽ не должны попадать в бонусный кейс
-  return 0;
+  // ИСПРАВЛЕНО: Предметы дешевле 30₽ получают минимальный вес (10) вместо 0
+  // Это позволяет им выпадать, но с очень низкой вероятностью
+  if (price >= 20) return 10;           // 1% - минимальный вес для дешевых
+  if (price >= 10) return 8;            // 0.8% - очень низкий вес
+  return 5;                             // 0.5% - минимальный вес для самых дешевых
 }
 
 
@@ -519,7 +461,7 @@ function calculateCorrectWeightByPrice(price, caseType = 'premium') {
     case 'platinum_250':
       return calculateWeightForPlatinum250(price);
 
-    // КЕЙСЫ ОТ 601₽ - РАВНОМЕРНОЕ РАСПРЕДЕЛЕНИЕ
+    // КЕЙСЫ ОТ 601₽ - ВЗВЕШЕННОЕ РАСПРЕДЕЛЕНИЕ
     case 'diamond_601':
       return calculateWeightForDiamond601(price);
 
@@ -534,6 +476,16 @@ function calculateCorrectWeightByPrice(price, caseType = 'premium') {
 
     case 'mythic_10000':
       return calculateWeightForMythic10000(price);
+
+    // Новые типы для правильного определения кейсов
+    case 'bronze_17':
+      return calculateWeightForBronze17(price);
+
+    case 'fluffy_49':
+      return calculateWeightForFluffy49(price);
+
+    case 'gold_101':
+      return calculateWeightForGold101(price);
 
     default:
       // Fallback на премиум кейс
@@ -1010,34 +962,34 @@ function determineCaseType(caseTemplate, isPaid = false) {
     return 'premium_499';
   }
 
-  // Новые премиум кейсы
+  // Новые премиум кейсы - ИСПРАВЛЕНО: используем правильные типы
   if (templateId === '88888888-8888-8888-8888-888888888888' || price === 17) {
-    return 'standard_99'; // Бронзовый - используем веса стандартного кейса
+    return 'bronze_17'; // Бронзовый - правильные веса для 17₽
   }
   if (templateId === '99999999-9999-9999-9999-999999999999' || price === 49) {
-    return 'standard_99'; // Пушистый
+    return 'fluffy_49'; // Пушистый - правильные веса для 49₽
   }
   if (templateId === 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' || price === 101) {
-    return 'standard_99'; // Золотой
+    return 'gold_101'; // Золотой - правильные веса для 101₽
   }
   if (templateId === 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb' || price === 250) {
     return 'platinum_250'; // Платиновый - щедрые веса (RTP 70%)
   }
-  // КЕЙСЫ ОТ 601₽ - РАВНОМЕРНОЕ РАСПРЕДЕЛЕНИЕ
+  // КЕЙСЫ ОТ 601₽ - ВЗВЕШЕННОЕ РАСПРЕДЕЛЕНИЕ
   if (templateId === 'cccccccc-cccc-cccc-cccc-cccccccccccc' || price === 601) {
-    return 'diamond_601'; // Алмазный - равномерное распределение
+    return 'diamond_601'; // Алмазный - взвешенное распределение
   }
   if (templateId === 'dddddddd-dddd-dddd-dddd-dddddddddddd' || price === 998) {
-    return 'legendary_998'; // Легендарный - равномерное распределение
+    return 'legendary_998'; // Легендарный - взвешенное распределение
   }
   if (templateId === 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee' || price === 2499) {
-    return 'mystic_2499'; // Мистический - равномерное распределение
+    return 'mystic_2499'; // Мистический - взвешенное распределение
   }
   if (templateId === 'ffffffff-ffff-ffff-ffff-ffffffffffff' || price === 5000) {
-    return 'epic_5000'; // Эпический - равномерное распределение
+    return 'epic_5000'; // Эпический - взвешенное распределение
   }
   if (templateId === '10101010-1010-1010-1010-101010101010' || price === 10000) {
-    return 'mythic_10000'; // Мифический - равномерное распределение
+    return 'mythic_10000'; // Мифический - взвешенное распределение
   }
 
   // Определяем по типу и цене
@@ -1055,16 +1007,19 @@ function determineCaseType(caseTemplate, isPaid = false) {
 
   // Платные кейсы
   if (isPaid || price > 0) {
+    if (price === 17) return 'bronze_17';
+    if (price === 49) return 'fluffy_49';
     if (price === 99) return 'standard_99';
+    if (price === 101) return 'gold_101';
     if (price === 250) return 'platinum_250';
     if (price === 499) return 'premium_499';
-    // КЕЙСЫ ОТ 601₽ - РАВНОМЕРНОЕ РАСПРЕДЕЛЕНИЕ
+    // КЕЙСЫ ОТ 601₽ - ВЗВЕШЕННОЕ РАСПРЕДЕЛЕНИЕ
     if (price === 601) return 'diamond_601';
     if (price === 998) return 'legendary_998';
     if (price === 2499) return 'mystic_2499';
     if (price === 5000) return 'epic_5000';
     if (price === 10000) return 'mythic_10000';
-    if (price >= 601) return 'diamond_601'; // Для других дорогих кейсов тоже равномерное распределение
+    if (price >= 601) return 'diamond_601'; // Для других дорогих кейсов тоже взвешенное распределение
     // Для других цен используем премиум веса
     return 'premium_499';
   }
