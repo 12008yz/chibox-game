@@ -13,6 +13,7 @@ const items = lines
     const parts = l.split('|').map(p => p.trim());
     if (parts.length < 5) return null;
     
+    // Цена в файле — в рублях
     const priceStr = parts[3];
     const price = parseFloat(priceStr) || 0;
     
