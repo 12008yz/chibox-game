@@ -41,10 +41,11 @@ function broadcastDrop(user, item, caseData, dropData = {}) {
         id: user.id,
         username: user.username || 'Анонимный игрок',
         level: user.level || 1,
-        // Приоритет: кастомный аватар > Steam аватар
+        // Приоритет: кастомный аватар > Steam аватар (URL без /api — статика отдаётся с корня)
         avatar: user.avatar_url
-          ? `${process.env.BASE_URL || 'https://chibox-game.ru'}/api${user.avatar_url}`
-          : user.steam_avatar_url || null
+          ? `${process.env.BASE_URL || 'https://chibox-game.ru'}${user.avatar_url}`
+          : user.steam_avatar_url || null,
+        steam_avatar_url: user.steam_avatar_url || null
       },
       item: {
         id: item.id,
