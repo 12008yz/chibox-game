@@ -171,7 +171,7 @@ router.get('/missions', authMiddleware, getMissions);
 router.get('/statistics', authMiddleware, getStatistics); //+
 router.get('/statistics/global', getGlobalStatistics); // Глобальная статистика сайта (без авторизации)
 router.get('/bonus-info', authMiddleware, getUserBonusInfoController); // Получить информацию о бонусах
-router.get('/leaderboard', authMiddleware, getLeaderboard); //+
+router.get('/leaderboard', getLeaderboard); // Публичный маршрут — лидерборд доступен без авторизации
 router.get('/notifications', authMiddleware, getNotifications); //+
 router.get('/notifications/unread-count', authMiddleware, getUnreadCount); //+
 router.put('/notifications/:notificationId/read', authMiddleware, markAsRead); //+
