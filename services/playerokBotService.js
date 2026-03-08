@@ -245,23 +245,33 @@ class PlayerOkBot {
         }, query);
 
         if (!searchFilled) continue;
-        await delay(1500);
+        await delay(800);
 
-        // Ждём появления карточек (SPA может подгружать результаты с задержкой)
-        await this.page.waitForSelector('a[href*="/products/"]', { timeout: 20000 }).catch(() => null);
-        await delay(3500);
+        // Запускаем поиск по Enter (на многих сайтах поиск срабатывает по Enter)
+        await this.page.keyboard.press('Enter');
+        await delay(3000);
+
+        // Ждём появления результатов: текст "Найдено" или ссылки на товары
+        await this.page.waitForFunction(
+          () => document.body.innerText.includes('Найдено') || document.querySelector('a[href*="/products/"]'),
+          { timeout: 25000 }
+        ).catch(() => null);
+        await delay(2500);
 
         const searchNormalized = normalizeForMatch(query);
         const searchWords = searchNormalized.split(/\s+/).filter((w) => w.length > 1);
 
         const firstOffer = await this.page.evaluate(({ maxPrice, words }) => {
-          const cards = document.querySelectorAll('a[href*="/products/"]');
+          const cards = document.querySelectorAll('a[href*="/products/"], a[href*="/product/"]');
 
           for (const card of cards) {
             try {
-              const name = card.textContent.trim();
               const url = card.href;
               if (!url) continue;
+              // Название и цена могут быть в родительском блоке карточки, не в самой ссылке
+              const container = card.closest('div[class*="card"], div[class*="Card"], div[class*="product"], article, section') || card.parentElement || card;
+              const name = (container ? container.textContent : card.textContent).trim();
+              if (!name) continue;
 
               const cardNorm = name
                 .replace(/\s*\([^)]*\)\s*/g, ' ')
@@ -273,7 +283,7 @@ class PlayerOkBot {
               if (words.length >= 2 && matchScore < 2) continue;
               if (words.length === 1 && !cardNorm.includes(words[0])) continue;
 
-              const fullText = card.textContent;
+              const fullText = name;
               let price = 0;
               const withCurrency = fullText.match(/(\d[\d\s]*)\s*[P₽р.]/i);
               if (withCurrency && withCurrency[1]) {
@@ -288,7 +298,7 @@ class PlayerOkBot {
 
               if (maxPrice && price > 0 && price > maxPrice) continue;
 
-              return { name, price: price || 0, url };
+              return { name: name.substring(0, 200), price: price || 0, url };
             } catch (e) {
               console.error('Ошибка парсинга карточки:', e);
             }
