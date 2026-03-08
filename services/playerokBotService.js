@@ -132,6 +132,25 @@ class PlayerOkBot {
   }
 
   /**
+   * На PlayerOk оружие часто в формате "АВТОМАТ «ГАЛИЛЬ»", а не "Галиль АР".
+   * Маппинг: английское название оружия (до " | ") → как пишут на PlayerOk.
+   */
+  _playerokWeaponName(weaponEn) {
+    const w = (weaponEn || '').trim().toLowerCase();
+    const map = {
+      'galil ar': 'АВТОМАТ «ГАЛИЛЬ»',
+      'galil': 'АВТОМАТ «ГАЛИЛЬ»',
+      'usp-s': 'USP-S',
+      'desert eagle': 'DESERT EAGLE',
+      'ak-47': 'АК-47',
+      'm4a4': 'M4A4',
+      'm4a1-s': 'M4A1-S',
+      'awp': 'AWP',
+    };
+    return map[w] || null;
+  }
+
+  /**
    * Перевод текста на русский (для поиска на PlayerOk). При ошибке возвращает исходную строку.
    */
   async _translateToRussian(text) {
@@ -173,9 +192,10 @@ class PlayerOkBot {
         await this.page.waitForSelector('input[placeholder*="Поиск"], input[placeholder*="поиск"]', { timeout: 10000 }).catch(() => null);
       }
 
-      // Без скобок с износом — на PlayerOk часто ищут "Галиль | Кислотный дротик", а не "... (Немного поношенное)"
+      // Без скобок с износом — на PlayerOk часто ищут без "(Немного поношенное)"
       const nameNoWear = this._stripWearCondition(itemName);
       const skinOnly = this._skinNameOnly(nameNoWear);
+      const weaponPart = nameNoWear.indexOf(' | ') >= 0 ? nameNoWear.slice(0, nameNoWear.indexOf(' | ')).trim() : '';
 
       const searchQueries = [];
       if (this._hasCyrillic(itemName)) {
@@ -183,12 +203,17 @@ class PlayerOkBot {
         if (skinOnly && skinOnly !== nameNoWear) searchQueries.push(skinOnly);
       } else {
         const ruFull = await this._translateToRussian(nameNoWear);
-        if (ruFull && ruFull !== nameNoWear) searchQueries.push(ruFull);
-        if (skinOnly && skinOnly !== nameNoWear) {
-          const ruSkin = await this._translateToRussian(skinOnly);
-          if (ruSkin && ruSkin !== skinOnly) searchQueries.push(ruSkin);
-          searchQueries.push(skinOnly);
+        const ruSkin = skinOnly && skinOnly !== nameNoWear ? await this._translateToRussian(skinOnly) : '';
+
+        // На сайте подсказки в формате "АВТОМАТ «ГАЛИЛЬ» | КИСЛОТНЫЙ ДРОТИК" — добавляем этот вариант первым
+        const playerokWeapon = weaponPart ? this._playerokWeaponName(weaponPart) : null;
+        if (playerokWeapon && ruSkin) {
+          searchQueries.push(`${playerokWeapon} | ${ruSkin.toUpperCase()}`);
         }
+
+        if (ruFull && ruFull !== nameNoWear) searchQueries.push(ruFull);
+        if (ruSkin && ruSkin !== skinOnly) searchQueries.push(ruSkin);
+        if (skinOnly && skinOnly !== nameNoWear) searchQueries.push(skinOnly);
         searchQueries.push(nameNoWear);
       }
       const uniqueQueries = [...new Set(searchQueries)];
@@ -220,11 +245,11 @@ class PlayerOkBot {
         }, query);
 
         if (!searchFilled) continue;
-        await delay(500);
+        await delay(1500);
 
-        // Ждём появления карточек товаров
-        await this.page.waitForSelector('a[href*="/products/"]', { timeout: 15000 }).catch(() => null);
-        await delay(2500);
+        // Ждём появления карточек (SPA может подгружать результаты с задержкой)
+        await this.page.waitForSelector('a[href*="/products/"]', { timeout: 20000 }).catch(() => null);
+        await delay(3500);
 
         const searchNormalized = normalizeForMatch(query);
         const searchWords = searchNormalized.split(/\s+/).filter((w) => w.length > 1);
