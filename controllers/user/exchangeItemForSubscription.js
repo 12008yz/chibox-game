@@ -1,4 +1,5 @@
 const { UserInventory, User, Achievement, SubscriptionHistory, sequelize } = require('../../models');
+const { grantGameAttemptsForTier } = require('../../services/subscriptionService');
 
 async function exchangeItemForSubscription(req, res) {
   const { userId, itemId } = req.body;
@@ -107,6 +108,10 @@ async function exchangeItemForSubscription(req, res) {
 
     user.subscription_expiry_date = newExpiryDate;
     user.subscription_days_left = newDaysLeft;
+
+    // Выдаём попытки игр по текущему тарифу (крестики-нолики, сейф, рулетка), чтобы после обмена на статус пользователь мог сразу играть
+    const tierForAttempts = user.subscription_tier || 1;
+    grantGameAttemptsForTier(user, tierForAttempts);
 
     await user.save({ transaction });
 

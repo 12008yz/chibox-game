@@ -40,6 +40,29 @@ const SAFECRACKER_LIMITS = {
 };
 
 /**
+ * Выдаёт попытки игр по тарифу подписки (крестики-нолики, сейф, рулетка).
+ * Не сохраняет пользователя — вызывающий код должен вызвать user.save().
+ * Используется при активации подписки и при обмене предмета на подписку.
+ * @param {Object} user - инстанс User
+ * @param {number} tierId - ID тарифа (1, 2, 3)
+ */
+function grantGameAttemptsForTier(user, tierId) {
+  if (!tierId || tierId < 1) return;
+  const now = new Date();
+  user.tictactoe_attempts_left = TICTACTOE_LIMITS[tierId] || 0;
+  user.roulette_attempts_left = ROULETTE_LIMITS[tierId] || 0;
+  user.game_attempts = SAFECRACKER_LIMITS[tierId] || 0;
+  user.has_won_safecracker = false;
+  const resetTime = new Date();
+  resetTime.setUTCHours(13, 0, 0, 0);
+  if (now < resetTime) resetTime.setDate(resetTime.getDate() - 1);
+  user.last_tictactoe_reset = resetTime;
+  user.last_roulette_reset = resetTime;
+  user.last_safecracker_reset = resetTime;
+  logger.info(`[SUBSCRIPTION] Выданы попытки игр для пользователя ${user.id}, тир ${tierId}: tictactoe=${user.tictactoe_attempts_left}, safecracker=${user.game_attempts}`);
+}
+
+/**
  * Активирует подписку для пользователя
  * @param {number} userId - ID пользователя
  * @param {number} tierId - ID тарифа подписки
@@ -78,35 +101,8 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
     user.max_daily_cases = tier.max_daily_cases;
     user.cases_available = Math.max(user.cases_available || 0, 1);
 
-    // Обновляем попытки игр и сбросы, чтобы после покупки статуса пользователь сразу мог снова играть и открыть кейс (даже если уже использовал бесплатные попытки сегодня)
-    // Устанавливаем попытки для крестиков-ноликов при активации подписки
-    const tictactoeLimit = TICTACTOE_LIMITS[tierId] || 0;
-    user.tictactoe_attempts_left = tictactoeLimit;
-
-    // Устанавливаем попытки для рулетки при активации подписки (1 попытка для всех уровней)
-    const rouletteLimit = ROULETTE_LIMITS[tierId] || 0;
-    user.roulette_attempts_left = rouletteLimit;
-
-    // Устанавливаем попытки для Safe Cracker при активации подписки
-    const safecrackerLimit = SAFECRACKER_LIMITS[tierId] || 0;
-    user.game_attempts = safecrackerLimit;
-    // Сбрасываем флаг выигрыша, чтобы после покупки статуса можно было снова играть и выигрывать
-    user.has_won_safecracker = false;
-
-    // Устанавливаем время последнего сброса на последнее плановое время сброса (16:00 МСК = 13:00 UTC)
-    const resetTime = new Date();
-    resetTime.setUTCHours(13, 0, 0, 0);
-    // Если текущее время до 16:00 МСК, используем вчерашний сброс
-    if (now < resetTime) {
-      resetTime.setDate(resetTime.getDate() - 1);
-    }
-    user.last_tictactoe_reset = resetTime;
-    user.last_roulette_reset = resetTime;
-    user.last_safecracker_reset = resetTime;
-
-    logger.info(`[TICTACTOE] Установлены попытки для пользователя ${userId}, тир ${tierId}, лимит ${tictactoeLimit}`);
-    logger.info(`[ROULETTE] Установлены попытки для пользователя ${userId}, тир ${tierId}, лимит ${rouletteLimit}`);
-    logger.info(`[SAFECRACKER] Установлены попытки для пользователя ${userId}, тир ${tierId}, лимит ${safecrackerLimit}`);
+    // Выдаём попытки игр по тарифу (крестики-нолики, сейф, рулетка)
+    grantGameAttemptsForTier(user, tierId);
 
     await user.save();
 
@@ -164,5 +160,6 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
 }
 
 module.exports = {
-  activateSubscription
+  activateSubscription,
+  grantGameAttemptsForTier
 };
