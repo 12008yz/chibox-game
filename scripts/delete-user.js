@@ -2,13 +2,14 @@
 
 /**
  * Полное удаление пользователя из БД (все связанные данные + запись в users).
+ * Либо очистка только инвентаря у всех пользователей.
  *
  * Запуск:
- *   node scripts/delete-user.js 7bdaaf66-489a-4213-910d-3f7e7df6f06c              # dry-run
- *   node scripts/delete-user.js <USER_ID> --confirm     # выполнить удаление
+ *   node scripts/delete-user.js <USER_ID> [--confirm]   # удалить пользователя (dry-run без --confirm)
+ *   node scripts/delete-user.js --inv [--confirm]       # очистить инвентарь у ВСЕХ пользователей
  *
  * USER_ID — UUID пользователя (из таблицы users).
- * Удаляются все связанные данные; запись стримера (если есть) удаляется до пользователя (CASCADE очистит ссылки, начисления, выводы стримера).
+ * --inv — очистить только таблицу user_inventory у всех пользователей (остальное не трогаем).
  */
 
 const path = require('path');
@@ -40,7 +41,10 @@ const {
 } = db;
 
 const CONFIRM = process.argv.includes('--confirm');
-const userIds = process.argv.filter((a) => a !== '--confirm' && /^[0-9a-f-]{36}$/i.test(a));
+const INV_ONLY = process.argv.includes('--inv');
+const userIds = process.argv.filter(
+  (a) => a !== '--confirm' && a !== '--inv' && /^[0-9a-f-]{36}$/i.test(a)
+);
 
 async function deleteOneUser(userId) {
   const user = await User.findByPk(userId, {
@@ -120,10 +124,42 @@ async function deleteOneUser(userId) {
   }
 }
 
+async function clearAllInventories() {
+  const total = await UserInventory.count();
+  console.log(`Найдено записей в инвентаре (user_inventory): ${total}`);
+  if (total === 0) {
+    console.log('Нечего удалять.');
+    return true;
+  }
+  if (!CONFIRM) {
+    console.log('[DRY-RUN] Для выполнения очистки добавьте --confirm');
+    return true;
+  }
+  const t = await db.sequelize.transaction();
+  try {
+    await UserInventory.destroy({ where: {}, transaction: t });
+    await t.commit();
+    console.log(`✅ Удалено записей инвентаря: ${total}`);
+    return true;
+  } catch (err) {
+    await t.rollback();
+    console.error('❌ Ошибка:', err.message);
+    return false;
+  }
+}
+
 async function main() {
+  if (INV_ONLY) {
+    console.log('=== Очистка инвентаря всех пользователей ===\n');
+    const success = await clearAllInventories();
+    process.exit(success ? 0 : 1);
+  }
+
   console.log('=== Полное удаление пользователя(ей) ===\n');
   if (userIds.length === 0) {
-    console.log('Использование: node scripts/delete-user.js <USER_UUID> [--confirm]');
+    console.log('Использование:');
+    console.log('  node scripts/delete-user.js <USER_UUID> [--confirm]');
+    console.log('  node scripts/delete-user.js --inv [--confirm]   # очистить инвентарь у всех');
     console.log('Пример:       node scripts/delete-user.js 550e8400-e29b-41d4-a716-446655440000 --confirm');
     process.exit(1);
   }
