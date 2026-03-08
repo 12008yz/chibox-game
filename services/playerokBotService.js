@@ -262,46 +262,42 @@ class PlayerOkBot {
         const searchWords = searchNormalized.split(/\s+/).filter((w) => w.length > 1);
 
         const firstOffer = await this.page.evaluate(({ maxPrice, words }) => {
-          const cards = document.querySelectorAll('a[href*="/products/"], a[href*="/product/"]');
+          // PlayerOk: карточки — div[data-id], внутри ссылка a[href*="/products/"] с названием (класс mui-m85mb3), цена в span с "₽"
+          const cardRoots = document.querySelectorAll('div[data-id]');
+          const seen = new Set();
 
-          for (const card of cards) {
-            try {
-              const url = card.href;
-              if (!url) continue;
-              // Название и цена могут быть в родительском блоке карточки, не в самой ссылке
-              const container = card.closest('div[class*="card"], div[class*="Card"], div[class*="product"], article, section') || card.parentElement || card;
-              const name = (container ? container.textContent : card.textContent).trim();
-              if (!name) continue;
+          for (const root of cardRoots) {
+            const link = root.querySelector('a[href*="/products/"]');
+            if (!link || !link.href) continue;
+            const url = link.href;
+            if (seen.has(url)) continue;
+            seen.add(url);
 
-              const cardNorm = name
-                .replace(/\s*\([^)]*\)\s*/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim()
-                .toLowerCase();
+            const titleLink = root.querySelector('a[href*="/products/"].mui-m85mb3') || Array.from(root.querySelectorAll('a[href*="/products/"]')).find(a => (a.textContent || '').trim().length > 5);
+            const anyLink = root.querySelector('a[href*="/products/"]');
+            const name = (titleLink ? titleLink.textContent : (anyLink ? anyLink.textContent : '') || root.textContent).trim();
+            if (!name || name.length < 3) continue;
 
-              const matchScore = words.filter((w) => cardNorm.includes(w)).length;
-              if (words.length >= 2 && matchScore < 2) continue;
-              if (words.length === 1 && !cardNorm.includes(words[0])) continue;
+            const cardNorm = name.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+            const matchScore = words.filter((w) => cardNorm.includes(w)).length;
+            if (words.length >= 2 && matchScore < 2) continue;
+            if (words.length === 1 && !cardNorm.includes(words[0])) continue;
 
-              const fullText = name;
-              let price = 0;
-              const withCurrency = fullText.match(/(\d[\d\s]*)\s*[P₽р.]/i);
-              if (withCurrency && withCurrency[1]) {
-                price = parseFloat(withCurrency[1].replace(/\s/g, '')) || 0;
-              }
-              if (!price) {
-                const numbers = fullText.match(/(\d[\d\s]+)/g);
-                if (numbers && numbers.length) {
-                  price = parseFloat(numbers[0].replace(/\s/g, '')) || 0;
-                }
-              }
-
-              if (maxPrice && price > 0 && price > maxPrice) continue;
-
-              return { name: name.substring(0, 200), price: price || 0, url };
-            } catch (e) {
-              console.error('Ошибка парсинга карточки:', e);
+            let price = 0;
+            const priceSpan = root.querySelector('span.MuiTypography-14') || Array.from(root.querySelectorAll('span')).find(s => (s.textContent || '').includes('₽'));
+            if (priceSpan) {
+              const m = (priceSpan.textContent || '').match(/(\d[\d\s]*)\s*₽/);
+              if (m) price = parseFloat(m[1].replace(/\s/g, '')) || 0;
             }
+            if (!price) {
+              const fullText = root.textContent || '';
+              const withCurrency = fullText.match(/(\d[\d\s]*)\s*[P₽р.]/i);
+              if (withCurrency && withCurrency[1]) price = parseFloat(withCurrency[1].replace(/\s/g, '')) || 0;
+            }
+
+            if (maxPrice && price > 0 && price > maxPrice) continue;
+
+            return { name: name.substring(0, 200), price: price || 0, url };
           }
           return null;
         }, { maxPrice, words: searchWords });
