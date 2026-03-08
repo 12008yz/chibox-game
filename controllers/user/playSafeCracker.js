@@ -243,6 +243,14 @@ const playSafeCracker = async (req, res) => {
       logger.info('SafeCracker: Бесплатная попытка - заменяем подписку на деньги');
     }
 
+    // Если у пользователя нет статуса (подписки) — дни подписки не выпадают, заменяем на деньги
+    const hasNoStatus = !user.subscription_tier || user.subscription_tier === 0;
+    if (hasNoStatus && prize.type === 'subscription') {
+      prize.type = 'money';
+      prize.value = Math.floor(Math.random() * (50 - 15 + 1)) + 15;
+      logger.info('SafeCracker: У пользователя нет статуса — заменяем дни подписки на деньги');
+    }
+
     // Если приз - предмет, выбираем случайный предмет
     let wonItem = null;
     if (prize.type === 'item') {
