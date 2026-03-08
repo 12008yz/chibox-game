@@ -357,10 +357,14 @@ async function getPublicProfile(req, res) {
       logger.info('Sample inventory item structure:', JSON.stringify(filteredInventory[0], null, 2));
     }
 
-    // Формируем полный URL для пользовательского аватара
-    const avatarUrl = user.avatar_url
-      ? `${process.env.BASE_URL || 'https://chibox-game.ru'}${user.avatar_url}`
-      : null;
+    const baseUrl = process.env.BASE_URL || 'https://chibox-game.ru';
+    const resolveAvatarUrl = (url) => {
+      if (!url) return null;
+      if (url.startsWith('/')) return baseUrl + url;
+      return url;
+    };
+    const avatarUrl = user.avatar_url ? baseUrl + user.avatar_url : null;
+    const steamAvatarUrl = resolveAvatarUrl(user.steam_avatar_url);
 
     return res.json({
       user: {
@@ -393,8 +397,8 @@ async function getPublicProfile(req, res) {
         dailyStreak: dailyStreak, // Используем актуальное значение
         maxDailyStreak: maxDailyStreak, // Используем актуальное значение
         avatar_url: avatarUrl,
-        steam_avatar_url: user.steam_avatar_url,
-        steam_avatar: user.steam_avatar_url,
+        steam_avatar_url: steamAvatarUrl,
+        steam_avatar: steamAvatarUrl,
         steam_profile: user.steam_profile,
         achievements: userAchievements.map(ua => ({
           id: ua.achievement.id,

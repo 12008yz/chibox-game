@@ -65,6 +65,11 @@ async function login(req, res) {
       return res.status(401).json({ message: 'Неверный email или пароль.' });
     }
 
+    if (user.is_bot) {
+      logger.warn('[LOGIN] Attempt to login as bot account:', key);
+      return res.status(403).json({ message: 'Вход с этого аккаунта недоступен.' });
+    }
+
     logger.info('[LOGIN] User found, verifying password for user ID:', user.id);
     const passwordMatch = await argon2.verify(user.password, password);
     if (!passwordMatch) {

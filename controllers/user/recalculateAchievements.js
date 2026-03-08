@@ -1,7 +1,7 @@
-const db = require('../models');
+const db = require('../../models');
 const { Op } = require('sequelize');
-const { updateUserAchievementProgress, updateInventoryRelatedAchievements } = require('../services/achievementService');
-const { updateUserBonuses } = require('../utils/userBonusCalculator');
+const { updateUserAchievementProgress, updateInventoryRelatedAchievements } = require('../../services/achievementService');
+const { updateUserBonuses } = require('../../utils/userBonusCalculator');
 
 async function recalculateUserAchievements(userId = null) {
   try {

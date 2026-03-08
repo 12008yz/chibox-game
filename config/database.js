@@ -29,13 +29,13 @@ const sequelize = new Sequelize(
       freezeTableName: false
     },
     pool: {
-      max: 50,              // Увеличено для Socket.IO и множественных соединений
-      min: 5,               // Минимальные соединения
-      acquire: 60000,       // Увеличен timeout до 60 секунд
-      idle: 10000,          // Освобождать неактивные соединения через 10 сек
-      evict: 1000,          // Проверка каждую секунду
+      max: parseInt(process.env.DB_POOL_MAX, 10) || 80,   // 500+ пользователей: 80–100
+      min: parseInt(process.env.DB_POOL_MIN, 10) || 10,
+      acquire: 60000,
+      idle: 10000,
+      evict: 1000,
       handleDisconnects: true,
-      maxUses: 1000        // Переиспользовать соединение максимум 1000 раз
+      maxUses: 1000
     },
     retry: {
       max: 3               // Максимум 3 попытки переподключения

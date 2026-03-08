@@ -13,6 +13,13 @@ const logger = winston.createLogger({
   ],
 });
 
+const baseUrl = () => process.env.BASE_URL || 'https://chibox-game.ru';
+const resolveAvatarUrl = (url) => {
+  if (!url) return null;
+  if (url.startsWith('/')) return baseUrl() + url;
+  return url;
+};
+
 // Функция для получения случайных пользователей при одинаковых очках
 function randomizeEqualScores(users, limit = 10) {
   if (users.length <= limit) return users;
@@ -128,8 +135,9 @@ async function getLeaderboardByLevel(limit, leaderboardData) {
     total_xp_earned: user.total_xp_earned,
     subscription_tier: user.subscription_tier,
     subscription_days_left: user.subscription_days_left,
-    avatar_url: user.avatar_url ? `${process.env.BASE_URL || 'https://chibox-game.ru'}${user.avatar_url}` : null,
-    steam_avatar: user.steam_avatar_url,
+    avatar_url: user.avatar_url ? baseUrl() + user.avatar_url : null,
+    steam_avatar: resolveAvatarUrl(user.steam_avatar_url),
+    steam_avatar_url: resolveAvatarUrl(user.steam_avatar_url),
     steam_profile: user.steam_profile,
     score: user.level, // Для сортировки
     created_at: user.created_at
@@ -170,8 +178,9 @@ async function getLeaderboardByCasesOpened(limit, leaderboardData) {
     level: user.level,
     subscription_tier: user.subscription_tier,
     subscription_days_left: user.subscription_days_left,
-    avatar_url: user.avatar_url ? `${process.env.BASE_URL || 'https://chibox-game.ru'}${user.avatar_url}` : null,
-    steam_avatar: user.steam_avatar_url,
+    avatar_url: user.avatar_url ? baseUrl() + user.avatar_url : null,
+    steam_avatar: resolveAvatarUrl(user.steam_avatar_url),
+    steam_avatar_url: resolveAvatarUrl(user.steam_avatar_url),
     steam_profile: user.steam_profile,
     cases_opened: user.total_cases_opened || 0,
     score: user.total_cases_opened || 0, // Для сортировки
@@ -224,8 +233,9 @@ async function getLeaderboardByMostExpensiveItem(limit, leaderboardData) {
     level: user.level,
     subscription_tier: user.subscription_tier,
     subscription_days_left: user.subscription_days_left,
-    avatar_url: user.avatar_url ? `${process.env.BASE_URL || 'https://chibox-game.ru'}${user.avatar_url}` : null,
-    steam_avatar: user.steam_avatar_url,
+    avatar_url: user.avatar_url ? baseUrl() + user.avatar_url : null,
+    steam_avatar: resolveAvatarUrl(user.steam_avatar_url),
+    steam_avatar_url: resolveAvatarUrl(user.steam_avatar_url),
     steam_profile: user.steam_profile,
     max_item_value: parseFloat(user.best_item_value) || 0,
     most_expensive_item_name: user.dataValues.most_expensive_item_name || null,
@@ -253,8 +263,9 @@ async function getLeaderboardByMostExpensiveItem(limit, leaderboardData) {
       level: user.level,
       subscription_tier: user.subscription_tier,
       subscription_days_left: user.subscription_days_left,
-      avatar_url: user.avatar_url ? `${process.env.BASE_URL || 'https://chibox-game.ru'}${user.avatar_url}` : null,
-      steam_avatar: user.steam_avatar_url,
+      avatar_url: user.avatar_url ? baseUrl() + user.avatar_url : null,
+      steam_avatar: resolveAvatarUrl(user.steam_avatar_url),
+      steam_avatar_url: resolveAvatarUrl(user.steam_avatar_url),
       steam_profile: user.steam_profile,
       max_item_value: 0,
       most_expensive_item_name: null,

@@ -35,17 +35,23 @@ function broadcastDrop(user, item, caseData, dropData = {}) {
       return;
     }
 
+    const baseUrl = process.env.BASE_URL || 'https://chibox-game.ru';
+    const avatarUrl = (url) => {
+      if (!url) return null;
+      if (url.startsWith('/')) return baseUrl + url;
+      return url;
+    };
+
     const liveDropData = {
       id: dropId,
       user: {
         id: user.id,
         username: user.username || 'Анонимный игрок',
         level: user.level || 1,
-        // Приоритет: кастомный аватар > Steam аватар (URL без /api — статика отдаётся с корня)
         avatar: user.avatar_url
-          ? `${process.env.BASE_URL || 'https://chibox-game.ru'}${user.avatar_url}`
-          : user.steam_avatar_url || null,
-        steam_avatar_url: user.steam_avatar_url || null
+          ? baseUrl + user.avatar_url
+          : avatarUrl(user.steam_avatar_url),
+        steam_avatar_url: avatarUrl(user.steam_avatar_url)
       },
       item: {
         id: item.id,

@@ -36,6 +36,13 @@ async function getLiveDrops(req, res) {
       offset
     });
 
+    const baseUrl = process.env.BASE_URL || 'https://chibox-game.ru';
+    const avatarUrl = (url) => {
+      if (!url) return null;
+      if (url.startsWith('/')) return baseUrl + url;
+      return url;
+    };
+
     // Форматируем данные для фронтенда
     const formattedDrops = liveDrops.map(drop => ({
       id: drop.id,
@@ -43,11 +50,10 @@ async function getLiveDrops(req, res) {
         id: drop.user.id,
         username: drop.user.username,
         level: drop.user.level,
-        // Приоритет: кастомный аватар > Steam аватар
         avatar: drop.user.avatar_url
-          ? `${process.env.BASE_URL || 'https://chibox-game.ru'}${drop.user.avatar_url}`
-          : drop.user.steam_avatar_url || null,
-        steam_avatar_url: drop.user.steam_avatar_url || null
+          ? baseUrl + drop.user.avatar_url
+          : avatarUrl(drop.user.steam_avatar_url),
+        steam_avatar_url: avatarUrl(drop.user.steam_avatar_url)
       },
       item: {
         id: drop.item.id,

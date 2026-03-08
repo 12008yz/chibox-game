@@ -97,6 +97,9 @@ if (STEAM_API_KEY) {
       });
 
       if (user) {
+        if (user.is_bot) {
+          return done(null, false, { message: 'Вход с этого аккаунта недоступен.' });
+        }
         // Пользователь существует, обновляем его данные
         const steamAvatarUrl = profile._json?.avatarfull || profile._json?.avatarmedium || profile._json?.avatar;
 

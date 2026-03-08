@@ -98,6 +98,12 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: "Дата окончания временной блокировки (null - бессрочно)"
     },
+    is_bot: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      allowNull: false,
+      comment: "Служебный аккаунт бота для фиктивной активности (вход запрещён)"
+    },
 
     level: {
       type: DataTypes.INTEGER,

@@ -161,15 +161,21 @@ async function getProfile(req, res) {
 
     // Добавляем вычисленные поля к объекту пользователя
     const userJson = user.toJSON();
+    const baseUrl = process.env.BASE_URL || 'https://chibox-game.ru';
+    const resolveAvatarUrl = (url) => {
+      if (!url) return null;
+      if (url.startsWith('/')) return baseUrl + url;
+      return url;
+    };
 
-    // Формируем полный URL для пользовательского аватара
-    const avatarUrl = userJson.avatar_url
-      ? `${process.env.BASE_URL || 'https://chibox-game.ru'}${userJson.avatar_url}`
-      : null;
+    const avatarUrl = userJson.avatar_url ? baseUrl + userJson.avatar_url : null;
+    const steamAvatarUrl = resolveAvatarUrl(userJson.steam_avatar_url);
 
     const userWithTotalValue = {
       ...userJson,
       avatar_url: avatarUrl,
+      steam_avatar_url: steamAvatarUrl,
+      steam_avatar: steamAvatarUrl,
       total_items_value: totalItemsValue,
       bestWeapon: bestWeapon,
       bestItemValue: user.best_item_value || 0

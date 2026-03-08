@@ -1,17 +1,20 @@
 #!/usr/bin/env node
-// ==== HTTPS + SOCKET.IO СТАРТЕР ДЛЯ EXPRESS ====
+// ==== HTTP + SOCKET.IO СТАРТЕР (поддержка кластера: Redis сессии, rate-limit, Socket.IO adapter) ====
 
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const socketIO = require('socket.io');
-const app = require('../app');
 
-// Получаем порт
+function normalizePort(val) {
+  const port = parseInt(val, 10);
+  if (isNaN(port)) return val;
+  if (port >= 0) return port;
+  return false;
+}
+
 const port = normalizePort(process.env.PORT || '3000');
-app.set('port', port);
 
-// === Определяем путь к ключу и сертификату ===
 function getSSLOptions() {
   const certPath = process.env.SSL_CERT || path.join(__dirname, '../server.cert');
   const keyPath = process.env.SSL_KEY || path.join(__dirname, '../server.key');
@@ -20,215 +23,270 @@ function getSSLOptions() {
     key: fs.readFileSync(keyPath),
   };
 }
-const sslOptions = getSSLOptions();
 
-// === Создаём HTTP сервер (временно, для упрощения туннелирования) ===
-const server = http.createServer(app);
+async function start() {
+  const createApp = require('../app');
+  const app = await createApp();
+  app.set('port', port);
 
-// === ЗАЩИТА ОТ DDoS: Ограничения соединений и таймауты ===
-server.maxConnections = 200; // Максимум одновременных соединений
-server.timeout = 30000; // 30 секунд таймаут для запросов (защита от Slowloris)
-server.keepAliveTimeout = 5000; // 5 секунд keep-alive (быстрое освобождение ресурсов)
-server.headersTimeout = 10000; // 10 секунд для получения заголовков (защита от slow headers attack)
+  const server = http.createServer(app);
 
-console.log('🛡️  Защита от DDoS активирована:');
-console.log(`   - Макс. соединений: ${server.maxConnections}`);
-console.log(`   - Таймаут запроса: ${server.timeout}ms`);
-console.log(`   - Keep-alive: ${server.keepAliveTimeout}ms`);
-console.log(`   - Таймаут заголовков: ${server.headersTimeout}ms`);
+  const MAX_CONNECTIONS = parseInt(process.env.MAX_HTTP_CONNECTIONS, 10) || 800;
+  server.maxConnections = MAX_CONNECTIONS;
+  server.timeout = 30000;
+  server.keepAliveTimeout = 5000;
+  server.headersTimeout = 10000;
+  console.log('🛡️  Защита от DDoS:', `макс. соединений ${MAX_CONNECTIONS}`);
 
-// === Подключаем socket.io ===
-const io = socketIO(server, {
-  cors: {
-    origin: process.env.NODE_ENV === 'production'
-      ? ['https://chibox-game.ru', 'https://www.chibox-game.ru', 'https://api.chibox-game.ru', 'https://streamer.chibox-game.ru']
-      : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
-    methods: ['GET', 'POST'],
-    credentials: true
-  },
-  // Дополнительные настройки защиты для Socket.IO
-  maxHttpBufferSize: 1e6, // 1MB максимальный размер сообщения
-  pingTimeout: 20000, // 20 секунд таймаут для ping
-  pingInterval: 25000, // 25 секунд интервал ping
-  connectTimeout: 10000 // 10 секунд таймаут для подключения
-});
+  const io = socketIO(server, {
+    cors: {
+      origin: process.env.NODE_ENV === 'production'
+        ? ['https://chibox-game.ru', 'https://www.chibox-game.ru', 'https://api.chibox-game.ru', 'https://streamer.chibox-game.ru']
+        : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
+      methods: ['GET', 'POST'],
+      credentials: true
+    },
+    maxHttpBufferSize: 1e6,
+    pingTimeout: 20000,
+    pingInterval: 25000,
+    connectTimeout: 10000
+  });
 
-// Улучшенная система подсчета онлайн пользователей
-const userSessions = new Map(); // Хранит все сессии пользователей
-const userConnections = new Map(); // Хранит активные подключения для каждого пользователя
+  // Redis adapter для Socket.IO — при нескольких воркерах все инстансы видят одни и те же комнаты/события
+  if (process.env.REDIS_URL) {
+    try {
+      const { createAdapter } = require('@socket.io/redis-adapter');
+      const redis = require('redis');
+      const pubClient = redis.createClient({ url: process.env.REDIS_URL });
+      const subClient = pubClient.duplicate();
+      await Promise.all([pubClient.connect(), subClient.connect()]);
+      io.adapter(createAdapter(pubClient, subClient));
+      console.log('Socket.IO: Redis adapter включён (кластер)');
+    } catch (err) {
+      console.warn('Socket.IO: Redis adapter не подключён, работа в одном процессе:', err.message);
+    }
+  }
 
-// Функция для отправки обновления количества пользователей всем подключенным клиентам
-function broadcastOnlineUsers() {
-  const onlineUsers = userSessions.size;
-  io.emit('onlineUsersUpdate', { count: onlineUsers });
-  console.log(`Уникальных пользователей онлайн: ${onlineUsers}`);
-}
+  const userSessions = new Map();
+  const userConnections = new Map();
 
-// Функция для отправки живого падения всем подключенным клиентам
-function broadcastLiveDrop(dropData) {
-  io.emit('liveDrop', dropData);
-  console.log(`Live Drop отправлен: ${dropData.user.username} получил ${dropData.item.name}`);
-}
+  const FAKE_ACTIVITY_ENABLED = process.env.FAKE_ACTIVITY_ENABLED === 'true' ||
+    (process.env.NODE_ENV !== 'production' && process.env.FAKE_ACTIVITY_ENABLED !== 'false');
+  const FAKE_ONLINE_MIN = Math.max(0, parseInt(process.env.FAKE_ONLINE_MIN, 10) || 15);
+  const FAKE_ONLINE_MAX = Math.max(FAKE_ONLINE_MIN, parseInt(process.env.FAKE_ONLINE_MAX, 10) || 40);
 
-// Функция для отправки уведомления конкретному пользователю
-function sendNotificationToUser(userId, notification) {
-  // Находим все сокеты пользователя
-  const userIdKey = `user_${userId}`;
-  const connections = userConnections.get(userIdKey);
+  function getDisplayOnlineCount() {
+    let count = userSessions.size;
+    if (FAKE_ACTIVITY_ENABLED && count < FAKE_ONLINE_MAX) {
+      const fakeCount = FAKE_ONLINE_MIN + Math.floor(Math.random() * (FAKE_ONLINE_MAX - FAKE_ONLINE_MIN + 1));
+      count = Math.max(count, fakeCount);
+    }
+    return count;
+  }
 
-  if (connections && connections.size > 0) {
-    // Отправляем уведомление всем активным соединениям пользователя
-    connections.forEach(socketId => {
-      const socket = io.sockets.sockets.get(socketId);
-      if (socket) {
-        socket.emit('notification', notification);
-        console.log(`Уведомление отправлено пользователю ${userId} (socket ${socketId}): ${notification.title}`);
+  function broadcastOnlineUsers() {
+    const count = getDisplayOnlineCount();
+    io.emit('onlineUsersUpdate', { count });
+    console.log(`Уникальных пользователей онлайн: ${count}${FAKE_ACTIVITY_ENABLED && count > userSessions.size ? ' (с учётом фейкового)' : ''}`);
+  }
+
+  function broadcastLiveDrop(dropData) {
+    io.emit('liveDrop', dropData);
+    console.log(`Live Drop отправлен: ${dropData.user.username} получил ${dropData.item.name}`);
+  }
+
+  function sendNotificationToUser(userId, notification) {
+    const userIdKey = `user_${userId}`;
+    const connections = userConnections.get(userIdKey);
+    if (connections && connections.size > 0) {
+      connections.forEach(socketId => {
+        const socket = io.sockets.sockets.get(socketId);
+        if (socket) {
+          socket.emit('notification', notification);
+          console.log(`Уведомление отправлено пользователю ${userId} (socket ${socketId}): ${notification.title}`);
+        }
+      });
+    } else {
+      console.log(`Пользователь ${userId} не онлайн, уведомление будет доставлено при следующем входе`);
+    }
+  }
+
+  function getUserId(socket) {
+    const session = socket.request.session;
+    if (session && session.user && session.user.id) {
+      return `user_${session.user.id}`;
+    }
+    const ip = socket.handshake.address;
+    const userAgent = socket.handshake.headers['user-agent'] || 'unknown';
+    const fingerprint = require('crypto').createHash('md5').update(ip + userAgent).digest('hex');
+    return `guest_${fingerprint}`;
+  }
+
+  io.on('connection', (socket) => {
+    const userId = getUserId(socket);
+    let isNewUser = false;
+    if (!userSessions.has(userId)) {
+      userSessions.set(userId, {
+        id: userId,
+        firstConnectedAt: new Date(),
+        lastActivity: new Date()
+      });
+      isNewUser = true;
+    } else {
+      userSessions.get(userId).lastActivity = new Date();
+    }
+    if (!userConnections.has(userId)) {
+      userConnections.set(userId, new Set());
+    }
+    userConnections.get(userId).add(socket.id);
+    if (isNewUser) {
+      console.log(`Socket.IO: Новый пользователь подключился (${userId}). Уникальных онлайн: ${userSessions.size}`);
+    } else {
+      console.log(`Socket.IO: Пользователь переподключился (${userId}). Соединений: ${userConnections.get(userId).size}`);
+    }
+    socket.emit('hello', { message: 'Привет через WebSocket!' });
+    socket.emit('onlineUsersUpdate', { count: getDisplayOnlineCount() });
+    socket.on('disconnect', (reason) => {
+      const connections = userConnections.get(userId);
+      if (connections) {
+        connections.delete(socket.id);
+        if (connections.size === 0) {
+          userConnections.delete(userId);
+          userSessions.delete(userId);
+          console.log(`Socket.IO: Пользователь полностью отключился (${userId}, ${reason}). Уникальных онлайн: ${userSessions.size}`);
+          broadcastOnlineUsers();
+        } else {
+          console.log(`Socket.IO: Одно из подключений пользователя закрыто (${userId}, ${reason}). Активных соединений: ${connections.size}`);
+        }
       }
     });
-  } else {
-    console.log(`Пользователь ${userId} не онлайн, уведомление будет доставлено при следующем входе`);
-  }
-}
-
-// Функция для получения уникального идентификатора пользователя
-function getUserId(socket) {
-  // Пытаемся получить user ID из сессии
-  const session = socket.request.session;
-  if (session && session.user && session.user.id) {
-    return `user_${session.user.id}`;
-  }
-
-  // Если нет авторизованного пользователя, используем IP + User-Agent
-  const ip = socket.handshake.address;
-  const userAgent = socket.handshake.headers['user-agent'] || 'unknown';
-  const fingerprint = require('crypto').createHash('md5').update(ip + userAgent).digest('hex');
-  return `guest_${fingerprint}`;
-}
-
-io.on('connection', (socket) => {
-  const userId = getUserId(socket);
-
-  // Проверяем, первое ли это подключение пользователя
-  let isNewUser = false;
-  if (!userSessions.has(userId)) {
-    userSessions.set(userId, {
-      id: userId,
-      firstConnectedAt: new Date(),
-      lastActivity: new Date()
+    socket.on('error', (error) => {
+      console.error('Socket.IO error:', error);
     });
-    isNewUser = true;
-  } else {
-    // Обновляем время последней активности
-    userSessions.get(userId).lastActivity = new Date();
-  }
+  });
 
-  // Добавляем подключение в список активных подключений пользователя
-  if (!userConnections.has(userId)) {
-    userConnections.set(userId, new Set());
-  }
-  userConnections.get(userId).add(socket.id);
-
-  if (isNewUser) {
-    console.log(`Socket.IO: Новый пользователь подключился (${userId}). Уникальных онлайн: ${userSessions.size}`);
-  } else {
-    console.log(`Socket.IO: Пользователь переподключился (${userId}). Соединений: ${userConnections.get(userId).size}`);
-  }
-
-  // Отправляем приветственное сообщение новому пользователю
-  socket.emit('hello', { message: 'Привет через WebSocket!' });
-
-  // Отправляем текущее количество пользователей ТОЛЬКО новому подключению
-  // Убираем broadcast, чтобы не вызывать ре-рендер у всех пользователей
-  socket.emit('onlineUsersUpdate', { count: userSessions.size });
-
-  // Обработка отключения
-  socket.on('disconnect', (reason) => {
-    const connections = userConnections.get(userId);
-    if (connections) {
-      connections.delete(socket.id);
-
-      // Если у пользователя больше нет активных подключений
-      if (connections.size === 0) {
-        userConnections.delete(userId);
+  setInterval(() => {
+    const now = new Date();
+    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+    let cleanedUsers = 0;
+    for (const [userId, userData] of userSessions.entries()) {
+      if (userData.lastActivity < fiveMinutesAgo) {
         userSessions.delete(userId);
-        console.log(`Socket.IO: Пользователь полностью отключился (${userId}, ${reason}). Уникальных онлайн: ${userSessions.size}`);
-        broadcastOnlineUsers();
-      } else {
-        console.log(`Socket.IO: Одно из подключений пользователя закрыто (${userId}, ${reason}). Активных соединений: ${connections.size}`);
+        userConnections.delete(userId);
+        cleanedUsers++;
       }
     }
-  });
-
-  // Обработка ошибок подключения
-  socket.on('error', (error) => {
-    console.error('Socket.IO error:', error);
-  });
-});
-
-// Очистка неактивных пользователей каждые 5 минут
-setInterval(() => {
-  const now = new Date();
-  const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
-
-  let cleanedUsers = 0;
-  for (const [userId, userData] of userSessions.entries()) {
-    if (userData.lastActivity < fiveMinutesAgo) {
-      userSessions.delete(userId);
-      userConnections.delete(userId);
-      cleanedUsers++;
+    if (cleanedUsers > 0) {
+      console.log(`Очищено неактивных пользователей: ${cleanedUsers}. Онлайн: ${userSessions.size}`);
+      broadcastOnlineUsers();
     }
-  }
+  }, 5 * 60 * 1000);
 
-  if (cleanedUsers > 0) {
-    console.log(`Очищено неактивных пользователей: ${cleanedUsers}. Онлайн: ${userSessions.size}`);
-    broadcastOnlineUsers();
-  }
-}, 5 * 60 * 1000);
-
-server.listen(port, '0.0.0.0');
-server.on('error', onError);
-server.on('listening', onListening);
-
-// === Служебные функции ===
-function normalizePort(val) {
-  const port = parseInt(val, 10);
-  if (isNaN(port)) return val;
-  if (port >= 0) return port;
-  return false;
-}
-
-function onError(error) {
-  if (error.syscall !== 'listen') throw error;
-  const bind = typeof port === 'string' ? 'Pipe ' + port : 'Port ' + port;
-  switch (error.code) {
-    case 'EACCES':
+  server.on('error', (error) => {
+    if (error.syscall !== 'listen') throw error;
+    const bind = typeof port === 'string' ? 'Pipe ' + port : 'Port ' + port;
+    if (error.code === 'EACCES') {
       console.error(bind + ' требует повышенных привилегий');
       process.exit(1);
-      break;
-    case 'EADDRINUSE':
+    } else if (error.code === 'EADDRINUSE') {
       console.error(bind + ' уже используется');
       process.exit(1);
-      break;
-    default:
+    } else {
       throw error;
+    }
+  });
+
+  server.on('listening', () => {
+    const addr = server.address();
+    const bind = typeof addr === 'string' ? 'pipe ' + addr : 'порт ' + addr.port;
+    console.log('HTTP сервер запущен на ' + bind);
+    console.log('Socket.IO готов.');
+  });
+
+  server.listen(port, '0.0.0.0');
+
+  // Инициализируем LiveDrop сервис
+  const { initLiveDropService } = require('../services/liveDropService');
+  initLiveDropService(broadcastLiveDrop);
+
+  if (FAKE_ACTIVITY_ENABLED) {
+    const FAKE_DROP_MIN_SEC = 7;
+    const FAKE_DROP_MAX_SEC = 15;
+    let fakeDropBotIndex = 0;
+
+    function scheduleNextFakeDrop() {
+      const delayMs = parseInt(process.env.FAKE_DROP_INTERVAL_MS, 10) ||
+        (FAKE_DROP_MIN_SEC + Math.random() * (FAKE_DROP_MAX_SEC - FAKE_DROP_MIN_SEC + 1)) * 1000;
+      setTimeout(() => {
+        const { getBots, runFakeCaseOpen } = require('../services/fakeActivityService');
+        getBots()
+          .then((bots) => {
+            if (!bots.length) return;
+            const bot = bots[fakeDropBotIndex % bots.length];
+            fakeDropBotIndex += 1;
+            return runFakeCaseOpen(bot.id);
+          })
+          .then(() => { scheduleNextFakeDrop(); })
+          .catch((err) => {
+            console.warn('[FakeActivity] Ошибка дропа, следующий по расписанию:', err?.message || err);
+            scheduleNextFakeDrop();
+          });
+      }, delayMs);
+    }
+
+    scheduleNextFakeDrop();
+    console.log(`[FakeActivity] Онлайн 15–40, дропы по одному каждые ${FAKE_DROP_MIN_SEC}–${FAKE_DROP_MAX_SEC} сек (очередь по боту).`);
+
+    setInterval(() => {
+      const { runBotSellOneItem } = require('../services/fakeActivityService');
+      runBotSellOneItem();
+    }, 6 * 60 * 60 * 1000);
+
+    setInterval(() => {
+      const { runBotClearInventoryBatch } = require('../services/fakeActivityService');
+      runBotClearInventoryBatch();
+    }, 2 * 60 * 60 * 1000);
+
+    setInterval(() => {
+      const { runBotDailyInventoryCleanup } = require('../services/fakeActivityService');
+      runBotDailyInventoryCleanup();
+    }, 24 * 60 * 60 * 1000);
+    setImmediate(() => {
+      const { runBotDailyInventoryCleanup } = require('../services/fakeActivityService');
+      runBotDailyInventoryCleanup();
+    });
+
+    const upgradeIntervalMs = (20 + Math.floor(Math.random() * 21)) * 60 * 1000;
+    setInterval(() => {
+      const { runBotFakeUpgrade } = require('../services/fakeActivityService');
+      runBotFakeUpgrade();
+    }, upgradeIntervalMs);
+
+    const gameIntervalMs = (10 + Math.floor(Math.random() * 16)) * 60 * 1000;
+    setInterval(() => {
+      const { runBotFakeGame } = require('../services/fakeActivityService');
+      runBotFakeGame();
+    }, gameIntervalMs);
+
+    setImmediate(() => {
+      const { getBots } = require('../services/fakeActivityService');
+      getBots().then((bots) => {
+        if (bots.length === 0) {
+          console.log('[FakeActivity] В БД нет ботов — лента дропов будет пуста. Создайте ботов: node scripts/seed-fake-activity-bots.js 30');
+        } else {
+          console.log(`[FakeActivity] Ботов в БД: ${bots.length}, дропы по одному в ленту.`);
+        }
+      }).catch(() => {});
+    });
   }
+
+  const { initNotificationSender } = require('../utils/notificationHelper');
+  initNotificationSender(sendNotificationToUser);
+
+  module.exports = { io, broadcastOnlineUsers, broadcastLiveDrop, sendNotificationToUser };
 }
 
-function onListening() {
-  const addr = server.address();
-  const bind = typeof addr === 'string' ? 'pipe ' + addr : 'порт ' + addr.port;
-  console.log('HTTP сервер запущен на ' + bind);
-  console.log('Socket.IO готов.');
-  console.log('Для боевого ssl просто поменяй сертификаты/пути через ENV переменные (SSL_KEY, SSL_CERT) — код менять не потребуется!');
-}
-
-// Инициализируем LiveDrop сервис
-const { initLiveDropService } = require('../services/liveDropService');
-initLiveDropService(broadcastLiveDrop);
-
-// Инициализируем систему уведомлений
-const { initNotificationSender } = require('../utils/notificationHelper');
-initNotificationSender(sendNotificationToUser);
-
-// Экспортируем io и функции для использования в других модулях
-module.exports = { io, broadcastOnlineUsers, broadcastLiveDrop, sendNotificationToUser };
+start().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
