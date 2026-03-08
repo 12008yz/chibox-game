@@ -161,8 +161,19 @@ class PlayerOkBot {
       await this.page.waitForSelector('a[href*="/products/"]', { timeout: 15000 }).catch(() => null);
       await delay(2500);
 
-      // Ищем карточки товаров (MUI: ссылки на /products/)
-      const firstOffer = await this.page.evaluate((maxPrice) => {
+      // Нормализуем название для сопоставления: убираем скобки (Field-Tested), лишние пробелы, приводим к нижнему регистру
+      const normalizeForMatch = (s) =>
+        (s || '')
+          .replace(/\s*\([^)]*\)\s*/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .toLowerCase();
+
+      const searchNormalized = normalizeForMatch(itemName);
+      const searchWords = searchNormalized.split(/\s+/).filter((w) => w.length > 1);
+
+      // Ищем карточки: только те, название которых совпадает с поиском (чтобы не взять первый попавшийся товар)
+      const firstOffer = await this.page.evaluate(({ maxPrice, searchNorm, words }) => {
         const cards = document.querySelectorAll('a[href*="/products/"]');
 
         for (const card of cards) {
@@ -171,13 +182,30 @@ class PlayerOkBot {
             const url = card.href;
             if (!url) continue;
 
-            // Цена: ищем число в рублях (цифры + возможно " P", " ₽", " р.")
-            const priceText =
-              card.querySelector('[class*="price"]')?.textContent ||
-              card.querySelector('[class*="Price"]')?.textContent ||
-              card.textContent;
-            const priceMatch = priceText.match(/\d[\d\s]*/);
-            const price = priceMatch ? parseFloat(priceMatch[0].replace(/\s/g, '')) : 0;
+            const cardNorm = name
+              .replace(/\s*\([^)]*\)\s*/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .toLowerCase();
+
+            // Карточка должна содержать ключевые слова из запроса (минимум 2 или одно длинное, например "usp-s")
+            const matchScore = words.filter((w) => cardNorm.includes(w)).length;
+            if (words.length >= 2 && matchScore < 2) continue;
+            if (words.length === 1 && !cardNorm.includes(words[0])) continue;
+
+            // Цена: ищем число перед "P", "₽", "р." или первое подходящее число в тексте карточки
+            const fullText = card.textContent;
+            let price = 0;
+            const withCurrency = fullText.match(/(\d[\d\s]*)\s*[P₽р.]/i);
+            if (withCurrency && withCurrency[1]) {
+              price = parseFloat(withCurrency[1].replace(/\s/g, '')) || 0;
+            }
+            if (!price) {
+              const numbers = fullText.match(/(\d[\d\s]+)/g);
+              if (numbers && numbers.length) {
+                price = parseFloat(numbers[0].replace(/\s/g, '')) || 0;
+              }
+            }
 
             if (maxPrice && price > 0 && price > maxPrice) continue;
 
@@ -187,14 +215,14 @@ class PlayerOkBot {
           }
         }
         return null;
-      }, maxPrice);
+      }, { maxPrice, searchNorm: searchNormalized, words: searchWords });
 
       if (!firstOffer) {
-        logger.warn('⚠️ Предмет не найден или превышает максимальную цену');
+        logger.warn('⚠️ Предмет не найден или не совпадает по названию');
         return null;
       }
 
-      logger.info(`✅ Найден предмет: ${firstOffer.price}₽`);
+      logger.info(`✅ Найден предмет: ${firstOffer.name} — ${firstOffer.price}₽`);
       logger.info(`🔗 URL: ${firstOffer.url}`);
 
       return firstOffer;
@@ -302,20 +330,22 @@ class PlayerOkBot {
       ).catch(() => null);
       await delay(1500);
 
-      // ШАГ 4: Вставляем Trade URL в поле "Комментарий продавцу"
+      // ШАГ 4: Вставляем Trade URL в поле "Комментарий продавцу" (input name="commentFromBuyer", placeholder="Комментарий продавцу")
       const commentFieldFilled = await this.page.evaluate((tradeUrl) => {
-        // Сначала по placeholder "Комментарий продавцу" или по подписи рядом
-        let field = document.querySelector('textarea[placeholder*="Комментарий"]') ||
+        let field =
+          document.querySelector('input[name="commentFromBuyer"]') ||
+          document.querySelector('input[placeholder="Комментарий продавцу"]') ||
+          document.querySelector('input[placeholder*="Комментарий продавцу"]') ||
+          document.querySelector('textarea[placeholder*="Комментарий"]') ||
           document.querySelector('input[placeholder*="Комментарий"]') ||
-          document.querySelector('textarea[placeholder*="коммент"]') ||
           document.querySelector('input[placeholder*="коммент"]');
 
         if (!field) {
           const all = document.querySelectorAll('textarea, input[type="text"]:not([type="search"])');
           for (const el of all) {
-            const parent = el.closest('div');
-            const label = el.labels?.[0]?.textContent || parent?.textContent || '';
-            if (label.includes('Комментарий') || label.includes('продавцу')) {
+            const placeholder = (el.getAttribute('placeholder') || '').toLowerCase();
+            const name = (el.getAttribute('name') || '').toLowerCase();
+            if (placeholder.includes('коммент') || placeholder.includes('продавцу') || name.includes('comment')) {
               field = el;
               break;
             }
@@ -330,6 +360,7 @@ class PlayerOkBot {
           field.value = tradeUrl;
           field.dispatchEvent(new Event('input', { bubbles: true }));
           field.dispatchEvent(new Event('change', { bubbles: true }));
+          field.dispatchEvent(new Event('blur', { bubbles: true }));
           return true;
         }
         return false;
