@@ -115,6 +115,23 @@ class PlayerOkBot {
   }
 
   /**
+   * Убирает скобки с износом из названия: "Galil AR | Acid Dart (Minimal Wear)" → "Galil AR | Acid Dart".
+   * На PlayerOk часто ищут без (Немного поношенное) и т.п.
+   */
+  _stripWearCondition(name) {
+    return (name || '').replace(/\s*\([^)]*\)\s*$/g, '').trim();
+  }
+
+  /**
+   * Извлекает только название скина (часть после " | "): "Galil AR | Acid Dart" → "Acid Dart".
+   */
+  _skinNameOnly(name) {
+    const s = (name || '').trim();
+    const idx = s.indexOf(' | ');
+    return idx >= 0 ? s.slice(idx + 3).trim() : s;
+  }
+
+  /**
    * Перевод текста на русский (для поиска на PlayerOk). При ошибке возвращает исходную строку.
    */
   async _translateToRussian(text) {
@@ -156,14 +173,23 @@ class PlayerOkBot {
         await this.page.waitForSelector('input[placeholder*="Поиск"], input[placeholder*="поиск"]', { timeout: 10000 }).catch(() => null);
       }
 
-      // Список запросов: если название уже на русском — один вариант, иначе сначала русский перевод, потом оригинал
+      // Без скобок с износом — на PlayerOk часто ищут "Галиль | Кислотный дротик", а не "... (Немного поношенное)"
+      const nameNoWear = this._stripWearCondition(itemName);
+      const skinOnly = this._skinNameOnly(nameNoWear);
+
       const searchQueries = [];
       if (this._hasCyrillic(itemName)) {
-        searchQueries.push(itemName);
+        searchQueries.push(nameNoWear);
+        if (skinOnly && skinOnly !== nameNoWear) searchQueries.push(skinOnly);
       } else {
-        const ruName = await this._translateToRussian(itemName);
-        if (ruName && ruName !== itemName) searchQueries.push(ruName);
-        searchQueries.push(itemName);
+        const ruFull = await this._translateToRussian(nameNoWear);
+        if (ruFull && ruFull !== nameNoWear) searchQueries.push(ruFull);
+        if (skinOnly && skinOnly !== nameNoWear) {
+          const ruSkin = await this._translateToRussian(skinOnly);
+          if (ruSkin && ruSkin !== skinOnly) searchQueries.push(ruSkin);
+          searchQueries.push(skinOnly);
+        }
+        searchQueries.push(nameNoWear);
       }
       const uniqueQueries = [...new Set(searchQueries)];
 
