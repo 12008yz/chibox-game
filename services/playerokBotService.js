@@ -38,10 +38,13 @@ class PlayerOkBot {
       logger.info('🚀 Инициализация PlayerOk бота...');
 
       this.browser = await puppeteer.launch({
-        headless: false, // Для отладки, потом можно сделать true
+        headless: true, // На сервере нет дисплея — только headless
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--disable-software-rasterizer',
           '--disable-blink-features=AutomationControlled',
           '--disable-features=IsolateOrigins,site-per-process'
         ],
