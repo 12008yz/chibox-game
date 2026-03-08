@@ -4,14 +4,19 @@ const { updateUserBonuses } = require('../utils/userBonusCalculator');
 
 /**
  * Скрипт для выдачи подписки и/или пополнения баланса пользователю
- * Использование: node scripts/give-subscription.js <id_или_email_или_username> <tier> <days> [balance]
- * Пример: node scripts/give-subscription.js user@example.com 1 30
- * Пример: node scripts/give-subscription.js username123 3 365 10000
- * Пример: node scripts/give-subscription.js 7bdaaf66-489a-4213-910d-3f7e7df6f06c 1 2 50000
+ *
+ * Режим 1 — только деньги:
+ *   node scripts/give-subscription.js <id_или_email_или_username> <сумма>
+ *   Пример: node scripts/give-subscription.js user@example.com 5000
+ *
+ * Режим 2 — подписка (и опционально деньги):
+ *   node scripts/give-subscription.js <id_или_email_или_username> <tier> <days> [balance]
+ *   Пример: node scripts/give-subscription.js user@example.com 1 30
+ *   Пример: node scripts/give-subscription.js username123 3 365 10000
  *
  * tier: 0 - нет подписки, 1 - Статус, 2 - Статус+, 3 - Статус++
  * days: количество дней подписки
- * balance: (опционально) сумма для пополнения баланса в рублях
+ * balance: (опционально) сумма пополнения в ChiCoins
  */
 
 // Инициализируем Redis клиент
@@ -182,6 +187,64 @@ async function giveSubscription(userIdentifier, tier, days, balanceAmount = null
   }
 }
 
+async function giveBalanceOnly(userIdentifier, amount) {
+  try {
+    console.log('🔍 Поиск пользователя...');
+
+    const user = await db.User.findOne({
+      where: {
+        [db.Sequelize.Op.or]: [
+          { id: userIdentifier },
+          { email: userIdentifier },
+          { username: userIdentifier }
+        ]
+      }
+    });
+
+    if (!user) {
+      console.error(`❌ Пользователь не найден: ${userIdentifier}`);
+      return;
+    }
+
+    const addAmount = parseFloat(amount);
+    if (addAmount <= 0) {
+      console.error('❌ Сумма должна быть больше 0');
+      return;
+    }
+
+    const balanceBefore = parseFloat(user.balance || 0);
+    const balanceAfter = balanceBefore + addAmount;
+
+    console.log(`✅ Найден пользователь: ${user.username} (${user.email})`);
+    console.log(`💰 Баланс: ${balanceBefore.toFixed(2)} → ${balanceAfter.toFixed(2)} (+${addAmount.toFixed(2)})`);
+
+    await user.update({ balance: balanceAfter });
+
+    const now = new Date();
+    await db.Transaction.create({
+      user_id: user.id,
+      type: 'balance_add',
+      amount: addAmount,
+      description: 'Пополнение баланса администратором',
+      status: 'completed',
+      balance_before: balanceBefore,
+      balance_after: balanceAfter,
+      date: now
+    });
+
+    console.log('\n✅ Баланс успешно пополнен!');
+    await clearUserCache(user.id);
+    console.log('💡 Пользователю нужно обновить страницу, чтобы увидеть изменения.');
+  } catch (error) {
+    console.error('❌ Ошибка при пополнении баланса:', error.message);
+    console.error(error);
+  } finally {
+    if (redisClient && redisClient.isOpen) {
+      await redisClient.quit();
+    }
+  }
+}
+
 function getTierName(tier) {
   const names = {
     0: 'Нет подписки',
@@ -195,49 +258,70 @@ function getTierName(tier) {
 // Получаем аргументы из командной строки
 const args = process.argv.slice(2);
 
-if (args.length < 3) {
-  console.log('📖 Использование: node scripts/give-subscription.js <id_или_email_или_username> <tier> <days> [balance]');
-  console.log('📖 Примеры:');
-  console.log('   node scripts/give-subscription.js user@example.com 1 30');
-  console.log('   node scripts/give-subscription.js username123 2 90 5000');
-  console.log('   node scripts/give-subscription.js a1b2c3d4-5678-90ab-cdef-1234567890ab 3 365 10000');
+if (args.length < 2) {
+  console.log('📖 Использование:');
   console.log('');
-  console.log('🎯 Уровни подписки (tier):');
-  console.log('   0 - Нет подписки');
-  console.log('   1 - Статус');
-  console.log('   2 - Статус+');
-  console.log('   3 - Статус++');
+  console.log('  Только выдать деньги (2 аргумента):');
+  console.log('    node scripts/give-subscription.js <id_или_email_или_username> <сумма>');
+  console.log('    Пример: node scripts/give-subscription.js user@example.com 5000');
   console.log('');
-  console.log('📅 Дни (days): количество дней подписки (например, 30, 90, 365)');
-  console.log('💰 Баланс (balance): (опционально) сумма пополнения в рублях (например, 1000, 5000, 10000)');
+  console.log('  Выдать подписку (3–4 аргумента):');
+  console.log('    node scripts/give-subscription.js <id_или_email_или_username> <tier> <days> [balance]');
+  console.log('    Пример: node scripts/give-subscription.js user@example.com 1 30');
+  console.log('    Пример: node scripts/give-subscription.js username123 2 90 5000');
+  console.log('');
+  console.log('🎯 Tier: 0 - Нет подписки, 1 - Статус, 2 - Статус+, 3 - Статус++');
+  console.log('💰 Сумма и balance — в ChiCoins');
   process.exit(1);
 }
 
-const [userIdentifier, tier, days, balanceAmount] = args;
+const [userIdentifier, second, third, fourth] = args;
 
-// Валидация
-if (![0, 1, 2, 3].includes(parseInt(tier))) {
-  console.error('❌ Неверный tier. Должен быть 0, 1, 2 или 3');
-  process.exit(1);
-}
+// Режим «только деньги»: 2 аргумента, второй — число (сумма)
+const amountNum = parseFloat(second);
+const isBalanceOnly = args.length === 2 && !Number.isNaN(amountNum) && amountNum > 0;
 
-if (parseInt(days) <= 0) {
-  console.error('❌ Количество дней должно быть больше 0');
-  process.exit(1);
-}
-
-if (balanceAmount !== undefined && parseFloat(balanceAmount) < 0) {
-  console.error('❌ Сумма пополнения не может быть отрицательной');
-  process.exit(1);
-}
-
-// Запускаем
-(async () => {
-  await initRedis();
-  await giveSubscription(userIdentifier, tier, days, balanceAmount);
-  console.log('🎉 Готово!');
-  process.exit(0);
-})().catch(error => {
+if (isBalanceOnly) {
+  (async () => {
+    await initRedis();
+    await giveBalanceOnly(userIdentifier, second);
+    console.log('🎉 Готово!');
+    process.exit(0);
+  })().catch(error => {
     console.error('❌ Критическая ошибка:', error);
     process.exit(1);
   });
+} else {
+  // Режим подписки
+  if (args.length < 3) {
+    console.error('❌ Для выдачи подписки нужны: <user> <tier> <days> [balance]');
+    process.exit(1);
+  }
+
+  const [tier, days, balanceAmount] = [second, third, fourth];
+
+  if (![0, 1, 2, 3].includes(parseInt(tier))) {
+    console.error('❌ Неверный tier. Должен быть 0, 1, 2 или 3');
+    process.exit(1);
+  }
+
+  if (parseInt(days) <= 0) {
+    console.error('❌ Количество дней должно быть больше 0');
+    process.exit(1);
+  }
+
+  if (balanceAmount !== undefined && parseFloat(balanceAmount) < 0) {
+    console.error('❌ Сумма пополнения не может быть отрицательной');
+    process.exit(1);
+  }
+
+  (async () => {
+    await initRedis();
+    await giveSubscription(userIdentifier, tier, days, balanceAmount);
+    console.log('🎉 Готово!');
+    process.exit(0);
+  })().catch(error => {
+    console.error('❌ Критическая ошибка:', error);
+    process.exit(1);
+  });
+}

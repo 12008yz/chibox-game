@@ -4,7 +4,7 @@
  * Полное удаление пользователя из БД (все связанные данные + запись в users).
  *
  * Запуск:
- *   node scripts/delete-user.js <USER_ID>              # dry-run
+ *   node scripts/delete-user.js 7bdaaf66-489a-4213-910d-3f7e7df6f06c              # dry-run
  *   node scripts/delete-user.js <USER_ID> --confirm     # выполнить удаление
  *
  * USER_ID — UUID пользователя (из таблицы users).
