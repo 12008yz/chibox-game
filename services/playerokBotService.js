@@ -3,6 +3,7 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const winston = require('winston');
 const path = require('path');
 const fs = require('fs');
+const { translate: translateText } = require('@vitalets/google-translate-api');
 
 puppeteer.use(StealthPlugin());
 
@@ -107,8 +108,29 @@ class PlayerOkBot {
   }
 
   /**
-   * Поиск предмета на PlayerOk
-   * @param {string} itemName - Название предмета (например "Desert Eagle Оксидное пламя")
+   * Проверка, есть ли в строке кириллица
+   */
+  _hasCyrillic(str) {
+    return /[а-яёА-ЯЁ]/.test(str || '');
+  }
+
+  /**
+   * Перевод текста на русский (для поиска на PlayerOk). При ошибке возвращает исходную строку.
+   */
+  async _translateToRussian(text) {
+    if (!text || this._hasCyrillic(text)) return text;
+    try {
+      const res = await translateText(text, { to: 'ru' });
+      return (res && res.text) ? res.text : text;
+    } catch (err) {
+      logger.warn('⚠️ Не удалось перевести запрос на русский:', err.message);
+      return text;
+    }
+  }
+
+  /**
+   * Поиск предмета на PlayerOk (по русскому и английскому запросу)
+   * @param {string} itemName - Название предмета (например "USP-S | Alpine Camo (Field-Tested)" или "Desert Eagle Оксидное пламя")
    * @param {number} maxPrice - Максимальная цена для покупки
    * @returns {Object} Первое найденное предложение или null
    */
@@ -134,34 +156,17 @@ class PlayerOkBot {
         await this.page.waitForSelector('input[placeholder*="Поиск"], input[placeholder*="поиск"]', { timeout: 10000 }).catch(() => null);
       }
 
-      // Прокручиваем к полю и заполняем через evaluate
-      const searchFilled = await this.page.evaluate((name) => {
-        const el =
-          document.querySelector('input[name="search"]') ||
-          document.querySelector('input[placeholder*="Поиск"]') ||
-          document.querySelector('input[placeholder*="поиск"]');
-        if (!el) return false;
-        el.scrollIntoView({ block: 'center' });
-        el.focus();
-        el.value = '';
-        el.value = name;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-        return true;
-      }, itemName);
-
-      if (!searchFilled) {
-        throw new Error('Не удалось заполнить поле поиска');
+      // Список запросов: если название уже на русском — один вариант, иначе сначала русский перевод, потом оригинал
+      const searchQueries = [];
+      if (this._hasCyrillic(itemName)) {
+        searchQueries.push(itemName);
+      } else {
+        const ruName = await this._translateToRussian(itemName);
+        if (ruName && ruName !== itemName) searchQueries.push(ruName);
+        searchQueries.push(itemName);
       }
-      await delay(500);
+      const uniqueQueries = [...new Set(searchQueries)];
 
-      logger.info('✅ Текст введен в поиск');
-
-      // Ждём появления карточек товаров (ссылки на /products/)
-      await this.page.waitForSelector('a[href*="/products/"]', { timeout: 15000 }).catch(() => null);
-      await delay(2500);
-
-      // Нормализуем название для сопоставления: убираем скобки (Field-Tested), лишние пробелы, приводим к нижнему регистру
       const normalizeForMatch = (s) =>
         (s || '')
           .replace(/\s*\([^)]*\)\s*/g, ' ')
@@ -169,63 +174,86 @@ class PlayerOkBot {
           .trim()
           .toLowerCase();
 
-      const searchNormalized = normalizeForMatch(itemName);
-      const searchWords = searchNormalized.split(/\s+/).filter((w) => w.length > 1);
+      for (const query of uniqueQueries) {
+        const langLabel = this._hasCyrillic(query) ? 'RU' : 'EN';
+        logger.info(`🔎 Поиск [${langLabel}]: "${query}"`);
 
-      // Ищем карточки: только те, название которых совпадает с поиском (чтобы не взять первый попавшийся товар)
-      const firstOffer = await this.page.evaluate(({ maxPrice, searchNorm, words }) => {
-        const cards = document.querySelectorAll('a[href*="/products/"]');
+        const searchFilled = await this.page.evaluate((name) => {
+          const el =
+            document.querySelector('input[name="search"]') ||
+            document.querySelector('input[placeholder*="Поиск"]') ||
+            document.querySelector('input[placeholder*="поиск"]');
+          if (!el) return false;
+          el.scrollIntoView({ block: 'center' });
+          el.focus();
+          el.value = '';
+          el.value = name;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        }, query);
 
-        for (const card of cards) {
-          try {
-            const name = card.textContent.trim();
-            const url = card.href;
-            if (!url) continue;
+        if (!searchFilled) continue;
+        await delay(500);
 
-            const cardNorm = name
-              .replace(/\s*\([^)]*\)\s*/g, ' ')
-              .replace(/\s+/g, ' ')
-              .trim()
-              .toLowerCase();
+        // Ждём появления карточек товаров
+        await this.page.waitForSelector('a[href*="/products/"]', { timeout: 15000 }).catch(() => null);
+        await delay(2500);
 
-            // Карточка должна содержать ключевые слова из запроса (минимум 2 или одно длинное, например "usp-s")
-            const matchScore = words.filter((w) => cardNorm.includes(w)).length;
-            if (words.length >= 2 && matchScore < 2) continue;
-            if (words.length === 1 && !cardNorm.includes(words[0])) continue;
+        const searchNormalized = normalizeForMatch(query);
+        const searchWords = searchNormalized.split(/\s+/).filter((w) => w.length > 1);
 
-            // Цена: ищем число перед "P", "₽", "р." или первое подходящее число в тексте карточки
-            const fullText = card.textContent;
-            let price = 0;
-            const withCurrency = fullText.match(/(\d[\d\s]*)\s*[P₽р.]/i);
-            if (withCurrency && withCurrency[1]) {
-              price = parseFloat(withCurrency[1].replace(/\s/g, '')) || 0;
-            }
-            if (!price) {
-              const numbers = fullText.match(/(\d[\d\s]+)/g);
-              if (numbers && numbers.length) {
-                price = parseFloat(numbers[0].replace(/\s/g, '')) || 0;
+        const firstOffer = await this.page.evaluate(({ maxPrice, words }) => {
+          const cards = document.querySelectorAll('a[href*="/products/"]');
+
+          for (const card of cards) {
+            try {
+              const name = card.textContent.trim();
+              const url = card.href;
+              if (!url) continue;
+
+              const cardNorm = name
+                .replace(/\s*\([^)]*\)\s*/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .toLowerCase();
+
+              const matchScore = words.filter((w) => cardNorm.includes(w)).length;
+              if (words.length >= 2 && matchScore < 2) continue;
+              if (words.length === 1 && !cardNorm.includes(words[0])) continue;
+
+              const fullText = card.textContent;
+              let price = 0;
+              const withCurrency = fullText.match(/(\d[\d\s]*)\s*[P₽р.]/i);
+              if (withCurrency && withCurrency[1]) {
+                price = parseFloat(withCurrency[1].replace(/\s/g, '')) || 0;
               }
+              if (!price) {
+                const numbers = fullText.match(/(\d[\d\s]+)/g);
+                if (numbers && numbers.length) {
+                  price = parseFloat(numbers[0].replace(/\s/g, '')) || 0;
+                }
+              }
+
+              if (maxPrice && price > 0 && price > maxPrice) continue;
+
+              return { name, price: price || 0, url };
+            } catch (e) {
+              console.error('Ошибка парсинга карточки:', e);
             }
-
-            if (maxPrice && price > 0 && price > maxPrice) continue;
-
-            return { name, price: price || 0, url };
-          } catch (e) {
-            console.error('Ошибка парсинга карточки:', e);
           }
-        }
-        return null;
-      }, { maxPrice, searchNorm: searchNormalized, words: searchWords });
+          return null;
+        }, { maxPrice, words: searchWords });
 
-      if (!firstOffer) {
-        logger.warn('⚠️ Предмет не найден или не совпадает по названию');
-        return null;
+        if (firstOffer) {
+          logger.info(`✅ Найден предмет (по запросу [${langLabel}]): ${firstOffer.name} — ${firstOffer.price}₽`);
+          logger.info(`🔗 URL: ${firstOffer.url}`);
+          return firstOffer;
+        }
       }
 
-      logger.info(`✅ Найден предмет: ${firstOffer.name} — ${firstOffer.price}₽`);
-      logger.info(`🔗 URL: ${firstOffer.url}`);
-
-      return firstOffer;
+      logger.warn('⚠️ Предмет не найден (поиск по русскому и английскому)');
+      return null;
     } catch (error) {
       logger.error('❌ Ошибка поиска предмета:', error);
       return null;
