@@ -159,6 +159,7 @@ async function start() {
     }
     socket.emit('hello', { message: 'Привет через WebSocket!' });
     socket.emit('onlineUsersUpdate', { count: getDisplayOnlineCount() });
+    broadcastOnlineUsers();
     socket.on('disconnect', (reason) => {
       const connections = userConnections.get(userId);
       if (connections) {
@@ -194,6 +195,11 @@ async function start() {
       broadcastOnlineUsers();
     }
   }, 5 * 60 * 1000);
+
+  const ONLINE_BROADCAST_INTERVAL_MS = 45 * 1000;
+  setInterval(() => {
+    broadcastOnlineUsers();
+  }, ONLINE_BROADCAST_INTERVAL_MS);
 
   server.on('error', (error) => {
     if (error.syscall !== 'listen') throw error;
