@@ -125,15 +125,25 @@ class PlayerOkBot {
       logger.info('✅ Открыта страница скинов CS2');
 
       // Поле поиска: input[name="search"], placeholder "Поиск по названию"
-      await this.page.waitForSelector('input[name="search"]', { timeout: 10000 });
+      await this.page.waitForSelector('input[name="search"]', { timeout: 10000, visible: true });
 
-      // Очищаем поле и вводим название
-      await this.page.click('input[name="search"]', { clickCount: 3 });
-      await this.page.evaluate(() => {
+      // Прокручиваем к полю и заполняем через evaluate (в headless элемент может быть "не кликабельным")
+      const searchFilled = await this.page.evaluate((name) => {
         const el = document.querySelector('input[name="search"]');
-        if (el) el.value = '';
-      });
-      await this.page.type('input[name="search"]', itemName, { delay: 80 });
+        if (!el) return false;
+        el.scrollIntoView({ block: 'center' });
+        el.focus();
+        el.value = '';
+        el.value = name;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      }, itemName);
+
+      if (!searchFilled) {
+        throw new Error('Не удалось заполнить поле поиска');
+      }
+      await delay(500);
 
       logger.info('✅ Текст введен в поиск');
 

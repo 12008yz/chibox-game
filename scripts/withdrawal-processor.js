@@ -15,7 +15,8 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const { Withdrawal, User, UserInventory, Item } = require('../models');
 const SteamBot = require('../services/steamBotService');
 const PlayerOkBot = require('../services/playerokBotService');
-const steamPriceService = require('../services/steamPriceService');
+const SteamPriceService = require('../services/steamPriceService');
+const steamPriceService = new SteamPriceService(process.env.STEAM_API_KEY);
 const steamBotConfig = require('../config/steam_bot.js');
 const winston = require('winston');
 const { Op } = require('sequelize');
@@ -590,9 +591,8 @@ class WithdrawalProcessor {
 
       const priceData = await steamPriceService.getItemPrice(item.steam_market_hash_name);
 
-      if (priceData && priceData.median_price) {
-        const priceInRub = this.convertToRubles(priceData.median_price);
-        return priceInRub;
+      if (priceData && priceData.success && priceData.price_rub > 0) {
+        return priceData.price_rub;
       }
 
       return item.price;
