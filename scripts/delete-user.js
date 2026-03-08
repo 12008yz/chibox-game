@@ -6,6 +6,7 @@
  *
  * Запуск:
  *   node scripts/delete-user.js <USER_ID> [--confirm]   # удалить пользователя (dry-run без --confirm)
+ *   node scripts/delete-user.js --bots [--confirm]      # удалить ВСЕХ ботов (is_bot=true) и их данные
  *   node scripts/delete-user.js --inv [--confirm]       # очистить инвентарь у ВСЕХ пользователей
  *   node scripts/delete-user.js --zero [--confirm]      # обнулить баланс, подписку, XP и игровой прогресс у ВСЕХ
  *
@@ -15,7 +16,10 @@
  */
 
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
+const BOTS_AVATARS_DIR = path.join(__dirname, '..', 'public', 'avatars', 'bots');
 
 const db = require('../models');
 const {
@@ -43,10 +47,11 @@ const {
 } = db;
 
 const CONFIRM = process.argv.includes('--confirm');
+const BOTS_ONLY = process.argv.includes('--bots');
 const INV_ONLY = process.argv.includes('--inv');
 const ZERO_ALL = process.argv.includes('--zero');
 const userIds = process.argv.filter(
-  (a) => a !== '--confirm' && a !== '--inv' && a !== '--zero' && /^[0-9a-f-]{36}$/i.test(a)
+  (a) => a !== '--confirm' && a !== '--bots' && a !== '--inv' && a !== '--zero' && /^[0-9a-f-]{36}$/i.test(a)
 );
 
 async function deleteOneUser(userId) {
@@ -125,6 +130,41 @@ async function deleteOneUser(userId) {
     await t.rollback();
     return false;
   }
+}
+
+async function deleteAllBots() {
+  const bots = await User.findAll({
+    where: { is_bot: true },
+    attributes: ['id', 'username', 'email']
+  });
+  if (bots.length === 0) {
+    console.log('Ботов не найдено (is_bot=true).');
+    return true;
+  }
+  console.log(`Найдено ботов: ${bots.length}`);
+  if (!CONFIRM) {
+    console.log('[DRY-RUN] Для удаления добавьте --confirm\n');
+    return true;
+  }
+  let ok = 0;
+  for (const bot of bots) {
+    console.log(`--- ${bot.username} (${bot.email}) ---`);
+    const success = await deleteOneUser(bot.id);
+    if (success) {
+      ok++;
+      const avatarPath = path.join(BOTS_AVATARS_DIR, `${bot.id}.png`);
+      try {
+        if (fs.existsSync(avatarPath)) {
+          fs.unlinkSync(avatarPath);
+          console.log(`  Аватар удалён: ${avatarPath}`);
+        }
+      } catch (e) {
+        console.warn('  Аватар не удалён:', e.message);
+      }
+    }
+  }
+  console.log(`\nУдалено ботов: ${ok}/${bots.length}.`);
+  return ok === bots.length;
 }
 
 async function clearAllInventories() {
@@ -234,6 +274,11 @@ async function zeroAllUsers() {
 }
 
 async function main() {
+  if (BOTS_ONLY) {
+    console.log('=== Удаление всех ботов (is_bot=true) ===\n');
+    const success = await deleteAllBots();
+    process.exit(success ? 0 : 1);
+  }
   if (INV_ONLY) {
     console.log('=== Очистка инвентаря всех пользователей ===\n');
     const success = await clearAllInventories();
@@ -249,6 +294,7 @@ async function main() {
   if (userIds.length === 0) {
     console.log('Использование:');
     console.log('  node scripts/delete-user.js <USER_UUID> [--confirm]');
+    console.log('  node scripts/delete-user.js --bots [--confirm]  # удалить всех ботов');
     console.log('  node scripts/delete-user.js --inv [--confirm]   # очистить инвентарь у всех');
     console.log('  node scripts/delete-user.js --zero [--confirm]  # обнулить прогресс у всех');
     console.log('Пример:       node scripts/delete-user.js 550e8400-e29b-41d4-a716-446655440000 --confirm');

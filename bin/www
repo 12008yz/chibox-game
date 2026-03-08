@@ -74,9 +74,11 @@ async function start() {
     (process.env.NODE_ENV !== 'production' && process.env.FAKE_ACTIVITY_ENABLED !== 'false');
   const FAKE_ONLINE_MIN = Math.max(0, parseInt(process.env.FAKE_ONLINE_MIN, 10) || 15);
   const FAKE_ONLINE_MAX = Math.max(FAKE_ONLINE_MIN, parseInt(process.env.FAKE_ONLINE_MAX, 10) || 40);
-  const SMOOTH_STEP = 3; // макс. изменение счётчика за один раз — плавность без скачков
+  const FAKE_ONLINE_CACHE_MS = 2 * 60 * 1000; // одно значение онлайна на 2 минуты — без скачков при обновлении страницы
+  const SMOOTH_STEP = 2; // макс. изменение счётчика за один вызов (плавное приближение к цели)
 
   let displayOnlineCount = Math.floor((FAKE_ONLINE_MIN + FAKE_ONLINE_MAX) / 2);
+  let fakeOnlineCached = { value: null, updatedAt: 0 };
 
   function getDisplayOnlineCount() {
     const realCount = userSessions.size;
@@ -84,7 +86,12 @@ async function start() {
       displayOnlineCount = realCount;
       return realCount;
     }
-    const target = Math.max(realCount, FAKE_ONLINE_MIN + Math.floor(Math.random() * (FAKE_ONLINE_MAX - FAKE_ONLINE_MIN + 1)));
+    const now = Date.now();
+    if (!fakeOnlineCached.value || now - fakeOnlineCached.updatedAt > FAKE_ONLINE_CACHE_MS) {
+      fakeOnlineCached.value = FAKE_ONLINE_MIN + Math.floor(Math.random() * (FAKE_ONLINE_MAX - FAKE_ONLINE_MIN + 1));
+      fakeOnlineCached.updatedAt = now;
+    }
+    const target = Math.max(realCount, fakeOnlineCached.value);
     const delta = Math.max(-SMOOTH_STEP, Math.min(SMOOTH_STEP, target - displayOnlineCount));
     displayOnlineCount = Math.round(displayOnlineCount + delta);
     return displayOnlineCount;
