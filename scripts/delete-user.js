@@ -11,7 +11,7 @@
  *
  * USER_ID — UUID пользователя (из таблицы users).
  * --inv  — очистить только таблицу user_inventory у всех пользователей.
- * --zero — обнулить у всех пользователей: balance, xp, подписка, кейсы, бонусы, рулетка, игры и т.д. (логины не трогаем).
+ * --zero — обнулить у всех: balance, xp, подписка, кейсы, бонусы, рулетка, игры, достижения (user_achievements). Логины не трогаем.
  */
 
 const path = require('path');
@@ -212,16 +212,19 @@ async function zeroAllUsers() {
     console.log('Нечего обнулять.');
     return true;
   }
+  const achievementsCount = await UserAchievement.count();
   console.log('Будут обнулены: balance, xp, подписка, кейсы, бонусы, рулетка, мини-игры, статистика.');
+  console.log(`Достижения (user_achievements): удалить все записи (${achievementsCount}).`);
   if (!CONFIRM) {
     console.log('[DRY-RUN] Для выполнения обнуления добавьте --confirm');
     return true;
   }
   const t = await db.sequelize.transaction();
   try {
+    await UserAchievement.destroy({ where: {}, transaction: t });
     const [affected] = await User.update(ZERO_USER_FIELDS, { where: {}, transaction: t });
     await t.commit();
-    console.log(`✅ Обнулено пользователей: ${affected}`);
+    console.log(`✅ Достижения удалены: ${achievementsCount}, обнулено пользователей: ${affected}`);
     return true;
   } catch (err) {
     await t.rollback();
