@@ -6,6 +6,9 @@ const fs = require('fs');
 
 puppeteer.use(StealthPlugin());
 
+/** Задержка в мс (вместо устаревшего page.waitForTimeout) */
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
 // Настройка логгера
 const logger = winston.createLogger({
   level: 'info',
@@ -51,17 +54,18 @@ class PlayerOkBot {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36'
       );
 
+      // Сначала переходим на домен (Puppeteer требует быть на домене перед setCookie)
+      await this.page.goto('https://playerok.com', { waitUntil: 'domcontentloaded', timeout: 15000 });
+
       // Загружаем cookies
       if (fs.existsSync(this.cookiesPath)) {
         const cookies = JSON.parse(fs.readFileSync(this.cookiesPath, 'utf8'));
         await this.page.setCookie(...cookies);
         logger.info('✅ Cookies загружены');
+        await this.page.reload({ waitUntil: 'networkidle2' });
       } else {
-        logger.warn('⚠️ Файл с cookies не найден');
+        logger.warn('⚠️ Файл с cookies не найден: config/playerok-cookies.json');
       }
-
-      // Переходим на главную страницу
-      await this.page.goto('https://playerok.com', { waitUntil: 'networkidle2' });
 
       // Проверяем авторизацию
       this.isLoggedIn = await this.checkAuth();
@@ -117,53 +121,48 @@ class PlayerOkBot {
 
       logger.info('✅ Открыта страница скинов CS2');
 
-      // Ждем появления поля поиска (ПРАВИЛЬНЫЙ селектор из HTML)
+      // Поле поиска: input[name="search"], placeholder "Поиск по названию"
       await this.page.waitForSelector('input[name="search"]', { timeout: 10000 });
 
-      // Очищаем поле поиска и вводим название
+      // Очищаем поле и вводим название
       await this.page.click('input[name="search"]', { clickCount: 3 });
-      await this.page.type('input[name="search"]', itemName, { delay: 100 });
+      await this.page.evaluate(() => {
+        const el = document.querySelector('input[name="search"]');
+        if (el) el.value = '';
+      });
+      await this.page.type('input[name="search"]', itemName, { delay: 80 });
 
       logger.info('✅ Текст введен в поиск');
 
-      // Ждём появления результатов (даем время на подгрузку)
-      await this.page.waitForTimeout(3000);
+      // Ждём появления карточек товаров (ссылки на /products/)
+      await this.page.waitForSelector('a[href*="/products/"]', { timeout: 15000 }).catch(() => null);
+      await delay(2500);
 
-      // Ищем карточки товаров
+      // Ищем карточки товаров (MUI: ссылки на /products/)
       const firstOffer = await this.page.evaluate((maxPrice) => {
-        // Ищем все карточки товаров
         const cards = document.querySelectorAll('a[href*="/products/"]');
 
         for (const card of cards) {
           try {
-            // Получаем название товара
             const name = card.textContent.trim();
-
-            // Получаем цену (ищем элемент с ценой внутри карточки)
-            const priceText = card.querySelector('[class*="price"]')?.textContent || '';
-            const price = parseFloat(priceText.replace(/[^\d]/g, ''));
-
-            // Получаем URL
             const url = card.href;
+            if (!url) continue;
 
-            if (!price || !url) continue;
+            // Цена: ищем число в рублях (цифры + возможно " P", " ₽", " р.")
+            const priceText =
+              card.querySelector('[class*="price"]')?.textContent ||
+              card.querySelector('[class*="Price"]')?.textContent ||
+              card.textContent;
+            const priceMatch = priceText.match(/\d[\d\s]*/);
+            const price = priceMatch ? parseFloat(priceMatch[0].replace(/\s/g, '')) : 0;
 
-            // Фильтруем по максимальной цене
-            if (maxPrice && price > maxPrice) {
-              continue;
-            }
+            if (maxPrice && price > 0 && price > maxPrice) continue;
 
-            // Возвращаем первое подходящее предложение
-            return {
-              name: name,
-              price: price,
-              url: url
-            };
+            return { name, price: price || 0, url };
           } catch (e) {
             console.error('Ошибка парсинга карточки:', e);
           }
         }
-
         return null;
       }, maxPrice);
 
@@ -245,17 +244,15 @@ class PlayerOkBot {
       await this.page.goto(itemUrl, { waitUntil: 'networkidle2', timeout: 30000 });
       logger.info('✅ Открыта страница товара');
 
-      // ШАГ 2: Нажимаем зеленую кнопку "Купить"
-      await this.page.waitForTimeout(2000);
+      await delay(1500);
 
-      // Ищем зеленую кнопку "Купить" (по тексту или цвету)
+      // ШАГ 2: Нажимаем кнопку "Купить" (MUI: button с текстом "Купить")
       const buyButtonClicked = await this.page.evaluate(() => {
         const buttons = Array.from(document.querySelectorAll('button'));
-        const buyButton = buttons.find(btn =>
-          btn.textContent.includes('Купить') ||
-          btn.textContent.includes('купить')
-        );
-
+        const buyButton = buttons.find((btn) => {
+          const t = (btn.textContent || '').trim();
+          return t === 'Купить' || t.toLowerCase() === 'купить';
+        });
         if (buyButton) {
           buyButton.click();
           return true;
@@ -264,65 +261,70 @@ class PlayerOkBot {
       });
 
       if (!buyButtonClicked) {
-        throw new Error('Кнопка "Купить" не найдена');
+        throw new Error('Кнопка "Купить" не найдена на странице товара');
       }
 
       logger.info('✅ Кнопка "Купить" нажата');
 
-      // ШАГ 3: Ждем появления модального окна
-      await this.page.waitForTimeout(2000);
+      // ШАГ 3: Ждем модалку "Получение" с полем "Комментарий продавцу"
+      await this.page.waitForFunction(
+        () => {
+          const hasCommentLabel = document.body.innerText.includes('Комментарий продавцу');
+          const hasNextBtn = Array.from(document.querySelectorAll('button')).some(
+            (b) => (b.textContent || '').trim() === 'Далее'
+          );
+          return hasCommentLabel && hasNextBtn;
+        },
+        { timeout: 10000 }
+      ).catch(() => null);
+      await delay(1500);
 
       // ШАГ 4: Вставляем Trade URL в поле "Комментарий продавцу"
-      // Поле находится в модальном окне (из скриншота видно, что там есть только одно текстовое поле)
       const commentFieldFilled = await this.page.evaluate((tradeUrl) => {
-        // Ищем все textarea или input type="text" в модальном окне
-        const textFields = document.querySelectorAll('textarea, input[type="text"]');
+        // Сначала по placeholder "Комментарий продавцу" или по подписи рядом
+        let field = document.querySelector('textarea[placeholder*="Комментарий"]') ||
+          document.querySelector('input[placeholder*="Комментарий"]') ||
+          document.querySelector('textarea[placeholder*="коммент"]') ||
+          document.querySelector('input[placeholder*="коммент"]');
 
-        // Находим поле комментария (обычно это textarea или input с placeholder)
-        let commentField = null;
-        for (const field of textFields) {
-          const placeholder = field.placeholder || '';
-          const label = field.closest('div')?.textContent || '';
-
-          if (placeholder.includes('коммент') || label.includes('Комментарий')) {
-            commentField = field;
-            break;
+        if (!field) {
+          const all = document.querySelectorAll('textarea, input[type="text"]:not([type="search"])');
+          for (const el of all) {
+            const parent = el.closest('div');
+            const label = el.labels?.[0]?.textContent || parent?.textContent || '';
+            if (label.includes('Комментарий') || label.includes('продавцу')) {
+              field = el;
+              break;
+            }
           }
         }
-
-        // Если не нашли по placeholder, берем первое доступное поле
-        if (!commentField && textFields.length > 0) {
-          commentField = textFields[0];
+        if (!field && document.querySelectorAll('textarea').length === 1) {
+          field = document.querySelector('textarea');
         }
 
-        if (commentField) {
-          commentField.value = tradeUrl;
-          commentField.dispatchEvent(new Event('input', { bubbles: true }));
-          commentField.dispatchEvent(new Event('change', { bubbles: true }));
+        if (field) {
+          field.focus();
+          field.value = tradeUrl;
+          field.dispatchEvent(new Event('input', { bubbles: true }));
+          field.dispatchEvent(new Event('change', { bubbles: true }));
           return true;
         }
-
         return false;
       }, userTradeUrl);
 
       if (!commentFieldFilled) {
-        logger.warn('⚠️ Поле комментария не найдено, продолжаем без него');
-      } else {
-        logger.info('✅ Trade URL вставлен в комментарий');
+        throw new Error('Поле "Комментарий продавцу" не найдено в модальном окне');
       }
+      logger.info('✅ Trade URL вставлен в комментарий');
 
-      await this.page.waitForTimeout(1000);
+      await delay(500);
 
-      // ШАГ 5: Нажимаем синюю кнопку "Далее"
+      // ШАГ 5: Нажимаем "Далее"
       const nextButtonClicked = await this.page.evaluate(() => {
         const buttons = Array.from(document.querySelectorAll('button'));
-        const nextButton = buttons.find(btn =>
-          btn.textContent.includes('Далее') ||
-          btn.textContent.includes('далее')
-        );
-
-        if (nextButton) {
-          nextButton.click();
+        const nextBtn = buttons.find((b) => (b.textContent || '').trim() === 'Далее');
+        if (nextBtn) {
+          nextBtn.click();
           return true;
         }
         return false;
@@ -331,54 +333,41 @@ class PlayerOkBot {
       if (!nextButtonClicked) {
         throw new Error('Кнопка "Далее" не найдена');
       }
-
       logger.info('✅ Кнопка "Далее" нажата');
 
-      // ШАГ 6: Ждем страницу оплаты
-      await this.page.waitForTimeout(2000);
+      // ШАГ 6: Ждем шаг "Оплата" с кнопкой "Перейти к оплате"
+      await this.page.waitForFunction(
+        () => {
+          return Array.from(document.querySelectorAll('button')).some(
+            (b) => (b.textContent || '').includes('Перейти к оплате')
+          );
+        },
+        { timeout: 10000 }
+      ).catch(() => null);
+      await delay(1500);
 
-      // ШАГ 7: Включаем переключатель "Оплатить с баланса"
-      const balanceToggleEnabled = await this.page.evaluate(() => {
-        // Ищем переключатель (по скриншоту это MUI Switch)
+      // ШАГ 7: Включаем "Оплатить с баланса" (если ещё не включено)
+      await this.page.evaluate(() => {
         const switches = document.querySelectorAll('[role="switch"], input[type="checkbox"]');
-
-        for (const switchEl of switches) {
-          const parent = switchEl.closest('div');
-          const text = parent?.textContent || '';
-
+        for (const sw of switches) {
+          const text = sw.closest('div')?.textContent || '';
           if (text.includes('баланс') || text.includes('Оплатить с баланса')) {
-            // Проверяем, не включен ли уже
-            if (switchEl.checked || switchEl.getAttribute('aria-checked') === 'true') {
-              return true; // Уже включен
-            }
-
-            // Кликаем на переключатель
-            switchEl.click();
-            return true;
+            if (sw.checked || sw.getAttribute('aria-checked') === 'true') return;
+            sw.click();
+            return;
           }
         }
-
-        return false;
       });
+      await delay(800);
 
-      if (!balanceToggleEnabled) {
-        logger.warn('⚠️ Переключатель баланса не найден или уже включен');
-      } else {
-        logger.info('✅ Выбрана оплата с баланса');
-      }
-
-      await this.page.waitForTimeout(1000);
-
-      // ШАГ 8: Нажимаем синюю кнопку "Перейти к оплате"
+      // ШАГ 8: Нажимаем "Перейти к оплате"
       const payButtonClicked = await this.page.evaluate(() => {
         const buttons = Array.from(document.querySelectorAll('button'));
-        const payButton = buttons.find(btn =>
-          btn.textContent.includes('Перейти к оплате') ||
-          btn.textContent.includes('оплате')
+        const payBtn = buttons.find((b) =>
+          (b.textContent || '').trim().includes('Перейти к оплате')
         );
-
-        if (payButton) {
-          payButton.click();
+        if (payBtn) {
+          payBtn.click();
           return true;
         }
         return false;
@@ -387,11 +376,10 @@ class PlayerOkBot {
       if (!payButtonClicked) {
         throw new Error('Кнопка "Перейти к оплате" не найдена');
       }
-
       logger.info('✅ Кнопка "Перейти к оплате" нажата');
 
-      // ШАГ 9: Ждем завершения оплаты и перехода на страницу заказа
-      await this.page.waitForTimeout(5000);
+      // ШАГ 9: Ждем завершения оплаты
+      await delay(5000);
 
       // Получаем URL чата (из адресной строки)
       const currentUrl = this.page.url();
@@ -428,7 +416,7 @@ class PlayerOkBot {
         logger.info('✅ Чат открыт');
       }
 
-      await this.page.waitForTimeout(3000);
+      await delay(3000);
 
       // ШАГ 11: Закрываем модальное окно с предупреждением (кнопка "Понятно, спасибо")
       const modalClosed = await this.page.evaluate(() => {
@@ -449,7 +437,7 @@ class PlayerOkBot {
         logger.info('✅ Модальное окно закрыто');
       }
 
-      await this.page.waitForTimeout(2000);
+      await delay(2000);
 
       // ШАГ 12: Вставляем Trade URL в чат и отправляем
       const messageSent = await this.page.evaluate((tradeUrl) => {
@@ -525,7 +513,7 @@ class PlayerOkBot {
       const chatUrl = `https://playerok.com/chats/${chatId}`;
       await this.page.goto(chatUrl, { waitUntil: 'networkidle2' });
 
-      await this.page.waitForTimeout(2000);
+      await delay(2000);
 
       // Вводим сообщение с Trade URL
       const messageSent = await this.page.evaluate((tradeUrl) => {

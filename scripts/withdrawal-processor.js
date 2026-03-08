@@ -41,8 +41,8 @@ const logger = winston.createLogger({
 // Конфигурация
 const CONFIG = {
   CHECK_INTERVAL: 30000, // Проверять каждые 30 секунд
-  STEAM_BOT_ENABLED: true, // Включить Steam бота
-  PLAYEROK_ENABLED: false, // Вывод только через Steam бота (PlayerOk отключён)
+  STEAM_BOT_ENABLED: false, // Пока только PlayerOk
+  PLAYEROK_ENABLED: true, // Вывод через PlayerOk (поиск → покупка → Trade URL в комментарий)
   MIN_MARGIN_PERCENT: 0, // Минимальная маржа для PlayerOk (0% = главное не дороже)
   MAX_WITHDRAWALS_PER_CYCLE: 10 // Обрабатывать макс 10 заявок за цикл
 };
