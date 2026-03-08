@@ -2,14 +2,16 @@
 
 /**
  * Полное удаление пользователя из БД (все связанные данные + запись в users).
- * Либо очистка только инвентаря у всех пользователей.
+ * Либо очистка только инвентаря у всех пользователей, либо обнуление прогресса/баланса у всех.
  *
  * Запуск:
  *   node scripts/delete-user.js <USER_ID> [--confirm]   # удалить пользователя (dry-run без --confirm)
  *   node scripts/delete-user.js --inv [--confirm]       # очистить инвентарь у ВСЕХ пользователей
+ *   node scripts/delete-user.js --zero [--confirm]      # обнулить баланс, подписку, XP и игровой прогресс у ВСЕХ
  *
  * USER_ID — UUID пользователя (из таблицы users).
- * --inv — очистить только таблицу user_inventory у всех пользователей (остальное не трогаем).
+ * --inv  — очистить только таблицу user_inventory у всех пользователей.
+ * --zero — обнулить у всех пользователей: balance, xp, подписка, кейсы, бонусы, рулетка, игры и т.д. (логины не трогаем).
  */
 
 const path = require('path');
@@ -42,8 +44,9 @@ const {
 
 const CONFIRM = process.argv.includes('--confirm');
 const INV_ONLY = process.argv.includes('--inv');
+const ZERO_ALL = process.argv.includes('--zero');
 const userIds = process.argv.filter(
-  (a) => a !== '--confirm' && a !== '--inv' && /^[0-9a-f-]{36}$/i.test(a)
+  (a) => a !== '--confirm' && a !== '--inv' && a !== '--zero' && /^[0-9a-f-]{36}$/i.test(a)
 );
 
 async function deleteOneUser(userId) {
@@ -148,10 +151,94 @@ async function clearAllInventories() {
   }
 }
 
+/** Обнуление баланса, подписки, XP и игрового прогресса у всех пользователей (учётки не трогаем). */
+const ZERO_USER_FIELDS = {
+  balance: 0,
+  xp: 0,
+  level: 1,
+  xp_to_next_level: 100,
+  level_bonus_percentage: 0,
+  total_xp_earned: 0,
+  subscription_tier: 0,
+  subscription_purchase_date: null,
+  subscription_expiry_date: null,
+  subscription_days_left: 0,
+  subscription_bonus_percentage: 0,
+  total_drop_bonus_percentage: 0,
+  achievements_bonus_percentage: 0,
+  cases_available: 0,
+  cases_opened_today: 0,
+  total_cases_opened: 0,
+  next_case_available_time: null,
+  paid_cases_bought_today: 0,
+  max_daily_cases: 0,
+  last_reset_date: null,
+  next_bonus_available_time: null,
+  last_bonus_date: null,
+  lifetime_bonuses_claimed: 0,
+  successful_bonus_claims: 0,
+  last_roulette_play: null,
+  roulette_attempts_left: 0,
+  last_roulette_reset: null,
+  tictactoe_attempts_left: 0,
+  last_tictactoe_reset: null,
+  slots_played_today: 0,
+  last_slot_reset_date: null,
+  game_attempts: 3,
+  last_safecracker_reset: null,
+  has_won_safecracker: false,
+  free_case_claim_count: 0,
+  free_case_first_claim_date: null,
+  free_case_last_claim_date: null,
+  free_safecracker_claim_count: 0,
+  free_safecracker_first_claim_date: null,
+  free_safecracker_last_claim_date: null,
+  free_slot_claim_count: 0,
+  free_slot_first_claim_date: null,
+  free_slot_last_claim_date: null,
+  free_tictactoe_claim_count: 0,
+  free_tictactoe_first_claim_date: null,
+  free_tictactoe_last_claim_date: null,
+  total_items_value: 0,
+  best_item_value: 0,
+  daily_streak: 0,
+  max_daily_streak: 0
+};
+
+async function zeroAllUsers() {
+  const count = await User.count();
+  console.log(`Пользователей в БД: ${count}`);
+  if (count === 0) {
+    console.log('Нечего обнулять.');
+    return true;
+  }
+  console.log('Будут обнулены: balance, xp, подписка, кейсы, бонусы, рулетка, мини-игры, статистика.');
+  if (!CONFIRM) {
+    console.log('[DRY-RUN] Для выполнения обнуления добавьте --confirm');
+    return true;
+  }
+  const t = await db.sequelize.transaction();
+  try {
+    const [affected] = await User.update(ZERO_USER_FIELDS, { where: {}, transaction: t });
+    await t.commit();
+    console.log(`✅ Обнулено пользователей: ${affected}`);
+    return true;
+  } catch (err) {
+    await t.rollback();
+    console.error('❌ Ошибка:', err.message);
+    return false;
+  }
+}
+
 async function main() {
   if (INV_ONLY) {
     console.log('=== Очистка инвентаря всех пользователей ===\n');
     const success = await clearAllInventories();
+    process.exit(success ? 0 : 1);
+  }
+  if (ZERO_ALL) {
+    console.log('=== Обнуление всех пользователей (баланс, подписка, XP, прогресс) ===\n');
+    const success = await zeroAllUsers();
     process.exit(success ? 0 : 1);
   }
 
@@ -160,6 +247,7 @@ async function main() {
     console.log('Использование:');
     console.log('  node scripts/delete-user.js <USER_UUID> [--confirm]');
     console.log('  node scripts/delete-user.js --inv [--confirm]   # очистить инвентарь у всех');
+    console.log('  node scripts/delete-user.js --zero [--confirm]  # обнулить прогресс у всех');
     console.log('Пример:       node scripts/delete-user.js 550e8400-e29b-41d4-a716-446655440000 --confirm');
     process.exit(1);
   }
