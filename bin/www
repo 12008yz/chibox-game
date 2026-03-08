@@ -74,8 +74,9 @@ async function start() {
     (process.env.NODE_ENV !== 'production' && process.env.FAKE_ACTIVITY_ENABLED !== 'false');
   const FAKE_ONLINE_MIN = Math.max(0, parseInt(process.env.FAKE_ONLINE_MIN, 10) || 15);
   const FAKE_ONLINE_MAX = Math.max(FAKE_ONLINE_MIN, parseInt(process.env.FAKE_ONLINE_MAX, 10) || 40);
-  const FAKE_ONLINE_CACHE_MS = 2 * 60 * 1000; // одно значение онлайна на 2 минуты — без скачков при обновлении страницы
-  const SMOOTH_STEP = 2; // макс. изменение счётчика за один вызов (плавное приближение к цели)
+  const FAKE_ONLINE_CACHE_MS = 60 * 1000; // новая цель раз в минуту
+  const SMOOTH_STEP = 2; // макс. изменение за один вызов при движении к цели
+  const IDLE_DRIFT = 2; // когда уже на цели — случайное ±1..2, чтобы не залипало на одном числе
 
   let displayOnlineCount = Math.floor((FAKE_ONLINE_MIN + FAKE_ONLINE_MAX) / 2);
   let fakeOnlineCached = { value: null, updatedAt: 0 };
@@ -92,8 +93,12 @@ async function start() {
       fakeOnlineCached.updatedAt = now;
     }
     const target = Math.max(realCount, fakeOnlineCached.value);
-    const delta = Math.max(-SMOOTH_STEP, Math.min(SMOOTH_STEP, target - displayOnlineCount));
-    displayOnlineCount = Math.round(displayOnlineCount + delta);
+    let delta = Math.max(-SMOOTH_STEP, Math.min(SMOOTH_STEP, target - displayOnlineCount));
+    if (delta === 0) {
+      delta = Math.floor(Math.random() * (IDLE_DRIFT * 2 + 1)) - IDLE_DRIFT;
+      delta = Math.max(-IDLE_DRIFT, Math.min(IDLE_DRIFT, delta));
+    }
+    displayOnlineCount = Math.max(realCount, Math.min(FAKE_ONLINE_MAX, Math.round(displayOnlineCount + delta)));
     return displayOnlineCount;
   }
 
