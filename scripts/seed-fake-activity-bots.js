@@ -15,6 +15,7 @@ const db = require('../models');
 const { runFakeCaseOpen, runBotSellOneItem, getBots } = require('../services/fakeActivityService');
 const { recalculateUserAchievements } = require('../controllers/user/recalculateAchievements');
 const { updateUserBonuses } = require('../utils/userBonusCalculator');
+const { syncUserLevelFromTotalXp } = require('../services/xpService');
 
 const BOTS_AVATARS_DIR = path.join(__dirname, '..', 'public', 'avatars', 'bots');
 
@@ -133,13 +134,15 @@ async function createBots() {
       },
       steam_avatar_url: defaultAvatarUrl,
       steam_profile_url: `https://steamcommunity.com/profiles/${steamId}`,
-      level: randomInt(3, 25),
+      level: 1,
       xp: 0,
+      xp_to_next_level: 100,
+      total_xp_earned: 0,
       total_cases_opened: 0,
       best_item_value: 0,
       total_items_value: 0,
-      daily_streak: randomInt(0, 7),
-      max_daily_streak: randomInt(3, 14),
+      daily_streak: randomInt(0, 5),
+      max_daily_streak: randomInt(2, 10),
       subscription_tier: pick([0, 0, 0, 1, 1, 2]),
       balance: 0,
       createdAt: new Date(Date.now() - randomInt(7, 90) * 24 * 60 * 60 * 1000)
@@ -232,6 +235,66 @@ async function sellSomeBotItems() {
   console.log(' OK');
 }
 
+/** Синхронизирует уровень и XP ботов по количеству открытых кейсов (уровень = от активности). */
+async function syncBotLevelsFromCases() {
+  const bots = await getBots();
+  if (!bots.length) return;
+  console.log(`Синхронизация уровня по открытиям для ${bots.length} ботов...`);
+  for (const bot of bots) {
+    try {
+      const totalCases = bot.total_cases_opened || 0;
+      const totalXp = totalCases * 10; // 10 XP за открытие, как у обычных пользователей
+      await syncUserLevelFromTotalXp(bot.id, totalXp);
+    } catch (e) {
+      console.warn(`  Предупреждение для бота ${bot.username}:`, e.message);
+    }
+  }
+  console.log(' OK');
+}
+
+const XP_PER_CASE = 10; // как у обычных пользователей при открытии кейса
+
+/**
+ * Приводит уровень и XP ботов в соответствие с total_cases_opened (правдоподобная статистика).
+ */
+async function syncBotLevelsFromStats() {
+  const bots = await getBots();
+  if (!bots.length) return;
+
+  const levelSettings = await db.LevelSettings.findAll({ order: [['level', 'ASC']] });
+  if (!levelSettings.length) {
+    console.warn('  LevelSettings пуст — уровень ботов не пересчитан.');
+    return;
+  }
+
+  console.log(`Синхронизация уровня/XP с открытиями кейсов для ${bots.length} ботов...`);
+  for (const bot of bots) {
+    const user = await db.User.findByPk(bot.id, {
+      attributes: ['id', 'username', 'level', 'xp', 'total_cases_opened', 'total_xp_earned', 'xp_to_next_level']
+    });
+    if (!user) continue;
+
+    const totalXp = (user.total_cases_opened || 0) * XP_PER_CASE;
+    let level = 1;
+    let xpToNext = levelSettings[0]?.xp_to_next_level ?? 100;
+
+    for (const ls of levelSettings) {
+      if (totalXp >= ls.xp_required) {
+        level = ls.level;
+        xpToNext = ls.xp_to_next_level;
+      } else break;
+    }
+
+    await user.update({
+      xp: totalXp,
+      total_xp_earned: totalXp,
+      level,
+      xp_to_next_level: xpToNext
+    });
+  }
+  console.log(' OK');
+}
+
 async function recalculateBotBonusesAndAchievements() {
   const bots = await getBots();
   console.log(`Пересчёт бонусов и достижений для ${bots.length} ботов...`);
@@ -265,6 +328,9 @@ async function main() {
 
   console.log('\nПометить часть предметов как проданные...');
   await sellSomeBotItems();
+
+  console.log('\nСинхронизация уровня и XP с количеством открытий...');
+  await syncBotLevelsFromStats();
 
   console.log('\nПересчёт достижений и бонусов ботов...');
   await recalculateBotBonusesAndAchievements();

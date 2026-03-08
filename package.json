@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "migrate": "sequelize-cli db:migrate",
     "start": "node ./bin/www",
     "workers": "node ./scripts/start-workers.js",
     "dev": "concurrently \"npm start\" \"npm run workers\"",

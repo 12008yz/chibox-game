@@ -74,14 +74,20 @@ async function start() {
     (process.env.NODE_ENV !== 'production' && process.env.FAKE_ACTIVITY_ENABLED !== 'false');
   const FAKE_ONLINE_MIN = Math.max(0, parseInt(process.env.FAKE_ONLINE_MIN, 10) || 15);
   const FAKE_ONLINE_MAX = Math.max(FAKE_ONLINE_MIN, parseInt(process.env.FAKE_ONLINE_MAX, 10) || 40);
+  const SMOOTH_STEP = 3; // макс. изменение счётчика за один раз — плавность без скачков
+
+  let displayOnlineCount = Math.floor((FAKE_ONLINE_MIN + FAKE_ONLINE_MAX) / 2);
 
   function getDisplayOnlineCount() {
-    let count = userSessions.size;
-    if (FAKE_ACTIVITY_ENABLED && count < FAKE_ONLINE_MAX) {
-      const fakeCount = FAKE_ONLINE_MIN + Math.floor(Math.random() * (FAKE_ONLINE_MAX - FAKE_ONLINE_MIN + 1));
-      count = Math.max(count, fakeCount);
+    const realCount = userSessions.size;
+    if (!FAKE_ACTIVITY_ENABLED) {
+      displayOnlineCount = realCount;
+      return realCount;
     }
-    return count;
+    const target = Math.max(realCount, FAKE_ONLINE_MIN + Math.floor(Math.random() * (FAKE_ONLINE_MAX - FAKE_ONLINE_MIN + 1)));
+    const delta = Math.max(-SMOOTH_STEP, Math.min(SMOOTH_STEP, target - displayOnlineCount));
+    displayOnlineCount = Math.round(displayOnlineCount + delta);
+    return displayOnlineCount;
   }
 
   function broadcastOnlineUsers() {
@@ -278,6 +284,8 @@ async function start() {
         }
       }).catch(() => {});
     });
+  } else {
+    console.log('[FakeActivity] Выключено. Чтобы включить ленту дропов и фейковый онлайн: FAKE_ACTIVITY_ENABLED=true в .env и перезапуск сервера.');
   }
 
   const { initNotificationSender } = require('../utils/notificationHelper');

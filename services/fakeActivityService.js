@@ -5,6 +5,7 @@ const { Op } = require('sequelize');
 const { logger } = require('../utils/logger');
 const { selectItemWithCorrectWeights, determineCaseType } = require('../utils/dropWeightCalculator');
 const { broadcastDrop } = require('./liveDropService');
+const { addExperience } = require('./xpService');
 
 // В development по умолчанию включено, если не задано FAKE_ACTIVITY_ENABLED=false
 const FAKE_ACTIVITY_ENABLED = process.env.FAKE_ACTIVITY_ENABLED === 'true' ||
@@ -180,6 +181,13 @@ async function runFakeCaseOpen(botId = null) {
     }
 
     await t.commit();
+
+    // Опыт за открытие кейса (как у обычных пользователей) — уровень бота растёт правдоподобно
+    try {
+      await addExperience(user.id, 10, 'case_opening', newCase.id, 'Открытие кейса');
+    } catch (xpErr) {
+      logger.warn('[FakeActivity] addExperience для бота:', xpErr.message);
+    }
 
     const userForBroadcast = await db.User.findByPk(user.id, {
       attributes: ['id', 'username', 'level', 'steam_avatar_url', 'avatar_url']

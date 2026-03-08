@@ -103,6 +103,37 @@ async function addExperience(userId, amount, sourceType, sourceId = null, descri
   }
 }
 
+/**
+ * Синхронизирует level/xp пользователя по суммарному XP (для ботов после сида истории).
+ * Не создаёт XpTransaction и уведомления. Обновляет level, xp, xp_to_next_level, total_xp_earned.
+ * @param {string} userId
+ * @param {number} totalXp — суммарный XP (например total_cases_opened * 10)
+ */
+async function syncUserLevelFromTotalXp(userId, totalXp) {
+  const user = await db.User.findByPk(userId);
+  if (!user) throw new Error('User not found');
+
+  let level = 1;
+  const settings = await db.LevelSettings.findAll({ order: [['level', 'ASC']] });
+  for (const s of settings) {
+    if (s.level >= 1 && totalXp >= (s.xp_required || 0)) {
+      level = s.level;
+    }
+  }
+
+  const currentLevelSettings = await db.LevelSettings.findOne({ where: { level } });
+  const xpToNext = currentLevelSettings ? currentLevelSettings.xp_to_next_level : 100;
+
+  await user.update({
+    xp: totalXp,
+    total_xp_earned: totalXp,
+    level,
+    xp_to_next_level: xpToNext
+  });
+  return { level };
+}
+
 module.exports = {
-  addExperience
+  addExperience,
+  syncUserLevelFromTotalXp
 };
