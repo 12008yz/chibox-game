@@ -21,7 +21,9 @@
     "cron:start": "node ./scripts/setup-cron-improved.js",
     "cron:legacy": "node ./scripts/setup-cron.js",
     "playerok:start": "node ./scripts/playerok-arbitrage.js",
-    "playerok:dev": "nodemon ./scripts/playerok-arbitrage.js"
+    "playerok:dev": "nodemon ./scripts/playerok-arbitrage.js",
+    "load-test": "autocannon -c 30 -d 25 http://localhost:3000/api/v1/cases",
+    "load-test:artillery": "artillery run scripts/load-test/artillery-http.yml"
   },
   "dependencies": {
     "@socket.io/redis-adapter": "^8.3.0",
@@ -72,6 +74,8 @@
     "winston": "^3.17.0"
   },
   "devDependencies": {
+    "artillery": "^2.0.0",
+    "autocannon": "^7.14.0",
     "@jest/globals": "^30.0.0",
     "concurrently": "^7.6.0",
     "eslint": "^9.27.0",

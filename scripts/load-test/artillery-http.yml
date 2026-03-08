@@ -1,0 +1,41 @@
+# Нагрузочный тест API (HTTP). Запуск: npx artillery run scripts/load-test/artillery-http.yml
+# Прод: задайте BASE_URL=https://api.chibox-game.ru
+config:
+  target: "${BASE_URL:-http://localhost:3000}"
+  phases:
+    # Разгон: 10 пользователей/сек 30 сек
+    - duration: 30
+      arrivalRate: 10
+      name: "Разгон"
+    # Пик: 500 одновременных "пользователей" (запросы идут волнами)
+    - duration: 60
+      arrivalRate: 50
+      name: "Пик 500+ RPS"
+  defaults:
+    headers:
+      Accept: "application/json"
+      "Content-Type": "application/json"
+
+scenarios:
+  # Сценарий 1: публичные эндпоинты (без авторизации)
+  - name: "Публичные API"
+    weight: 70
+    flow:
+      - get:
+          url: "/api/v1/cases"
+      - think: 0.5
+      - get:
+          url: "/api/v1/leaderboard"
+      - think: 1
+      - get:
+          url: "/api/v1/live-drops"
+
+  # Сценарий 2: тяжёлые страницы
+  - name: "Кейсы и достижения"
+    weight: 30
+    flow:
+      - get:
+          url: "/api/v1/achievements"
+      - think: 0.3
+      - get:
+          url: "/api/v1/cases"
