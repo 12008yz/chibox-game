@@ -116,20 +116,30 @@ class PlayerOkBot {
     try {
       logger.info(`🔍 Поиск предмета: "${itemName}" (макс. цена: ${maxPrice || 'не ограничена'}₽)`);
 
-      // Переходим на страницу CS2 скинов (ПРАВИЛЬНЫЙ URL из скриншотов)
+      // Переходим на страницу CS2 скинов
       await this.page.goto('https://playerok.com/games/counter-strike-2/skins', {
-        waitUntil: 'networkidle2',
+        waitUntil: 'domcontentloaded',
         timeout: 30000
       });
 
       logger.info('✅ Открыта страница скинов CS2');
 
-      // Поле поиска: input[name="search"], placeholder "Поиск по названию"
-      await this.page.waitForSelector('input[name="search"]', { timeout: 10000, visible: true });
+      // Даём SPA время отрендерить поиск (PlayerOk — React/MUI)
+      await delay(5000);
 
-      // Прокручиваем к полю и заполняем через evaluate (в headless элемент может быть "не кликабельным")
+      // Поле поиска: input[name="search"] или по placeholder
+      const searchSelector = 'input[name="search"]';
+      await this.page.waitForSelector(searchSelector, { timeout: 20000 }).catch(() => null);
+      if (!(await this.page.$(searchSelector))) {
+        await this.page.waitForSelector('input[placeholder*="Поиск"], input[placeholder*="поиск"]', { timeout: 10000 }).catch(() => null);
+      }
+
+      // Прокручиваем к полю и заполняем через evaluate
       const searchFilled = await this.page.evaluate((name) => {
-        const el = document.querySelector('input[name="search"]');
+        const el =
+          document.querySelector('input[name="search"]') ||
+          document.querySelector('input[placeholder*="Поиск"]') ||
+          document.querySelector('input[placeholder*="поиск"]');
         if (!el) return false;
         el.scrollIntoView({ block: 'center' });
         el.focus();

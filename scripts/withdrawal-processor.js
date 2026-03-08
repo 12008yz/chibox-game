@@ -505,11 +505,8 @@ class WithdrawalProcessor {
       const steamPrice = await this.getSteamPrice(item);
       logger.info(`💵 Актуальная цена Steam: ${steamPrice}₽`);
 
-      // Ищем на PlayerOk
-      const bestOffer = await this.playerokBot.searchItem(
-        item.name,
-        Math.max(steamPrice, item.price) // Не дороже максимума из Steam/ChiBox
-      );
+      // Ищем на PlayerOk (без ограничения по цене при поиске — на PlayerOk минимум ~99₽, выгодность проверит comparePrices)
+      const bestOffer = await this.playerokBot.searchItem(item.name, null);
 
       if (!bestOffer) {
         logger.info('⚠️ Предмет не найден на PlayerOk');
