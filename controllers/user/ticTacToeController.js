@@ -118,6 +118,32 @@ const createGame = async (req, res) => {
     const hasFreeAttempts = freeGameAvailability.canPlay;
     const hasRegularAttempts = user.tictactoe_attempts_left > 0;
 
+    // Проверяем, выигрывал ли пользователь сегодня
+    const nowLocal = new Date();
+    const lastResetTime = new Date();
+    lastResetTime.setUTCHours(13, 0, 0, 0); // 16:00 МСК = 13:00 UTC
+    if (nowLocal < lastResetTime) {
+      lastResetTime.setDate(lastResetTime.getDate() - 1);
+    }
+
+    const todayWin = await TicTacToeGame.findOne({
+      where: {
+        user_id: userId,
+        result: 'win',
+        reward_given: true,
+        updated_at: {
+          [Op.gte]: lastResetTime
+        }
+      }
+    });
+
+    if (todayWin) {
+      return res.status(403).json({
+        success: false,
+        error: 'Вы уже победили сегодня! Ждём вас завтра'
+      });
+    }
+
     if (!hasActiveSubscription && !hasFreeAttempts) {
       return res.status(403).json({
         success: false,
