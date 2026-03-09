@@ -358,10 +358,10 @@ const makeMove = async (req, res) => {
       const freeGameAvailability = checkFreeGameAvailability(user, 'tictactoe');
       const hasFreeAttempts = freeGameAvailability.canPlay;
 
-      if (newGameState.winner === 'player') {
+        if (newGameState.winner === 'player') {
         result = 'win';
         logger.info(`Игрок ${userId} выиграл! Пытаемся выдать бонусный кейс...`);
-        // Выдаем бонусный кейс
+        // Выдаем бонусный кейс ДО списания попытки
         rewardGiven = await giveReward(userId);
         logger.info(`Результат выдачи бонусного кейса: ${rewardGiven}`);
         // Уменьшаем количество попыток (сначала бесплатные, потом обычные)
@@ -443,7 +443,8 @@ const giveReward = async (userId) => {
   try {
     logger.info(`🎯 [REWARD] Начинаем выдачу награды для пользователя ${userId}`);
 
-    // Вычисляем время последнего сброса (16:00 МСК = 13:00 UTC)
+    // Проверяем, не получал ли пользователь уже бонусный кейс сегодня
+    // Используем время сброса (16:00 МСК = 13:00 UTC)
     const now = new Date();
     const lastResetTime = new Date();
     lastResetTime.setUTCHours(13, 0, 0, 0); // 16:00 МСК = 13:00 UTC
@@ -455,7 +456,6 @@ const giveReward = async (userId) => {
 
     logger.info(`🎯 [REWARD] Проверяем период с ${lastResetTime.toISOString()} до сейчас`);
 
-    // Проверяем, не получал ли пользователь уже бонусный кейс сегодня (с момента последнего сброса)
     const existingReward = await TicTacToeGame.findOne({
       where: {
         user_id: userId,
@@ -467,15 +467,6 @@ const giveReward = async (userId) => {
       },
       order: [['updated_at', 'DESC']]
     });
-
-    logger.info(`🎯 [REWARD] Существующая награда за сегодня: ${existingReward ? 'найдена' : 'не найдена'}`);
-    if (existingReward) {
-      logger.info(`🎯 [REWARD] Детали существующей награды:`, {
-        id: existingReward.id,
-        updated_at: existingReward.updated_at,
-        reward_given: existingReward.reward_given
-      });
-    }
 
     if (existingReward) {
       logger.info(`🎯 [REWARD] ❌ Награда уже получена сегодня: ${existingReward.updated_at}`);
