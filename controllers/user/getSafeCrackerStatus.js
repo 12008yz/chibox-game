@@ -64,9 +64,8 @@ const getSafeCrackerStatus = async (req, res) => {
       });
     }
 
-    const now = new Date();
-
     // Проверяем наличие активной подписки
+    const now = new Date();
     const hasActiveSubscription = user.subscription_tier > 0 &&
       user.subscription_expiry_date &&
       new Date(user.subscription_expiry_date) > now;
@@ -74,10 +73,14 @@ const getSafeCrackerStatus = async (req, res) => {
     // Проверяем, нужно ли сбросить счетчик попыток
     const needsReset = shouldResetSafeCrackerCounter(user.last_safecracker_reset);
 
-    if (needsReset && hasActiveSubscription) {
-      const limit = SAFECRACKER_LIMITS[user.subscription_tier] || 0;
-      logger.info(`[SAFECRACKER] Сброс попыток для пользователя ${user.username}, тир ${user.subscription_tier}, лимит ${limit}`);
-      user.game_attempts = limit;
+    if (needsReset) {
+      if (hasActiveSubscription) {
+        const limit = SAFECRACKER_LIMITS[user.subscription_tier] || 0;
+        logger.info(`[SAFECRACKER] Сброс попыток для пользователя ${user.username}, тир ${user.subscription_tier}, лимит ${limit}`);
+        user.game_attempts = limit;
+      } else {
+        user.game_attempts = 0;
+      }
 
       // Сбрасываем флаг выигрыша (пользователь может выигрывать каждый день)
       user.has_won_safecracker = false;
@@ -91,6 +94,9 @@ const getSafeCrackerStatus = async (req, res) => {
       }
       user.last_safecracker_reset = resetTime;
       await user.save();
+    } else if (!hasActiveSubscription && user.game_attempts > 0) {
+      user.game_attempts = 0;
+      await user.save();
     }
 
     // Проверяем доступность бесплатных попыток
@@ -98,9 +104,12 @@ const getSafeCrackerStatus = async (req, res) => {
     const freeAttemptsRemaining = freeGameAvailability.canPlay ?
       (2 - (user.free_safecracker_claim_count || 0)) : 0;
 
+    // Если нет активной подписки, пользователь не может использовать обычные попытки
+    const currentAttempts = hasActiveSubscription ? (user.game_attempts || 0) : 0;
+
     const response = {
       success: true,
-      remaining_attempts: user.game_attempts || 0,
+      remaining_attempts: currentAttempts,
       free_attempts_remaining: freeAttemptsRemaining,
       free_attempts_info: {
         can_use: freeGameAvailability.canPlay,
@@ -112,9 +121,9 @@ const getSafeCrackerStatus = async (req, res) => {
       },
       subscription_days: user.subscription_days_left || 0,
       subscription_tier: user.subscription_tier || 0,
-      max_attempts: SAFECRACKER_LIMITS[user.subscription_tier] || 0,
+      max_attempts: hasActiveSubscription ? (SAFECRACKER_LIMITS[user.subscription_tier] || 0) : 0,
       has_won: user.has_won_safecracker || false,
-      can_play: !user.has_won_safecracker && ((user.game_attempts > 0) || freeGameAvailability.canPlay)
+      can_play: !user.has_won_safecracker && ((currentAttempts > 0) || freeGameAvailability.canPlay)
     };
 
     res.json(response);

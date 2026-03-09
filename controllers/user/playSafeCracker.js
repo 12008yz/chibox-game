@@ -212,6 +212,12 @@ const playSafeCracker = async (req, res) => {
       });
     }
 
+    // Проверяем наличие активной подписки
+    const now = new Date();
+    const hasActiveSubscription = user.subscription_tier > 0 &&
+      user.subscription_expiry_date &&
+      new Date(user.subscription_expiry_date) > now;
+
     // Проверяем, выигрывал ли пользователь сегодня
     if (user.has_won_safecracker) {
       return res.status(403).json({
@@ -223,13 +229,15 @@ const playSafeCracker = async (req, res) => {
     // Проверяем бесплатные попытки для новых пользователей
     const freeGameAvailability = checkFreeGameAvailability(user, 'safecracker');
     const hasFreeAttempts = freeGameAvailability.canPlay;
-    const hasRegularAttempts = user.game_attempts && user.game_attempts > 0;
+    const hasRegularAttempts = hasActiveSubscription && user.game_attempts && user.game_attempts > 0;
 
     // Если нет ни бесплатных, ни обычных попыток
     if (!hasFreeAttempts && !hasRegularAttempts) {
       return res.status(403).json({
         success: false,
-        message: 'У вас закончились попытки для игры Safe Cracker'
+        message: hasActiveSubscription 
+          ? 'У вас закончились попытки для игры Safe Cracker'
+          : 'Приобретите статус для продолжения игры'
       });
     }
 
@@ -272,8 +280,8 @@ const playSafeCracker = async (req, res) => {
     if (hasFreeAttempts) {
       await updateFreeGameCounters(user, 'safecracker');
       logger.info(`SafeCracker - использована бесплатная попытка. Осталось: ${2 - user.free_safecracker_claim_count}`);
-    } else {
-      user.game_attempts -= 1;
+    } else if (hasActiveSubscription) {
+      user.game_attempts = Math.max(0, user.game_attempts - 1);
       logger.info(`SafeCracker - использована обычная попытка. Осталось: ${user.game_attempts}`);
     }
 
@@ -388,7 +396,7 @@ const playSafeCracker = async (req, res) => {
         rarity: wonItem.rarity
       } : null,
       new_balance: balanceAfter,
-      remaining_attempts: user.game_attempts
+      remaining_attempts: hasActiveSubscription ? user.game_attempts : 0
     };
 
     logger.info(`SafeCracker - ответ пользователю ${user.username}:`, response);

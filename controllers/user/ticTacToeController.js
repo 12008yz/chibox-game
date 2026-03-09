@@ -74,7 +74,7 @@ async function checkAndResetUserAttempts(user) {
   const needsReset = shouldResetTicTacToeCounter(user.last_tictactoe_reset);
 
   if (needsReset) {
-    const limit = getTicTacToeLimit(user.subscription_tier);
+    const limit = hasActiveSubscription ? getTicTacToeLimit(user.subscription_tier) : 0;
     logger.info(`[TICTACTOE] Сброс попыток для пользователя ${user.username}, тир ${user.subscription_tier}, лимит ${limit}`);
     user.tictactoe_attempts_left = limit;
 
@@ -86,6 +86,9 @@ async function checkAndResetUserAttempts(user) {
       resetTime.setDate(resetTime.getDate() - 1);
     }
     user.last_tictactoe_reset = resetTime;
+    await user.save();
+  } else if (!hasActiveSubscription && user.tictactoe_attempts_left > 0) {
+    user.tictactoe_attempts_left = 0;
     await user.save();
   }
 
@@ -107,7 +110,7 @@ const createGame = async (req, res) => {
       });
     }
 
-    // Проверяем подписку и сбрасываем попытки при необходимости
+    // Проверяем и сбрасываем попытки пользователя, если необходимо
     const { hasActiveSubscription, now } = await checkAndResetUserAttempts(user);
 
     // Проверяем бесплатные попытки для новых пользователей
@@ -133,7 +136,9 @@ const createGame = async (req, res) => {
 
       return res.status(400).json({
         success: false,
-        error: 'У вас закончились попытки. Следующая попытка будет доступна в 16:00 МСК',
+        error: hasActiveSubscription 
+          ? 'У вас закончились попытки. Следующая попытка будет доступна в 16:00 МСК'
+          : 'Приобретите статус для продолжения игры',
         next_time: nextReset.toISOString()
       });
     }
@@ -153,7 +158,7 @@ const createGame = async (req, res) => {
       return res.json({
         success: true,
         game: existingGame,
-        attempts_left: user.tictactoe_attempts_left,
+        attempts_left: hasActiveSubscription ? user.tictactoe_attempts_left : 0,
         message: 'У вас есть незавершенная игра'
       });
     }
@@ -176,7 +181,7 @@ const createGame = async (req, res) => {
     const newGame = await TicTacToeGame.create({
       user_id: userId,
       game_state: gameState,
-      attempts_left: user.tictactoe_attempts_left, // Сохраняем текущее количество попыток
+      attempts_left: hasActiveSubscription ? user.tictactoe_attempts_left : 0, // Сохраняем текущее количество попыток
       bot_goes_first: gameState.botGoesFirst
     });
 
@@ -186,7 +191,7 @@ const createGame = async (req, res) => {
     res.json({
       success: true,
       game: newGame,
-      attempts_left: user.tictactoe_attempts_left
+      attempts_left: hasActiveSubscription ? user.tictactoe_attempts_left : 0
     });
 
   } catch (error) {
@@ -212,7 +217,7 @@ const getCurrentGame = async (req, res) => {
       });
     }
 
-    // Проверяем подписку и сбрасываем попытки при необходимости
+    // Проверяем и сбрасываем попытки пользователя, если необходимо
     const { hasActiveSubscription, now } = await checkAndResetUserAttempts(user);
 
     // Ищем только активную игру
@@ -256,7 +261,7 @@ const getCurrentGame = async (req, res) => {
       success: true,
       game,
       canPlay,
-      attempts_left: user.tictactoe_attempts_left,
+      attempts_left: hasActiveSubscription ? user.tictactoe_attempts_left : 0,
       free_attempts_remaining: freeAttemptsRemaining,
       free_attempts_info: {
         can_use: freeGameAvailability.canPlay,
@@ -316,6 +321,31 @@ const makeMove = async (req, res) => {
       });
     }
 
+    // Проверяем подписку
+    const now = new Date();
+    const hasActiveSubscription = user.subscription_tier > 0 &&
+      user.subscription_expiry_date &&
+      new Date(user.subscription_expiry_date) > now;
+      
+    // Проверяем бесплатные попытки
+    const freeGameAvailability = checkFreeGameAvailability(user, 'tictactoe');
+    const hasFreeAttempts = freeGameAvailability.canPlay;
+
+    if (!hasActiveSubscription && !hasFreeAttempts) {
+      return res.status(403).json({
+        success: false,
+        error: 'Приобретите статус для продолжения игры'
+      });
+    }
+
+    // Проверяем количество попыток
+    if (hasActiveSubscription && user.tictactoe_attempts_left <= 0 && !hasFreeAttempts) {
+      return res.status(403).json({
+        success: false,
+        error: 'Закончились попытки'
+      });
+    }
+
     // Делаем ход
     const newGameState = ticTacToeService.makePlayerMove(game.game_state, position);
 
@@ -339,7 +369,7 @@ const makeMove = async (req, res) => {
           await updateFreeGameCounters(user, 'tictactoe');
           await user.reload(); // Перезагружаем пользователя для актуальных данных
           logger.info(`TicTacToe - использована бесплатная попытка. Осталось: ${MAX_FREE_TICTACTOE_ATTEMPTS - user.free_tictactoe_claim_count}`);
-        } else {
+        } else if (hasActiveSubscription) {
           user.tictactoe_attempts_left = Math.max(0, user.tictactoe_attempts_left - 1);
           await user.save();
         }
@@ -351,7 +381,7 @@ const makeMove = async (req, res) => {
           await updateFreeGameCounters(user, 'tictactoe');
           await user.reload(); // Перезагружаем пользователя для актуальных данных
           logger.info(`TicTacToe - использована бесплатная попытка. Осталось: ${MAX_FREE_TICTACTOE_ATTEMPTS - user.free_tictactoe_claim_count}`);
-        } else {
+        } else if (hasActiveSubscription) {
           user.tictactoe_attempts_left = Math.max(0, user.tictactoe_attempts_left - 1);
           await user.save();
         }
@@ -363,7 +393,7 @@ const makeMove = async (req, res) => {
           await updateFreeGameCounters(user, 'tictactoe');
           await user.reload(); // Перезагружаем пользователя для актуальных данных
           logger.info(`TicTacToe - использована бесплатная попытка. Осталось: ${MAX_FREE_TICTACTOE_ATTEMPTS - user.free_tictactoe_claim_count}`);
-        } else {
+        } else if (hasActiveSubscription) {
           user.tictactoe_attempts_left = Math.max(0, user.tictactoe_attempts_left - 1);
           await user.save();
         }
@@ -375,16 +405,16 @@ const makeMove = async (req, res) => {
       game_state: newGameState,
       result,
       reward_given: rewardGiven,
-      attempts_left: user.tictactoe_attempts_left // Обновляем на актуальное значение
+      attempts_left: hasActiveSubscription ? user.tictactoe_attempts_left : 0 // Обновляем на актуальное значение
     });
 
     let message = '';
     if (result === 'win') {
       message = rewardGiven ? 'Поздравляем! Вы выиграли и получили бонусный кейс!' : 'Вы выиграли, но приз можно получить только один раз в день.';
     } else if (result === 'lose') {
-      message = `Вы проиграли. Осталось попыток: ${user.tictactoe_attempts_left}`;
+      message = `Вы проиграли. Осталось попыток: ${hasActiveSubscription ? user.tictactoe_attempts_left : 0}`;
     } else if (result === 'draw') {
-      message = `Ничья! Осталось попыток: ${user.tictactoe_attempts_left}`;
+      message = `Ничья! Осталось попыток: ${hasActiveSubscription ? user.tictactoe_attempts_left : 0}`;
     }
 
     res.json({
@@ -395,7 +425,7 @@ const makeMove = async (req, res) => {
         result,
         reward_given: rewardGiven
       },
-      attempts_left: user.tictactoe_attempts_left,
+      attempts_left: hasActiveSubscription ? user.tictactoe_attempts_left : 0,
       message
     });
 
