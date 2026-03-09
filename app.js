@@ -121,13 +121,32 @@ async function createApp() {
   app.use(express.urlencoded({ extended: false, limit: '10mb' }));
   app.use(cookieParser());
 
+  const imagesPath = path.join(__dirname, 'public/images');
   app.use('/images', (req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
     res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+    
+    // Перехватываем запросы к .png/.jpg и отдаем .webp, если он существует
+    if (req.path.match(/\.(png|jpg|jpeg)$/i)) {
+      const fs = require('fs');
+      const webpPath = req.path.replace(/\.(png|jpg|jpeg)$/i, '.webp');
+      const fullWebpPath = path.join(imagesPath, webpPath);
+      
+      if (fs.existsSync(fullWebpPath)) {
+        req.url = webpPath; // Подменяем URL для express.static
+      }
+    }
+    
     next();
-  }, express.static(path.join(__dirname, 'public/images')));
+  }, express.static(imagesPath, {
+    setHeaders: (res, path) => {
+      if (path.endsWith('.webp')) {
+        res.setHeader('Content-Type', 'image/webp');
+      }
+    }
+  }));
 
   app.use('/Achievements', (req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
