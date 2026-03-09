@@ -55,7 +55,22 @@ async function createApp() {
     next();
   });
 
-  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://mc.yandex.ru", "https://yastatic.net"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        imgSrc: ["'self'", "data:", "https:", "http:"],
+        connectSrc: ["'self'", "wss:", "ws:", "https:", "http:"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+        objectSrc: ["'self'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'self'", "https://yoomoney.ru", "https://*.yoomoney.ru"]
+      },
+    },
+  }));
   app.use(compression());
   app.use(corsMiddleware);
 
