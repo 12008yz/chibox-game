@@ -31,8 +31,8 @@ async function convertDir(dir) {
 }
 
 async function run() {
-  const imagesDir = path.join(__dirname, 'public/images');
-  await convertDir(imagesDir);
+  const publicDir = path.join(__dirname, 'public');
+  await convertDir(publicDir);
   console.log('Backend images conversion complete!');
 }
 

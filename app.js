@@ -121,48 +121,42 @@ async function createApp() {
   app.use(express.urlencoded({ extended: false, limit: '10mb' }));
   app.use(cookieParser());
 
+  const serveStaticWithWebp = (dir) => {
+    return [
+      (req, res, next) => {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type');
+        res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+        
+        if (req.path.match(/\.(png|jpg|jpeg)$/i)) {
+          const fs = require('fs');
+          const webpPath = req.path.replace(/\.(png|jpg|jpeg)$/i, '.webp');
+          const fullWebpPath = path.join(dir, webpPath);
+          
+          if (fs.existsSync(fullWebpPath)) {
+            req.url = webpPath;
+          }
+        }
+        next();
+      },
+      express.static(dir, {
+        maxAge: '30d',
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.webp')) {
+            res.setHeader('Content-Type', 'image/webp');
+          }
+        }
+      })
+    ];
+  };
+
   const imagesPath = path.join(__dirname, 'public/images');
-  app.use('/images', (req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
-    res.header('Cross-Origin-Resource-Policy', 'cross-origin');
-    
-    // Перехватываем запросы к .png/.jpg и отдаем .webp, если он существует
-    if (req.path.match(/\.(png|jpg|jpeg)$/i)) {
-      const fs = require('fs');
-      const webpPath = req.path.replace(/\.(png|jpg|jpeg)$/i, '.webp');
-      const fullWebpPath = path.join(imagesPath, webpPath);
-      
-      if (fs.existsSync(fullWebpPath)) {
-        req.url = webpPath; // Подменяем URL для express.static
-      }
-    }
-    
-    next();
-  }, express.static(imagesPath, {
-    setHeaders: (res, path) => {
-      if (path.endsWith('.webp')) {
-        res.setHeader('Content-Type', 'image/webp');
-      }
-    }
-  }));
+  app.use('/images', serveStaticWithWebp(imagesPath));
 
-  app.use('/Achievements', (req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
-    res.header('Cross-Origin-Resource-Policy', 'cross-origin');
-    next();
-  }, express.static(path.join(__dirname, 'public/Achievements')));
+  app.use('/Achievements', serveStaticWithWebp(path.join(__dirname, 'public/Achievements')));
 
-  app.use('/public', (req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
-    res.header('Cross-Origin-Resource-Policy', 'cross-origin');
-    next();
-  }, express.static(path.join(__dirname, 'public')));
+  app.use('/public', serveStaticWithWebp(path.join(__dirname, 'public')));
 
   app.use((req, res, next) => {
     const originalRender = res.render;
