@@ -1,48 +1,46 @@
 const redis = require('redis');
 const { logger } = require('../utils/logger');
 
-const client = redis.createClient({
-  url: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
-  socket: {
-    // Держим соединение живым, чтобы Redis/файрвол не обрывали по таймауту
-    keepAlive: 10000,
-    connectTimeout: 10000,
-    reconnectStrategy(retries) {
-      if (retries > 50) return new Error('Redis: превышено число переподключений');
-      const delay = Math.min(retries * 100, 3000);
-      return delay;
+const skipRedis = process.env.NODE_ENV === 'development' &&
+  (process.env.USE_REDIS === 'false' || process.env.SKIP_REDIS === 'true');
+
+let client = null;
+if (!skipRedis) {
+  client = redis.createClient({
+    url: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
+    socket: {
+      keepAlive: 10000,
+      connectTimeout: 10000,
+      reconnectStrategy(retries) {
+        if (retries > 50) return new Error('Redis: превышено число переподключений');
+        return Math.min(retries * 100, 3000);
+      },
     },
-  },
-  // Периодический PING — дополнительно держит соединение и быстрее обнаруживает обрыв
-  pingInterval: 15000,
-});
-
-client.on('error', (err) => {
-  const code = err?.code ?? err?.errno;
-  const isConnectionError = code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'ECONNREFUSED' ||
-    (typeof err?.message === 'string' && err.message.includes('ECONNRESET'));
-  if (isConnectionError) {
-    logger.warn('Redis: соединение потеряно, переподключение…', { code: code || 'ECONNRESET' });
-  } else {
-    logger.error('Redis Client Error', err);
-  }
-});
-
-client.connect().catch(err => {
-  logger.error('Ошибка подключения к Redis:', err);
-});
+    pingInterval: 15000,
+  });
+  client.on('error', (err) => {
+    const code = err?.code ?? err?.errno;
+    const isConnectionError = code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'ECONNREFUSED' ||
+      (typeof err?.message === 'string' && err.message.includes('ECONNRESET'));
+    if (isConnectionError) {
+      logger.warn('Redis: соединение потеряно, переподключение…', { code: code || 'ECONNRESET' });
+    } else {
+      logger.error('Redis Client Error', err);
+    }
+  });
+  client.connect().catch(err => {
+    logger.error('Ошибка подключения к Redis:', err);
+  });
+}
 
 const cache = (duration = 300, keyPrefix = 'cache') => {
   return async (req, res, next) => {
-    // Кэшировать только определенные эндпоинты
+    if (!client) return next();
     const cachableRoutes = ['/api/v1/leaderboard', '/api/v1/cases', '/api/v1/achievements', '/api/v1/getProfile'];
     if (!cachableRoutes.some(route => req.path.startsWith(route))) {
       return next();
     }
-
-    // Более уникальные ключи
     const key = `${keyPrefix}:${req.user?.id || 'guest'}:${req.path}:${JSON.stringify(req.query)}`;
-
     try {
       const cached = await client.get(key);
       if (cached) {
@@ -53,8 +51,6 @@ const cache = (duration = 300, keyPrefix = 'cache') => {
     } catch (error) {
       logger.warn(`Cache error for ${key}: ${error.message}`);
     }
-
-    // Кэшировать только успешные ответы
     const originalJson = res.json.bind(res);
     res.json = async (data) => {
       if (res.statusCode === 200) {
@@ -67,7 +63,6 @@ const cache = (duration = 300, keyPrefix = 'cache') => {
       }
       originalJson(data);
     };
-
     next();
   };
 };

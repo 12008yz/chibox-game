@@ -96,15 +96,22 @@ async function createApp() {
     }
   });
 
-  // Redis для сессий и rate-limit (общий лимит на все воркеры при кластере)
+  // Redis для сессий и rate-limit (общий лимит на все воркеры при кластере).
+  // В development можно отключить: USE_REDIS=false или SKIP_REDIS=true в .env — тогда сессии в PostgreSQL, кейсы и логин работают без Redis.
   let sessionStore = null;
   let rateLimitStore = null;
-  try {
-    const redisStores = await require('./config/redisStores').createRedisStores();
-    sessionStore = redisStores.sessionStore;
-    rateLimitStore = redisStores.rateLimitStore;
-  } catch (err) {
-    logger.warn('Инициализация Redis stores не удалась:', err.message);
+  const skipRedis = process.env.NODE_ENV === 'development' &&
+    (process.env.USE_REDIS === 'false' || process.env.SKIP_REDIS === 'true');
+  if (skipRedis) {
+    logger.info('Redis отключён (USE_REDIS=false/SKIP_REDIS=true), сессии в PostgreSQL');
+  } else {
+    try {
+      const redisStores = await require('./config/redisStores').createRedisStores();
+      sessionStore = redisStores.sessionStore;
+      rateLimitStore = redisStores.rateLimitStore;
+    } catch (err) {
+      logger.warn('Инициализация Redis stores не удалась:', err.message);
+    }
   }
 
   // Общий лимит — с Redis при кластере лимит общий на все инстансы
@@ -282,16 +289,24 @@ async function createApp() {
   app.use(function(err, req, res, next) {
     if (res.headersSent) return next(err);
     const status = err.status || 500;
+    const isConnectionError = err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED' ||
+      (err.message && typeof err.message === 'string' && err.message.includes('ECONNRESET'));
+    const safeMessage = isConnectionError
+      ? 'Сервис временно недоступен. Попробуйте через несколько секунд.'
+      : (err.message || 'Внутренняя ошибка сервера');
+    if (isConnectionError) {
+      logger.warn('Ошибка соединения (не показываем клиенту):', err.code || err.message);
+    }
     res.status(status);
     if (req.path.startsWith('/api/')) {
       return res.json({
         success: false,
-        message: err.message || 'Внутренняя ошибка сервера',
-        ...(req.app.get('env') === 'development' && { error: err.stack }),
+        message: safeMessage,
+        ...(req.app.get('env') === 'development' && !isConnectionError && { error: err.stack }),
       });
     }
-    res.locals.message = err.message;
-    res.locals.error = req.app.get('env') === 'development' ? err : {};
+    res.locals.message = safeMessage;
+    res.locals.error = req.app.get('env') === 'development' && !isConnectionError ? err : {};
     res.render('error', { title: 'Ошибка' });
   });
 

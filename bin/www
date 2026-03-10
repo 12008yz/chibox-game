@@ -6,6 +6,22 @@ const http = require('http');
 const path = require('path');
 const socketIO = require('socket.io');
 
+// Локальная среда: не ронять процесс при обрыве Redis (ECONNRESET → unhandledRejection)
+if (process.env.NODE_ENV !== 'production') {
+  process.on('unhandledRejection', (reason, promise) => {
+    const err = reason && (reason instanceof Error ? reason : new Error(String(reason)));
+    const code = err?.code;
+    const msg = err?.message || '';
+    const isRedisConnectionError = code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'ECONNREFUSED' ||
+      (typeof msg === 'string' && msg.includes('ECONNRESET'));
+    if (isRedisConnectionError) {
+      console.warn('Redis: необработанное отклонение (соединение), процесс не завершён:', msg);
+      return;
+    }
+    console.error('Unhandled Rejection:', reason);
+  });
+}
+
 function normalizePort(val) {
   const port = parseInt(val, 10);
   if (isNaN(port)) return val;
@@ -52,25 +68,45 @@ async function start() {
     connectTimeout: 10000
   });
 
-  // Redis adapter для Socket.IO — при нескольких воркерах все инстансы видят одни и те же комнаты/события
-  if (process.env.REDIS_URL) {
+  // Redis adapter для Socket.IO — при нескольких воркерах все инстансы видят одни и те же комнаты/события.
+  // В development при USE_REDIS=false или SKIP_REDIS=true не подключаем Redis.
+  const skipRedis = process.env.NODE_ENV === 'development' &&
+    (process.env.USE_REDIS === 'false' || process.env.SKIP_REDIS === 'true');
+  const redisSocketOptions = {
+    connectTimeout: 10000,
+    keepAlive: 10000,
+    reconnectStrategy(retries) {
+      if (retries > 50) return new Error('Redis max retries reached');
+      return Math.min(retries * 100, 3000);
+    },
+  };
+  if (process.env.REDIS_URL && !skipRedis) {
     try {
       const { createAdapter } = require('@socket.io/redis-adapter');
       const redis = require('redis');
-      const pubClient = redis.createClient({ 
+      const pubClient = redis.createClient({
         url: process.env.REDIS_URL,
-        socket: {
-          connectTimeout: 10000,
-          reconnectStrategy: (retries) => {
-            if (retries > 50) return new Error('Redis max retries reached');
-            return Math.min(retries * 100, 3000);
-          }
+        socket: redisSocketOptions,
+        pingInterval: 15000,
+      });
+      pubClient.on('error', (err) => {
+        const code = err?.code || (err?.message && err.message.includes('ECONNRESET') ? 'ECONNRESET' : null);
+        if (code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'ECONNREFUSED') {
+          console.warn('Redis PubClient: соединение потеряно, переподключение…', code);
+        } else {
+          console.error('Redis PubClient Error:', err.message);
         }
       });
-      pubClient.on('error', (err) => console.error('Redis PubClient Error:', err.message));
 
       const subClient = pubClient.duplicate();
-      subClient.on('error', (err) => console.error('Redis SubClient Error:', err.message));
+      subClient.on('error', (err) => {
+        const code = err?.code || (err?.message && err.message.includes('ECONNRESET') ? 'ECONNRESET' : null);
+        if (code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'ECONNREFUSED') {
+          console.warn('Redis SubClient: соединение потеряно, переподключение…', code);
+        } else {
+          console.error('Redis SubClient Error:', err.message);
+        }
+      });
       await Promise.all([pubClient.connect(), subClient.connect()]);
       io.adapter(createAdapter(pubClient, subClient));
       console.log('Socket.IO: Redis adapter включён (кластер)');
