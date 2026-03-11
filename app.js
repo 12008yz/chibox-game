@@ -235,6 +235,7 @@ async function createApp() {
   const authRoutes = require('./routes/authRoutes');
   const referralRoutes = require('./routes/referralRoutes');
   const streamerRoutes = require('./routes/streamerRoutes');
+  const botRoutes = require('./routes/botRoutes');
   const { requestLogger, logLoginAttempt, logPayment } = require('./utils/logger');
 
   app.use(requestLogger);
@@ -247,6 +248,7 @@ async function createApp() {
   app.use('/api/v1/auth', authRoutes);
   app.use('/api/v1/referral', referralRoutes);
   app.use('/api/v1/streamer', streamerRoutes);
+  app.use('/api/v1/bot', botRoutes);
 
   try {
     const connected = await testConnection();
