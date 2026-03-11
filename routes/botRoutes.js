@@ -13,7 +13,7 @@ const BOT_TIMEOUT_MS = 15000;
 
 /**
  * POST /api/v1/bot/chat
- * Тело: { message: string }
+ * Тело: { message: string, history?: Array<{ role: 'user'|'assistant', content: string }> }
  * Проксируем в Python: POST {BOT_SERVICE_URL}/api/chat
  */
 router.post('/chat', async (req, res) => {
@@ -22,10 +22,16 @@ router.post('/chat', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Требуется поле message (непустая строка).' });
   }
 
+  const history = Array.isArray(req.body?.history)
+    ? req.body.history.filter(
+        (h) => h && (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string' && h.content.trim()
+      ).slice(-20).map((h) => ({ role: h.role, content: String(h.content).trim() }))
+    : undefined;
+
   try {
     const response = await axios.post(
       `${BOT_SERVICE_URL}/api/chat`,
-      { message: message.trim() },
+      { message: message.trim(), ...(history?.length ? { history } : {}) },
       {
         timeout: BOT_TIMEOUT_MS,
         headers: { 'Content-Type': 'application/json' },
