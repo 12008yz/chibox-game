@@ -38,6 +38,8 @@ async function createApp() {
 
   app.set('trust proxy', 1);
 
+  // Проверка Host: с мобильного интернета прокси/оператор может подставлять другой Host (например IP).
+  // Учитываем X-Forwarded-Host (если запрос через nginx) и разрешаем любой поддомен chibox-game.ru.
   app.use((req, res, next) => {
     const allowedHosts = [
       'api.chibox-game.ru',
@@ -47,8 +49,15 @@ async function createApp() {
       'localhost',
       '127.0.0.1'
     ];
-    const host = req.hostname || req.get('host')?.split(':')[0];
-    if (!allowedHosts.includes(host)) {
+    const forwardedHost = req.get('x-forwarded-host');
+    const host = (forwardedHost ? forwardedHost.split(',')[0].trim() : null) ||
+      req.hostname ||
+      req.get('host')?.split(':')[0] ||
+      '';
+    const allowed = allowedHosts.includes(host) ||
+      host === 'chibox-game.ru' ||
+      (host && host.endsWith('.chibox-game.ru'));
+    if (!allowed) {
       logger.warn(`Blocked request from unauthorized host: ${host}`);
       return res.status(403).json({ success: false, message: 'Forbidden: Invalid host' });
     }
