@@ -1,19 +1,29 @@
 const redis = require('redis');
 const { logger } = require('../utils/logger');
-const { getRedisClientOptions, logRedisReconnectOnce } = require('../config/redisClientOptions');
 
 const skipRedis = process.env.NODE_ENV === 'development' &&
   (process.env.USE_REDIS === 'false' || process.env.SKIP_REDIS === 'true');
 
 let client = null;
 if (!skipRedis) {
-  client = redis.createClient(getRedisClientOptions());
+  client = redis.createClient({
+    url: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
+    socket: {
+      keepAlive: 10000,
+      connectTimeout: 10000,
+      reconnectStrategy(retries) {
+        if (retries > 50) return new Error('Redis: превышено число переподключений');
+        return Math.min(retries * 100, 3000);
+      },
+    },
+    pingInterval: 15000,
+  });
   client.on('error', (err) => {
     const code = err?.code ?? err?.errno;
     const isConnectionError = code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'ECONNREFUSED' ||
       (typeof err?.message === 'string' && err.message.includes('ECONNRESET'));
     if (isConnectionError) {
-      logRedisReconnectOnce('Cache', code || 'ECONNRESET', logger);
+      logger.warn('Redis: соединение потеряно, переподключение…', { code: code || 'ECONNRESET' });
     } else {
       logger.error('Redis Client Error', err);
     }

@@ -72,16 +72,27 @@ async function start() {
   // В development при USE_REDIS=false или SKIP_REDIS=true не подключаем Redis.
   const skipRedis = process.env.NODE_ENV === 'development' &&
     (process.env.USE_REDIS === 'false' || process.env.SKIP_REDIS === 'true');
-  const { getRedisClientOptions, logRedisReconnectOnce } = require('../config/redisClientOptions');
+  const redisSocketOptions = {
+    connectTimeout: 10000,
+    keepAlive: 10000,
+    reconnectStrategy(retries) {
+      if (retries > 50) return new Error('Redis max retries reached');
+      return Math.min(retries * 100, 3000);
+    },
+  };
   if (process.env.REDIS_URL && !skipRedis) {
     try {
       const { createAdapter } = require('@socket.io/redis-adapter');
       const redis = require('redis');
-      const pubClient = redis.createClient(getRedisClientOptions(process.env.REDIS_URL));
+      const pubClient = redis.createClient({
+        url: process.env.REDIS_URL,
+        socket: redisSocketOptions,
+        pingInterval: 15000,
+      });
       pubClient.on('error', (err) => {
         const code = err?.code || (err?.message && err.message.includes('ECONNRESET') ? 'ECONNRESET' : null);
         if (code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'ECONNREFUSED') {
-          logRedisReconnectOnce('PubClient', code);
+          console.warn('Redis PubClient: соединение потеряно, переподключение…', code);
         } else {
           console.error('Redis PubClient Error:', err.message);
         }
@@ -91,7 +102,7 @@ async function start() {
       subClient.on('error', (err) => {
         const code = err?.code || (err?.message && err.message.includes('ECONNRESET') ? 'ECONNRESET' : null);
         if (code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'ECONNREFUSED') {
-          logRedisReconnectOnce('SubClient', code);
+          console.warn('Redis SubClient: соединение потеряно, переподключение…', code);
         } else {
           console.error('Redis SubClient Error:', err.message);
         }
@@ -202,7 +213,6 @@ async function start() {
     socket.emit('hello', { message: 'Привет через WebSocket!' });
     socket.emit('onlineUsersUpdate', { count: getDisplayOnlineCount() });
     broadcastOnlineUsers();
-
     socket.on('disconnect', (reason) => {
       const connections = userConnections.get(userId);
       if (connections) {

@@ -26,9 +26,6 @@ const { execSync } = require('child_process');
 const corsMiddleware = require('./middleware/cors');
 const { logger } = require('./utils/logger');
 
-let lastConnectionErrorLog = 0;
-const CONNECTION_ERROR_LOG_INTERVAL_MS = 60000;
-
 // Импортируем настроенное подключение к базе данных
 const { sequelize, testConnection } = require('./config/database');
 
@@ -309,11 +306,7 @@ async function createApp() {
       ? 'Сервис временно недоступен. Попробуйте через несколько секунд.'
       : (err.message || 'Внутренняя ошибка сервера');
     if (isConnectionError) {
-      const now = Date.now();
-      if (now - lastConnectionErrorLog >= CONNECTION_ERROR_LOG_INTERVAL_MS) {
-        logger.warn('Ошибка соединения (не показываем клиенту):', err.code || err.message);
-        lastConnectionErrorLog = now;
-      }
+      logger.warn('Ошибка соединения (не показываем клиенту):', err.code || err.message);
     }
     res.status(status);
     if (req.path.startsWith('/api/')) {
