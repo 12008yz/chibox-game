@@ -1,5 +1,6 @@
 const db = require('../models');
 const redis = require('redis');
+const { getRedisClientOptions } = require('../config/redisClientOptions');
 const { updateUserBonuses } = require('../utils/userBonusCalculator');
 
 /**
@@ -23,9 +24,7 @@ const { updateUserBonuses } = require('../utils/userBonusCalculator');
 let redisClient = null;
 async function initRedis() {
   try {
-    redisClient = redis.createClient({
-      url: process.env.REDIS_URL || 'redis://127.0.0.1:6379'
-    });
+    redisClient = redis.createClient(getRedisClientOptions());
     await redisClient.connect();
     console.log('✅ Redis подключен');
   } catch (error) {
