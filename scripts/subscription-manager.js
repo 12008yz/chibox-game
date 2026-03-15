@@ -4,11 +4,11 @@
  * 🎯 УЛУЧШЕННЫЙ МЕНЕДЖЕР ПОДПИСОК CHIBOX
  *
  * Основные функции:
- * - Ежедневное уменьшение дней подписки
- * - Проверка целостности данных
- * - Уведомления пользователям
+ * - Проверка подписок по subscription_expiry_date (дата не сдвигается — подписка действует до этой даты включительно)
+ * - Синхронизация subscription_days_left с оставшимся временем до expiry
+ * - Уведомления: «через 3 дня», «завтра», «статус истек» — по фактической дате окончания
  * - Деактивация просроченных подписок
- * - Мониторинг и логирование
+ * - Проверка целостности данных и отчёты
  */
 
 const db = require('../models');
@@ -48,16 +48,17 @@ const logger = winston.createLogger({
 });
 
 /**
- * 📉 Основная функция уменьшения дней подписки
+ * 📉 Проверка подписок по дате окончания (subscription_expiry_date — единственный источник истины).
+ * Не сдвигаем дату: подписка действует до subscription_expiry_date включительно.
  */
 async function decreaseSubscriptionDays() {
   const startTime = Date.now();
-  logger.info('🔄 Запуск уменьшения дней подписки...');
+  logger.info('🔄 Запуск проверки подписок по дате окончания...');
 
   try {
     const now = new Date();
 
-    // Находим всех пользователей с активной подпиской
+    // Находим всех пользователей с активной подпиской (expiry в будущем или есть дни)
     const usersWithSubscription = await db.User.findAll({
       where: {
         [db.Sequelize.Op.or]: [
@@ -91,24 +92,23 @@ async function decreaseSubscriptionDays() {
       duration: 0
     };
 
+    const MS_PER_DAY = 86400000;
+
     for (const user of usersWithSubscription) {
       try {
         processedCount++;
 
-        // Получаем текущие дни подписки
-        let currentDaysLeft = user.subscription_days_left || 0;
+        const expiryDate = user.subscription_expiry_date ? new Date(user.subscription_expiry_date) : null;
 
-        // Уменьшаем на 1 день
-        const newDaysLeft = Math.max(0, currentDaysLeft - 1);
+        // Дней осталось по факту (от expiry), для отображения и предупреждений
+        const daysLeftFromExpiry = expiryDate && expiryDate > now
+          ? Math.ceil((expiryDate.getTime() - now.getTime()) / MS_PER_DAY)
+          : 0;
 
-        // Обновляем expiry_date (сдвигаем на 1 день назад)
-        let newExpiryDate = user.subscription_expiry_date;
-        if (newExpiryDate) {
-          newExpiryDate = new Date(newExpiryDate);
-          newExpiryDate.setDate(newExpiryDate.getDate() - 1);
-        }
+        // Обновляем subscription_days_left по реальной дате (для единообразия в UI)
+        const newDaysLeft = daysLeftFromExpiry;
 
-        // Отправляем предупреждения
+        // Предупреждения только по дате окончания (отправляем раз в день при проходе крона)
         if (newDaysLeft === 3) {
           await createNotification(
             user.id,
@@ -131,8 +131,8 @@ async function decreaseSubscriptionDays() {
           warningsSent++;
         }
 
-        // Если подписка истекла
-        if (newDaysLeft === 0) {
+        // Подписка истекла: now >= subscription_expiry_date (дату не сдвигаем)
+        if (!expiryDate || expiryDate <= now) {
           // Деактивируем подписку
           await user.update({
             subscription_tier: 0,
@@ -166,13 +166,12 @@ async function decreaseSubscriptionDays() {
           deactivatedCount++;
           logger.info(`Подписка деактивирована для пользователя ${user.id} (@${user.username})`);
         } else {
-          // Просто обновляем количество дней и expiry_date
+          // Подписка ещё активна: только синхронизируем subscription_days_left с датой
           await user.update({
-            subscription_days_left: newDaysLeft,
-            subscription_expiry_date: newExpiryDate
+            subscription_days_left: newDaysLeft
           });
 
-          logger.debug(`Пользователь ${user.id}: ${currentDaysLeft} -> ${newDaysLeft} дней (expiry: ${newExpiryDate ? newExpiryDate.toISOString() : 'null'})`);
+          logger.debug(`Пользователь ${user.id}: дней до окончания ${newDaysLeft} (expiry: ${expiryDate.toISOString()})`);
         }
 
       } catch (error) {
@@ -193,7 +192,7 @@ async function decreaseSubscriptionDays() {
     results.warnings = warningsSent;
     results.duration = duration;
 
-    logger.info('✅ Уменьшение дней подписки завершено:', {
+    logger.info('✅ Проверка подписок по дате окончания завершена:', {
       processed: processedCount,
       deactivated: deactivatedCount,
       warnings: warningsSent,
@@ -204,7 +203,7 @@ async function decreaseSubscriptionDays() {
     return results;
 
   } catch (error) {
-    logger.error('❌ Критическая ошибка в уменьшении дней подписки:', error);
+    logger.error('❌ Критическая ошибка при проверке подписок:', error);
     throw error;
   }
 }

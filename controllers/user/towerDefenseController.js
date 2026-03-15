@@ -155,7 +155,7 @@ const createGame = async (req, res) => {
 
   try {
     const userId = req.user.id;
-    const { inventoryItemId } = req.body; // ID предмета из инвентаря для ставки
+    const { inventoryItemId, totalWaves } = req.body; // totalWaves: для режима "один уровень" = 1 (по умолчанию 10)
 
     const user = await User.findByPk(userId, { transaction });
     if (!user) {
@@ -226,10 +226,11 @@ const createGame = async (req, res) => {
       logger.info(`[TOWER_DEFENSE] Пользователь ${user.username} поставил предмет ${betItem.name} (${betItem.price}) на кон`);
     }
 
-    // Создаем новую игру
+    // Создаем новую игру (total_waves: 1 = один уровень, 5 = Level 1 Unity, иначе 10)
+    const totalWavesNum = [1, 5, 10].includes(Number(totalWaves)) ? Number(totalWaves) : 10;
     const game = await TowerDefenseGame.create({
       user_id: userId,
-      total_waves: 10,
+      total_waves: totalWavesNum,
       waves_completed: 0,
       enemies_killed: 0,
       towers_built: 0,
