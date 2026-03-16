@@ -23,8 +23,10 @@ async function getSubscription(req, res) {
     const now = new Date();
     const expiry = user.subscription_expiry_date ? new Date(user.subscription_expiry_date) : null;
 
-    // Используем subscription_days_left из базы данных, но синхронизируем с expiry_date
-    let daysLeft = user.subscription_days_left || 0;
+    // Количество дней считаем всегда от точного времени истечения,
+    // чтобы не было задержки до следующего запуска cron-скрипта
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    let daysLeft = 0;
     let currentTier = user.subscription_tier || 0;
 
     // Если есть дни подписки, но нет тарифа, устанавливаем тариф по умолчанию
@@ -38,20 +40,31 @@ async function getSubscription(req, res) {
       daysLeft = 0;
 
       // Синхронизируем данные в БД если они рассинхронизированы
-      if (user.subscription_days_left > 0) {
+      if (user.subscription_days_left !== 0) {
         user.subscription_days_left = 0;
         await user.save();
         logger.info(`Synced expired subscription for user ${userId}: set days_left to 0`);
       }
-    } else if (expiry && daysLeft === 0) {
-      // Если expiry_date активна, но days_left = 0, пересчитываем
+    } else if (expiry && expiry > now) {
+      // Всегда пересчитываем дни до окончания «на лету»,
+      // чтобы отображение сразу уменьшалось, как только прошли сутки
       const msLeft = expiry.getTime() - now.getTime();
-      daysLeft = Math.max(0, Math.ceil(msLeft / (24 * 60 * 60 * 1000)));
+      daysLeft = Math.max(0, Math.ceil(msLeft / MS_PER_DAY));
 
-      // Обновляем в БД
-      user.subscription_days_left = daysLeft;
-      await user.save();
-      logger.info(`Synced subscription days for user ${userId}: recalculated to ${daysLeft} days`);
+      // Если в БД другое значение — синхронизируем
+      if (user.subscription_days_left !== daysLeft) {
+        user.subscription_days_left = daysLeft;
+        await user.save();
+        logger.info(`Synced subscription days for user ${userId}: recalculated to ${daysLeft} days`);
+      }
+    } else {
+      // Нет даты истечения — безопасности обнуляем
+      daysLeft = 0;
+      if (user.subscription_days_left !== 0) {
+        user.subscription_days_left = 0;
+        await user.save();
+        logger.info(`Cleared subscription days for user ${userId} because expiry date is missing`);
+      }
     }
 
     // Если нет активной подписки, возвращаем пустые данные
