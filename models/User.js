@@ -399,6 +399,11 @@ module.exports = (sequelize) => {
       defaultValue: 0,
       comment: "Максимальная серия дней подряд с открытием кейса"
     },
+    last_streak_activity_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      comment: "Последний календарный день, когда учтён визит для ежедневной серии"
+    },
     subscription_days_left: {
       type: DataTypes.INTEGER,
       defaultValue: 0,

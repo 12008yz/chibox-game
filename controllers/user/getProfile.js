@@ -2,6 +2,7 @@ const db = require('../../models');
 const { logger } = require('../../middleware/logger');
 const cache = require('../../middleware/cache');
 const { updateUserBonuses } = require('../../utils/userBonusCalculator');
+const { updateStreakByVisit } = require('../../services/streakService');
 
 async function getProfile(req, res) {
   // Защита от IDOR: только если указан конкретный ID в параметрах
@@ -40,7 +41,7 @@ async function getProfile(req, res) {
         'drop_rate_modifier', 'achievements_bonus_percentage', 'subscription_bonus_percentage', 'total_drop_bonus_percentage',
         'balance',
         'steam_id', 'steam_profile', 'steam_avatar_url', 'avatar_url', 'steam_profile_url', 'steam_trade_url', 'auth_provider',
-        'best_item_value', 'daily_streak', 'max_daily_streak'
+        'best_item_value', 'daily_streak', 'max_daily_streak', 'last_streak_activity_date'
       ],
       include: [
         {
@@ -69,6 +70,13 @@ async function getProfile(req, res) {
 
     if (!user) {
       return res.status(404).json({ message: 'Пользователь не найден' });
+    }
+
+    // Ежедневная серия: считаем по визитам на сайт (один раз в день при любом запросе профиля)
+    try {
+      await updateStreakByVisit(user);
+    } catch (streakErr) {
+      logger.error('Ошибка обновления daily_streak при запросе профиля:', streakErr);
     }
 
     // Проверяем и обновляем подписку при каждом запросе профиля
