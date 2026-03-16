@@ -141,13 +141,38 @@ async function applyPromo(req, res) {
         logger.info(`Баланс пользователя ${userId}: ${balanceBefore} -> ${balanceAfter} (промокод ${code}, +${value}%)`);
         break;
 
-      case 'subscription_extend':
-        user.subscription_days_left = (user.subscription_days_left || 0) + Math.floor(value);
-        if (user.subscription_tier === 0) {
+      case 'subscription_extend': {
+        const addedDays = Math.floor(value);
+        if (addedDays <= 0) {
+          await transaction.rollback();
+          return res.status(400).json({ success: false, message: 'Некорректное значение дней для продления подписки' });
+        }
+
+        // Если не было подписки — включаем минимальный/заданный тариф
+        if (!user.subscription_tier || user.subscription_tier === 0) {
           user.subscription_tier = promo.subscription_tier || 1;
         }
-        message = `Промокод применён! Подписка продлена на ${Math.floor(value)} дней`;
+
+        // Продлеваем по дате истечения, чтобы всё было консистентно
+        const nowForSub = new Date();
+        const MS_PER_DAY = 24 * 60 * 60 * 1000;
+        let baseExpiry = user.subscription_expiry_date ? new Date(user.subscription_expiry_date) : null;
+
+        if (!baseExpiry || baseExpiry <= nowForSub) {
+          // Подписка неактивна или нет даты — считаем от текущего момента
+          baseExpiry = new Date(nowForSub.getTime());
+        }
+
+        const newExpiry = new Date(baseExpiry.getTime() + addedDays * MS_PER_DAY);
+        const msLeft = newExpiry.getTime() - nowForSub.getTime();
+        const newDaysLeft = msLeft > 0 ? Math.ceil(msLeft / MS_PER_DAY) : 0;
+
+        user.subscription_expiry_date = newExpiry;
+        user.subscription_days_left = newDaysLeft;
+
+        message = `Промокод применён! Подписка продлена на ${addedDays} дней`;
         break;
+      }
 
       case 'case_bonus':
         // Добавляем бонусные кейсы - можно реализовать позже

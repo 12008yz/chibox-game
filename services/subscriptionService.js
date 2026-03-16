@@ -110,8 +110,9 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
     await updateSubscriptionBonus(userId, tierId);
 
     // Обновляем поле subscription_days_left
+    // Считаем дни так же, как в getSubscription/subscription-manager: от точного времени истечения
     const msLeft = user.subscription_expiry_date.getTime() - new Date().getTime();
-    user.subscription_days_left = msLeft > 0 ? Math.floor(msLeft / 86400000) : 0;
+    user.subscription_days_left = msLeft > 0 ? Math.ceil(msLeft / 86400000) : 0;
     await user.save();
 
     // Update achievement progress for subscription days

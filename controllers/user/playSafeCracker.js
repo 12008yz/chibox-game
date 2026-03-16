@@ -339,16 +339,32 @@ const playSafeCracker = async (req, res) => {
       });
 
     } else if (prize.type === 'subscription' && prize.value > 0) {
-      // Выигрыш подписки
+      // Выигрыш подписки: продлеваем по дате истечения, как в остальном коде
+      const addedDays = prize.value;
+      const nowForSub = new Date();
+      const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+      let baseExpiry = user.subscription_expiry_date ? new Date(user.subscription_expiry_date) : null;
+      if (!baseExpiry || baseExpiry <= nowForSub) {
+        baseExpiry = new Date(nowForSub.getTime());
+      }
+
+      const newExpiry = new Date(baseExpiry.getTime() + addedDays * MS_PER_DAY);
+      const msLeft = newExpiry.getTime() - nowForSub.getTime();
+      const newDaysLeft = msLeft > 0 ? Math.ceil(msLeft / MS_PER_DAY) : 0;
+
       const currentSubscriptionDays = user.subscription_days_left || 0;
-      const newSubscriptionDays = currentSubscriptionDays + prize.value;
 
-      logger.info(`Пользователь ${user.username} выиграл ${prize.value} дней подписки в SafeCracker (${matches} совпадения). Было: ${currentSubscriptionDays}, станет: ${newSubscriptionDays}`);
+      logger.info(
+        `Пользователь ${user.username} выиграл ${addedDays} дней подписки в SafeCracker (${matches} совпадения).` +
+        ` Было дней в БД: ${currentSubscriptionDays}, станет (по дате): ${newDaysLeft}, expiry: ${newExpiry.toISOString()}`
+      );
 
-      user.subscription_days_left = newSubscriptionDays;
+      user.subscription_expiry_date = newExpiry;
+      user.subscription_days_left = newDaysLeft;
       user.has_won_safecracker = true;
 
-      message = `🎉 Поздравляем! ${matches} совпадения! Вы выиграли ${prize.value} ${prize.value === 1 ? 'день' : 'дней'} подписки! Следующие попытки будут доступны в 16:00 МСК.`;
+      message = `🎉 Поздравляем! ${matches} совпадения! Вы выиграли ${addedDays} ${addedDays === 1 ? 'день' : 'дней'} подписки! Следующие попытки будут доступны в 16:00 МСК.`;
 
       // Создаем транзакцию
       await Transaction.create({
@@ -357,7 +373,7 @@ const playSafeCracker = async (req, res) => {
         amount: 0,
         balance_before: balanceBefore,
         balance_after: balanceAfter,
-        description: `Выигрыш в Safe Cracker: ${prize.value} ${prize.value === 1 ? 'день' : 'дней'} подписки`,
+        description: `Выигрыш в Safe Cracker: ${addedDays} ${addedDays === 1 ? 'день' : 'дней'} подписки`,
         status: 'completed'
       });
     } else {
