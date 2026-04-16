@@ -13,6 +13,10 @@ module.exports = {
         NODE_ENV: "production",
         PORT: 3000
       },
+      env_production: {
+        NODE_ENV: "production",
+        PORT: 3000
+      },
       env_development: {
         NODE_ENV: "development",
         PORT: 3000
@@ -33,6 +37,9 @@ module.exports = {
       watch: false,
       max_memory_restart: "512M",
       env: {
+        NODE_ENV: "production"
+      },
+      env_production: {
         NODE_ENV: "production"
       },
       env_development: {
@@ -56,6 +63,9 @@ module.exports = {
       env: {
         NODE_ENV: "production"
       },
+      env_production: {
+        NODE_ENV: "production"
+      },
       env_development: {
         NODE_ENV: "development"
       },
@@ -76,6 +86,9 @@ module.exports = {
       max_memory_restart: "1G", // Puppeteer может использовать много памяти
       restart_delay: 60000, // 1 мин задержка перед рестартом (защита от Steam AccountLoginDeniedThrottle)
       env: {
+        NODE_ENV: "production"
+      },
+      env_production: {
         NODE_ENV: "production"
       },
       env_development: {
