@@ -112,9 +112,16 @@ server {
         proxy_buffering off;
     }
 
-    location /images/ {
-        alias /var/www/chibox/backend/public/images/;
-        try_files $uri $uri/ =404;
+    # Картинки кейсов лежат на бэкенде; баннеры/лого/статики из public — во frontend dist (раньше весь /images/ шёл в backend и баннеров там могло не быть)
+    location ^~ /images/cases/ {
+        alias /var/www/chibox/backend/public/images/cases/;
+        expires 7d;
+        add_header Cache-Control "public";
+    }
+
+    location ^~ /images/ {
+        root /var/www/chibox/frontend/dist;
+        try_files $uri =404;
         expires 7d;
         add_header Cache-Control "public";
     }
@@ -241,9 +248,15 @@ server {
         proxy_buffering off;
     }
 
-    location /images/ {
-        alias /var/www/chibox/backend/public/images/;
-        try_files $uri $uri/ =404;
+    location ^~ /images/cases/ {
+        alias /var/www/chibox/backend/public/images/cases/;
+        expires 7d;
+        add_header Cache-Control "public";
+    }
+
+    location ^~ /images/ {
+        root /var/www/chibox/frontend/dist;
+        try_files $uri =404;
         expires 7d;
         add_header Cache-Control "public";
     }
