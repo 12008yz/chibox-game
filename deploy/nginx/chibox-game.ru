@@ -42,7 +42,11 @@ server {
     gzip_vary on;
     gzip_comp_level 5;
     gzip_min_length 256;
-    gzip_types text/plain text/css application/json application/javascript application/x-javascript text/javascript text/xml application/xml image/svg+xml font/woff2;
+    # Ответы от Node (/api/) по умолчанию не сжимались — нужен gzip_proxied (в http {} у Ubuntu он часто закомментирован)
+    gzip_proxied any;
+    # Рядом с .js/.css лежат .gz от vite-plugin-compression — отдаём готовый файл (быстрее и стабильнее для Lighthouse)
+    gzip_static on;
+    gzip_types text/plain text/css text/javascript application/javascript application/x-javascript application/json text/xml application/xml application/xml+rss image/svg+xml font/woff2;
 
     # Кэш на диске для статики (много мелких чтений из dist)
     open_file_cache max=10000 inactive=30s;
@@ -63,6 +67,18 @@ server {
     location = /index.html {
         root /var/www/chibox/frontend/dist;
         add_header Cache-Control "no-cache, must-revalidate";
+    }
+
+    location = /robots.txt {
+        root /var/www/chibox/frontend/dist;
+        default_type text/plain;
+        access_log off;
+    }
+
+    location = /sitemap.xml {
+        root /var/www/chibox/frontend/dist;
+        default_type application/xml;
+        access_log off;
     }
 
     location /api/ {
@@ -99,16 +115,22 @@ server {
     location /images/ {
         alias /var/www/chibox/backend/public/images/;
         try_files $uri $uri/ =404;
+        expires 7d;
+        add_header Cache-Control "public";
     }
 
     location /public/ {
         alias /var/www/chibox/backend/public/;
         try_files $uri $uri/ =404;
+        expires 7d;
+        add_header Cache-Control "public";
     }
 
     location /Achievements/ {
         alias /var/www/chibox/backend/public/Achievements/;
         try_files $uri $uri/ =404;
+        expires 7d;
+        add_header Cache-Control "public";
     }
 
     location / {
@@ -145,7 +167,9 @@ server {
     gzip_vary on;
     gzip_comp_level 5;
     gzip_min_length 256;
-    gzip_types text/plain text/css application/json application/javascript application/x-javascript text/javascript text/xml application/xml image/svg+xml font/woff2;
+    gzip_proxied any;
+    gzip_static on;
+    gzip_types text/plain text/css text/javascript application/javascript application/x-javascript application/json text/xml application/xml application/xml+rss image/svg+xml font/woff2;
 
     open_file_cache max=10000 inactive=30s;
     open_file_cache_valid 45s;
@@ -220,16 +244,22 @@ server {
     location /images/ {
         alias /var/www/chibox/backend/public/images/;
         try_files $uri $uri/ =404;
+        expires 7d;
+        add_header Cache-Control "public";
     }
 
     location /public/ {
         alias /var/www/chibox/backend/public/;
         try_files $uri $uri/ =404;
+        expires 7d;
+        add_header Cache-Control "public";
     }
 
     location /Achievements/ {
         alias /var/www/chibox/backend/public/Achievements/;
         try_files $uri $uri/ =404;
+        expires 7d;
+        add_header Cache-Control "public";
     }
 
     location / {
