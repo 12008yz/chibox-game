@@ -20,12 +20,21 @@ async function buyCase(req, res) {
   try {
     const userId = req.user.id;
     const { method, quantity = 1, caseTemplateId } = req.body;
+    const parsedQuantity = parseInt(quantity, 10);
+    const MAX_CASES_PER_REQUEST = 20;
 
     // Валидация количества
-    if (!quantity || quantity < 1) {
+    if (!Number.isFinite(parsedQuantity) || parsedQuantity < 1) {
       return res.status(400).json({
         success: false,
         message: 'Количество кейсов должно быть больше 0'
+      });
+    }
+
+    if (parsedQuantity > MAX_CASES_PER_REQUEST) {
+      return res.status(400).json({
+        success: false,
+        message: `Максимум ${MAX_CASES_PER_REQUEST} кейсов за один запрос`
       });
     }
 
@@ -54,7 +63,7 @@ async function buyCase(req, res) {
 
     const CASE_PRICE = parseFloat(caseTemplate.price);
 
-    const allowedQuantity = quantity;
+    const allowedQuantity = parsedQuantity;
     const totalPrice = CASE_PRICE * allowedQuantity;
 
     if (method === 'balance') {
@@ -79,20 +88,22 @@ async function buyCase(req, res) {
         await user.save({ transaction });
 
         // Создаем кейсы в инвентаре
-        const inventoryCases = [];
-        for (let i = 0; i < allowedQuantity; i++) {
-          const inventoryCase = await db.UserInventory.create({
-            user_id: userId,
-            item_id: null, // Для кейсов item_id не используется
-            item_type: 'case',
-            case_template_id: caseTemplate.id,
-            source: 'purchase',
-            status: 'inventory',
-            acquisition_date: new Date(),
-            expires_at: caseTemplate.availability_end || null // Устанавливаем срок действия если есть
-          }, { transaction });
-          inventoryCases.push(inventoryCase);
-        }
+        const now = new Date();
+        const inventoryRows = Array.from({ length: allowedQuantity }, () => ({
+          user_id: userId,
+          item_id: null, // Для кейсов item_id не используется
+          item_type: 'case',
+          case_template_id: caseTemplate.id,
+          source: 'purchase',
+          status: 'inventory',
+          acquisition_date: now,
+          expires_at: caseTemplate.availability_end || null // Устанавливаем срок действия если есть
+        }));
+
+        const inventoryCases = await db.UserInventory.bulkCreate(inventoryRows, {
+          transaction,
+          returning: true
+        });
 
         // Уведомление о покупке кейсов убрано - настройки пользователя
 
@@ -134,7 +145,7 @@ async function buyCase(req, res) {
     } else if (method === 'bank_card') {
       // Покупка через банковскую карту
       try {
-        const allowedQuantity = quantity;
+        const allowedQuantity = parsedQuantity;
         const totalPrice = CASE_PRICE * allowedQuantity;
 
         // Добавляем платеж в очередь для обработки

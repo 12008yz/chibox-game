@@ -8,11 +8,50 @@ const ALFABANK_CALLBACK_TOKEN = process.env.ALFABANK_CALLBACK_TOKEN || '';
 const ALFABANK_PAYMENT_GATEWAY_URL = process.env.ALFABANK_PAYMENT_GATEWAY_URL || 'https://pay.alfabank.ru/payment/rest';
 const ALFABANK_PAYMENT_URL = process.env.ALFABANK_PAYMENT_URL || 'https://payment.alfabank.ru/sc/elXPIILQUzyrbACo';
 const ALFABANK_QR_URL = process.env.ALFABANK_QR_URL || 'https://qr.nspk.ru/AS1A002KJ7AK2VO08LLQM41F8RMBN8GO?type=01&bank=100000000008&crc=5CBB';
+const ALFABANK_TIMEOUT_MS = parseInt(process.env.ALFABANK_TIMEOUT_MS || '10000', 10);
+const ALFABANK_RETRY_ATTEMPTS = parseInt(process.env.ALFABANK_RETRY_ATTEMPTS || '2', 10);
+const ALFABANK_RETRY_DELAY_MS = parseInt(process.env.ALFABANK_RETRY_DELAY_MS || '400', 10);
 
 // QR-ссылки для подписок (статусов)
 const ALFABANK_QR_SUBSCRIPTION_TIER_1 = process.env.ALFABANK_QR_SUBSCRIPTION_TIER_1 || 'https://qr.nspk.ru/AS100057H2F36NIN98OADPLLAVG6KA49?type=01&bank=100000000008&sum=181100&cur=RUB&crc=76E3';
 const ALFABANK_QR_SUBSCRIPTION_TIER_2 = process.env.ALFABANK_QR_SUBSCRIPTION_TIER_2 || 'https://qr.nspk.ru/AS10000I0JU5AK9P9PV8JJ2J90RKS826?type=01&bank=100000000008&sum=366600&cur=RUB&crc=882A';
 const ALFABANK_QR_SUBSCRIPTION_TIER_3 = process.env.ALFABANK_QR_SUBSCRIPTION_TIER_3 || 'https://qr.nspk.ru/BS10005L54OUO3E78589IIN3SK1N5OPG?type=01&bank=100000000008&sum=758000&cur=RUB&crc=F049';
+
+const alfabankClient = axios.create({
+  timeout: ALFABANK_TIMEOUT_MS,
+  headers: {
+    'Content-Type': 'application/x-www-form-urlencoded'
+  }
+});
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRetriableAlfabankError(error) {
+  if (!error) return false;
+  if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT' || error.code === 'ECONNRESET') return true;
+  const status = error.response?.status;
+  return status === 429 || status >= 500;
+}
+
+async function postToAlfabank(path, formData, attempts = ALFABANK_RETRY_ATTEMPTS + 1) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await alfabankClient.post(`${ALFABANK_PAYMENT_GATEWAY_URL}${path}`, formData.toString());
+    } catch (error) {
+      lastError = error;
+      if (!isRetriableAlfabankError(error) || attempt === attempts) {
+        throw error;
+      }
+      const backoffMs = ALFABANK_RETRY_DELAY_MS * attempt;
+      console.warn(`Alfabank request retry ${attempt}/${attempts - 1} in ${backoffMs}ms:`, error.message);
+      await sleep(backoffMs);
+    }
+  }
+  throw lastError;
+}
 
 /**
  * Генерация подписи для проверки callback от Альфа-Банка
@@ -210,11 +249,7 @@ async function createPayment({ amount, description, userId, purpose = 'deposit',
         // По документации Альфа-Банка параметр callbackUrl должен быть указан отдельно
         formData.append('callbackUrl', callbackUrl);
 
-        const response = await axios.post(`${ALFABANK_PAYMENT_GATEWAY_URL}/register.do`, formData.toString(), {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          }
-        });
+        const response = await postToAlfabank('/register.do', formData);
 
         console.log('Alfabank API register.do response:', response.data);
 
@@ -396,11 +431,7 @@ async function getOrderStatus(orderNumber) {
       formData.append('password', ALFABANK_API_PASSWORD);
       formData.append('orderId', orderNumber);
       
-      response = await axios.post(`${ALFABANK_PAYMENT_GATEWAY_URL}/getOrderStatusExtended.do`, formData.toString(), {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
-      });
+      response = await postToAlfabank('/getOrderStatusExtended.do', formData);
     } catch (firstError) {
       // Если не сработало с orderId, пробуем с orderNumber
       if (firstError.response && firstError.response.data && firstError.response.data.errorCode) {
@@ -410,11 +441,7 @@ async function getOrderStatus(orderNumber) {
         formData.append('password', ALFABANK_API_PASSWORD);
         formData.append('orderNumber', orderNumber);
         
-        response = await axios.post(`${ALFABANK_PAYMENT_GATEWAY_URL}/getOrderStatusExtended.do`, formData.toString(), {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          }
-        });
+        response = await postToAlfabank('/getOrderStatusExtended.do', formData);
       } else {
         throw firstError;
       }

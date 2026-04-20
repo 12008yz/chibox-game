@@ -7,14 +7,21 @@ const { broadcastDrop } = require('../../services/liveDropService');
 const { FREE_CASE_TEMPLATE_ID, checkFreeCaseAvailability, updateFreeCaseCounters } = require('../../utils/freeCaseHelper');
 const { updateUserBonuses } = require('../../utils/userBonusCalculator');
 const shouldRunInlineCasePostProcessing = process.env.CASE_OPEN_INLINE_POST_PROCESSING === 'true';
+const isCaseDebugEnabled = process.env.DEBUG_CASE_OPEN === 'true';
+
+function debugLog(...args) {
+  if (isCaseDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function openCase(req, res) {
   try {
-    console.log('req.body:', req.body);
-    console.log('req.params:', req.params);
-    console.log('req.query:', req.query);
+    debugLog('req.body:', req.body);
+    debugLog('req.params:', req.params);
+    debugLog('req.query:', req.query);
     let caseId = req.body.caseId || req.body.case_id || req.params.caseId || req.query.caseId;
-    console.log(`DEBUG: Определен caseId=${caseId}`);
+    debugLog(`DEBUG: Определен caseId=${caseId}`);
     const inventoryItemId = req.body.inventoryItemId;
     const templateId = req.body.template_id;
     const userId = req.user.id;
@@ -26,7 +33,7 @@ async function openCase(req, res) {
 
     // Если указан template_id, ищем неоткрытый кейс пользователя с данным шаблоном
     if (templateId) {
-      console.log('Ищем кейс по template_id:', templateId);
+      debugLog('Ищем кейс по template_id:', templateId);
 
       // Сначала ищем в таблице Cases
       let templateCase = await db.Case.findOne({
@@ -39,10 +46,10 @@ async function openCase(req, res) {
       });
 
       if (templateCase) {
-        console.log('Найден кейс в таблице Cases по template_id:', templateCase.id);
+        debugLog('Найден кейс в таблице Cases по template_id:', templateCase.id);
         caseId = templateCase.id;
       } else {
-        console.log('Кейс не найден в таблице Cases, ищем в UserInventory...');
+        debugLog('Кейс не найден в таблице Cases, ищем в UserInventory...');
 
         // Если не найден в Cases, ищем в UserInventory (для ежедневных кейсов)
         const now = new Date();
@@ -65,15 +72,15 @@ async function openCase(req, res) {
         });
 
         if (inventoryCase) {
-          console.log('Найден кейс в UserInventory по template_id:', inventoryCase.id);
+          debugLog('Найден кейс в UserInventory по template_id:', inventoryCase.id);
           // Открываем кейс из инвентаря
           return await openCaseFromInventory(req, res, inventoryCase.id);
         } else {
-          console.log('Кейс с template_id не найден ни в Cases, ни в UserInventory. Проверяем возможность автовыдачи:', templateId);
+          debugLog('Кейс с template_id не найден ни в Cases, ни в UserInventory. Проверяем возможность автовыдачи:', templateId);
 
           // Проверяем, является ли это ежедневным кейсом и может ли пользователь его получить
           const caseTemplate = await db.CaseTemplate.findByPk(templateId);
-          console.log('Найден шаблон кейса:', caseTemplate ? {
+          debugLog('Найден шаблон кейса:', caseTemplate ? {
             id: caseTemplate.id,
             name: caseTemplate.name,
             type: caseTemplate.type,

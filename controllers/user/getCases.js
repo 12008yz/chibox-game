@@ -15,6 +15,10 @@ const logger = winston.createLogger({
 async function getCases(req, res) {
   try {
     const userId = req.user?.id;
+    const requestedLimit = parseInt(req.query.limit, 10);
+    const requestedOffset = parseInt(req.query.offset, 10);
+    const inventoryLimit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 100) : 50;
+    const inventoryOffset = Number.isFinite(requestedOffset) ? Math.max(requestedOffset, 0) : 0;
 
     // Получаем все активные шаблоны кейсов
     const caseTemplates = await db.CaseTemplate.findAll({
@@ -51,7 +55,9 @@ async function getCases(req, res) {
           as: 'case_template',
           attributes: ['id', 'name', 'type', 'color_scheme', 'image_url', 'description', 'price']
         }],
-        order: [['acquisition_date', 'DESC']]
+        order: [['acquisition_date', 'DESC']],
+        limit: inventoryLimit,
+        offset: inventoryOffset
       });
     }
 
@@ -82,7 +88,11 @@ async function getCases(req, res) {
         is_paid: c.source === 'purchase'
       })),
       user_subscription_tier: user?.subscription_tier || 0,
-      next_case_available_time: user?.next_case_available_time || null
+      next_case_available_time: user?.next_case_available_time || null,
+      pagination: userId ? {
+        limit: inventoryLimit,
+        offset: inventoryOffset
+      } : null
     });
   } catch (error) {
     logger.error('Ошибка получения кейсов:', error);
