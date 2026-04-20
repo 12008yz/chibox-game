@@ -5,6 +5,8 @@ module.exports = {
     {
       name: "chibox-main",
       script: "bin/www",
+      // Один процесс с Socket.IO; cluster mode в PM2 даёт воркерам конфликт bind на PORT → EADDRINUSE и лавину рестартов
+      exec_mode: "fork",
       instances: 1,
       autorestart: true,
       watch: false,
@@ -32,6 +34,7 @@ module.exports = {
     {
       name: "chibox-workers",
       script: "./scripts/start-workers.js",
+      exec_mode: "fork",
       instances: 1,
       autorestart: true,
       watch: false,
@@ -56,6 +59,7 @@ module.exports = {
     {
       name: "chibox-cron",
       script: "./scripts/setup-cron-improved.js",
+      exec_mode: "fork",
       instances: 1,
       autorestart: true,
       watch: false,
@@ -80,6 +84,7 @@ module.exports = {
     {
       name: "chibox-withdrawal-processor",
       script: "./scripts/withdrawal-processor.js",
+      exec_mode: "fork",
       instances: 1,
       autorestart: true,
       watch: false,
