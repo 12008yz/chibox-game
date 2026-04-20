@@ -106,7 +106,11 @@ async function generateSummary() {
       const name = result.name.substring(0, 48).padEnd(50);
       const price = result.price > 0 ? `${result.price}₽`.padStart(10) : 'Беспл.'.padStart(10);
       const itemsCount = result.itemsCount.toString().padStart(12);
-      const rtp = result.rtp !== null ? `${result.rtp.toFixed(2)}%`.padStart(10) : 'N/A'.padStart(10);
+      // rtp может быть не задан (undefined), если кейс не найден или 0 предметов — только null явно не проверять
+      const rtp =
+        typeof result.rtp === 'number' && !Number.isNaN(result.rtp)
+          ? `${result.rtp.toFixed(2)}%`.padStart(10)
+          : 'N/A'.padStart(10);
       const caseType = (result.caseType || 'N/A').padStart(20);
       const status = result.found 
         ? (result.active ? '✅ Активен' : '⚠️  Неактивен')
@@ -124,12 +128,14 @@ async function generateSummary() {
     for (const result of results.filter(r => r.found && r.itemsCount > 0)) {
       console.log(`\n🎁 ${result.name}`);
       console.log(`   Предметов: ${result.itemsCount}`);
-      if (result.price > 0) {
+      if (result.price > 0 && typeof result.rtp === 'number') {
         console.log(`   RTP: ${result.rtp.toFixed(2)}%`);
       }
       console.log(`   Тип расчета весов: ${result.caseType}`);
-      console.log(`   Самый редкий предмет: ${result.rarestChance.toFixed(4)}%`);
-      console.log(`   Самый частый предмет: ${result.mostCommonChance.toFixed(4)}%`);
+      const rc = typeof result.rarestChance === 'number' ? result.rarestChance : 0;
+      const mc = typeof result.mostCommonChance === 'number' ? result.mostCommonChance : 0;
+      console.log(`   Самый редкий предмет: ${rc.toFixed(4)}%`);
+      console.log(`   Самый частый предмет: ${mc.toFixed(4)}%`);
     }
 
     console.log('\n');
