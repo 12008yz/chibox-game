@@ -6,6 +6,7 @@ const { calculateModifiedDropWeights, selectItemWithModifiedWeights, selectItemW
 const { broadcastDrop } = require('../../services/liveDropService');
 const { FREE_CASE_TEMPLATE_ID, checkFreeCaseAvailability, updateFreeCaseCounters } = require('../../utils/freeCaseHelper');
 const { updateUserBonuses } = require('../../utils/userBonusCalculator');
+const shouldRunInlineCasePostProcessing = process.env.CASE_OPEN_INLINE_POST_PROCESSING === 'true';
 
 async function openCase(req, res) {
   try {
@@ -692,10 +693,12 @@ async function openCase(req, res) {
 
       await t.commit();
 
-    // Обновляем достижения НАПРЯМУЮ (не через очереди)
-    try {
-      const { updateUserAchievementProgress, updateInventoryRelatedAchievements } = require('../../services/achievementService');
-      const { addExperience } = require('../../services/xpService');
+    // Тяжелая пост-обработка достижений/XP может заметно замедлять hot-path открытия кейса.
+    // По умолчанию в проде не блокируем ответ, оставляем обработку очередями ниже.
+    if (shouldRunInlineCasePostProcessing) {
+      try {
+        const { updateUserAchievementProgress, updateInventoryRelatedAchievements } = require('../../services/achievementService');
+        const { addExperience } = require('../../services/xpService');
 
       // 1. Обновляем достижение "cases_opened"
       await updateUserAchievementProgress(userId, 'cases_opened', 1);
@@ -781,8 +784,11 @@ async function openCase(req, res) {
         }
       }
 
-    } catch (achievementError) {
-      logger.error('Ошибка обновления достижений:', achievementError);
+      } catch (achievementError) {
+        logger.error('Ошибка обновления достижений:', achievementError);
+      }
+    } else {
+      logger.info(`Inline post-processing отключен для openCase (userId=${userId})`);
     }
 
     // Дублируем в очереди как резервный механизм
@@ -1154,10 +1160,10 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
 
       await t.commit();
 
-      // Обновляем достижения НАПРЯМУЮ (не через очереди)
-      try {
-        const { updateUserAchievementProgress, updateInventoryRelatedAchievements } = require('../../services/achievementService');
-        const { addExperience } = require('../../services/xpService');
+      if (shouldRunInlineCasePostProcessing) {
+        try {
+          const { updateUserAchievementProgress, updateInventoryRelatedAchievements } = require('../../services/achievementService');
+          const { addExperience } = require('../../services/xpService');
 
         // 1. Обновляем достижение "cases_opened"
         await updateUserAchievementProgress(userId, 'cases_opened', 1);
@@ -1194,8 +1200,11 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
         await updateInventoryRelatedAchievements(userId);
         logger.info(`Обновлены достижения инвентаря для пользователя ${userId} (из инвентаря)`);
 
-      } catch (achievementError) {
-        logger.error('Ошибка обновления достижений:', achievementError);
+        } catch (achievementError) {
+          logger.error('Ошибка обновления достижений:', achievementError);
+        }
+      } else {
+        logger.info(`Inline post-processing отключен для openCaseFromInventory (userId=${userId})`);
       }
 
       // Дублируем в очереди как резервный механизм
