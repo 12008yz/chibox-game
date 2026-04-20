@@ -41,7 +41,6 @@ const {
   PromoCodeUsage,
   SubscriptionHistory,
   BonusMiniGameHistory,
-  TowerDefenseGame,
   TicTacToeGame,
   Streamer
 } = db;
@@ -110,9 +109,6 @@ async function deleteOneUser(userId) {
     if (BonusMiniGameHistory) {
       await step('BonusMiniGameHistory', () =>
         BonusMiniGameHistory.destroy({ where: { user_id: userId }, transaction: t }));
-    }
-    if (TowerDefenseGame) {
-      await step('TowerDefenseGame', () => TowerDefenseGame.destroy({ where: { user_id: userId }, transaction: t }));
     }
     if (TicTacToeGame) {
       await step('TicTacToeGame', () => TicTacToeGame.destroy({ where: { user_id: userId }, transaction: t }));

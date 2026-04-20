@@ -8,7 +8,7 @@
  * - Удаляет весь инвентарь пользователя
  * - Отменяет активные выводы (предметы возвращаются в инвентарь, затем инвентарь очищается)
  * - Удаляет прогресс достижений, миссий, открытые кейсы, записи лидерборда, уведомления
- * - Удаляет записи мини-игр (Tower Defense, TicTacToe, BonusMiniGame, LiveDrop и т.д.)
+ * - Удаляет записи мини-игр (TicTacToe, BonusMiniGame, LiveDrop и т.д.)
  *
  * НЕ трогает: логин/пароль, email, Steam, роль, бан, дату регистрации, транзакции, платежи, историю подписок.
  *
@@ -36,7 +36,6 @@ const {
   LeaderboardEntry,
   Notification,
   LiveDrop,
-  TowerDefenseGame,
   TicTacToeGame,
   BonusMiniGameHistory
 } = db;
@@ -188,10 +187,6 @@ async function resetOneUser(userId) {
       LeaderboardEntry.destroy({ where: { user_id: userId }, transaction: t }));
     await step('Notification', () =>
       Notification.destroy({ where: { user_id: userId }, transaction: t }));
-    if (TowerDefenseGame) {
-      await step('TowerDefenseGame', () =>
-        TowerDefenseGame.destroy({ where: { user_id: userId }, transaction: t }));
-    }
     if (TicTacToeGame) {
       await step('TicTacToeGame', () =>
         TicTacToeGame.destroy({ where: { user_id: userId }, transaction: t }));
