@@ -40,6 +40,11 @@ async function createApp() {
 
   // Проверка Host: с мобильного интернета прокси/оператор может подставлять другой Host (например IP).
   // Учитываем X-Forwarded-Host (если запрос через nginx) и разрешаем любой поддомен chibox-game.ru.
+  // Заход по публичному IP (тесты, health-check, редкие клиенты) — через ALLOWED_EXTRA_HOSTS=185.x.x.x
+  const extraHosts = (process.env.ALLOWED_EXTRA_HOSTS || '')
+    .split(',')
+    .map((h) => h.trim())
+    .filter(Boolean);
   app.use((req, res, next) => {
     const allowedHosts = [
       'api.chibox-game.ru',
@@ -47,7 +52,8 @@ async function createApp() {
       'www.chibox-game.ru',
       'streamer.chibox-game.ru',
       'localhost',
-      '127.0.0.1'
+      '127.0.0.1',
+      ...extraHosts
     ];
     const forwardedHost = req.get('x-forwarded-host');
     const host = (forwardedHost ? forwardedHost.split(',')[0].trim() : null) ||

@@ -91,10 +91,11 @@ router.get('/steam/return',
       logger.info(`Steam авторизация успешна для пользователя ${req.user.username}`);
 
       // БЕЗОПАСНОСТЬ: Устанавливаем токены в httpOnly cookies вместо URL
+      // sameSite=lax: после редиректа со Steam (внешний сайт) strict часто блокирует приём кук в браузере
       res.cookie('accessToken', accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: 'lax',
         maxAge: 15 * 60 * 1000, // 15 минут
         path: '/'
       });
@@ -102,7 +103,7 @@ router.get('/steam/return',
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 дней
         path: '/'
       });
@@ -139,14 +140,14 @@ router.post('/logout', (req, res) => {
   res.clearCookie('accessToken', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: 'lax',
     path: '/'
   });
 
   res.clearCookie('refreshToken', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: 'lax',
     path: '/'
   });
 
@@ -350,14 +351,14 @@ router.get('/link-steam/return',
       res.cookie('accessToken', accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: 'lax',
         maxAge: 15 * 60 * 1000,
         path: '/'
       });
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000,
         path: '/'
       });
