@@ -3,16 +3,8 @@ const { logger } = require('../../utils/logger');
 
 async function getCaseStatus(req, res) {
   try {
-    const userId = req.user.id;
     const { caseTemplateId } = req.params;
 
-    // Получаем пользователя
-    const user = await db.User.findByPk(userId);
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'Пользователь не найден' });
-    }
-
-    // Получаем шаблон кейса
     const caseTemplate = await db.CaseTemplate.findByPk(caseTemplateId);
     if (!caseTemplate) {
       return res.status(404).json({ success: false, message: 'Кейс не найден' });
@@ -22,11 +14,39 @@ async function getCaseStatus(req, res) {
       return res.status(400).json({ success: false, message: 'Кейс недоступен' });
     }
 
+    const casePrice = parseFloat(caseTemplate.price) || 0;
+    const minSubscriptionTier = caseTemplate.min_subscription_tier || 0;
+
+    // Гость (демо-каталог с прода, превью без cookies): только цена и тип кейса
+    if (!req.user || !req.user.id) {
+      return res.json({
+        success: true,
+        data: {
+          canOpen: false,
+          canBuy: casePrice > 0,
+          reason: casePrice > 0 ? '' : 'Войдите, чтобы открыть кейс',
+          nextAvailableTime: null,
+          caseType: caseTemplate.type,
+          price: casePrice,
+          subscriptionRequired: minSubscriptionTier > 0,
+          userSubscriptionTier: 0,
+          subscriptionDaysLeft: 0,
+          minSubscriptionTier,
+        },
+      });
+    }
+
+    const userId = req.user.id;
+    const user = await db.User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Пользователь не найден' });
+    }
+
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     // Сбрасываем дневные счетчики если новый день
-    if (!user.last_reset_date || new Date(user.last_reset_date).setHours(0,0,0,0) < today.getTime()) {
+    if (!user.last_reset_date || new Date(user.last_reset_date).setHours(0, 0, 0, 0) < today.getTime()) {
       user.cases_opened_today = 0;
       user.last_reset_date = today;
       await user.save();
@@ -34,8 +54,6 @@ async function getCaseStatus(req, res) {
 
     const userSubscriptionTier = user.subscription_tier || 0;
     const subscriptionDaysLeft = user.subscription_days_left || 0;
-    const casePrice = parseFloat(caseTemplate.price) || 0;
-    const minSubscriptionTier = caseTemplate.min_subscription_tier || 0;
 
     let status = {
       canOpen: false,

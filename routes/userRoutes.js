@@ -188,7 +188,7 @@ router.get('/bonus/status', authMiddleware, getBonusStatus); //+
 router.post('/bonus/reset-cooldown', authMiddleware, resetBonusCooldown); //+ Сброс кулдауна бонуса
 router.get('/cases/available', getCasesAvailable); // Доступно всем для просмотра доступных кейсов
 router.get('/case-templates/:caseTemplateId/items', optionalAuthMiddleware, getCaseTemplateItems); // Получение предметов кейс-темплейта с опциональной аутентификацией
-router.get('/case-templates/:caseTemplateId/status', authMiddleware, getCaseStatus); // Получение статуса кейса
+router.get('/case-templates/:caseTemplateId/status', optionalAuthMiddleware, getCaseStatus); // Просмотр без логина (демо/каталог) + полный статус для авторизованных
 router.get('/free-case/status', authMiddleware, getFreeCaseStatus); // Получение статуса бесплатного кейса для новых пользователей
 router.get('/achievements/progress', authMiddleware, getAchievementsProgress); //+
 
