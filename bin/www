@@ -237,11 +237,17 @@ async function start() {
     const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
     let cleanedUsers = 0;
     for (const [userId, userData] of userSessions.entries()) {
-      if (userData.lastActivity < fiveMinutesAgo) {
-        userSessions.delete(userId);
-        userConnections.delete(userId);
-        cleanedUsers++;
+      if (userData.lastActivity >= fiveMinutesAgo) continue;
+      // Не снимать с учёта, пока есть живые сокеты: lastActivity обновляется только на
+      // connection, а при долгом WebSocket без реконнекта иначе «выпадаем» из онлайна.
+      const conns = userConnections.get(userId);
+      if (conns && conns.size > 0) {
+        userData.lastActivity = now;
+        continue;
       }
+      userSessions.delete(userId);
+      userConnections.delete(userId);
+      cleanedUsers++;
     }
     if (cleanedUsers > 0) {
       console.log(`Очищено неактивных пользователей: ${cleanedUsers}. Онлайн: ${userSessions.size}`);
