@@ -2,7 +2,7 @@ const db = require('../../models');
 const winston = require('winston');
 
 const logger = winston.createLogger({
-  level: 'info',
+  level: process.env.PUBLIC_PROFILE_LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'warn' : 'info'),
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.json()
@@ -11,6 +11,8 @@ const logger = winston.createLogger({
     new winston.transports.Console(),
   ],
 });
+
+const verboseProfileLogs = process.env.DEBUG_PUBLIC_PROFILE === 'true';
 
 async function getPublicProfile(req, res) {
   try {
@@ -39,7 +41,9 @@ async function getPublicProfile(req, res) {
 
     if (tab === 'active') {
       // Получаем активные предметы с пагинацией
-      logger.info(`🔍 [PUBLIC PROFILE] Запрос инвентаря для user_id: ${id}, status: 'inventory'`);
+      if (verboseProfileLogs) {
+        logger.info(`🔍 [PUBLIC PROFILE] Запрос инвентаря для user_id: ${id}, status: 'inventory'`);
+      }
 
       const result = await db.UserInventory.findAll({
         where: {
@@ -75,18 +79,9 @@ async function getPublicProfile(req, res) {
       });
       inventory = result;
 
-      logger.info(`🎒 [PUBLIC PROFILE] Найдено предметов: ${result.length}`);
-      result.forEach((item, index) => {
-        logger.info(`  Предмет ${index + 1}:`, {
-          id: item.id,
-          item_type: item.item_type,
-          status: item.status,
-          source: item.source,
-          has_item: !!item.item,
-          has_case_template: !!item.case_template,
-          case_template_id: item.case_template_id
-        });
-      });
+      if (verboseProfileLogs) {
+        logger.info(`🎒 [PUBLIC PROFILE] Найдено предметов: ${result.length}`);
+      }
 
       // Используем простой count для согласованности
       inventoryCount = await db.UserInventory.count({
@@ -346,15 +341,9 @@ async function getPublicProfile(req, res) {
     };
 
     // Логируем для отладки
-    logger.info(`Public profile request - User: ${id}, Tab: ${tab}, Page: ${page}, Limit: ${limit}`);
-    logger.info(`Returning - Inventory: ${filteredInventory.length}, CaseItems: ${filteredCaseItems.length}`);
-
-    // Детальное логирование для отладки
-    if (filteredCaseItems.length > 0) {
-      logger.info('Sample caseItem structure:', JSON.stringify(filteredCaseItems[0], null, 2));
-    }
-    if (filteredInventory.length > 0) {
-      logger.info('Sample inventory item structure:', JSON.stringify(filteredInventory[0], null, 2));
+    if (verboseProfileLogs) {
+      logger.info(`Public profile request - User: ${id}, Tab: ${tab}, Page: ${page}, Limit: ${limit}`);
+      logger.info(`Returning - Inventory: ${filteredInventory.length}, CaseItems: ${filteredCaseItems.length}`);
     }
 
     const baseUrl = process.env.BASE_URL || 'https://chibox-game.ru';

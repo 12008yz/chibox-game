@@ -80,7 +80,13 @@ async function createApp() {
       },
     },
   }));
-  app.use(compression());
+  const shouldUseAppCompression =
+    process.env.NODE_ENV !== 'production' || process.env.ENABLE_APP_COMPRESSION === 'true';
+  if (shouldUseAppCompression) {
+    app.use(compression());
+  } else {
+    logger.info('HTTP compression в Express отключен (используется nginx gzip/brotli).');
+  }
   app.use(corsMiddleware);
 
   const createRateLimit = (windowMs, max, message, useUserId = false, store = null) => rateLimit({
@@ -145,7 +151,7 @@ async function createApp() {
         res.header('Access-Control-Allow-Headers', 'Content-Type');
         res.header('Cross-Origin-Resource-Policy', 'cross-origin');
         
-        if (req.path.match(/\.(png|jpg|jpeg)$/i)) {
+        if (process.env.NODE_ENV !== 'production' && req.path.match(/\.(png|jpg|jpeg)$/i)) {
           const fs = require('fs');
           const webpPath = req.path.replace(/\.(png|jpg|jpeg)$/i, '.webp');
           const fullWebpPath = path.join(dir, webpPath);

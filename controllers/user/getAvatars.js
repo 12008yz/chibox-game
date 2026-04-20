@@ -6,7 +6,9 @@ async function getAvatars(req, res) {
     const avatarsPath = path.join(__dirname, '../../public/avatars');
 
     // Проверяем существование папки
-    if (!fs.existsSync(avatarsPath)) {
+    try {
+      await fs.promises.access(avatarsPath, fs.constants.F_OK);
+    } catch {
       return res.status(404).json({
         success: false,
         message: 'Папка с аватарами не найдена',
@@ -17,7 +19,7 @@ async function getAvatars(req, res) {
     }
 
     // Читаем файлы из папки
-    const files = fs.readdirSync(avatarsPath);
+    const files = await fs.promises.readdir(avatarsPath);
 
     // Фильтруем только изображения (jpg, jpeg, png, gif, webp)
     const avatars = files
