@@ -1,5 +1,5 @@
 const { logger } = require('./logger');
-const { pickWeightedIndex } = require('../services/nativeDropEngine');
+const { pickWeightedIndex, computeBonusAdjustedWeights } = require('../services/nativeDropEngine');
 const isDropDebugEnabled = process.env.DEBUG_DROP_CALCULATOR === 'true';
 
 function debugLog(...args) {
@@ -646,24 +646,21 @@ function calculateModifiedDropWeights(items, userBonuses = {}, caseType = 'premi
     debugLog(`[calculateModifiedDropWeights] Объект бонусов: подписка=${subscriptionBonus}%, достижения=${achievementBonus}%, уровень=${levelBonus}%, итого=${totalBonus}`);
   }
 
-  const result = items.map(item => {
-    const itemPrice = parseFloat(item.price) || 0;
-    // Используем правильный вес на основе цены и типа кейса вместо drop_weight из БД
-    const baseWeight = calculateCorrectWeightByPrice(itemPrice, caseType);
+  const prices = items.map(item => parseFloat(item.price) || 0);
+  const baseWeights = prices.map(price => calculateCorrectWeightByPrice(price, caseType));
+  const nativeComputed = computeBonusAdjustedWeights(prices, baseWeights, totalBonus);
+  const nativeModifiedWeights = nativeComputed?.modifiedWeights;
+  const nativeMultipliers = nativeComputed?.multipliers;
 
-    // Бонус применяется больше к дорогим предметам
-    let weightMultiplier = 1;
-    if (totalBonus > 0) {
-      // Для дорогих предметов (≥100₽) бонус работает сильнее
-      // Предметы от 100₽ до 10000₽ получают масштабируемый бонус
-      const priceCategory = Math.min(Math.max(itemPrice - 100, 0) / 100, 50); // категория от 0 до 50
-      const bonusEffect = 1 + (totalBonus * (1 + priceCategory / 50));
-      weightMultiplier = bonusEffect;
-
-      debugLog(`[calculateModifiedDropWeights] Предмет ${item.id} (${itemPrice}₽): категория=${priceCategory.toFixed(2)}, множитель=${weightMultiplier.toFixed(3)}`);
-    }
-
-    const modifiedWeight = baseWeight * weightMultiplier;
+  const result = items.map((item, index) => {
+    const itemPrice = prices[index];
+    const baseWeight = baseWeights[index];
+    const weightMultiplier = Array.isArray(nativeMultipliers)
+      ? (nativeMultipliers[index] || 1)
+      : (totalBonus > 0 ? (1 + (totalBonus * (1 + (Math.min(Math.max(itemPrice - 100, 0) / 100, 50) / 50)))) : 1);
+    const modifiedWeight = Array.isArray(nativeModifiedWeights)
+      ? (nativeModifiedWeights[index] || (baseWeight * weightMultiplier))
+      : (baseWeight * weightMultiplier);
 
     const resultItem = {
       // Явно копируем все основные поля

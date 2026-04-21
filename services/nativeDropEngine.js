@@ -42,7 +42,22 @@ function pickWeightedIndex(weights, randomValue) {
   }
 }
 
+function computeBonusAdjustedWeights(prices, baseWeights, totalBonus) {
+  const mod = tryLoadNativeModule();
+  if (!mod || typeof mod.computeBonusAdjustedWeights !== 'function') {
+    return null;
+  }
+
+  try {
+    return mod.computeBonusAdjustedWeights(prices, baseWeights, totalBonus);
+  } catch (error) {
+    logger.warn(`Native bonus weight compute failed, JS fallback is used: ${error.message}`);
+    return null;
+  }
+}
+
 module.exports = {
   pickWeightedIndex,
+  computeBonusAdjustedWeights,
   isNativeEnabled
 };
