@@ -90,7 +90,7 @@ async function openCase(req, res) {
 
           // Специальная логика для бесплатного кейса (ID: 11111111-1111-1111-1111-111111111111)
           if (templateId === FREE_CASE_TEMPLATE_ID) {
-            console.log('Это бесплатный кейс для новых пользователей, проверяем доступность');
+            debugLog('Это бесплатный кейс для новых пользователей, проверяем доступность');
 
             const user = await db.User.findByPk(userId);
 
@@ -100,7 +100,7 @@ async function openCase(req, res) {
 
             const availability = checkFreeCaseAvailability(user);
 
-            console.log('Проверка доступности бесплатного кейса:', availability);
+            debugLog('Проверка доступности бесплатного кейса:', availability);
 
             if (!availability.canClaim) {
               return res.status(403).json({
@@ -110,7 +110,7 @@ async function openCase(req, res) {
               });
             }
 
-            console.log('✓ Пользователь может получить бесплатный кейс, выдаем автоматически...');
+            debugLog('✓ Пользователь может получить бесплатный кейс, выдаем автоматически...');
 
             try {
               const { addCaseToInventory } = require('../../services/caseService');
@@ -118,11 +118,11 @@ async function openCase(req, res) {
 
               // Бесплатный кейс не протухает
               const createdCase = await addCaseToInventory(userId, templateId, 'free_case', null);
-              console.log('Бесплатный кейс успешно добавлен в инвентарь:', createdCase.id);
+              debugLog('Бесплатный кейс успешно добавлен в инвентарь:', createdCase.id);
 
               // Обновляем счетчики бесплатных кейсов
               await updateFreeCaseCounters(user);
-              console.log('Счетчики бесплатных кейсов обновлены. Открыто кейсов:', user.free_case_claim_count);
+              debugLog('Счетчики бесплатных кейсов обновлены. Открыто кейсов:', user.free_case_claim_count);
 
               // Открываем кейс из инвентаря
               const newInventoryCase = await db.UserInventory.findOne({
@@ -140,7 +140,7 @@ async function openCase(req, res) {
               });
 
               if (newInventoryCase) {
-                console.log('✓ Автовыданный бесплатный кейс найден, открываем:', newInventoryCase.id);
+                debugLog('✓ Автовыданный бесплатный кейс найден, открываем:', newInventoryCase.id);
                 return await openCaseFromInventory(req, res, newInventoryCase.id);
               } else {
                 console.error('✗ Бесплатный кейс был создан, но не найден при поиске!');
@@ -160,7 +160,7 @@ async function openCase(req, res) {
           }
 
           if (caseTemplate && caseTemplate.type === 'daily') {
-            console.log('Это ежедневный кейс, проверяем права пользователя');
+            debugLog('Это ежедневный кейс, проверяем права пользователя');
 
             const user = await db.User.findByPk(userId);
 
@@ -168,21 +168,21 @@ async function openCase(req, res) {
             await updateUserBonuses(userId);
             await user.reload();
 
-            console.log('Данные пользователя:', {
+            debugLog('Данные пользователя:', {
               id: user?.id,
               subscription_tier: user?.subscription_tier,
               subscription_days_left: user?.subscription_days_left,
               subscription_expiry_date: user?.subscription_expiry_date
             });
-            console.log('Требуемый уровень подписки:', caseTemplate.min_subscription_tier);
+            debugLog('Требуемый уровень подписки:', caseTemplate.min_subscription_tier);
 
             if (user && user.subscription_tier >= caseTemplate.min_subscription_tier) {
-              console.log('✓ Пользователь имеет право на этот кейс');
+              debugLog('✓ Пользователь имеет право на этот кейс');
 
               // ОГРАНИЧЕНИЕ НА ЕЖЕДНЕВНЫЙ ЛИМИТ ОТКЛЮЧЕНО
               // Пользователь может получать кейс сколько угодно раз
 
-              console.log('Выдаем кейс автоматически...');
+              debugLog('Выдаем кейс автоматически...');
 
               try {
                 // Выдаем конкретный ежедневный кейс пользователю
@@ -194,7 +194,7 @@ async function openCase(req, res) {
                   ? null
                   : new Date(now.getTime() + caseTemplate.cooldown_hours * 3600000);
 
-                console.log('Вызываем addCaseToInventory с параметрами:', {
+                debugLog('Вызываем addCaseToInventory с параметрами:', {
                   userId,
                   templateId,
                   source: 'subscription',
@@ -202,10 +202,10 @@ async function openCase(req, res) {
                 });
 
                 const createdCase = await addCaseToInventory(userId, templateId, 'subscription', expiresAt);
-                console.log('Кейс успешно добавлен в инвентарь:', createdCase.id);
+                debugLog('Кейс успешно добавлен в инвентарь:', createdCase.id);
 
                 // Пытаемся найти кейс снова
-                console.log('Ищем только что созданный кейс в инвентаре...');
+                debugLog('Ищем только что созданный кейс в инвентаре...');
                 const newInventoryCase = await db.UserInventory.findOne({
                   where: {
                     user_id: userId,
@@ -225,7 +225,7 @@ async function openCase(req, res) {
                 });
 
                 if (newInventoryCase) {
-                  console.log('✓ Автовыданный кейс найден, открываем:', newInventoryCase.id);
+                  debugLog('✓ Автовыданный кейс найден, открываем:', newInventoryCase.id);
                   return await openCaseFromInventory(req, res, newInventoryCase.id);
                 } else {
                   console.error('✗ Кейс был создан, но не найден при поиске!');
@@ -235,7 +235,7 @@ async function openCase(req, res) {
                 console.error('Stack trace:', autoGiveError.stack);
               }
             } else {
-              console.log('✗ Пользователь не имеет права на этот кейс. subscription_tier:', user?.subscription_tier, 'required:', caseTemplate.min_subscription_tier);
+              debugLog('✗ Пользователь не имеет права на этот кейс. subscription_tier:', user?.subscription_tier, 'required:', caseTemplate.min_subscription_tier);
               return res.status(403).json({
                 success: false,
                 message: `Для этого кейса требуется статус уровня ${caseTemplate.min_subscription_tier} или выше`
@@ -243,7 +243,7 @@ async function openCase(req, res) {
             }
           }
 
-          console.log('Кейс с template_id не найден и не может быть автовыдан:', templateId);
+          debugLog('Кейс с template_id не найден и не может быть автовыдан:', templateId);
           return res.status(404).json({
             success: false,
             message: 'Кейс с данным шаблоном не найден или уже открыт'
@@ -272,7 +272,7 @@ async function openCase(req, res) {
         order: [['received_date', 'ASC']]
       });
       if (!userCase) {
-        console.log('next_case_available_time:', user.next_case_available_time);
+        debugLog('next_case_available_time:', user.next_case_available_time);
         if (user.next_case_available_time && user.next_case_available_time > new Date()) {
           const now = new Date();
           const msRemaining = user.next_case_available_time.getTime() - now.getTime();
@@ -338,7 +338,7 @@ async function openCase(req, res) {
     // ВРЕМЕННЫЕ ОГРАНИЧЕНИЯ НА ОТКРЫТИЕ КЕЙСОВ ОТКЛЮЧЕНЫ
     // Пользователи могут открывать кейсы в любое время
 
-    console.log(`DEBUG: Поиск кейса с caseId=${caseId} для пользователя ${userId}`);
+    debugLog(`DEBUG: Поиск кейса с caseId=${caseId} для пользователя ${userId}`);
     userCase = await db.Case.findOne({
       where: { id: caseId, user_id: userId, is_opened: false },
       include: [
@@ -350,7 +350,7 @@ async function openCase(req, res) {
         { model: db.Item, as: 'result_item' }
       ]
     });
-    console.log(`DEBUG: Найден кейс:`, userCase ? { id: userCase.id, template_id: userCase.template_id, name: userCase.template?.name } : 'null');
+    debugLog(`DEBUG: Найден кейс:`, userCase ? { id: userCase.id, template_id: userCase.template_id, name: userCase.template?.name } : 'null');
     if (!userCase) {
       return res.status(404).json({ success: false, message: 'Кейс не найден или уже открыт' });
     }
@@ -383,18 +383,7 @@ async function openCase(req, res) {
 
     // Определяем тип кейса для правильного расчета весов
     const caseType = determineCaseType(userCase.template, userCase.is_paid);
-    logger.info(`Тип кейса определен как: ${caseType}`);
-
-    logger.info(`Начинаем выбор предмета. Предметов в кейсе: ${items.length}, userDropBonus: ${userDropBonus}%, userSubscriptionTier: ${userSubscriptionTier}, is_paid: ${userCase.is_paid}`);
-    logger.info(`Бонусы пользователя: достижения=${user.achievements_bonus_percentage || 0}%, уровень=${user.level_bonus_percentage || 0}%, подписка=${user.subscription_bonus_percentage || 0}%, итого=${user.total_drop_bonus_percentage || 0}%`);
-
-    // Логируем первые несколько предметов для отладки
-    logger.info('Первые 3 предмета в кейсе:', items.slice(0, 3).map(item => ({
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      drop_weight: item.drop_weight
-    })));
+    debugLog(`Тип кейса определен как: ${caseType}`);
 
     // Транзакция только для критических операций изменения данных
     const { sequelize } = require('../../models');
@@ -406,7 +395,7 @@ async function openCase(req, res) {
         // Передаем процент как число (например, 15.5 для 15.5%)
         const modifiedItems = calculateModifiedDropWeights(items, userDropBonus, caseType);
 
-        logger.info(`Модифицированных предметов: ${modifiedItems.length}`);
+        debugLog(`Модифицированных предметов: ${modifiedItems.length}`);
 
         // Получаем уже выпавшие предметы из этого кейса для данного пользователя (для всех типов кейсов)
         // ВАЖНО: получаем в рамках транзакции для избежания race condition
@@ -420,12 +409,12 @@ async function openCase(req, res) {
         });
         const droppedItemIds = droppedItems.map(drop => drop.item_id);
 
-        console.log(`DEBUG: Проверяем дубликаты для кейса ${userCase.template_id} (имя: ${userCase.template?.name})`);
-        logger.info(`Пользователь ${userId} уже получал из кейса ${userCase.template_id}: ${droppedItemIds.length} предметов`);
+        debugLog(`DEBUG: Проверяем дубликаты для кейса ${userCase.template_id} (имя: ${userCase.template?.name})`);
+        debugLog(`Пользователь ${userId} уже получал из кейса ${userCase.template_id}: ${droppedItemIds.length} предметов`);
 
         // Для пользователей Статус++ используем полную защиту от дубликатов ТОЛЬКО для ежедневного кейса Статус++
         if (userSubscriptionTier >= 3 && userCase.template_id === '44444444-4444-4444-4444-444444444444') {
-          logger.info('Используем ПОЛНУЮ защиту от дубликатов для пользователя Статус++ в ежедневном кейсе Статус++');
+          debugLog('Используем ПОЛНУЮ защиту от дубликатов для пользователя Статус++ в ежедневном кейсе Статус++');
           selectedItem = selectItemWithFullDuplicateProtection(
             modifiedItems,
             droppedItemIds,
@@ -433,11 +422,11 @@ async function openCase(req, res) {
             caseType
           );
         } else if (userSubscriptionTier >= 3) {
-          logger.info('Используем стандартный выбор с модифицированными весами для пользователя Статус++ (другой кейс)');
+          debugLog('Используем стандартный выбор с модифицированными весами для пользователя Статус++ (другой кейс)');
           selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, [], caseType);
         } else if (!userCase.is_paid) {
           // Применяем обычную защиту от дубликатов только для подписочных кейсов обычных пользователей
-          logger.info('Используем обычную защиту от дубликатов для подписочного кейса');
+          debugLog('Используем обычную защиту от дубликатов для подписочного кейса');
           selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
             modifiedItems,
             droppedItemIds,
@@ -446,7 +435,7 @@ async function openCase(req, res) {
             caseType
           );
         } else {
-          logger.info('Используем стандартный выбор с модифицированными весами (покупной кейс)');
+          debugLog('Используем стандартный выбор с модифицированными весами (покупной кейс)');
           selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, droppedItemIds, caseType);
         }
 
@@ -455,7 +444,7 @@ async function openCase(req, res) {
         const duplicateProtection = (userSubscriptionTier >= 3 && userCase.template_id === '44444444-4444-4444-4444-444444444444') ?
                                      ' и ПОЛНОЙ защитой от дубликатов' :
                                      !userCase.is_paid ? ' и обычной защитой от дубликатов' : '';
-        logger.info(`Пользователь ${userId} открывает ${caseType} кейс с бонусом ${userDropBonus.toFixed(2)}%${duplicateProtection}`);
+        debugLog(`Пользователь ${userId} открывает ${caseType} кейс с бонусом ${userDropBonus.toFixed(2)}%${duplicateProtection}`);
       } else {
         // Стандартная система без бонусов
         // Для пользователей Статус++ применяем полную защиту от дубликатов ТОЛЬКО для ежедневного кейса Статус++
@@ -471,7 +460,7 @@ async function openCase(req, res) {
           });
           const droppedItemIds = droppedItems.map(drop => drop.item_id);
 
-          logger.info(`Пользователь Статус++ ${userId} уже получал из ежедневного кейса Статус++ ${userCase.template_id}: ${droppedItemIds.length} предметов (без бонусов)`);
+          debugLog(`Пользователь Статус++ ${userId} уже получал из ежедневного кейса Статус++ ${userCase.template_id}: ${droppedItemIds.length} предметов (без бонусов)`);
 
           selectedItem = selectItemWithFullDuplicateProtection(
             items,
@@ -480,7 +469,7 @@ async function openCase(req, res) {
             caseType
           );
         } else if (userSubscriptionTier >= 3) {
-          logger.info(`Пользователь Статус++ ${userId} открывает другой кейс ${userCase.template_id} (без защиты от дубликатов)`);
+          debugLog(`Пользователь Статус++ ${userId} открывает другой кейс ${userCase.template_id} (без защиты от дубликатов)`);
           selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, [], caseType);
         } else {
           // Используем систему весов без бонусов, но с правильными весами на основе цены
@@ -503,7 +492,7 @@ async function openCase(req, res) {
     if (!selectedItem) {
       // Специальная обработка для пользователей Статус++, которые получили все предметы из ежедневного кейса Статус++
       if (userSubscriptionTier >= 3 && userCase.template_id === '44444444-4444-4444-4444-444444444444') {
-        logger.info(`Пользователь Статус++ ${userId} получил все возможные предметы из ежедневного кейса Статус++ ${userCase.template_id}`);
+        debugLog(`Пользователь Статус++ ${userId} получил все возможные предметы из ежедневного кейса Статус++ ${userCase.template_id}`);
         return res.status(400).json({
           success: false,
           message: 'Поздравляем! Вы получили все возможные предметы из этого кейса. Попробуйте другие кейсы!',
@@ -551,23 +540,18 @@ async function openCase(req, res) {
       }
     }
 
-      logger.info(`✅ Выбран предмет: ${selectedItem.id} (${selectedItem.name || 'N/A'}) для пользователя ${userId}`);
+      debugLog(`✅ Выбран предмет: ${selectedItem.id} (${selectedItem.name || 'N/A'}) для пользователя ${userId}`);
 
       // Дополнительная проверка для Статус++ в ежедневном кейсе Статус++
       if (userSubscriptionTier >= 3 && userCase.template_id === '44444444-4444-4444-4444-444444444444' && droppedItemIds && droppedItemIds.length > 0) {
-        logger.info(`Статус++ (ежедневный кейс Статус++): выбранный предмет НЕ в списке исключенных (${droppedItemIds.length} исключенных)`);
+        debugLog(`Статус++ (ежедневный кейс Статус++): выбранный предмет НЕ в списке исключенных (${droppedItemIds.length} исключенных)`);
       }
-      // Логируем состояние до обновления
-      logger.info(`Кейс ${caseId} до обновления: is_opened=${userCase.is_opened}, opened_date=${userCase.opened_date}, result_item_id=${userCase.result_item_id}`);
-
       userCase.is_opened = true;
       userCase.opened_date = new Date();
       userCase.result_item_id = selectedItem.id;
       await userCase.save({ transaction: t });
 
-      // Перечитываем кейс из базы данных для подтверждения изменений
       await userCase.reload({ transaction: t });
-      logger.info(`Кейс ${caseId} после обновления: is_opened=${userCase.is_opened}, opened_date=${userCase.opened_date}, result_item_id=${userCase.result_item_id}`);
 
       // Добавляем предмет в инвентарь
       // Примечание: case_template_id должен быть null для item_type='item' согласно валидации модели
@@ -583,9 +567,7 @@ async function openCase(req, res) {
 
       // Записываем выпавший предмет для всех пользователей
       try {
-        console.log(`DEBUG: Создаем запись CaseItemDrop для пользователя ${userId}, кейса ${userCase.template_id}, предмета ${selectedItem.id}`);
-
-        const dropRecord = await db.CaseItemDrop.create({
+        await db.CaseItemDrop.create({
           user_id: userId,
           case_template_id: userCase.template_id,
           item_id: selectedItem.id,
@@ -596,15 +578,7 @@ async function openCase(req, res) {
           ignoreDuplicates: true // Игнорируем дубликаты на случай повторной записи
         });
 
-        console.log(`DEBUG: Запись CaseItemDrop создана успешно:`, {
-          id: dropRecord?.id || 'unknown',
-          user_id: userId,
-          case_template_id: userCase.template_id,
-          item_id: selectedItem.id,
-          case_id: userCase.id
-        });
-
-        logger.info(`Записан выпавший предмет ${selectedItem.id} для пользователя ${userId} из кейса ${userCase.template_id}`);
+        debugLog(`Записан выпавший предмет ${selectedItem.id} для пользователя ${userId} из кейса ${userCase.template_id}`);
       } catch (dropError) {
         // Логируем ошибку, но не прерываем транзакцию
         console.error('DEBUG: Ошибка записи выпавшего предмета:', dropError);
@@ -637,10 +611,10 @@ async function openCase(req, res) {
           is_hidden: false
         }, { transaction: t });
 
-        logger.info(`LiveDrop запись создана для пользователя ${userId}, предмет ${selectedItem.id}, кейс ${userCase.id}`);
+        debugLog(`LiveDrop запись создана для пользователя ${userId}, предмет ${selectedItem.id}, кейс ${userCase.id}`);
       } else {
         liveDropRecord = existingDrop;
-        logger.info(`LiveDrop запись уже существует для пользователя ${userId}, предмет ${selectedItem.id}, кейс ${userCase.id}`);
+        debugLog(`LiveDrop запись уже существует для пользователя ${userId}, предмет ${selectedItem.id}, кейс ${userCase.id}`);
       }
 
       // Транслируем живое падение через Socket.IO
@@ -658,13 +632,13 @@ async function openCase(req, res) {
 
       // Обновляем лучший предмет, если текущий дороже (атомарно)
       const currentBestValue = parseFloat(user.best_item_value) || 0;
-      console.log(`DEBUG: Обновление лучшего предмета. Текущий: ${currentBestValue}, Новый: ${itemPrice}, Предмет: ${selectedItem.name}`);
+      debugLog(`DEBUG: Обновление лучшего предмета. Текущий: ${currentBestValue}, Новый: ${itemPrice}, Предмет: ${selectedItem.name}`);
 
       if (itemPrice > currentBestValue) {
-        console.log(`DEBUG: Новый рекорд! Обновляем best_item_value с ${currentBestValue} на ${itemPrice}`);
+        debugLog(`DEBUG: Новый рекорд! Обновляем best_item_value с ${currentBestValue} на ${itemPrice}`);
 
         // Используем прямое обновление для надежности
-        const updateResult = await db.User.update(
+        await db.User.update(
           {
             best_item_value: itemPrice,
             total_items_value: db.Sequelize.literal(`COALESCE(total_items_value, 0) + ${itemPrice}`)
@@ -675,14 +649,12 @@ async function openCase(req, res) {
           }
         );
 
-        console.log(`DEBUG: Результат обновления базы данных:`, updateResult);
-
         // Обновляем локальную копию пользователя
         user.best_item_value = itemPrice;
 
         // Перечитываем пользователя из базы для подтверждения
         await user.reload({ transaction: t });
-        console.log(`DEBUG: Подтверждение обновления - best_item_value после reload: ${user.best_item_value}`);
+        debugLog(`DEBUG: Подтверждение обновления - best_item_value после reload: ${user.best_item_value}`);
       } else {
         // Все равно обновляем общую стоимость
         user.total_items_value = (parseFloat(user.total_items_value) || 0) + itemPrice;
@@ -693,7 +665,7 @@ async function openCase(req, res) {
         const { getNextDailyCaseTime } = require('../../utils/cronHelper');
         const newNextCaseTime = getNextDailyCaseTime();
         user.next_case_available_time = newNextCaseTime;
-        console.log('Обновляем next_case_available_time для бесплатного кейса:', newNextCaseTime);
+        debugLog('Обновляем next_case_available_time для бесплатного кейса:', newNextCaseTime);
       }
 
       await user.save({ transaction: t });
@@ -709,12 +681,12 @@ async function openCase(req, res) {
 
       // 1. Обновляем достижение "cases_opened"
       await updateUserAchievementProgress(userId, 'cases_opened', 1);
-      logger.info(`Обновлено достижение cases_opened для пользователя ${userId}`);
+      debugLog(`Обновлено достижение cases_opened для пользователя ${userId}`);
 
       // 2. Начисляем опыт за открытие кейса
       try {
         await addExperience(userId, 10, 'case_opening', userCase.id, 'Открытие кейса');
-        logger.info(`Начислен опыт за открытие кейса для пользователя ${userId}`);
+        debugLog(`Начислен опыт за открытие кейса для пользователя ${userId}`);
       } catch (xpError) {
         logger.error('Ошибка начисления опыта:', xpError);
       }
@@ -722,45 +694,45 @@ async function openCase(req, res) {
       // 3. Обновляем достижение для лучшего предмета
       if (selectedItem.price && selectedItem.price > 0) {
         await updateUserAchievementProgress(userId, 'best_item_value', selectedItem.price);
-        logger.info(`Обновлено достижение best_item_value для пользователя ${userId}: ${selectedItem.price}`);
+        debugLog(`Обновлено достижение best_item_value для пользователя ${userId}: ${selectedItem.price}`);
       }
 
       // 4. Проверяем редкие предметы
       const itemRarity = selectedItem.rarity?.toLowerCase();
       if (['restricted', 'classified', 'covert', 'contraband'].includes(itemRarity)) {
         await updateUserAchievementProgress(userId, 'rare_items_found', 1);
-        logger.info(`Обновлено достижение rare_items_found для пользователя ${userId}`);
+        debugLog(`Обновлено достижение rare_items_found для пользователя ${userId}`);
       }
 
       // 5. Проверяем дорогие предметы (от 100 ChiCoins)
       if (selectedItem.price && selectedItem.price >= 100) {
         await updateUserAchievementProgress(userId, 'premium_items_found', 1);
-        logger.info(`Обновлено достижение premium_items_found для пользователя ${userId}`);
+        debugLog(`Обновлено достижение premium_items_found для пользователя ${userId}`);
       }
 
       // 6. Обновляем достижения инвентаря (Миллионер и Эксперт)
       await updateInventoryRelatedAchievements(userId);
-      logger.info(`Обновлены достижения инвентаря для пользователя ${userId}`);
+      debugLog(`Обновлены достижения инвентаря для пользователя ${userId}`);
 
       // 7. Проверяем ночное открытие кейса (2:00-4:00)
       const openTime = new Date();
       const hours = openTime.getHours();
       if (hours >= 2 && hours < 4) {
         await updateUserAchievementProgress(userId, 'night_case_opened', 1);
-        logger.info(`Обновлено достижение night_case_opened для пользователя ${userId}`);
+        debugLog(`Обновлено достижение night_case_opened для пользователя ${userId}`);
       }
 
       // 8. Проверяем Epic предмет из первых 5 кейсов
       const totalCasesOpened = user.total_cases_opened || 0;
       if (totalCasesOpened <= 5 && ['epic', 'legendary', 'covert', 'contraband'].includes(itemRarity)) {
         await updateUserAchievementProgress(userId, 'early_epic_item', 1);
-        logger.info(`Обновлено достижение early_epic_item для пользователя ${userId}`);
+        debugLog(`Обновлено достижение early_epic_item для пользователя ${userId}`);
       }
 
       // 9. Проверяем легендарный предмет
       if (['legendary', 'contraband'].includes(itemRarity)) {
         await updateUserAchievementProgress(userId, 'legendary_item_found', 1);
-        logger.info(`Обновлено достижение legendary_item_found для пользователя ${userId}`);
+        debugLog(`Обновлено достижение legendary_item_found для пользователя ${userId}`);
       }
 
       // 10. Проверяем серию Epic+ предметов (epic_streak)
@@ -787,7 +759,7 @@ async function openCase(req, res) {
 
         if (allEpicOrBetter) {
           await updateUserAchievementProgress(userId, 'epic_streak', 1);
-          logger.info(`Обновлено достижение epic_streak для пользователя ${userId}`);
+          debugLog(`Обновлено достижение epic_streak для пользователя ${userId}`);
         }
       }
 
@@ -795,7 +767,7 @@ async function openCase(req, res) {
         logger.error('Ошибка обновления достижений:', achievementError);
       }
     } else {
-      logger.info(`Inline post-processing отключен для openCase (userId=${userId})`);
+      debugLog(`Inline post-processing отключен для openCase (userId=${userId})`);
     }
 
     // Дублируем в очереди как резервный механизм
@@ -819,7 +791,7 @@ async function openCase(req, res) {
       }).catch(err => logger.error('Failed to queue achievement update:', err));
     }
 
-      logger.info(`Пользователь ${userId} открыл кейс ${caseId} и получил предмет ${selectedItem.id}`);
+      debugLog(`Пользователь ${userId} открыл кейс ${caseId} и получил предмет ${selectedItem.id}`);
 
       return res.json({
         success: true,
@@ -879,7 +851,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       return res.status(404).json({ success: false, message: 'Кейс не найден в инвентаре' });
     }
 
-    console.log('inventoryCase найден:', {
+    debugLog('inventoryCase найден:', {
       id: inventoryCase.id,
       case_template_id: inventoryCase.case_template_id,
       case_template: !!inventoryCase.case_template,
@@ -898,7 +870,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
     }
 
     const items = inventoryCase.case_template.items || [];
-    console.log('Найдено предметов в кейсе:', items.length);
+    debugLog('Найдено предметов в кейсе:', items.length);
 
     if (!items.length) {
       console.error('В кейсе нет предметов. case_template_id:', inventoryCase.case_template_id, 'case_template.name:', inventoryCase.case_template.name);
@@ -914,8 +886,8 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
 
     let selectedItem = null;
 
-    logger.info(`Открытие кейса из инвентаря. Предметов в кейсе: ${items.length}, userDropBonus: ${userDropBonus}%, userSubscriptionTier: ${userSubscriptionTier}`);
-    logger.info(`Бонусы пользователя для инвентарного кейса: итого=${user.total_drop_bonus_percentage || 0}%`);
+    debugLog(`Открытие кейса из инвентаря. Предметов в кейсе: ${items.length}, userDropBonus: ${userDropBonus}%, userSubscriptionTier: ${userSubscriptionTier}`);
+    debugLog(`Бонусы пользователя для инвентарного кейса: итого=${user.total_drop_bonus_percentage || 0}%`);
 
     // Ограничиваем стоимость предметов для "Бонусного кейса" до 50 ChiCoins согласно анализу экономики
     let filteredItems = items;
@@ -924,7 +896,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
         const price = parseFloat(item.price) || 0;
         return price <= 50;
       });
-      logger.info(`Бонусный кейс: отфильтровано предметов по цене ≤50 ChiCoins: ${items.length} -> ${filteredItems.length}`);
+      debugLog(`Бонусный кейс: отфильтровано предметов по цене ≤50 ChiCoins: ${items.length} -> ${filteredItems.length}`);
 
       if (filteredItems.length === 0) {
         logger.warn('Бонусный кейс: нет предметов стоимостью ≤50 ChiCoins, используем все предметы');
@@ -949,11 +921,11 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       });
       const droppedItemIds = droppedItems.map(drop => drop.item_id);
 
-      logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс)`);
+      debugLog(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс)`);
 
       // Определяем тип кейса для правильного расчета весов
       const caseType = determineCaseType(inventoryCase.case_template, false);
-      logger.info(`Тип инвентарного кейса определен как: ${caseType}`);
+      debugLog(`Тип инвентарного кейса определен как: ${caseType}`);
 
       if (userDropBonus > 0) {
         // Используем модифицированную систему весов
@@ -961,7 +933,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
 
         // Для пользователей Статус++ используем полную защиту от дубликатов ТОЛЬКО для ежедневного кейса Статус++
         if (userSubscriptionTier >= 3 && inventoryCase.case_template_id === '44444444-4444-4444-4444-444444444444') {
-          logger.info('Используем ПОЛНУЮ защиту от дубликатов для пользователя Статус++ в ежедневном кейсе Статус++ (инвентарный кейс)');
+          debugLog('Используем ПОЛНУЮ защиту от дубликатов для пользователя Статус++ в ежедневном кейсе Статус++ (инвентарный кейс)');
           selectedItem = selectItemWithFullDuplicateProtection(
             modifiedItems,
             droppedItemIds,
@@ -969,10 +941,10 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
             caseType
           );
         } else if (userSubscriptionTier >= 3) {
-          logger.info('Используем стандартный выбор с модифицированными весами для пользователя Статус++ (другой инвентарный кейс)');
+          debugLog('Используем стандартный выбор с модифицированными весами для пользователя Статус++ (другой инвентарный кейс)');
           selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, [], caseType);
         } else {
-          logger.info('Используем обычную защиту от дубликатов для кейса из инвентаря');
+          debugLog('Используем обычную защиту от дубликатов для кейса из инвентаря');
           selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
             modifiedItems,
             droppedItemIds,
@@ -985,7 +957,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
         // Стандартная система без бонусов
         // Для пользователей Статус++ применяем полную защиту от дубликатов ТОЛЬКО для ежедневного кейса Статус++
         if (userSubscriptionTier >= 3 && inventoryCase.case_template_id === '44444444-4444-4444-4444-444444444444') {
-          logger.info(`Пользователь Статус++ ${userId} уже получал из ежедневного кейса Статус++ ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
+          debugLog(`Пользователь Статус++ ${userId} уже получал из ежедневного кейса Статус++ ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
           selectedItem = selectItemWithFullDuplicateProtection(
             filteredItems,
             droppedItemIds,
@@ -993,10 +965,10 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
             caseType
           );
         } else if (userSubscriptionTier >= 3) {
-          logger.info(`Пользователь Статус++ ${userId} открывает другой инвентарный кейс ${inventoryCase.case_template_id} (без защиты от дубликатов)`);
+          debugLog(`Пользователь Статус++ ${userId} открывает другой инвентарный кейс ${inventoryCase.case_template_id} (без защиты от дубликатов)`);
           selectedItem = selectItemWithCorrectWeights(filteredItems, userSubscriptionTier, [], caseType);
         } else {
-          logger.info(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
+          debugLog(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
           selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
             filteredItems,
             droppedItemIds,
@@ -1011,7 +983,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
     if (!selectedItem) {
       // Специальная обработка для пользователей Статус++, которые получили все предметы из ежедневного кейса Статус++
       if (userSubscriptionTier >= 3 && inventoryCase.case_template_id === '44444444-4444-4444-4444-444444444444') {
-        logger.info(`Пользователь Статус++ ${userId} получил все возможные предметы из ежедневного кейса Статус++ ${inventoryCase.case_template_id} (инвентарный)`);
+        debugLog(`Пользователь Статус++ ${userId} получил все возможные предметы из ежедневного кейса Статус++ ${inventoryCase.case_template_id} (инвентарный)`);
         return res.status(400).json({
           success: false,
           message: 'Поздравляем! Вы получили все возможные предметы из этого кейса. Попробуйте другие кейсы!',
@@ -1023,7 +995,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       return res.status(500).json({ message: 'Ошибка выбора предмета из кейса' });
     }
 
-      logger.info(`Выбран предмет: ${selectedItem.id} (${selectedItem.name || 'N/A'}) из кейса в инвентаре для пользователя ${userId}`);
+      debugLog(`Выбран предмет: ${selectedItem.id} (${selectedItem.name || 'N/A'}) из кейса в инвентаре для пользователя ${userId}`);
       // Создаем случайный Case для совместимости с существующей системой
       const newCase = await db.Case.create({
         name: inventoryCase.case_template.name,
@@ -1065,7 +1037,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
           transaction: t,
           ignoreDuplicates: true // Игнорируем дубликаты на случай повторной записи
         });
-        logger.info(`Записан выпавший предмет ${selectedItem.id} для пользователя ${userId} из инвентарного кейса ${inventoryCase.case_template_id}`);
+        debugLog(`Записан выпавший предмет ${selectedItem.id} для пользователя ${userId} из инвентарного кейса ${inventoryCase.case_template_id}`);
       } catch (dropError) {
         // Логируем ошибку, но не прерываем транзакцию
         logger.error('Ошибка записи выпавшего предмета (инвентарный кейс):', dropError);
@@ -1102,10 +1074,10 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
           is_hidden: false
         }, { transaction: t });
 
-        logger.info(`LiveDrop запись создана для пользователя ${userId}, предмет ${selectedItem.id}, кейс ${newCase.id} (из инвентаря)`);
+        debugLog(`LiveDrop запись создана для пользователя ${userId}, предмет ${selectedItem.id}, кейс ${newCase.id} (из инвентаря)`);
       } else {
         liveDropRecord = existingDrop;
-        logger.info(`LiveDrop запись уже существует для пользователя ${userId}, предмет ${selectedItem.id}, кейс ${newCase.id} (из инвентаря)`);
+        debugLog(`LiveDrop запись уже существует для пользователя ${userId}, предмет ${selectedItem.id}, кейс ${newCase.id} (из инвентаря)`);
       }
 
       // Транслируем живое падение через Socket.IO
@@ -1124,13 +1096,13 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       // Обновляем общую стоимость предметов и лучший предмет
       const itemPrice = parseFloat(selectedItem.price) || 0;
       const currentBestValue = parseFloat(user.best_item_value) || 0;
-      console.log(`DEBUG: Инвентарный кейс - Обновление лучшего предмета. Текущий: ${currentBestValue}, Новый: ${itemPrice}, Предмет: ${selectedItem.name}`);
+      debugLog(`DEBUG: Инвентарный кейс - Обновление лучшего предмета. Текущий: ${currentBestValue}, Новый: ${itemPrice}, Предмет: ${selectedItem.name}`);
 
       if (itemPrice > currentBestValue) {
-        console.log(`DEBUG: Инвентарный кейс - Новый рекорд! Обновляем best_item_value с ${currentBestValue} на ${itemPrice}`);
+        debugLog(`DEBUG: Инвентарный кейс - Новый рекорд! Обновляем best_item_value с ${currentBestValue} на ${itemPrice}`);
 
         // Используем прямое обновление для надежности
-        const updateResult = await db.User.update(
+        await db.User.update(
           {
             best_item_value: itemPrice,
             total_items_value: db.Sequelize.literal(`COALESCE(total_items_value, 0) + ${itemPrice}`)
@@ -1141,14 +1113,12 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
           }
         );
 
-        console.log(`DEBUG: Инвентарный кейс - Результат обновления базы данных:`, updateResult);
-
         // Обновляем локальную копию пользователя
         user.best_item_value = itemPrice;
 
         // Перечитываем пользователя из базы для подтверждения
         await user.reload({ transaction: t });
-        console.log(`DEBUG: Инвентарный кейс - Подтверждение обновления - best_item_value после reload: ${user.best_item_value}`);
+        debugLog(`DEBUG: Инвентарный кейс - Подтверждение обновления - best_item_value после reload: ${user.best_item_value}`);
       } else {
         // Все равно обновляем общую стоимость
         user.total_items_value = (parseFloat(user.total_items_value) || 0) + itemPrice;
@@ -1160,7 +1130,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
         const { getNextDailyCaseTime } = require('../../utils/cronHelper');
         const newNextCaseTime = getNextDailyCaseTime();
         user.next_case_available_time = newNextCaseTime;
-        console.log('Обновляем next_case_available_time для бесплатного кейса из инвентаря:', newNextCaseTime);
+        debugLog('Обновляем next_case_available_time для бесплатного кейса из инвентаря:', newNextCaseTime);
       }
 
       await user.save({ transaction: t });
@@ -1174,12 +1144,12 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
 
         // 1. Обновляем достижение "cases_opened"
         await updateUserAchievementProgress(userId, 'cases_opened', 1);
-        logger.info(`Обновлено достижение cases_opened для пользователя ${userId} (из инвентаря)`);
+        debugLog(`Обновлено достижение cases_opened для пользователя ${userId} (из инвентаря)`);
 
         // 2. Начисляем опыт за открытие кейса
         try {
           await addExperience(userId, 10, 'case_opening', newCase.id, 'Открытие кейса из инвентаря');
-          logger.info(`Начислен опыт за открытие кейса из инвентаря для пользователя ${userId}`);
+          debugLog(`Начислен опыт за открытие кейса из инвентаря для пользователя ${userId}`);
         } catch (xpError) {
           logger.error('Ошибка начисления опыта:', xpError);
         }
@@ -1187,31 +1157,31 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
         // 3. Обновляем достижение для лучшего предмета
         if (selectedItem.price && selectedItem.price > 0) {
           await updateUserAchievementProgress(userId, 'best_item_value', selectedItem.price);
-          logger.info(`Обновлено достижение best_item_value для пользователя ${userId}: ${selectedItem.price} (из инвентаря)`);
+          debugLog(`Обновлено достижение best_item_value для пользователя ${userId}: ${selectedItem.price} (из инвентаря)`);
         }
 
         // 4. Проверяем редкие предметы
         const itemRarity = selectedItem.rarity?.toLowerCase();
         if (['restricted', 'classified', 'covert', 'contraband'].includes(itemRarity)) {
           await updateUserAchievementProgress(userId, 'rare_items_found', 1);
-          logger.info(`Обновлено достижение rare_items_found для пользователя ${userId} (из инвентаря)`);
+          debugLog(`Обновлено достижение rare_items_found для пользователя ${userId} (из инвентаря)`);
         }
 
         // 5. Проверяем дорогие предметы (от 100 ChiCoins)
         if (selectedItem.price && selectedItem.price >= 100) {
           await updateUserAchievementProgress(userId, 'premium_items_found', 1);
-          logger.info(`Обновлено достижение premium_items_found для пользователя ${userId} (из инвентаря)`);
+          debugLog(`Обновлено достижение premium_items_found для пользователя ${userId} (из инвентаря)`);
         }
 
         // 6. Обновляем достижения инвентаря (Миллионер и Эксперт)
         await updateInventoryRelatedAchievements(userId);
-        logger.info(`Обновлены достижения инвентаря для пользователя ${userId} (из инвентаря)`);
+        debugLog(`Обновлены достижения инвентаря для пользователя ${userId} (из инвентаря)`);
 
         } catch (achievementError) {
           logger.error('Ошибка обновления достижений:', achievementError);
         }
       } else {
-        logger.info(`Inline post-processing отключен для openCaseFromInventory (userId=${userId})`);
+        debugLog(`Inline post-processing отключен для openCaseFromInventory (userId=${userId})`);
       }
 
       // Дублируем в очереди как резервный механизм
@@ -1235,7 +1205,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
         }).catch(err => logger.error('Failed to queue achievement update:', err));
       }
 
-      logger.info(`Пользователь ${userId} открыл кейс ${inventoryItemId} из инвентаря и получил предмет ${selectedItem.id}`);
+      debugLog(`Пользователь ${userId} открыл кейс ${inventoryItemId} из инвентаря и получил предмет ${selectedItem.id}`);
 
       return res.json({
         success: true,

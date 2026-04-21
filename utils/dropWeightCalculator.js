@@ -1,4 +1,11 @@
 const { logger } = require('./logger');
+const isDropDebugEnabled = process.env.DEBUG_DROP_CALCULATOR === 'true';
+
+function debugLog(...args) {
+  if (isDropDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 /**
  * Фильтрует исключенные предметы для пользователей Статус++
@@ -14,7 +21,7 @@ function filterExcludedItems(items, userSubscriptionTier = 0) {
   // Для пользователей Статус++ (tier >= 3) исключаем предметы с is_excluded = true
   if (userSubscriptionTier >= 3) {
     const filteredItems = items.filter(item => !item.is_excluded && !item.isExcluded);
-    console.log(`[filterExcludedItems] Отфильтровано для Статус++: ${items.length} -> ${filteredItems.length} предметов`);
+    debugLog(`[filterExcludedItems] Отфильтровано для Статус++: ${items.length} -> ${filteredItems.length} предметов`);
     return filteredItems;
   }
 
@@ -503,13 +510,13 @@ function calculateCorrectWeightByPrice(price, caseType = 'premium') {
  * @returns {Object|null} выбранный предмет
  */
 function selectItemWithCorrectWeights(items, userSubscriptionTier = 0, excludedItemIds = [], caseType = 'premium') {
-  console.log(`[selectItemWithCorrectWeights] Получено предметов: ${items ? items.length : 'null/undefined'}`);
-  console.log(`[selectItemWithCorrectWeights] Исключенных предметов: ${excludedItemIds.length}`);
-  console.log(`[selectItemWithCorrectWeights] Уровень подписки: ${userSubscriptionTier}`);
-  console.log(`[selectItemWithCorrectWeights] Тип кейса: ${caseType}`);
+  debugLog(`[selectItemWithCorrectWeights] Получено предметов: ${items ? items.length : 'null/undefined'}`);
+  debugLog(`[selectItemWithCorrectWeights] Исключенных предметов: ${excludedItemIds.length}`);
+  debugLog(`[selectItemWithCorrectWeights] Уровень подписки: ${userSubscriptionTier}`);
+  debugLog(`[selectItemWithCorrectWeights] Тип кейса: ${caseType}`);
 
   if (!items || items.length === 0) {
-    console.log(`[selectItemWithCorrectWeights] Массив предметов пуст или не существует`);
+    debugLog(`[selectItemWithCorrectWeights] Массив предметов пуст или не существует`);
     return null;
   }
 
@@ -517,11 +524,11 @@ function selectItemWithCorrectWeights(items, userSubscriptionTier = 0, excludedI
   let availableItems = items;
   if (userSubscriptionTier >= 3 && excludedItemIds.length > 0) {
     availableItems = items.filter(item => !excludedItemIds.includes(item.id));
-    console.log(`[selectItemWithCorrectWeights] Статус++: после исключения осталось ${availableItems.length} предметов`);
+    debugLog(`[selectItemWithCorrectWeights] Статус++: после исключения осталось ${availableItems.length} предметов`);
   }
 
   if (availableItems.length === 0) {
-    console.log(`[selectItemWithCorrectWeights] Все предметы исключены для пользователя с подпиской ${userSubscriptionTier}`);
+    debugLog(`[selectItemWithCorrectWeights] Все предметы исключены для пользователя с подпиской ${userSubscriptionTier}`);
     return null;
   }
 
@@ -542,8 +549,8 @@ function selectItemWithCorrectWeights(items, userSubscriptionTier = 0, excludedI
     return sum + item.correctWeight;
   }, 0);
 
-  console.log(`[selectItemWithCorrectWeights] Общий вес: ${totalWeight}`);
-  console.log(`[selectItemWithCorrectWeights] Первые 5 предметов с весами:`,
+  debugLog(`[selectItemWithCorrectWeights] Общий вес: ${totalWeight}`);
+  debugLog(`[selectItemWithCorrectWeights] Первые 5 предметов с весами:`,
     itemsWithCorrectWeights.slice(0, 5).map(item => ({
       id: item.id,
       name: item.name,
@@ -555,9 +562,9 @@ function selectItemWithCorrectWeights(items, userSubscriptionTier = 0, excludedI
 
   if (totalWeight <= 0) {
     // Если общий вес 0, выбираем случайный предмет из доступных
-    console.log(`[selectItemWithCorrectWeights] Общий вес 0, выбираем случайный предмет из доступных`);
+    debugLog(`[selectItemWithCorrectWeights] Общий вес 0, выбираем случайный предмет из доступных`);
     const randomItem = itemsWithCorrectWeights[Math.floor(Math.random() * itemsWithCorrectWeights.length)];
-    console.log(`[selectItemWithCorrectWeights] Выбран случайный предмет: ${randomItem ? randomItem.id : 'undefined'}`);
+    debugLog(`[selectItemWithCorrectWeights] Выбран случайный предмет: ${randomItem ? randomItem.id : 'undefined'}`);
     return randomItem;
   }
 
@@ -565,22 +572,22 @@ function selectItemWithCorrectWeights(items, userSubscriptionTier = 0, excludedI
   const random = Math.random() * totalWeight;
   let currentWeight = 0;
 
-  console.log(`[selectItemWithCorrectWeights] Случайное число: ${random}`);
+  debugLog(`[selectItemWithCorrectWeights] Случайное число: ${random}`);
 
   // Находим предмет, соответствующий случайному числу
   for (const item of itemsWithCorrectWeights) {
     currentWeight += item.correctWeight;
-    console.log(`[selectItemWithCorrectWeights] Предмет ${item.id} (${item.price}₽), вес: ${item.correctWeight}, текущий вес: ${currentWeight}`);
+    debugLog(`[selectItemWithCorrectWeights] Предмет ${item.id} (${item.price}₽), вес: ${item.correctWeight}, текущий вес: ${currentWeight}`);
 
     if (random <= currentWeight) {
-      console.log(`[selectItemWithCorrectWeights] Выбран предмет: ${item.id} с ценой ${item.price}₽`);
+      debugLog(`[selectItemWithCorrectWeights] Выбран предмет: ${item.id} с ценой ${item.price}₽`);
       return item;
     }
   }
 
   // Fallback - возвращаем последний предмет из доступных
   const fallbackItem = itemsWithCorrectWeights[itemsWithCorrectWeights.length - 1];
-  console.log(`[selectItemWithCorrectWeights] Fallback - выбран последний предмет: ${fallbackItem ? fallbackItem.id : 'undefined'}`);
+  debugLog(`[selectItemWithCorrectWeights] Fallback - выбран последний предмет: ${fallbackItem ? fallbackItem.id : 'undefined'}`);
   return fallbackItem;
 }
 
@@ -592,15 +599,15 @@ function selectItemWithCorrectWeights(items, userSubscriptionTier = 0, excludedI
  * @returns {Array} массив предметов с модифицированными весами
  */
 function calculateModifiedDropWeights(items, userBonuses = {}, caseType = 'premium') {
-  console.log(`[calculateModifiedDropWeights] Получено ${items ? items.length : 'null/undefined'} предметов`);
-  console.log(`[calculateModifiedDropWeights] Бонусы пользователя:`, userBonuses);
-  console.log(`[calculateModifiedDropWeights] Тип кейса: ${caseType}`);
+  debugLog(`[calculateModifiedDropWeights] Получено ${items ? items.length : 'null/undefined'} предметов`);
+  debugLog(`[calculateModifiedDropWeights] Бонусы пользователя:`, userBonuses);
+  debugLog(`[calculateModifiedDropWeights] Тип кейса: ${caseType}`);
 
   if (!items || items.length === 0) {
     return [];
   }
 
-  console.log(`[calculateModifiedDropWeights] Первые 3 предмета до обработки:`, items.slice(0, 3).map(item => ({
+  debugLog(`[calculateModifiedDropWeights] Первые 3 предмета до обработки:`, items.slice(0, 3).map(item => ({
     id: item.id,
     name: item.name,
     drop_weight: item.drop_weight,
@@ -612,7 +619,7 @@ function calculateModifiedDropWeights(items, userBonuses = {}, caseType = 'premi
   if (typeof userBonuses === 'number') {
     // Если передан процент как число, преобразуем его в долю (например, 15% -> 0.15)
     totalBonus = Math.min(userBonuses / 100, 0.25); // Максимум 25%
-    console.log(`[calculateModifiedDropWeights] Получен числовой бонус: ${userBonuses}% -> ${totalBonus}`);
+    debugLog(`[calculateModifiedDropWeights] Получен числовой бонус: ${userBonuses}% -> ${totalBonus}`);
   } else {
     // Если передан объект с отдельными бонусами
     const {
@@ -621,7 +628,7 @@ function calculateModifiedDropWeights(items, userBonuses = {}, caseType = 'premi
       levelBonus = 0           // бонус от уровня (до 2%)
     } = userBonuses;
     totalBonus = Math.min((subscriptionBonus + achievementBonus + levelBonus) / 100, 0.25); // Максимум 25%
-    console.log(`[calculateModifiedDropWeights] Объект бонусов: подписка=${subscriptionBonus}%, достижения=${achievementBonus}%, уровень=${levelBonus}%, итого=${totalBonus}`);
+    debugLog(`[calculateModifiedDropWeights] Объект бонусов: подписка=${subscriptionBonus}%, достижения=${achievementBonus}%, уровень=${levelBonus}%, итого=${totalBonus}`);
   }
 
   const result = items.map(item => {
@@ -638,7 +645,7 @@ function calculateModifiedDropWeights(items, userBonuses = {}, caseType = 'premi
       const bonusEffect = 1 + (totalBonus * (1 + priceCategory / 50));
       weightMultiplier = bonusEffect;
 
-      console.log(`[calculateModifiedDropWeights] Предмет ${item.id} (${itemPrice}₽): категория=${priceCategory.toFixed(2)}, множитель=${weightMultiplier.toFixed(3)}`);
+      debugLog(`[calculateModifiedDropWeights] Предмет ${item.id} (${itemPrice}₽): категория=${priceCategory.toFixed(2)}, множитель=${weightMultiplier.toFixed(3)}`);
     }
 
     const modifiedWeight = baseWeight * weightMultiplier;
@@ -678,7 +685,7 @@ function calculateModifiedDropWeights(items, userBonuses = {}, caseType = 'premi
     return resultItem;
   });
 
-  console.log(`[calculateModifiedDropWeights] Первые 3 предмета после обработки:`, result.slice(0, 3).map(item => ({
+  debugLog(`[calculateModifiedDropWeights] Первые 3 предмета после обработки:`, result.slice(0, 3).map(item => ({
     id: item.id,
     name: item.name,
     originalWeight: item.originalWeight,
@@ -696,10 +703,10 @@ function calculateModifiedDropWeights(items, userBonuses = {}, caseType = 'premi
  * @returns {Object|null} выбранный предмет
  */
 function selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier = 0, excludedItemIds = [], caseType = 'premium') {
-  console.log(`[selectItemWithModifiedWeights] Получено предметов: ${itemsWithWeights ? itemsWithWeights.length : 'null/undefined'}, caseType: ${caseType}`);
+  debugLog(`[selectItemWithModifiedWeights] Получено предметов: ${itemsWithWeights ? itemsWithWeights.length : 'null/undefined'}, caseType: ${caseType}`);
 
   if (!itemsWithWeights || itemsWithWeights.length === 0) {
-    console.log(`[selectItemWithModifiedWeights] Массив предметов пуст или не существует`);
+    debugLog(`[selectItemWithModifiedWeights] Массив предметов пуст или не существует`);
     return null;
   }
 
@@ -708,14 +715,14 @@ function selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier = 
 
   if (userSubscriptionTier >= 3 && excludedItemIds.length > 0) {
     availableItems = itemsWithWeights.filter(item => !excludedItemIds.includes(item.id));
-    console.log(`[selectItemWithModifiedWeights] Статус++: отфильтровано ${itemsWithWeights.length} -> ${availableItems.length} предметов (исключено ${excludedItemIds.length})`);
+    debugLog(`[selectItemWithModifiedWeights] Статус++: отфильтровано ${itemsWithWeights.length} -> ${availableItems.length} предметов (исключено ${excludedItemIds.length})`);
   } else {
     // Для обычных пользователей используем старую логику с полями is_excluded/isExcluded
     availableItems = filterExcludedItems(itemsWithWeights, userSubscriptionTier);
   }
 
   if (availableItems.length === 0) {
-    console.log(`[selectItemWithModifiedWeights] Все предметы исключены для пользователя с подпиской ${userSubscriptionTier}`);
+    debugLog(`[selectItemWithModifiedWeights] Все предметы исключены для пользователя с подпиской ${userSubscriptionTier}`);
     return null;
   }
 
@@ -725,13 +732,13 @@ function selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier = 
     return sum + weight;
   }, 0);
 
-  console.log(`[selectItemWithModifiedWeights] Общий вес: ${totalWeight}`);
+  debugLog(`[selectItemWithModifiedWeights] Общий вес: ${totalWeight}`);
 
   if (totalWeight <= 0) {
     // Если общий вес 0, выбираем случайный предмет из доступных
-    console.log(`[selectItemWithModifiedWeights] Общий вес 0, выбираем случайный предмет из доступных`);
+    debugLog(`[selectItemWithModifiedWeights] Общий вес 0, выбираем случайный предмет из доступных`);
     const randomItem = availableItems[Math.floor(Math.random() * availableItems.length)];
-    console.log(`[selectItemWithModifiedWeights] Выбран случайный предмет: ${randomItem ? randomItem.id : 'undefined'}`);
+    debugLog(`[selectItemWithModifiedWeights] Выбран случайный предмет: ${randomItem ? randomItem.id : 'undefined'}`);
     return randomItem;
   }
 
@@ -739,23 +746,23 @@ function selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier = 
   const random = Math.random() * totalWeight;
   let currentWeight = 0;
 
-  console.log(`[selectItemWithModifiedWeights] Случайное число: ${random}`);
+  debugLog(`[selectItemWithModifiedWeights] Случайное число: ${random}`);
 
   // Находим предмет, соответствующий случайному числу
   for (const item of availableItems) {
     const itemWeight = item.modifiedWeight || calculateCorrectWeightByPrice(parseFloat(item.price) || 0, caseType);
     currentWeight += itemWeight;
-    console.log(`[selectItemWithModifiedWeights] Предмет ${item.id}, вес: ${itemWeight}, текущий вес: ${currentWeight}`);
+    debugLog(`[selectItemWithModifiedWeights] Предмет ${item.id}, вес: ${itemWeight}, текущий вес: ${currentWeight}`);
 
     if (random <= currentWeight) {
-      console.log(`[selectItemWithModifiedWeights] Выбран предмет: ${item.id}`);
+      debugLog(`[selectItemWithModifiedWeights] Выбран предмет: ${item.id}`);
       return item;
     }
   }
 
   // Fallback - возвращаем последний предмет из доступных
   const fallbackItem = availableItems[availableItems.length - 1];
-  console.log(`[selectItemWithModifiedWeights] Fallback - выбран последний предмет: ${fallbackItem ? fallbackItem.id : 'undefined'}`);
+  debugLog(`[selectItemWithModifiedWeights] Fallback - выбран последний предмет: ${fallbackItem ? fallbackItem.id : 'undefined'}`);
   return fallbackItem;
 }
 
@@ -802,10 +809,10 @@ function selectItemWithFullDuplicateProtection(
   userSubscriptionTier = 0,
   caseType = 'premium'
 ) {
-  console.log(`[selectItemWithFullDuplicateProtection] Получено предметов: ${itemsWithWeights ? itemsWithWeights.length : 'null'}`);
-  console.log(`[selectItemWithFullDuplicateProtection] Исключено предметов: ${excludedItems.length}`);
-  console.log(`[selectItemWithFullDuplicateProtection] Уровень подписки: ${userSubscriptionTier}`);
-  console.log(`[selectItemWithFullDuplicateProtection] Тип кейса: ${caseType}`);
+  debugLog(`[selectItemWithFullDuplicateProtection] Получено предметов: ${itemsWithWeights ? itemsWithWeights.length : 'null'}`);
+  debugLog(`[selectItemWithFullDuplicateProtection] Исключено предметов: ${excludedItems.length}`);
+  debugLog(`[selectItemWithFullDuplicateProtection] Уровень подписки: ${userSubscriptionTier}`);
+  debugLog(`[selectItemWithFullDuplicateProtection] Тип кейса: ${caseType}`);
 
   if (!itemsWithWeights || itemsWithWeights.length === 0) {
     return null;
@@ -816,23 +823,23 @@ function selectItemWithFullDuplicateProtection(
     const availableItems = itemsWithWeights.filter(item => {
       const isExcluded = excludedItems.includes(item.id);
       if (isExcluded) {
-        console.log(`[selectItemWithFullDuplicateProtection] Исключаем предмет: ${item.id} (${item.name})`);
+        debugLog(`[selectItemWithFullDuplicateProtection] Исключаем предмет: ${item.id} (${item.name})`);
       }
       return !isExcluded;
     });
 
-    console.log(`[selectItemWithFullDuplicateProtection] Статус++: после исключения осталось ${availableItems.length} предметов`);
+    debugLog(`[selectItemWithFullDuplicateProtection] Статус++: после исключения осталось ${availableItems.length} предметов`);
 
     // Логируем первые несколько доступных предметов
     if (availableItems.length > 0) {
-      console.log(`[selectItemWithFullDuplicateProtection] Первые 3 доступных предмета:`,
+      debugLog(`[selectItemWithFullDuplicateProtection] Первые 3 доступных предмета:`,
         availableItems.slice(0, 3).map(item => ({ id: item.id, name: item.name, price: item.price })));
     }
 
     if (availableItems.length === 0) {
-      console.log(`[selectItemWithFullDuplicateProtection] ВНИМАНИЕ: Все предметы исключены для пользователя Статус++!`);
-      console.log(`[selectItemWithFullDuplicateProtection] Исходно было предметов: ${itemsWithWeights.length}`);
-      console.log(`[selectItemWithFullDuplicateProtection] Исключенных ID: ${excludedItems}`);
+      debugLog(`[selectItemWithFullDuplicateProtection] ВНИМАНИЕ: Все предметы исключены для пользователя Статус++!`);
+      debugLog(`[selectItemWithFullDuplicateProtection] Исходно было предметов: ${itemsWithWeights.length}`);
+      debugLog(`[selectItemWithFullDuplicateProtection] Исключенных ID: ${excludedItems}`);
       // В этом случае пользователь получил все возможные предметы из кейса
       return null;
     }
