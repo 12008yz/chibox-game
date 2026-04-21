@@ -1,5 +1,22 @@
 require('dotenv').config();
 
+// Оставляем только полезные ошибки/предупреждения для диагностики.
+const NOOP = () => {};
+const winston = require('winston');
+const silentLogger = {
+  info: NOOP,
+  warn: console.warn.bind(console),
+  error: console.error.bind(console),
+  debug: NOOP,
+  log: NOOP,
+  child: () => silentLogger
+};
+winston.createLogger = () => silentLogger;
+console.log = NOOP;
+console.info = NOOP;
+// warn/error оставляем включенными
+console.debug = NOOP;
+
 // В production обязательны секреты (без дефолтов)
 if (process.env.NODE_ENV === 'production') {
   const required = [
