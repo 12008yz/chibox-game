@@ -24,7 +24,9 @@
     "playerok:start": "node ./scripts/playerok-arbitrage.js",
     "playerok:dev": "nodemon ./scripts/playerok-arbitrage.js",
     "load-test": "autocannon -c 30 -d 25 http://localhost:3000/api/v1/cases",
-    "load-test:artillery": "artillery run scripts/load-test/artillery-http.yml"
+    "load-test:artillery": "artillery run scripts/load-test/artillery-http.yml",
+    "build:native": "node-gyp rebuild",
+    "build:native:drop": "node-gyp rebuild --module_name=drop_engine"
   },
   "dependencies": {
     "@fastify/csrf-protection": "^6.0.0",
@@ -51,6 +53,7 @@
     "morgan": "~1.9.1",
     "multer": "^2.0.2",
     "ngrok": "^5.0.0-beta.2",
+    "node-addon-api": "^8.7.0",
     "node-cron": "^3.0.3",
     "node-fetch": "^2.7.0",
     "nodemailer": "^7.0.3",

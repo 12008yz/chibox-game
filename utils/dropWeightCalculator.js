@@ -1,10 +1,39 @@
 const { logger } = require('./logger');
+const { pickWeightedIndex } = require('../services/nativeDropEngine');
 const isDropDebugEnabled = process.env.DEBUG_DROP_CALCULATOR === 'true';
 
 function debugLog(...args) {
   if (isDropDebugEnabled) {
     logger.info(...args);
   }
+}
+
+function pickItemByWeights(items, getWeight, caseType, debugPrefix) {
+  const weights = items.map((item) => getWeight(item));
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+
+  if (totalWeight <= 0) {
+    const randomItem = items[Math.floor(Math.random() * items.length)];
+    debugLog(`[${debugPrefix}] Общий вес 0, выбран случайный предмет: ${randomItem ? randomItem.id : 'undefined'}`);
+    return randomItem;
+  }
+
+  const random = Math.random() * totalWeight;
+  const nativeIndex = pickWeightedIndex(weights, random);
+  if (nativeIndex >= 0 && nativeIndex < items.length) {
+    debugLog(`[${debugPrefix}] Выбор через native engine: index=${nativeIndex}, caseType=${caseType}, totalWeight=${totalWeight}`);
+    return items[nativeIndex];
+  }
+
+  let currentWeight = 0;
+  for (let i = 0; i < items.length; i++) {
+    currentWeight += weights[i];
+    if (random <= currentWeight) {
+      return items[i];
+    }
+  }
+
+  return items[items.length - 1];
 }
 
 /**
@@ -567,28 +596,14 @@ function selectItemWithCorrectWeights(items, userSubscriptionTier = 0, excludedI
     debugLog(`[selectItemWithCorrectWeights] Выбран случайный предмет: ${randomItem ? randomItem.id : 'undefined'}`);
     return randomItem;
   }
-
-  // Генерируем случайное число
-  const random = Math.random() * totalWeight;
-  let currentWeight = 0;
-
-  debugLog(`[selectItemWithCorrectWeights] Случайное число: ${random}`);
-
-  // Находим предмет, соответствующий случайному числу
-  for (const item of itemsWithCorrectWeights) {
-    currentWeight += item.correctWeight;
-    debugLog(`[selectItemWithCorrectWeights] Предмет ${item.id} (${item.price}₽), вес: ${item.correctWeight}, текущий вес: ${currentWeight}`);
-
-    if (random <= currentWeight) {
-      debugLog(`[selectItemWithCorrectWeights] Выбран предмет: ${item.id} с ценой ${item.price}₽`);
-      return item;
-    }
-  }
-
-  // Fallback - возвращаем последний предмет из доступных
-  const fallbackItem = itemsWithCorrectWeights[itemsWithCorrectWeights.length - 1];
-  debugLog(`[selectItemWithCorrectWeights] Fallback - выбран последний предмет: ${fallbackItem ? fallbackItem.id : 'undefined'}`);
-  return fallbackItem;
+  const selectedItem = pickItemByWeights(
+    itemsWithCorrectWeights,
+    (item) => item.correctWeight,
+    caseType,
+    'selectItemWithCorrectWeights'
+  );
+  debugLog(`[selectItemWithCorrectWeights] Выбран предмет: ${selectedItem ? selectedItem.id : 'undefined'}`);
+  return selectedItem;
 }
 
 /**
@@ -742,28 +757,14 @@ function selectItemWithModifiedWeights(itemsWithWeights, userSubscriptionTier = 
     return randomItem;
   }
 
-  // Генерируем случайное число
-  const random = Math.random() * totalWeight;
-  let currentWeight = 0;
-
-  debugLog(`[selectItemWithModifiedWeights] Случайное число: ${random}`);
-
-  // Находим предмет, соответствующий случайному числу
-  for (const item of availableItems) {
-    const itemWeight = item.modifiedWeight || calculateCorrectWeightByPrice(parseFloat(item.price) || 0, caseType);
-    currentWeight += itemWeight;
-    debugLog(`[selectItemWithModifiedWeights] Предмет ${item.id}, вес: ${itemWeight}, текущий вес: ${currentWeight}`);
-
-    if (random <= currentWeight) {
-      debugLog(`[selectItemWithModifiedWeights] Выбран предмет: ${item.id}`);
-      return item;
-    }
-  }
-
-  // Fallback - возвращаем последний предмет из доступных
-  const fallbackItem = availableItems[availableItems.length - 1];
-  debugLog(`[selectItemWithModifiedWeights] Fallback - выбран последний предмет: ${fallbackItem ? fallbackItem.id : 'undefined'}`);
-  return fallbackItem;
+  const selectedItem = pickItemByWeights(
+    availableItems,
+    (item) => item.modifiedWeight || calculateCorrectWeightByPrice(parseFloat(item.price) || 0, caseType),
+    caseType,
+    'selectItemWithModifiedWeights'
+  );
+  debugLog(`[selectItemWithModifiedWeights] Выбран предмет: ${selectedItem ? selectedItem.id : 'undefined'}`);
+  return selectedItem;
 }
 
 /**
