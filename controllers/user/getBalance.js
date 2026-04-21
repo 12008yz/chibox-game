@@ -11,12 +11,18 @@ const logger = winston.createLogger({
     new winston.transports.Console(),
   ],
 });
+const isBalanceDebugEnabled = process.env.DEBUG_BALANCE === 'true';
+function debugLog(...args) {
+  if (isBalanceDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function getBalance(req, res) {
   try {
     const userId = req.user.id;
     const user = await db.User.findByPk(userId);
-    logger.info(`Баланс пользователя ${userId}: ${user ? user.balance : 'unknown'}`);
+    debugLog(`Баланс пользователя ${userId}: ${user ? user.balance : 'unknown'}`);
     return res.json({ balance: user ? user.balance : 0 });
   } catch (error) {
     logger.error('Ошибка получения баланса:', error);

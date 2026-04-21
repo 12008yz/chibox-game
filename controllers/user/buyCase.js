@@ -13,6 +13,12 @@ const logger = winston.createLogger({
     new winston.transports.Console(),
   ],
 });
+const isBuyCaseDebugEnabled = process.env.DEBUG_BUY_CASE === 'true';
+function debugLog(...args) {
+  if (isBuyCaseDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 // Убрано ограничение на максимальное количество кейсов в день
 
@@ -115,7 +121,7 @@ async function buyCase(req, res) {
           logger.error('Ошибка при добавлении опыта:', err);
         });
 
-        logger.info(`Пользователь ${userId} купил ${allowedQuantity} кейсов за баланс (${totalPrice} ChiCoins)`);
+        debugLog(`Пользователь ${userId} купил ${allowedQuantity} кейсов за баланс (${totalPrice} ChiCoins)`);
 
         return res.json({
           success: true,
@@ -159,7 +165,7 @@ async function buyCase(req, res) {
           }
         });
 
-        logger.info(`Платеж добавлен в очередь для покупки ${allowedQuantity} кейсов на сумму ${totalPrice} ChiCoins`);
+        debugLog(`Платеж добавлен в очередь для покупки ${allowedQuantity} кейсов на сумму ${totalPrice} ChiCoins`);
 
         // Пока что возвращаем временную ссылку, в реальности нужно дождаться обработки
         const paymentUrl = `payment-processing-${paymentJob.id}`;

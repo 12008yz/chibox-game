@@ -19,14 +19,20 @@ const logger = winston.createLogger({
     new winston.transports.Console(),
   ],
 });
+const isTopUpDebugEnabled = process.env.DEBUG_TOPUP === 'true';
+function debugLog(...args) {
+  if (isTopUpDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function topUpBalance(req, res) {
-  logger.info('topUpBalance start');
+  debugLog('topUpBalance start');
   try {
     const userId = req.user?.id;
     const { amount, currency = 'RUB', payment_method = 'unitpay', unitpay_system, promo_code } = req.body;
 
-    logger.info('topUpBalance called', { userId, amount, currency, payment_method, hasPromoCode: !!promo_code });
+    debugLog('topUpBalance called', { userId, amount, currency, payment_method, hasPromoCode: !!promo_code });
 
     // Проверяем авторизацию
     if (!userId) {
@@ -71,7 +77,7 @@ async function topUpBalance(req, res) {
     const amountInRubles = chicoins; // 1 ChiCoin = 1 рубль
     const amountInUserCurrency = convertFromChiCoins(chicoins, currency);
 
-    logger.info(`ChiCoins: ${chicoins}, Amount in RUB: ${amountInRubles}, Display in ${currency}: ${amountInUserCurrency}`);
+    debugLog(`ChiCoins: ${chicoins}, Amount in RUB: ${amountInRubles}, Display in ${currency}: ${amountInUserCurrency}`);
 
     const user = await db.User.findByPk(userId);
     if (!user) {
@@ -82,7 +88,7 @@ async function topUpBalance(req, res) {
       });
     }
 
-    logger.info(`User loaded: ${user.username}`);
+    debugLog(`User loaded: ${user.username}`);
 
     let promoCodeId = null;
     if (promo_code && typeof promo_code === 'string' && promo_code.trim()) {
@@ -106,7 +112,7 @@ async function topUpBalance(req, res) {
             });
             if (usageCount < (promo.max_usages_per_user || 1)) {
               promoCodeId = promo.id;
-              logger.info(`Deposit promo ${code} applied to payment, +${promo.value}%`);
+              debugLog(`Deposit promo ${code} applied to payment, +${promo.value}%`);
             }
           }
         }
@@ -140,10 +146,10 @@ async function topUpBalance(req, res) {
       }
     });
 
-    logger.info(`Payment creation result:`, paymentResult);
+    debugLog(`Payment creation result:`, paymentResult);
 
     if (paymentResult.success) {
-      logger.info(`Payment created successfully: ${paymentResult.paymentId}`);
+      debugLog(`Payment created successfully: ${paymentResult.paymentId}`);
       return res.json({
         success: true,
         data: {

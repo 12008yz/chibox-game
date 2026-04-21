@@ -11,10 +11,16 @@ const logger = winston.createLogger({
     new winston.transports.Console(),
   ],
 });
+const isBonusCooldownDebugEnabled = process.env.DEBUG_BONUS_STATUS === 'true';
+function debugLog(...args) {
+  if (isBonusCooldownDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function resetBonusCooldown(req, res) {
   try {
-    logger.info('🔄 Запрос на сброс кулдауна бонуса получен');
+    debugLog('🔄 Запрос на сброс кулдауна бонуса получен');
 
     if (!req.user || !req.user.id) {
       logger.error('❌ Пользователь не авторизован');
@@ -22,7 +28,7 @@ async function resetBonusCooldown(req, res) {
     }
 
     const userId = req.user.id;
-    logger.info(`🔍 Ищем пользователя с ID: ${userId}`);
+    debugLog(`🔍 Ищем пользователя с ID: ${userId}`);
 
     const user = await db.User.findByPk(userId);
 
@@ -32,13 +38,13 @@ async function resetBonusCooldown(req, res) {
     }
 
     const previousTime = user.next_bonus_available_time;
-    logger.info(`📅 Предыдущее время бонуса: ${previousTime}`);
+    debugLog(`📅 Предыдущее время бонуса: ${previousTime}`);
 
     // Сбрасываем время следующего доступного бонуса
     user.next_bonus_available_time = null;
     await user.save();
 
-    logger.info(`✅ Кулдаун бонуса сброшен для пользователя ${userId}`);
+    debugLog(`✅ Кулдаун бонуса сброшен для пользователя ${userId}`);
 
     return res.json({
       message: 'Кулдаун бонуса сброшен успешно',

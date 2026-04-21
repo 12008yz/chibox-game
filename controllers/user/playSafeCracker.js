@@ -1,6 +1,13 @@
 const { User, Transaction, UserInventory, Item } = require('../../models');
 const { logger } = require('../../utils/logger');
 const { checkFreeGameAvailability, updateFreeGameCounters } = require('../../utils/freeGameHelper');
+const isSafeCrackerDebugEnabled = process.env.DEBUG_SAFECRACKER === 'true';
+
+function debugLog(...args) {
+  if (isSafeCrackerDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 // Кулдаун Safe Cracker в миллисекундах (нет кулдауна)
 const SAFE_CRACKER_COOLDOWN_MS = 0;
@@ -110,7 +117,7 @@ function simulateSafeCracker(prize) {
  * Логирует информацию о каждом предмете и выявляет отсутствующие
  */
 async function validateSafeCrackerItems() {
-  logger.info('SafeCracker: Проверка предметов из списка SAFECRACKER_ITEM_IDS');
+  debugLog('SafeCracker: Проверка предметов из списка SAFECRACKER_ITEM_IDS');
 
   if (SAFECRACKER_ITEM_IDS.length === 0) {
     logger.error('SafeCracker: Список предметов ПУСТ!');
@@ -124,11 +131,11 @@ async function validateSafeCrackerItems() {
       }
     });
 
-    logger.info(`SafeCracker: Найдено ${items.length} из ${SAFECRACKER_ITEM_IDS.length} предметов`);
+    debugLog(`SafeCracker: Найдено ${items.length} из ${SAFECRACKER_ITEM_IDS.length} предметов`);
 
     // Проверяем каждый предмет
     items.forEach(item => {
-      logger.info(`SafeCracker Item: ID=${item.id}, Name="${item.name}", Price=${item.price} ChiCoins, Rarity=${item.rarity}, Available=${item.is_available}`);
+      debugLog(`SafeCracker Item: ID=${item.id}, Name="${item.name}", Price=${item.price} ChiCoins, Rarity=${item.rarity}, Available=${item.is_available}`);
 
       // Проверяем наличие всех необходимых полей для операций
       const hasAllFields = item.id && item.name && item.price && item.rarity && item.image_url;
@@ -188,7 +195,7 @@ async function selectRandomItem() {
     }
 
     const randomItem = items[Math.floor(Math.random() * items.length)];
-    logger.info(`SafeCracker: Выбран предмет "${randomItem.name}" (ID: ${randomItem.id}, Price: ${randomItem.price} ChiCoins)`);
+    debugLog(`SafeCracker: Выбран предмет "${randomItem.name}" (ID: ${randomItem.id}, Price: ${randomItem.price} ChiCoins)`);
     return randomItem;
   } catch (error) {
     logger.error('SafeCracker: Ошибка при выборе предмета:', error);
@@ -248,7 +255,7 @@ const playSafeCracker = async (req, res) => {
     if (hasFreeAttempts && prize.type === 'subscription') {
       prize.type = 'money';
       prize.value = Math.floor(Math.random() * (50 - 15 + 1)) + 15;
-      logger.info('SafeCracker: Бесплатная попытка - заменяем подписку на деньги');
+      debugLog('SafeCracker: Бесплатная попытка - заменяем подписку на деньги');
     }
 
     // Если у пользователя нет статуса (подписки) — дни подписки не выпадают, заменяем на деньги
@@ -256,7 +263,7 @@ const playSafeCracker = async (req, res) => {
     if (hasNoStatus && prize.type === 'subscription') {
       prize.type = 'money';
       prize.value = Math.floor(Math.random() * (50 - 15 + 1)) + 15;
-      logger.info('SafeCracker: У пользователя нет статуса — заменяем дни подписки на деньги');
+      debugLog('SafeCracker: У пользователя нет статуса — заменяем дни подписки на деньги');
     }
 
     // Если приз - предмет, выбираем случайный предмет
@@ -274,15 +281,15 @@ const playSafeCracker = async (req, res) => {
     // Симулируем взлом сейфа
     const { secretCode, userCode, matches } = simulateSafeCracker(prize);
 
-    logger.info(`SafeCracker - пользователь ${user.username}: секретный код ${secretCode}, код пользователя ${userCode}, совпадений: ${matches}, приз: ${prize.type}`);
+    debugLog(`SafeCracker - пользователь ${user.username}: секретный код ${secretCode}, код пользователя ${userCode}, совпадений: ${matches}, приз: ${prize.type}`);
 
     // Уменьшаем количество попыток (сначала бесплатные, потом обычные)
     if (hasFreeAttempts) {
       await updateFreeGameCounters(user, 'safecracker');
-      logger.info(`SafeCracker - использована бесплатная попытка. Осталось: ${2 - user.free_safecracker_claim_count}`);
+      debugLog(`SafeCracker - использована бесплатная попытка. Осталось: ${2 - user.free_safecracker_claim_count}`);
     } else if (hasActiveSubscription) {
       user.game_attempts = Math.max(0, user.game_attempts - 1);
-      logger.info(`SafeCracker - использована обычная попытка. Осталось: ${user.game_attempts}`);
+      debugLog(`SafeCracker - использована обычная попытка. Осталось: ${user.game_attempts}`);
     }
 
     // Применяем приз если есть
@@ -298,7 +305,7 @@ const playSafeCracker = async (req, res) => {
 
       message = `🎉 Поздравляем! ${matches} совпадения! Вы выиграли ${prize.value} ChiCoins на баланс!`;
 
-      logger.info(`Пользователь ${user.username} выиграл ${prize.value} ChiCoins в SafeCracker. Баланс: ${balanceBefore} -> ${balanceAfter}`);
+      debugLog(`Пользователь ${user.username} выиграл ${prize.value} ChiCoins в SafeCracker. Баланс: ${balanceBefore} -> ${balanceAfter}`);
 
       // Создаем транзакцию
       await Transaction.create({
@@ -325,7 +332,7 @@ const playSafeCracker = async (req, res) => {
 
       message = `🎉 Поздравляем! ${matches} совпадения! Вы выиграли предмет: ${wonItem.name}!`;
 
-      logger.info(`Пользователь ${user.username} выиграл предмет ${wonItem.name} (${wonItem.id}) в SafeCracker`);
+      debugLog(`Пользователь ${user.username} выиграл предмет ${wonItem.name} (${wonItem.id}) в SafeCracker`);
 
       // Создаем транзакцию для истории (баланс не меняется)
       await Transaction.create({
@@ -355,7 +362,7 @@ const playSafeCracker = async (req, res) => {
 
       const currentSubscriptionDays = user.subscription_days_left || 0;
 
-      logger.info(
+      debugLog(
         `Пользователь ${user.username} выиграл ${addedDays} дней подписки в SafeCracker (${matches} совпадения).` +
         ` Было дней в БД: ${currentSubscriptionDays}, станет (по дате): ${newDaysLeft}, expiry: ${newExpiry.toISOString()}`
       );
@@ -415,7 +422,7 @@ const playSafeCracker = async (req, res) => {
       remaining_attempts: hasActiveSubscription ? user.game_attempts : 0
     };
 
-    logger.info(`SafeCracker - ответ пользователю ${user.username}:`, response);
+    debugLog(`SafeCracker - ответ пользователю ${user.username}:`, response);
 
     res.json(response);
 

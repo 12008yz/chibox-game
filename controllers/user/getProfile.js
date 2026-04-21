@@ -3,6 +3,13 @@ const { logger } = require('../../middleware/logger');
 const cache = require('../../middleware/cache');
 const { updateUserBonuses } = require('../../utils/userBonusCalculator');
 const { updateStreakByVisit } = require('../../services/streakService');
+const isProfileDebugEnabled = process.env.DEBUG_PROFILE === 'true';
+
+function debugLog(...args) {
+  if (isProfileDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function getProfile(req, res) {
   // Защита от IDOR: только если указан конкретный ID в параметрах
@@ -91,7 +98,7 @@ async function getProfile(req, res) {
         .sort((a, b) => parseFloat(b.item.price) - parseFloat(a.item.price))
         .slice(0, 5);
       topItems.forEach((item, index) => {
-        console.log(`${index + 1}. ${item.item.name} - ${item.item.price} КР (${item.item.rarity})`);
+        debugLog(`${index + 1}. ${item.item.name} - ${item.item.price} КР (${item.item.rarity})`);
       });
     }
 

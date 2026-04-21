@@ -2,6 +2,13 @@ const { CaseTemplate, Item, User, CaseItemDrop } = require('../../models');
 const { logger } = require('../../utils/logger');
 const { calculateModifiedDropWeights, calculateCorrectWeightByPrice, determineCaseType } = require('../../utils/dropWeightCalculator');
 const { seededShuffle } = require('../../utils/seededShuffle');
+const isCaseTemplateItemsDebugEnabled = process.env.DEBUG_CASE_TEMPLATE_ITEMS === 'true';
+
+function debugLog(...args) {
+  if (isCaseTemplateItemsDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 const getCaseTemplateItems = async (req, res) => {
   try {
@@ -59,7 +66,7 @@ const getCaseTemplateItems = async (req, res) => {
 
     // Определяем тип кейса для правильного расчета весов
     const caseType = determineCaseType(caseTemplate, false); // false потому что это не платный кейс (открытие через инвентарь)
-    logger.info(`[getCaseTemplateItems] Тип кейса ${caseTemplateId} определен как: ${caseType}`);
+    debugLog(`[getCaseTemplateItems] Тип кейса ${caseTemplateId} определен как: ${caseType}`);
 
     // Если пользователь аутентифицирован, рассчитываем модифицированные шансы
     if (req.user && req.user.id) {
@@ -78,7 +85,7 @@ const getCaseTemplateItems = async (req, res) => {
         // Получаем уже выпавшие предметы для всех пользователей
         let droppedItemIds = [];
         if (user) {
-          console.log(`DEBUG: Ищем выпавшие предметы для пользователя ${user.id} в кейсе ${caseTemplateId}`);
+          debugLog(`DEBUG: Ищем выпавшие предметы для пользователя ${user.id} в кейсе ${caseTemplateId}`);
 
           const droppedItems = await CaseItemDrop.findAll({
             where: {
@@ -90,20 +97,20 @@ const getCaseTemplateItems = async (req, res) => {
 
           droppedItemIds = droppedItems.map(drop => drop.item_id);
 
-          console.log(`DEBUG: Найдено выпавших предметов: ${droppedItems.length}`);
+          debugLog(`DEBUG: Найдено выпавших предметов: ${droppedItems.length}`);
           if (droppedItems.length > 0) {
-            console.log(`DEBUG: Детали выпавших предметов:`, droppedItems.map(drop => ({
+            debugLog(`DEBUG: Детали выпавших предметов:`, droppedItems.map(drop => ({
               item_id: drop.item_id,
               dropped_at: drop.dropped_at,
               case_id: drop.case_id
             })));
           }
 
-          logger.info(`Пользователь ${user.id} уже получал из кейса ${caseTemplateId}: ${droppedItemIds.length} предметов`);
+          debugLog(`Пользователь ${user.id} уже получал из кейса ${caseTemplateId}: ${droppedItemIds.length} предметов`);
         }
 
         if (user && user.total_drop_bonus_percentage > 0) {
-          logger.info(`Расчет модифицированных шансов для пользователя ${user.id}, бонус: ${user.total_drop_bonus_percentage}%, тип кейса: ${caseType}`);
+          debugLog(`Расчет модифицированных шансов для пользователя ${user.id}, бонус: ${user.total_drop_bonus_percentage}%, тип кейса: ${caseType}`);
 
           // Рассчитываем модифицированные веса с учетом типа кейса
           const modifiedItems = calculateModifiedDropWeights(itemsWithChances, user.total_drop_bonus_percentage, caseType);
@@ -176,7 +183,7 @@ const getCaseTemplateItems = async (req, res) => {
 
             // Получаем уже выпавшие предметы для пользователей Статус++ (3 уровень подписки)
             if (userSubscriptionTier >= 3) {
-              console.log(`DEBUG (базовые шансы): Ищем выпавшие предметы для пользователя Статус++ ${user.id} в кейсе ${caseTemplateId}`);
+              debugLog(`DEBUG (базовые шансы): Ищем выпавшие предметы для пользователя Статус++ ${user.id} в кейсе ${caseTemplateId}`);
 
               const droppedItems = await CaseItemDrop.findAll({
                 where: {
@@ -188,16 +195,16 @@ const getCaseTemplateItems = async (req, res) => {
 
               droppedItemIds = droppedItems.map(drop => drop.item_id);
 
-              console.log(`DEBUG (базовые шансы): Найдено выпавших предметов: ${droppedItems.length}`);
+              debugLog(`DEBUG (базовые шансы): Найдено выпавших предметов: ${droppedItems.length}`);
               if (droppedItems.length > 0) {
-                console.log(`DEBUG (базовые шансы): Детали выпавших предметов:`, droppedItems.map(drop => ({
+                debugLog(`DEBUG (базовые шансы): Детали выпавших предметов:`, droppedItems.map(drop => ({
                   item_id: drop.item_id,
                   dropped_at: drop.dropped_at,
                   case_id: drop.case_id
                 })));
               }
 
-              logger.info(`Пользователь Статус++ ${user.id} уже получал из кейса ${caseTemplateId}: ${droppedItemIds.length} предметов (базовые шансы)`);
+              debugLog(`Пользователь Статус++ ${user.id} уже получал из кейса ${caseTemplateId}: ${droppedItemIds.length} предметов (базовые шансы)`);
             }
           }
         } catch (error) {
@@ -270,15 +277,15 @@ const getCaseTemplateItems = async (req, res) => {
         }
       });
       finalItems = Array.from(uniqueItemsMap.values());
-      console.log(`DEBUG: Убрали дубликаты для кейса Статус++. Было: ${itemsWithChances.length}, стало: ${finalItems.length}`);
+      debugLog(`DEBUG: Убрали дубликаты для кейса Статус++. Было: ${itemsWithChances.length}, стало: ${finalItems.length}`);
 
       // Подробная статистика для кейса Статус++
       const excludedCount = finalItems.filter(item => item.is_excluded).length;
       const availableCount = finalItems.filter(item => !item.is_excluded).length;
-      console.log(`DEBUG СТАТУС++: Всего предметов: ${finalItems.length}, Исключено: ${excludedCount}, Доступно: ${availableCount}`);
+      debugLog(`DEBUG СТАТУС++: Всего предметов: ${finalItems.length}, Исключено: ${excludedCount}, Доступно: ${availableCount}`);
 
       if (excludedCount > 0) {
-        console.log(`DEBUG СТАТУС++: Исключенные предметы:`, finalItems.filter(item => item.is_excluded).map(item => ({
+        debugLog(`DEBUG СТАТУС++: Исключенные предметы:`, finalItems.filter(item => item.is_excluded).map(item => ({
           id: item.id,
           name: item.name,
           price: item.price
@@ -286,7 +293,7 @@ const getCaseTemplateItems = async (req, res) => {
       }
 
       if (availableCount === 0) {
-        console.log(`WARNING СТАТУС++: НЕТ ДОСТУПНЫХ ПРЕДМЕТОВ! Пользователь получил все предметы из кейса.`);
+        logger.warn(`СТАТУС++: НЕТ ДОСТУПНЫХ ПРЕДМЕТОВ! Пользователь получил все предметы из кейса.`);
       }
     }
 

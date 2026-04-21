@@ -1,4 +1,5 @@
 const SteamBot = require('../../services/steamBotService');
+const { logger } = require('../../utils/logger');
 const steamBotConfig = {
   accountName: process.env.STEAM_ACCOUNT_NAME || '',
   password: process.env.STEAM_PASSWORD || '',
@@ -18,24 +19,31 @@ const steamBot = new SteamBot(
 
 let isLoggingIn = false;
 let hasLoggedIn = false;
+const isSteamBotDebugEnabled = process.env.DEBUG_STEAM_BOT === 'true';
+
+function debugLog(...args) {
+  if (isSteamBotDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function loginBot(req, res) {
-  console.log('Received loginBot request', { time: new Date().toISOString() });
+  debugLog('Received loginBot request', { time: new Date().toISOString() });
   try {
     if (hasLoggedIn) {
-      console.log('Bot already logged in');
+      debugLog('Bot already logged in');
       return res.json({ success: true, message: 'Bot already logged in' });
     }
     if (isLoggingIn) {
-      console.log('Login already in progress');
+      debugLog('Login already in progress');
       return res.status(429).json({ success: false, message: 'Login already in progress' });
     }
     isLoggingIn = true;
-    console.log('Starting steamBot.login() ...');
+    debugLog('Starting steamBot.login() ...');
     await steamBot.login();
     hasLoggedIn = true;
     isLoggingIn = false;
-    console.log('Bot logged in successfully');
+    debugLog('Bot logged in successfully');
     res.json({ success: true, message: 'Bot logged in successfully' });
   } catch (error) {
     isLoggingIn = false;
@@ -45,10 +53,10 @@ async function loginBot(req, res) {
 }
 
 async function sendTrade(req, res) {
-  console.log('Received sendTrade request', { time: new Date().toISOString(), body: { ...req.body, tradeUrl: req.body.tradeUrl ? '[REDACTED]' : undefined } });
+  debugLog('Received sendTrade request', { time: new Date().toISOString(), body: { ...req.body, tradeUrl: req.body.tradeUrl ? '[REDACTED]' : undefined } });
   try {
     if (!hasLoggedIn) {
-      console.log('sendTrade rejected: Bot is not logged in!');
+      debugLog('sendTrade rejected: Bot is not logged in!');
       return res.status(403).json({ success: false, message: 'Bot is not logged in' });
     }
     const { tradeUrl, itemAssetId } = req.body;
@@ -59,20 +67,20 @@ async function sendTrade(req, res) {
     // Валидация Trade URL и извлечение partnerSteamId + token (обязательно для отправки)
     const urlValidation = await steamBot.validateTradeUrl(tradeUrl);
     if (!urlValidation.valid) {
-      console.log('Invalid trade URL:', urlValidation.error);
+      debugLog('Invalid trade URL:', urlValidation.error);
       return res.status(400).json({ success: false, message: urlValidation.error || 'Неверный Trade URL' });
     }
     const { partnerSteamId, token } = urlValidation;
 
     // Get bot inventory
-    console.log('Fetching bot inventory ...');
+    debugLog('Fetching bot inventory ...');
     const inventory = await new Promise((resolve, reject) => {
       steamBot.manager.getInventoryContents(730, 2, true, (err, items) => {
         if (err) return reject(err);
         resolve(items);
       });
     });
-    console.log('Inventory loaded. Count:', inventory.length);
+    debugLog('Inventory loaded. Count:', inventory.length);
 
     const itemToGive = inventory.find(item => item.assetid === itemAssetId);
     if (!itemToGive) {
@@ -80,9 +88,9 @@ async function sendTrade(req, res) {
     }
 
     // Отправка с токеном (иначе Steam часто возвращает eresult 15)
-    console.log('Sending trade offer with token...');
+    debugLog('Sending trade offer with token...');
     const status = await steamBot.sendTradeOfferWithToken(partnerSteamId, token, [itemToGive], []);
-    console.log('Trade offer result:', status.success ? `Offer ID ${status.tradeOfferId}` : status.message);
+    debugLog('Trade offer result:', status.success ? `Offer ID ${status.tradeOfferId}` : status.message);
 
     if (!status.success) {
       return res.status(400).json({ success: false, message: status.message || 'Не удалось отправить трейд', status });
@@ -95,20 +103,20 @@ async function sendTrade(req, res) {
 }
 
 async function getSteamInventory(req, res) {
-  console.log('Received getSteamInventory request', { time: new Date().toISOString() });
+  debugLog('Received getSteamInventory request', { time: new Date().toISOString() });
   try {
     if (!hasLoggedIn) {
       if (!isLoggingIn) {
         isLoggingIn = true;
-        console.log('Need login - starting steamBot.login() ...');
+        debugLog('Need login - starting steamBot.login() ...');
         await steamBot.login();
         hasLoggedIn = true;
         isLoggingIn = false;
-        console.log('Logged in for inventory.');
+        debugLog('Logged in for inventory.');
       } else {
-        console.log('Login in progress - waiting ...');
+        debugLog('Login in progress - waiting ...');
         while (isLoggingIn) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => globalThis.setTimeout(resolve, 100));
         }
         if (!hasLoggedIn) {
           console.error('Cannot log in bot after waiting.');
@@ -116,7 +124,7 @@ async function getSteamInventory(req, res) {
         }
       }
     }
-    console.log('Loading Steam Inventory ...');
+    debugLog('Loading Steam Inventory ...');
     const inventory = await new Promise((resolve, reject) => {
       steamBot.manager.getInventoryContents(730, 2, true, (err, items) => {
         if (err) {
@@ -126,7 +134,7 @@ async function getSteamInventory(req, res) {
         resolve(items);
       });
     });
-    console.log('Inventory loaded. Count of items:', inventory.length);
+    debugLog('Inventory loaded. Count of items:', inventory.length);
     res.json({ success: true, count: inventory.length, inventory });
   } catch (error) {
     console.error('Failed to get Steam inventory:', error);

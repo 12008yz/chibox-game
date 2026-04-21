@@ -11,6 +11,12 @@ const logger = winston.createLogger({
     new winston.transports.Console(),
   ],
 });
+const isCasesDebugEnabled = process.env.DEBUG_CASES === 'true';
+function debugLog(...args) {
+  if (isCasesDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function getCases(req, res) {
   try {
@@ -72,7 +78,7 @@ async function getCases(req, res) {
       next_available_time: null // Для платных кейсов таймер не нужен
     }));
 
-    logger.info('Получен список кейсов');
+    debugLog('Получен список кейсов');
     return res.json({
       success: true,
       free_cases: freeCases,

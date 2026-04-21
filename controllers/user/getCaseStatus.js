@@ -1,5 +1,12 @@
 const db = require('../../models');
 const { logger } = require('../../utils/logger');
+const isCaseStatusDebugEnabled = process.env.DEBUG_CASE_STATUS === 'true';
+
+function debugLog(...args) {
+  if (isCaseStatusDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function getCaseStatus(req, res) {
   try {
@@ -117,7 +124,7 @@ async function getCaseStatus(req, res) {
       }
 
       // ОТКЛЮЧЕНО: Проверка дневного лимита убрана - кейсы доступны каждые 10 секунд
-      console.log('Проверка дневного лимита в getCaseStatus отключена');
+      debugLog('Проверка дневного лимита в getCaseStatus отключена');
 
       status.canOpen = true;
       return res.json({ success: true, data: status });

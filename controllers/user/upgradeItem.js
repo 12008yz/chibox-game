@@ -15,6 +15,13 @@ const logger = winston.createLogger({
   ],
 });
 
+const isUpgradeDebugEnabled = process.env.DEBUG_UPGRADE === 'true';
+function debugLog(...args) {
+  if (isUpgradeDebugEnabled) {
+    logger.info(...args);
+  }
+}
+
 // Получить предметы доступные для апгрейда
 async function getUpgradeableItems(req, res) {
   try {
@@ -256,7 +263,7 @@ async function performUpgrade(req, res) {
     const isSuccess = randomValue < finalSuccessChance;
 
     // Логируем детали для отладки
-    logger.info(`Апгрейд: пользователь ${userId}, общая цена исходных: ${totalSourcePrice.toFixed(2)}${chanceData.isLowValueSource ? ' (дешевые предметы)' : ''}, цена цели: ${targetPrice.toFixed(2)}, соотношение: ${chanceData.priceRatio}, базовый шанс: ${chanceData.baseChance}%, бонус: ${cheapTargetBonus}%, финальный шанс: ${finalSuccessChance.toFixed(1)}%, мат. ожидание: ${chanceData.expectedValue.toFixed(2)}КР, выпало: ${randomValue.toFixed(1)}, результат: ${isSuccess ? 'УСПЕХ' : 'НЕУДАЧА'}`);
+    debugLog(`Апгрейд: пользователь ${userId}, общая цена исходных: ${totalSourcePrice.toFixed(2)}${chanceData.isLowValueSource ? ' (дешевые предметы)' : ''}, цена цели: ${targetPrice.toFixed(2)}, соотношение: ${chanceData.priceRatio}, базовый шанс: ${chanceData.baseChance}%, бонус: ${cheapTargetBonus}%, финальный шанс: ${finalSuccessChance.toFixed(1)}%, мат. ожидание: ${chanceData.expectedValue.toFixed(2)}КР, выпало: ${randomValue.toFixed(1)}, результат: ${isSuccess ? 'УСПЕХ' : 'НЕУДАЧА'}`);
 
     // Помечаем все исходные предметы как использованные
     await Promise.all(sourceInventoryItems.map(async (invItem) => {
@@ -292,10 +299,10 @@ async function performUpgrade(req, res) {
       // Обновляем лучший предмет, если текущий дороже (атомарно)
       const user = await db.User.findByPk(userId, { transaction });
       const currentBestValue = parseFloat(user.best_item_value) || 0;
-      logger.info(`DEBUG UPGRADE: Обновление лучшего предмета. Текущий: ${currentBestValue}, Новый: ${targetPrice}, Предмет: ${targetItem.name}`);
+      debugLog(`DEBUG UPGRADE: Обновление лучшего предмета. Текущий: ${currentBestValue}, Новый: ${targetPrice}, Предмет: ${targetItem.name}`);
 
       if (targetPrice > currentBestValue) {
-        logger.info(`DEBUG UPGRADE: Новый рекорд! Обновляем best_item_value с ${currentBestValue} на ${targetPrice}`);
+        debugLog(`DEBUG UPGRADE: Новый рекорд! Обновляем best_item_value с ${currentBestValue} на ${targetPrice}`);
 
         // Используем прямое обновление для надежности
         await db.User.update(
@@ -309,7 +316,7 @@ async function performUpgrade(req, res) {
           }
         );
 
-        logger.info(`DEBUG UPGRADE: best_item_value успешно обновлен в базе данных`);
+        debugLog(`DEBUG UPGRADE: best_item_value успешно обновлен в базе данных`);
       } else {
         // Все равно обновляем общую стоимость
         await db.User.update(
@@ -333,12 +340,12 @@ async function performUpgrade(req, res) {
 
         // Обновляем достижение для лучшего предмета
         await updateUserAchievementProgress(userId, 'best_item_value', targetPrice);
-        logger.info(`Обновлено достижение best_item_value для пользователя ${userId}: ${targetPrice}`);
+        debugLog(`Обновлено достижение best_item_value для пользователя ${userId}: ${targetPrice}`);
 
         // Проверяем достижение для успешного апгрейда с вероятностью <10%
         if (finalSuccessChance < 10) {
           await updateUserAchievementProgress(userId, 'upgrade_success', 1);
-          logger.info(`Обновлено достижение upgrade_success для пользователя ${userId} (шанс был ${finalSuccessChance.toFixed(1)}%)`);
+          debugLog(`Обновлено достижение upgrade_success для пользователя ${userId} (шанс был ${finalSuccessChance.toFixed(1)}%)`);
         }
 
         // Больше опыта за успешный апгрейд с несколькими предметами
@@ -350,7 +357,7 @@ async function performUpgrade(req, res) {
       }
 
       const sourceItemNames = sourceInventoryItems.map(item => item.item?.name || 'Unknown').join(', ');
-      logger.info(`Пользователь ${userId} успешно улучшил предметы [${sourceItemNames}] до ${targetItem.name}`);
+      debugLog(`Пользователь ${userId} успешно улучшил предметы [${sourceItemNames}] до ${targetItem.name}`);
 
       return res.json({
         success: true,
@@ -391,7 +398,7 @@ async function performUpgrade(req, res) {
       }
 
       const sourceItemNames = sourceInventoryItems.map(item => item.item?.name || 'Unknown').join(', ');
-      logger.info(`Пользователь ${userId} неудачно попытался улучшить предметы [${sourceItemNames}] до ${targetItem.name}`);
+      debugLog(`Пользователь ${userId} неудачно попытался улучшить предметы [${sourceItemNames}] до ${targetItem.name}`);
 
       return res.json({
         success: true,

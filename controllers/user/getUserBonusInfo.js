@@ -1,5 +1,12 @@
 const { getUserBonusInfo } = require('../../utils/userBonusCalculator');
 const { logger } = require('../../utils/logger');
+const isUserBonusDebugEnabled = process.env.DEBUG_USER_BONUSES === 'true';
+
+function debugLog(...args) {
+    if (isUserBonusDebugEnabled) {
+        logger.info(...args);
+    }
+}
 
 /**
  * Получает информацию о всех бонусах пользователя
@@ -51,7 +58,7 @@ async function getUserBonusInfoController(req, res) {
             potentialBonus: 'Зависит от достижения'
         });
 
-        logger.info(`Пользователь ${userId} запросил информацию о бонусах. Общий бонус: +${bonusInfo.totalBonus.toFixed(2)}%`);
+        debugLog(`Пользователь ${userId} запросил информацию о бонусах. Общий бонус: +${bonusInfo.totalBonus.toFixed(2)}%`);
 
         res.json(response);
 

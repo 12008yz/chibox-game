@@ -1,6 +1,13 @@
 const { User } = require('../../models');
 const { logger } = require('../../utils/logger');
 const { checkFreeGameAvailability } = require('../../utils/freeGameHelper');
+const isSafeCrackerStatusDebugEnabled = process.env.DEBUG_SAFECRACKER === 'true';
+
+function debugLog(...args) {
+  if (isSafeCrackerStatusDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 // Лимиты попыток для Safe Cracker в зависимости от уровня подписки
 const SAFECRACKER_LIMITS = {
@@ -17,7 +24,7 @@ const SAFECRACKER_LIMITS = {
  */
 function shouldResetSafeCrackerCounter(lastResetDate) {
   if (!lastResetDate) {
-    logger.info(`[SAFECRACKER RESET DEBUG] No lastResetDate -> RESET NEEDED`);
+    debugLog(`[SAFECRACKER RESET DEBUG] No lastResetDate -> RESET NEEDED`);
     return true;
   }
 
@@ -33,18 +40,18 @@ function shouldResetSafeCrackerCounter(lastResetDate) {
     todayReset.setDate(todayReset.getDate() - 1);
   }
 
-  logger.info(`[SAFECRACKER RESET DEBUG] Times:`);
-  logger.info(`[SAFECRACKER RESET DEBUG] - Current UTC time: ${now.toISOString()}`);
-  logger.info(`[SAFECRACKER RESET DEBUG] - Target reset time: ${todayReset.toISOString()}`);
-  logger.info(`[SAFECRACKER RESET DEBUG] - Last reset: ${lastReset.toISOString()}`);
+  debugLog(`[SAFECRACKER RESET DEBUG] Times:`);
+  debugLog(`[SAFECRACKER RESET DEBUG] - Current UTC time: ${now.toISOString()}`);
+  debugLog(`[SAFECRACKER RESET DEBUG] - Target reset time: ${todayReset.toISOString()}`);
+  debugLog(`[SAFECRACKER RESET DEBUG] - Last reset: ${lastReset.toISOString()}`);
 
   // Нужен сброс, если последний сброс был ДО текущего планового времени сброса
   if (lastReset < todayReset) {
-    logger.info(`[SAFECRACKER RESET DEBUG] Last reset before target reset time -> RESET NEEDED`);
+    debugLog(`[SAFECRACKER RESET DEBUG] Last reset before target reset time -> RESET NEEDED`);
     return true;
   }
 
-  logger.info(`[SAFECRACKER RESET DEBUG] Last reset after target reset time -> NO RESET NEEDED`);
+  debugLog(`[SAFECRACKER RESET DEBUG] Last reset after target reset time -> NO RESET NEEDED`);
   return false;
 }
 
@@ -76,7 +83,7 @@ const getSafeCrackerStatus = async (req, res) => {
     if (needsReset) {
       if (hasActiveSubscription) {
         const limit = SAFECRACKER_LIMITS[user.subscription_tier] || 0;
-        logger.info(`[SAFECRACKER] Сброс попыток для пользователя ${user.username}, тир ${user.subscription_tier}, лимит ${limit}`);
+        debugLog(`[SAFECRACKER] Сброс попыток для пользователя ${user.username}, тир ${user.subscription_tier}, лимит ${limit}`);
         user.game_attempts = limit;
       } else {
         user.game_attempts = 0;

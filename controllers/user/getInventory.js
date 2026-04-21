@@ -11,6 +11,12 @@ const logger = winston.createLogger({
     new winston.transports.Console(),
   ],
 });
+const isInventoryDebugEnabled = process.env.DEBUG_INVENTORY === 'true';
+function debugLog(...args) {
+  if (isInventoryDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function getInventory(req, res) {
   try {
@@ -20,7 +26,7 @@ async function getInventory(req, res) {
     const offset = (page - 1) * limit;
     const status = req.query.status;
 
-    logger.info('🔍 [GET INVENTORY] Начало получения инвентаря:', {
+    debugLog('🔍 [GET INVENTORY] Начало получения инвентаря:', {
       userId,
       page,
       limit,
@@ -81,20 +87,20 @@ async function getInventory(req, res) {
     );
     const cases = inventoryItems.filter(item => item.item_type === 'case');
 
-    logger.info(`Получен инвентарь для пользователя ${userId}, страница ${page}, статус: ${status || 'все'}`);
-    logger.info(`Всего предметов: ${items.length}`);
-    logger.info(`Всего кейсов: ${cases.length}`);
+    debugLog(`Получен инвентарь для пользователя ${userId}, страница ${page}, статус: ${status || 'все'}`);
+    debugLog(`Всего предметов: ${items.length}`);
+    debugLog(`Всего кейсов: ${cases.length}`);
 
     // Отладочная информация о предметах с withdrawal
     items.forEach(item => {
       if (item.withdrawal_id) {
-        logger.info(`Предмет ${item.item?.name || 'N/A'} имеет withdrawal_id: ${item.withdrawal_id}, статус withdrawal: ${item.withdrawal?.status || 'unknown'}`);
+        debugLog(`Предмет ${item.item?.name || 'N/A'} имеет withdrawal_id: ${item.withdrawal_id}, статус withdrawal: ${item.withdrawal?.status || 'unknown'}`);
       }
     });
 
     // Формируем ответ для ВСЕХ предметов (без фильтрации)
     const formattedItems = items.map(item => {
-      logger.info(`🔍 [GET INVENTORY] Форматирование предмета:`, {
+      debugLog(`🔍 [GET INVENTORY] Форматирование предмета:`, {
         item_id: item.id,
         item_name: item.item?.name,
         status: item.status,

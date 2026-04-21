@@ -1,4 +1,11 @@
 const { logger } = require('../utils/logger');
+const isLiveDropDebugEnabled = process.env.DEBUG_LIVE_DROPS === 'true';
+
+function debugLog(...args) {
+  if (isLiveDropDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 // Получаем функцию для трансляции из bin/www
 let broadcastLiveDrop = null;
@@ -9,7 +16,7 @@ const sentDrops = new Set();
 // Инициализация сервиса с функцией трансляции
 function initLiveDropService(broadcastFn) {
   broadcastLiveDrop = broadcastFn;
-  logger.info('LiveDrop сервис инициализирован');
+  debugLog('LiveDrop сервис инициализирован');
 }
 
 // Функция для трансляции живого падения
@@ -81,7 +88,7 @@ function broadcastDrop(user, item, caseData, dropData = {}) {
     // Отправляем через Socket.IO
     broadcastLiveDrop(liveDropData);
 
-    logger.info(`Live Drop транслирован: ${user.username} получил ${item.name} (${item.price}₽) [ID: ${dropId}]`);
+    debugLog(`Live Drop транслирован: ${user.username} получил ${item.name} (${item.price}₽) [ID: ${dropId}]`);
   } catch (error) {
     logger.error('Ошибка трансляции живого падения:', error);
   }

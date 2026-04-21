@@ -23,21 +23,27 @@ const logger = winston.createLogger({
     new winston.transports.Console(),
   ],
 });
+const isBuySubscriptionDebugEnabled = process.env.DEBUG_BUY_SUBSCRIPTION === 'true';
+function debugLog(...args) {
+  if (isBuySubscriptionDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function buySubscription(req, res) {
-  logger.info('buySubscription start');
+  debugLog('buySubscription start');
   try {
     const userId = req.user.id;
     const { tierId, method, itemId, promoCode, paymentMethod, unitpay_system } = req.body;
-    logger.info(`buySubscription called with userId=${userId}, tierId=${tierId}, method=${method}, itemId=${itemId}, promoCode=${promoCode}, paymentMethod=${paymentMethod}`);
+    debugLog(`buySubscription called with userId=${userId}, tierId=${tierId}, method=${method}, itemId=${itemId}, promoCode=${promoCode}, paymentMethod=${paymentMethod}`);
     const user = await db.User.findByPk(userId);
-    logger.info(`User loaded: ${JSON.stringify(user)}`);
+    debugLog(`User loaded: ${JSON.stringify(user)}`);
     const tier = subscriptionTiers[tierId];
     if (!tier) {
       logger.warn(`Subscription tier not found: ${tierId}`);
       return res.status(404).json({ message: 'Тариф не найден' });
     }
-    logger.info(`Subscription tier found: ${JSON.stringify(tier)}`);
+    debugLog(`Subscription tier found: ${JSON.stringify(tier)}`);
 
     // ✅ ПРОВЕРКА: запрещаем покупку другого статуса при наличии активной подписки
     const now = new Date();
@@ -60,14 +66,14 @@ async function buySubscription(req, res) {
     let exchangeItemId = null;
 
     if (method === 'balance') {
-      logger.info(`Баланс пользователя до покупки: ${user.balance}`);
+      debugLog(`Баланс пользователя до покупки: ${user.balance}`);
       if ((user.balance || 0) < price) {
         logger.warn('Недостаточно средств');
         return res.status(400).json({ message: 'Недостаточно средств' });
       }
       user.balance -= price;
       await user.save(); // Сохраняем изменения в базу данных
-      logger.info(`Баланс пользователя после покупки: ${user.balance}`);
+      debugLog(`Баланс пользователя после покупки: ${user.balance}`);
     } else if (method === 'item') {
       const rule = await db.ItemSubscriptionExchangeRule.findOne({
         where: { item_id: itemId, subscription_tier_id: parseInt(tierId) },
@@ -91,7 +97,7 @@ async function buySubscription(req, res) {
       // Создаем платеж через выбранную платежную систему и возвращаем ссылку на оплату
       try {
         const selectedPaymentMethod = paymentMethod || 'yookassa';
-        logger.info(`Создание платежа через ${selectedPaymentMethod}`);
+        debugLog(`Создание платежа через ${selectedPaymentMethod}`);
         const paymentResult = await createPayment({
           amount: price,
           description: `Статус ${tier.name} на ${tier.days} дней`,
@@ -112,7 +118,7 @@ async function buySubscription(req, res) {
           });
         }
 
-        logger.info(`Платеж создан, paymentUrl: ${paymentResult.paymentUrl}`);
+        debugLog(`Платеж создан, paymentUrl: ${paymentResult.paymentUrl}`);
 
         // Получаем актуальные данные пользователя для возврата
         const updatedUser = await db.User.findByPk(userId);
@@ -199,7 +205,7 @@ async function buySubscription(req, res) {
       method: method,
       date: new Date()
     });
-    logger.info(`Пользователь ${userId} приобрёл подписку tier=${tierId}`);
+    debugLog(`Пользователь ${userId} приобрёл подписку tier=${tierId}`);
 
     // Добавление опыта за покупку подписки
     await addExperience(userId, 50, 'buy_subscription', null, 'Покупка подписки');
@@ -219,7 +225,7 @@ async function buySubscription(req, res) {
       }
     });
 
-    logger.info('buySubscription end');
+    debugLog('buySubscription end');
     return res.json({
       success: true,
       tier: {

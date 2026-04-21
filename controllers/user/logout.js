@@ -1,5 +1,12 @@
 const { revokedTokens } = require('../../middleware/auth');
 const { logger } = require('../../middleware/logger');
+const isLogoutDebugEnabled = process.env.DEBUG_AUTH === 'true';
+
+function debugLog(...args) {
+  if (isLogoutDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 function logout(req, res) {
   try {
@@ -12,19 +19,19 @@ function logout(req, res) {
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       revokedTokens.add(token);
-      logger.info('[LOGOUT] Access token from header revoked');
+      debugLog('[LOGOUT] Access token from header revoked');
     }
 
     // Добавляем access token из cookie в black list
     if (accessTokenFromCookie) {
       revokedTokens.add(accessTokenFromCookie);
-      logger.info('[LOGOUT] Access token from cookie revoked');
+      debugLog('[LOGOUT] Access token from cookie revoked');
     }
 
     // Добавляем refresh token в black list
     if (refreshTokenFromCookie) {
       revokedTokens.add(refreshTokenFromCookie);
-      logger.info('[LOGOUT] Refresh token revoked');
+      debugLog('[LOGOUT] Refresh token revoked');
     }
 
     // Очищаем cookies
@@ -42,7 +49,7 @@ function logout(req, res) {
       path: '/'
     });
 
-    logger.info('[LOGOUT] User logged out successfully');
+    debugLog('[LOGOUT] User logged out successfully');
     return res.json({ success: true, message: 'Успешный выход, токены отозваны и cookies очищены' });
   } catch (error) {
     logger.error('[LOGOUT] Error during logout:', error);

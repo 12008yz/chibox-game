@@ -13,6 +13,12 @@ const logger = winston.createLogger({
     new winston.transports.Console(),
   ],
 });
+const isSubscriptionDebugEnabled = process.env.DEBUG_SUBSCRIPTION === 'true';
+function debugLog(...args) {
+  if (isSubscriptionDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function getSubscription(req, res) {
   try {
@@ -32,7 +38,7 @@ async function getSubscription(req, res) {
     // Если есть дни подписки, но нет тарифа, устанавливаем тариф по умолчанию
     if (daysLeft > 0 && currentTier === 0) {
       currentTier = 3; // Устанавливаем Статус++ по умолчанию, если не указан тариф
-      logger.info(`Auto-assigned tier 3 for user ${userId} with ${daysLeft} subscription days left`);
+      debugLog(`Auto-assigned tier 3 for user ${userId} with ${daysLeft} subscription days left`);
     }
 
     if (expiry && expiry <= now) {
@@ -43,7 +49,7 @@ async function getSubscription(req, res) {
       if (user.subscription_days_left !== 0) {
         user.subscription_days_left = 0;
         await user.save();
-        logger.info(`Synced expired subscription for user ${userId}: set days_left to 0`);
+        debugLog(`Synced expired subscription for user ${userId}: set days_left to 0`);
       }
     } else if (expiry && expiry > now) {
       // Всегда пересчитываем дни до окончания «на лету»,
@@ -55,7 +61,7 @@ async function getSubscription(req, res) {
       if (user.subscription_days_left !== daysLeft) {
         user.subscription_days_left = daysLeft;
         await user.save();
-        logger.info(`Synced subscription days for user ${userId}: recalculated to ${daysLeft} days`);
+        debugLog(`Synced subscription days for user ${userId}: recalculated to ${daysLeft} days`);
       }
     } else {
       // Нет даты истечения — безопасности обнуляем
@@ -63,7 +69,7 @@ async function getSubscription(req, res) {
       if (user.subscription_days_left !== 0) {
         user.subscription_days_left = 0;
         await user.save();
-        logger.info(`Cleared subscription days for user ${userId} because expiry date is missing`);
+        debugLog(`Cleared subscription days for user ${userId} because expiry date is missing`);
       }
     }
 

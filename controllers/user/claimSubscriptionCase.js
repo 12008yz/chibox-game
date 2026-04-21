@@ -13,6 +13,12 @@ const logger = winston.createLogger({
     new winston.transports.Console(),
   ],
 });
+const isSubscriptionCaseDebugEnabled = process.env.DEBUG_SUBSCRIPTION_CASES === 'true';
+function debugLog(...args) {
+  if (isSubscriptionCaseDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 /**
  * Получение ежедневных кейсов подписки
@@ -50,7 +56,7 @@ async function claimSubscriptionCase(req, res) {
     user.next_case_available_time = nextCaseTime;
     await user.save();
 
-    logger.info(`User ${userId} claimed daily subscription cases`);
+    debugLog(`User ${userId} claimed daily subscription cases`);
 
     // Получаем обновленную информацию о кейсах в инвентаре
     const userCases = await db.UserInventory.findAll({

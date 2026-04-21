@@ -11,6 +11,12 @@ const logger = winston.createLogger({
     new winston.transports.Console(),
   ],
 });
+const isPromoDebugEnabled = process.env.DEBUG_PROMO === 'true';
+function debugLog(...args) {
+  if (isPromoDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function applyPromo(req, res) {
   const transaction = await db.sequelize.transaction();
@@ -102,7 +108,7 @@ async function applyPromo(req, res) {
           status: 'completed'
         }, { transaction });
 
-        logger.info(`Баланс пользователя ${userId}: ${balanceBefore} -> ${balanceAfter} (промокод ${code})`);
+        debugLog(`Баланс пользователя ${userId}: ${balanceBefore} -> ${balanceAfter} (промокод ${code})`);
         break;
 
       case 'balance_percentage':
@@ -138,7 +144,7 @@ async function applyPromo(req, res) {
           status: 'completed'
         }, { transaction });
 
-        logger.info(`Баланс пользователя ${userId}: ${balanceBefore} -> ${balanceAfter} (промокод ${code}, +${value}%)`);
+        debugLog(`Баланс пользователя ${userId}: ${balanceBefore} -> ${balanceAfter} (промокод ${code}, +${value}%)`);
         break;
 
       case 'subscription_extend': {
@@ -200,7 +206,7 @@ async function applyPromo(req, res) {
 
     await transaction.commit();
 
-    logger.info(`Пользователь ${userId} применил промокод ${code}, тип: ${promo.type}, значение: ${value}`);
+    debugLog(`Пользователь ${userId} применил промокод ${code}, тип: ${promo.type}, значение: ${value}`);
 
     return res.json({
       success: true,

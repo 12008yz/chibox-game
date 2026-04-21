@@ -1,5 +1,13 @@
 const { UserInventory, User, Achievement, SubscriptionHistory, sequelize } = require('../../models');
 const { grantGameAttemptsForTier } = require('../../services/subscriptionService');
+const { logger } = require('../../utils/logger');
+const isExchangeDebugEnabled = process.env.DEBUG_EXCHANGE === 'true';
+
+function debugLog(...args) {
+  if (isExchangeDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function exchangeItemForSubscription(req, res) {
   const { userId, itemId } = req.body;
@@ -39,7 +47,7 @@ async function exchangeItemForSubscription(req, res) {
 
     // Получить стоимость предмета в ChiCoins
     const itemPrice = parseFloat(inventoryItem.item.price || 0);
-    console.log(`Item price: ${itemPrice} ChiCoins`);
+    debugLog(`Item price: ${itemPrice} ChiCoins`);
 
     // Определяем цену за день в зависимости от текущего тарифа подписки
     let pricePerDay;
@@ -51,14 +59,14 @@ async function exchangeItemForSubscription(req, res) {
       pricePerDay = 200; // 200 ChiCoins за день для тарифов "Статус" и "Статус+" (оптимизировано)
     }
 
-    console.log(`Using price per day: ${pricePerDay} ChiCoins for tier ${currentTier}`);
+    debugLog(`Using price per day: ${pricePerDay} ChiCoins for tier ${currentTier}`);
 
     // Вычисляем количество дней подписки с правильной логикой (оптимизировано)
     // Для тарифа 3: 330-350 ChiCoins = 1 день, 680-700 ChiCoins = 2 дня и т.д.
     // Для тарифов 1,2: 190-200 ChiCoins = 1 день, 390-400 ChiCoins = 2 дня и т.д.
     const subscriptionDays = Math.floor((itemPrice + pricePerDay * 0.067) / pricePerDay);
 
-    console.log(`Calculated subscription days: ${subscriptionDays} for item price ${itemPrice} (formula: floor((${itemPrice} + ${pricePerDay * 0.067}) / ${pricePerDay})) for tier ${currentTier}`);
+    debugLog(`Calculated subscription days: ${subscriptionDays} for item price ${itemPrice} (formula: floor((${itemPrice} + ${pricePerDay * 0.067}) / ${pricePerDay})) for tier ${currentTier}`);
 
     // Минимальная проверка: предмет должен давать минимум 1 день
     const minPrice = Math.floor(pricePerDay * 0.93); // ~93% от цены за день
@@ -104,7 +112,7 @@ async function exchangeItemForSubscription(req, res) {
       newDaysLeft = subscriptionDays;
     }
 
-    console.log(`Adding ${subscriptionDays} days. New expiry: ${newExpiryDate}, days left: ${newDaysLeft}`);
+    debugLog(`Adding ${subscriptionDays} days. New expiry: ${newExpiryDate}, days left: ${newDaysLeft}`);
 
     user.subscription_expiry_date = newExpiryDate;
     user.subscription_days_left = newDaysLeft;
@@ -134,7 +142,7 @@ async function exchangeItemForSubscription(req, res) {
       const { updateUserAchievementProgress } = require('../../services/achievementService');
       await updateUserAchievementProgress(userId, 'exchange_item', 1);
     } catch (achievementError) {
-      console.error('Ошибка при обновлении достижений (не критично):', achievementError);
+      logger.error('Ошибка при обновлении достижений (не критично):', achievementError);
       // Продолжаем выполнение, так как основная операция уже завершена
     }
 
@@ -168,7 +176,7 @@ async function exchangeItemForSubscription(req, res) {
     });
   } catch (error) {
     await transaction.rollback();
-    console.error('Ошибка обмена предмета на подписку:', error);
+    logger.error('Ошибка обмена предмета на подписку:', error);
     return res.status(500).json({ message: 'Ошибка обмена предмета на подписку' });
   }
 }

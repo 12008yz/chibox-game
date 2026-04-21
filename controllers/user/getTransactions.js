@@ -11,6 +11,12 @@ const logger = winston.createLogger({
     new winston.transports.Console(),
   ],
 });
+const isTransactionsDebugEnabled = process.env.DEBUG_TRANSACTIONS === 'true';
+function debugLog(...args) {
+  if (isTransactionsDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function getTransactions(req, res) {
   try {
@@ -26,7 +32,7 @@ async function getTransactions(req, res) {
       offset,
       order: [['created_at', 'DESC']]
     });
-    logger.info(`История транзакций пользователя ${userId}`);
+    debugLog(`История транзакций пользователя ${userId}`);
     return res.json({
       transactions,
       pagination: {

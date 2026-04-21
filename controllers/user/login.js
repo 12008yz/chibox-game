@@ -4,6 +4,13 @@ const jwt = require('jsonwebtoken');
 const { logger } = require('../../middleware/logger');
 const { updateUserBonuses } = require('../../utils/userBonusCalculator');
 const { addExperience } = require('../../services/xpService');
+const isLoginDebugEnabled = process.env.DEBUG_AUTH === 'true';
+
+function debugLog(...args) {
+  if (isLoginDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
@@ -30,7 +37,7 @@ const failedLogin = new Map();
 async function login(req, res) {
   try {
     const { email, password } = req.body;
-    logger.info('[LOGIN] Login request received for email:', email);
+    debugLog('[LOGIN] Login request received for email:', email);
 
     // Валидация типов для защиты от Prototype Pollution
     if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
@@ -51,7 +58,7 @@ async function login(req, res) {
       return res.status(429).json({ message: 'Попробуйте позже (блокировка из-за неудачных попыток)' });
     }
 
-    logger.info('[LOGIN] Looking up user in database:', key);
+    debugLog('[LOGIN] Looking up user in database:', key);
     const user = await db.User.findOne({ where: { email: key } });
     if (!user) {
       logger.warn('[LOGIN] User not found:', key);
@@ -69,7 +76,7 @@ async function login(req, res) {
       return res.status(403).json({ message: 'Вход с этого аккаунта недоступен.' });
     }
 
-    logger.info('[LOGIN] User found, verifying password for user ID:', user.id);
+    debugLog('[LOGIN] User found, verifying password for user ID:', user.id);
     const passwordMatch = await argon2.verify(user.password, password);
     if (!passwordMatch) {
       logger.warn('[LOGIN] Password mismatch for user:', key);
@@ -82,7 +89,7 @@ async function login(req, res) {
       return res.status(401).json({ message: 'Неверный email или пароль.' });
     }
 
-    logger.info('[LOGIN] Password verified successfully for user:', user.id);
+    debugLog('[LOGIN] Password verified successfully for user:', user.id);
     // Очистка после удачного входа
     failedLogin.delete(key);
 
@@ -120,7 +127,7 @@ async function login(req, res) {
       if (shouldAwardXP) {
         // Начисляем опыт за ежедневный вход
         await addExperience(user.id, 15, 'daily_login', null, 'Вход на сайт');
-        logger.info(`Пользователю ${user.username} начислено +15 XP за ежедневный вход`);
+        debugLog(`Пользователю ${user.username} начислено +15 XP за ежедневный вход`);
       }
 
       // Дата последнего входа (серия дней считается по визитам на сайт в getProfile, не по логину)
@@ -163,7 +170,7 @@ async function login(req, res) {
     const achievements = userWithDetails ? userWithDetails.achievements : [];
     const inventory = userWithDetails ? userWithDetails.inventory : [];
 
-    logger.info('[LOGIN] Generating JWT tokens for user:', user.id);
+    debugLog('[LOGIN] Generating JWT tokens for user:', user.id);
     const accessToken = generateToken(user);
     const refreshToken = generateRefreshToken(user);
 
@@ -186,7 +193,7 @@ async function login(req, res) {
       path: '/'
     });
 
-    logger.info('[LOGIN] Preparing response data...');
+    debugLog('[LOGIN] Preparing response data...');
     const response = {
       success: true,
       // БЕЗОПАСНОСТЬ: Токены теперь только в httpOnly cookies, НЕ в теле ответа
@@ -235,10 +242,10 @@ async function login(req, res) {
     if (!user.is_email_verified) {
       response.emailVerificationRequired = true;
       response.message = 'Для доступа ко всем функциям необходимо подтвердить email адрес';
-      logger.info('[LOGIN] Email not verified for user:', user.id);
+      debugLog('[LOGIN] Email not verified for user:', user.id);
     }
 
-    logger.info('[LOGIN] Login successful, sending response for user:', {
+    debugLog('[LOGIN] Login successful, sending response for user:', {
       id: user.id,
       username: user.username,
       email: user.email,

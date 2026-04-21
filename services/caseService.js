@@ -1,5 +1,12 @@
 const db = require('../models');
 const { Op } = require('sequelize');
+const isCaseServiceDebugEnabled = process.env.DEBUG_CASE_SERVICE === 'true';
+
+function debugLog(...args) {
+  if (isCaseServiceDebugEnabled) {
+    console.log(...args);
+  }
+}
 
 // Добавляем in-memory блокировку для предотвращения race conditions
 const claimLocks = new Map();
@@ -10,7 +17,7 @@ const claimLocks = new Map();
  * @param {number} subscriptionTier - уровень подписки пользователя
  */
 async function giveDailyCaseToUser(userId, subscriptionTier) {
-  console.log(`[CASE DEBUG] giveDailyCaseToUser called: userId=${userId}, subscriptionTier=${subscriptionTier}`);
+  debugLog(`[CASE DEBUG] giveDailyCaseToUser called: userId=${userId}, subscriptionTier=${subscriptionTier}`);
 
   // Проверяем, нет ли уже активного запроса для этого пользователя
   const lockKey = `claim_${userId}`;
@@ -46,8 +53,8 @@ async function giveDailyCaseToUser(userId, subscriptionTier) {
         transaction
       });
 
-      console.log(`[CASE DEBUG] Found ${caseTemplates.length} case templates for tier ${subscriptionTier}`);
-      caseTemplates.forEach(t => console.log(`[CASE DEBUG] Template: id=${t.id}, name=${t.name}, min_tier=${t.min_subscription_tier}`));
+      debugLog(`[CASE DEBUG] Found ${caseTemplates.length} case templates for tier ${subscriptionTier}`);
+      caseTemplates.forEach(t => debugLog(`[CASE DEBUG] Template: id=${t.id}, name=${t.name}, min_tier=${t.min_subscription_tier}`));
 
       for (const template of caseTemplates) {
         // Проверяем, есть ли у пользователя уже кейс данного шаблона в инвентаре, который не истёк
@@ -84,7 +91,7 @@ async function giveDailyCaseToUser(userId, subscriptionTier) {
           });
 
           if (recentCase) {
-            console.log(`Обнаружен недавно созданный кейс для пользователя ${userId}, шаблон ${template.id}`);
+            debugLog(`Обнаружен недавно созданный кейс для пользователя ${userId}, шаблон ${template.id}`);
             continue; // Пропускаем создание кейса
           }
 

@@ -520,7 +520,7 @@ async function openCase(req, res) {
       if (actualDroppedItemIds.includes(selectedItem.id)) {
         logger.error(`🚨 КРИТИЧЕСКАЯ ОШИБКА: Выбран исключенный предмет ${selectedItem.id} для пользователя Статус++ ${userId} в ежедневном кейсе Статус++!`);
         logger.error(`Исключенные предметы (актуальные): ${JSON.stringify(actualDroppedItemIds)}`);
-        logger.error(`Исключенные предметы (кеш): ${JSON.stringify(droppedItemIds)}`);
+        logger.error(`Исключенные предметы (кеш): ${JSON.stringify(actualDroppedItemIds)}`);
         logger.error(`Уровень подписки: ${userSubscriptionTier}`);
         logger.error(`Выбранный предмет: ${JSON.stringify({ id: selectedItem.id, name: selectedItem.name, price: selectedItem.price })}`);
         logger.error(`Функция выбора вернула исключенный предмет - это критический баг!`);
@@ -531,7 +531,7 @@ async function openCase(req, res) {
           error_code: 'DUPLICATE_ITEM_SELECTED',
           debug: {
             selected_item_id: selectedItem.id,
-            excluded_count_cache: droppedItemIds?.length || 0,
+            excluded_count_cache: actualDroppedItemIds.length,
             excluded_count_actual: actualDroppedItemIds.length,
             total_items: items.length,
             user_tier: userSubscriptionTier
@@ -543,8 +543,8 @@ async function openCase(req, res) {
       debugLog(`✅ Выбран предмет: ${selectedItem.id} (${selectedItem.name || 'N/A'}) для пользователя ${userId}`);
 
       // Дополнительная проверка для Статус++ в ежедневном кейсе Статус++
-      if (userSubscriptionTier >= 3 && userCase.template_id === '44444444-4444-4444-4444-444444444444' && droppedItemIds && droppedItemIds.length > 0) {
-        debugLog(`Статус++ (ежедневный кейс Статус++): выбранный предмет НЕ в списке исключенных (${droppedItemIds.length} исключенных)`);
+      if (userSubscriptionTier >= 3 && userCase.template_id === '44444444-4444-4444-4444-444444444444') {
+        debugLog('Статус++ (ежедневный кейс Статус++): выбранный предмет НЕ в списке исключенных');
       }
       userCase.is_opened = true;
       userCase.opened_date = new Date();

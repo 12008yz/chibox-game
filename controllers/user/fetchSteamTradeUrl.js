@@ -1,6 +1,13 @@
 const { getTradeUrlFromSteam, getTradePrivacyUrl, isValidTradeUrl } = require('../../utils/steamTradeHelper');
 const { logger } = require('../../utils/logger');
 const db = require('../../models');
+const isSteamTradeDebugEnabled = process.env.DEBUG_STEAM_TRADE === 'true';
+
+function debugLog(...args) {
+  if (isSteamTradeDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 /**
  * Контроллер для получения Trade URL из Steam профиля пользователя
@@ -27,7 +34,7 @@ async function fetchSteamTradeUrl(req, res) {
       });
     }
 
-    logger.info(`Попытка получения Trade URL для пользователя ${userId} с Steam ID: ${user.steam_id}`);
+    debugLog(`Попытка получения Trade URL для пользователя ${userId} с Steam ID: ${user.steam_id}`);
 
     // Пытаемся получить Trade URL из Steam
     const tradeUrl = await getTradeUrlFromSteam(user.steam_id);
@@ -39,7 +46,7 @@ async function fetchSteamTradeUrl(req, res) {
         { where: { id: userId } }
       );
 
-      logger.info(`Trade URL успешно получен и сохранен для пользователя ${userId}`);
+      debugLog(`Trade URL успешно получен и сохранен для пользователя ${userId}`);
 
       // Создаем уведомление об успешном получении Trade URL
       await db.Notification.create({

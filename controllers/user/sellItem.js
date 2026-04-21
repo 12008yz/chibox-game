@@ -13,12 +13,18 @@ const logger = winston.createLogger({
     new winston.transports.Console(),
   ],
 });
+const isSellDebugEnabled = process.env.DEBUG_SELL_ITEM === 'true';
+function debugLog(...args) {
+  if (isSellDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function sellItem(req, res) {
   const transaction = await db.sequelize.transaction();
 
   try {
-    logger.info('sellItem request body:', req.body);
+    debugLog('sellItem request body:', req.body);
 
     const userId = req.user.id;
     const { itemId, item_id } = req.body;
@@ -72,12 +78,12 @@ async function sellItem(req, res) {
 
       // Обновляем достижение для общей суммы продаж
       await updateUserAchievementProgress(userId, 'total_sold_value', sellPrice);
-      logger.info(`Обновлено достижение total_sold_value для пользователя ${userId}: ${sellPrice}`);
+      debugLog(`Обновлено достижение total_sold_value для пользователя ${userId}: ${sellPrice}`);
 
       // Добавление опыта за продажу предмета (после коммита)
       await addExperience(userId, 15, 'sell_item', null, 'Продажа предмета');
 
-      logger.info(`Пользователь ${userId} продал 1 экземпляр предмета ${item.name} (inventory ID: ${effectiveItemId}, item ID: ${inventoryItem.item_id}) за ${sellPrice} ChiCoins`);
+      debugLog(`Пользователь ${userId} продал 1 экземпляр предмета ${item.name} (inventory ID: ${effectiveItemId}, item ID: ${inventoryItem.item_id}) за ${sellPrice} ChiCoins`);
 
       return res.json({
         success: true,

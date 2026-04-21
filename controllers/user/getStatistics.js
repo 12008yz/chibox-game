@@ -11,6 +11,12 @@ const logger = winston.createLogger({
     new winston.transports.Console(),
   ],
 });
+const isStatisticsDebugEnabled = process.env.DEBUG_STATISTICS === 'true';
+function debugLog(...args) {
+  if (isStatisticsDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function getStatistics(req, res) {
   try {
@@ -77,8 +83,8 @@ async function getGlobalStatistics(req, res) {
     const totalGamesPlayed = ticTacToeGames + slotGames + safeCrackerGames;
 
     // Логируем детальную статистику
-    logger.info(`Статистика игр: TicTacToe=${ticTacToeGames}, Slots=${slotGames}, SafeCracker=${safeCrackerGames}, Total=${totalGamesPlayed}`);
-    logger.info(`Статистика апгрейдов: Total=${totalUpgrades}`);
+    debugLog(`Статистика игр: TicTacToe=${ticTacToeGames}, Slots=${slotGames}, SafeCracker=${safeCrackerGames}, Total=${totalGamesPlayed}`);
+    debugLog(`Статистика апгрейдов: Total=${totalUpgrades}`);
 
     // Попробуем получить из таблицы Statistics, если там есть данные
     let stats = await db.Statistics.findOne({

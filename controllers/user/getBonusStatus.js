@@ -11,6 +11,12 @@ const logger = winston.createLogger({
     new winston.transports.Console(),
   ],
 });
+const isBonusStatusDebugEnabled = process.env.DEBUG_BONUS_STATUS === 'true';
+function debugLog(...args) {
+  if (isBonusStatusDebugEnabled) {
+    logger.info(...args);
+  }
+}
 
 async function getBonusStatus(req, res) {
   try {
@@ -33,7 +39,7 @@ async function getBonusStatus(req, res) {
     }
 
     // Добавляем отладочную информацию
-    logger.info(`Статус бонуса для пользователя ${userId}: доступен=${isAvailable}, следующий_бонус=${user.next_bonus_available_time}, сейчас=${now}`);
+    debugLog(`Статус бонуса для пользователя ${userId}: доступен=${isAvailable}, следующий_бонус=${user.next_bonus_available_time}, сейчас=${now}`);
 
     return res.json({
       is_available: isAvailable,
