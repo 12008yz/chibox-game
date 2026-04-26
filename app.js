@@ -186,7 +186,7 @@ async function createApp() {
         next();
       },
       express.static(dir, {
-        maxAge: '30d',
+        maxAge: '180d',
         setHeaders: (res, filePath) => {
           if (filePath.endsWith('.webp')) {
             res.setHeader('Content-Type', 'image/webp');

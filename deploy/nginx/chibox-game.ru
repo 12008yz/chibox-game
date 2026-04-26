@@ -115,29 +115,29 @@ server {
     # Картинки кейсов лежат на бэкенде; баннеры/лого/статики из public — во frontend dist (раньше весь /images/ шёл в backend и баннеров там могло не быть)
     location ^~ /images/cases/ {
         alias /var/www/chibox/backend/public/images/cases/;
-        expires 7d;
-        add_header Cache-Control "public";
+        expires 180d;
+        add_header Cache-Control "public, max-age=15552000";
     }
 
     location ^~ /images/ {
         root /var/www/chibox/frontend/dist;
         try_files $uri =404;
-        expires 7d;
-        add_header Cache-Control "public";
+        expires 180d;
+        add_header Cache-Control "public, max-age=15552000";
     }
 
     location /public/ {
         alias /var/www/chibox/backend/public/;
         try_files $uri $uri/ =404;
-        expires 7d;
-        add_header Cache-Control "public";
+        expires 180d;
+        add_header Cache-Control "public, max-age=15552000";
     }
 
     location /Achievements/ {
         alias /var/www/chibox/backend/public/Achievements/;
         try_files $uri $uri/ =404;
-        expires 7d;
-        add_header Cache-Control "public";
+        expires 180d;
+        add_header Cache-Control "public, max-age=15552000";
     }
 
     location / {
@@ -250,29 +250,29 @@ server {
 
     location ^~ /images/cases/ {
         alias /var/www/chibox/backend/public/images/cases/;
-        expires 7d;
-        add_header Cache-Control "public";
+        expires 180d;
+        add_header Cache-Control "public, max-age=15552000";
     }
 
     location ^~ /images/ {
         root /var/www/chibox/frontend/dist;
         try_files $uri =404;
-        expires 7d;
-        add_header Cache-Control "public";
+        expires 180d;
+        add_header Cache-Control "public, max-age=15552000";
     }
 
     location /public/ {
         alias /var/www/chibox/backend/public/;
         try_files $uri $uri/ =404;
-        expires 7d;
-        add_header Cache-Control "public";
+        expires 180d;
+        add_header Cache-Control "public, max-age=15552000";
     }
 
     location /Achievements/ {
         alias /var/www/chibox/backend/public/Achievements/;
         try_files $uri $uri/ =404;
-        expires 7d;
-        add_header Cache-Control "public";
+        expires 180d;
+        add_header Cache-Control "public, max-age=15552000";
     }
 
     location / {
