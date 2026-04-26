@@ -2,6 +2,7 @@ const { queues, logger, cleanStalledJobs } = require('../services/queueService')
 const { updateUserAchievementProgress } = require('../services/achievementService');
 const { xpService } = require('../services/xpService');
 const processSteamWithdrawals = require('./send-steam-withdrawals');
+const ENABLE_STEAM_WITHDRAWALS_WORKER = process.env.ENABLE_STEAM_WITHDRAWALS_WORKER === 'true';
 
 console.log('🚀 Запуск воркеров для обработки очередей...');
 
@@ -50,21 +51,25 @@ queues.achievements.process('add-experience', async (job) => {
   }
 });
 
-// Обработчик для очереди Steam withdrawal
-queues.withdrawals.process('process-withdrawal', async (job) => {
-  const { withdrawalId } = job.data;
+// Обработчик для очереди Steam withdrawal (можно отключить: ENABLE_STEAM_WITHDRAWALS_WORKER=false)
+if (ENABLE_STEAM_WITHDRAWALS_WORKER) {
+  queues.withdrawals.process('process-withdrawal', async (job) => {
+    const { withdrawalId } = job.data;
 
-  try {
-    logger.info(`Обработка withdrawal #${withdrawalId}`);
+    try {
+      logger.info(`Обработка withdrawal #${withdrawalId}`);
 
-    await processSteamWithdrawals();
+      await processSteamWithdrawals();
 
-    return { success: true, message: 'Withdrawal обработан' };
-  } catch (error) {
-    logger.error(`Ошибка обработки withdrawal:`, error);
-    throw error;
-  }
-});
+      return { success: true, message: 'Withdrawal обработан' };
+    } catch (error) {
+      logger.error(`Ошибка обработки withdrawal:`, error);
+      throw error;
+    }
+  });
+} else {
+  logger.warn('⏸️ Steam withdrawal worker отключен (ENABLE_STEAM_WITHDRAWALS_WORKER=false)');
+}
 
 // Обработчик для очереди уведомлений
 queues.notifications.process('send-notification', async (job) => {

@@ -21,6 +21,7 @@ const {
 const winston = require('winston');
 const path = require('path');
 const fs = require('fs');
+const ENABLE_STEAM_WITHDRAWAL_CRON = process.env.ENABLE_STEAM_WITHDRAWAL_CRON === 'true';
 
 // Создаем директорию для логов
 const logsDir = path.join(__dirname, '../logs');
@@ -127,24 +128,28 @@ cron.schedule('0 2 * * 0', async () => {
 
 /**
  * 💰 Обработка заявок на вывод Steam предметов
- * Каждые 5 минут
+ * Каждые 5 минут (можно отключить: ENABLE_STEAM_WITHDRAWAL_CRON=false)
  */
-cron.schedule('*/5 * * * *', async () => {
-  cronLogger.debug('🔄 Проверка заявок на вывод Steam предметов...');
+if (ENABLE_STEAM_WITHDRAWAL_CRON) {
+  cron.schedule('*/5 * * * *', async () => {
+    cronLogger.debug('🔄 Проверка заявок на вывод Steam предметов...');
 
-  try {
-    await processSteamWithdrawals();
+    try {
+      await processSteamWithdrawals();
 
-    taskStats.withdrawalProcessing.success++;
-    taskStats.withdrawalProcessing.lastRun = new Date();
+      taskStats.withdrawalProcessing.success++;
+      taskStats.withdrawalProcessing.lastRun = new Date();
 
-    cronLogger.debug('✅ Проверка выводов завершена');
+      cronLogger.debug('✅ Проверка выводов завершена');
 
-  } catch (error) {
-    taskStats.withdrawalProcessing.errors++;
-    cronLogger.error('❌ Ошибка при обработке выводов:', error);
-  }
-});
+    } catch (error) {
+      taskStats.withdrawalProcessing.errors++;
+      cronLogger.error('❌ Ошибка при обработке выводов:', error);
+    }
+  });
+} else {
+  cronLogger.warn('⏸️ Steam withdrawal cron отключен (ENABLE_STEAM_WITHDRAWAL_CRON=false)');
+}
 
 /**
  * 📊 Ежедневный отчет по системе подписок
@@ -266,7 +271,7 @@ cronLogger.info('✅ Все cron-задачи настроены и запуще
 cronLogger.info('📋 Расписание задач:');
 cronLogger.info('  - ⚠️ Уменьшение дней подписки: КАЖДЫЕ 20 СЕКУНД (ТЕСТОВЫЙ РЕЖИМ!)');
 cronLogger.info('  - Проверка целостности: еженедельно в воскресенье 02:00 UTC');
-cronLogger.info('  - Обработка выводов: каждые 5 минут');
+cronLogger.info(`  - Обработка выводов: ${ENABLE_STEAM_WITHDRAWAL_CRON ? 'каждые 5 минут' : 'ОТКЛЮЧЕНО'}`);
 cronLogger.info('  - Ежедневный отчет: ежедневно в 09:00 UTC');
 cronLogger.info('  - Healthcheck: каждые 30 минут');
 cronLogger.info('  - Очистка логов: ежедневно в 03:00 UTC');

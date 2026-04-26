@@ -40,13 +40,16 @@ module.exports = {
       watch: false,
       max_memory_restart: "512M",
       env: {
-        NODE_ENV: "production"
+        NODE_ENV: "production",
+        ENABLE_STEAM_WITHDRAWALS_WORKER: "false"
       },
       env_production: {
-        NODE_ENV: "production"
+        NODE_ENV: "production",
+        ENABLE_STEAM_WITHDRAWALS_WORKER: "false"
       },
       env_development: {
-        NODE_ENV: "development"
+        NODE_ENV: "development",
+        ENABLE_STEAM_WITHDRAWALS_WORKER: "false"
       },
       error_file: "./logs/workers-error.log",
       out_file: "./logs/workers-out.log",
@@ -65,13 +68,16 @@ module.exports = {
       watch: false,
       max_memory_restart: "256M",
       env: {
-        NODE_ENV: "production"
+        NODE_ENV: "production",
+        ENABLE_STEAM_WITHDRAWAL_CRON: "false"
       },
       env_production: {
-        NODE_ENV: "production"
+        NODE_ENV: "production",
+        ENABLE_STEAM_WITHDRAWAL_CRON: "false"
       },
       env_development: {
-        NODE_ENV: "development"
+        NODE_ENV: "development",
+        ENABLE_STEAM_WITHDRAWAL_CRON: "false"
       },
       error_file: "./logs/cron-error.log",
       out_file: "./logs/cron-out.log",
