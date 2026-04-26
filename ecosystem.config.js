@@ -13,15 +13,18 @@ module.exports = {
       max_memory_restart: "1G",
       env: {
         NODE_ENV: "production",
-        PORT: 3000
+        PORT: 3000,
+        RELAXED_SECURITY_HEADERS: "true"
       },
       env_production: {
         NODE_ENV: "production",
-        PORT: 3000
+        PORT: 3000,
+        RELAXED_SECURITY_HEADERS: "true"
       },
       env_development: {
         NODE_ENV: "development",
-        PORT: 3000
+        PORT: 3000,
+        RELAXED_SECURITY_HEADERS: "false"
       },
       error_file: "./logs/main-error.log",
       out_file: "./logs/main-out.log",

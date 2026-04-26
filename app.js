@@ -87,7 +87,16 @@ async function createApp() {
     next();
   });
 
-  app.use(helmet({
+  const relaxedSecurityHeaders = process.env.RELAXED_SECURITY_HEADERS === 'true';
+  app.use(helmet(relaxedSecurityHeaders ? {
+    // Safari/iOS privacy mode может агрессивно интерпретировать комбинацию защитных заголовков.
+    // В "relaxed" режиме оставляем базовую защиту helmet, но отключаем наиболее конфликтные политики.
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: false,
+    originAgentCluster: false
+  } : {
     crossOriginResourcePolicy: { policy: 'cross-origin' },
     contentSecurityPolicy: {
       directives: {

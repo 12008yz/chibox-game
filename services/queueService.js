@@ -14,13 +14,42 @@ const logger = winston.createLogger({
   ],
 });
 
+function buildBullRedisConfig() {
+  const redisUrl = process.env.REDIS_MASTER_URL || process.env.REDIS_URL;
+
+  if (!redisUrl) {
+    return {
+      port: process.env.REDIS_PORT || 6379,
+      host: process.env.REDIS_HOST || '127.0.0.1',
+      password: process.env.REDIS_PASSWORD || undefined,
+      db: process.env.REDIS_DB || 0,
+    };
+  }
+
+  const parsed = new URL(redisUrl);
+  const dbFromPath = parsed.pathname && parsed.pathname !== '/'
+    ? Number(parsed.pathname.slice(1))
+    : Number(process.env.REDIS_DB || 0);
+
+  const config = {
+    host: parsed.hostname,
+    port: Number(parsed.port || 6379),
+    username: parsed.username || undefined,
+    password: parsed.password || undefined,
+    db: Number.isFinite(dbFromPath) ? dbFromPath : 0,
+  };
+
+  if (parsed.protocol === 'rediss:') {
+    config.tls = {};
+  }
+
+  return config;
+}
+
 // Конфигурация Redis для очередей
 const redisConfig = {
   redis: {
-    port: process.env.REDIS_PORT || 6379,
-    host: process.env.REDIS_HOST || '127.0.0.1',
-    password: process.env.REDIS_PASSWORD || undefined,
-    db: process.env.REDIS_DB || 0,
+    ...buildBullRedisConfig(),
     maxRetriesPerRequest: 3,
     retryDelayOnFailover: 100,
     enableReadyCheck: false,

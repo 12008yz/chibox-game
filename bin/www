@@ -80,12 +80,13 @@ async function start() {
       return Math.min(retries * 100, 3000);
     },
   };
-  if (process.env.REDIS_URL && !skipRedis) {
+  const redisAdapterUrl = process.env.REDIS_MASTER_URL || process.env.REDIS_URL;
+  if (redisAdapterUrl && !skipRedis) {
     try {
       const { createAdapter } = require('@socket.io/redis-adapter');
       const redis = require('redis');
       const pubClient = redis.createClient({
-        url: process.env.REDIS_URL,
+        url: redisAdapterUrl,
         socket: redisSocketOptions,
         pingInterval: 15000,
       });
