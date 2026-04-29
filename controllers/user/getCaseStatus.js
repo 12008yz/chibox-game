@@ -10,6 +10,13 @@ function debugLog(...args) {
 
 async function getCaseStatus(req, res) {
   try {
+    // Персонализированный ответ: запрещаем кэшировать на прокси/CDN,
+    // иначе возможна отдача "гостевого" статуса авторизованным пользователям.
+    res.set('Cache-Control', 'private, no-store, no-cache, must-revalidate, max-age=0');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    res.set('Vary', 'Cookie, Authorization');
+
     const { caseTemplateId } = req.params;
 
     const caseTemplate = await db.CaseTemplate.findByPk(caseTemplateId);
