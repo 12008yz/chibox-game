@@ -1,16 +1,15 @@
 const db = require('../../models');
 const winston = require('winston');
 const { giveDailyCaseToUser } = require('../../services/caseService');
-const { createPayment } = require('../../services/paymentService');
 const { updateUserAchievementProgress } = require('../../services/achievementService');
 const { activateSubscription } = require('../../services/subscriptionService');
 const { addExperience } = require('../../services/xpService');
 
 // Цены в ChiCoins
 const subscriptionTiers = {
-  1: { days: 30, max_daily_cases: 1, bonus_percentage: 2.0, name: 'Статус', price: 599 },
-  2: { days: 30, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус+', price: 899 },
-  3: { days: 30, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус++', price: 1249 }
+  1: { days: 5, max_daily_cases: 1, bonus_percentage: 2.0, name: 'Статус', price: 300 },
+  2: { days: 5, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус+', price: 500 },
+  3: { days: 5, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус++', price: 800 }
 };
 
 const logger = winston.createLogger({
@@ -34,8 +33,8 @@ async function buySubscription(req, res) {
   debugLog('buySubscription start');
   try {
     const userId = req.user.id;
-    const { tierId, method, itemId, promoCode, paymentMethod, unitpay_system } = req.body;
-    debugLog(`buySubscription called with userId=${userId}, tierId=${tierId}, method=${method}, itemId=${itemId}, promoCode=${promoCode}, paymentMethod=${paymentMethod}`);
+    const { tierId, method, itemId, promoCode } = req.body;
+    debugLog(`buySubscription called with userId=${userId}, tierId=${tierId}, method=${method}, itemId=${itemId}, promoCode=${promoCode}`);
     const user = await db.User.findByPk(userId);
     debugLog(`User loaded: ${JSON.stringify(user)}`);
     const tier = subscriptionTiers[tierId];
@@ -94,53 +93,10 @@ async function buySubscription(req, res) {
     } else if (method === 'promo') {
       action = 'promo';
     } else if (method === 'bank_card') {
-      // Создаем платеж через выбранную платежную систему и возвращаем ссылку на оплату
-      try {
-        const selectedPaymentMethod = paymentMethod || 'yookassa';
-        debugLog(`Создание платежа через ${selectedPaymentMethod}`);
-        const paymentResult = await createPayment({
-          amount: price,
-          description: `Статус ${tier.name} на ${tier.days} дней`,
-          userId: userId,
-          purpose: 'subscription',
-          metadata: {
-            tierId,
-            ...(selectedPaymentMethod === 'unitpay' && unitpay_system ? { unitpay_system } : {})
-          },
-          paymentMethod: selectedPaymentMethod
-        });
-
-        if (!paymentResult.success) {
-          logger.error('Ошибка создания платежа:', paymentResult.error);
-          return res.status(500).json({
-            success: false,
-            message: 'Ошибка при создании платежа'
-          });
-        }
-
-        debugLog(`Платеж создан, paymentUrl: ${paymentResult.paymentUrl}`);
-
-        // Получаем актуальные данные пользователя для возврата
-        const updatedUser = await db.User.findByPk(userId);
-
-        return res.json({
-          success: true,
-          data: {
-            qrUrl: paymentResult.qrUrl,
-            paymentUrl: paymentResult.paymentUrl
-          },
-          message: paymentResult.paymentUrl ? 'Переход к оплате' : 'QR-код для оплаты готов',
-          subscription_purchase_date: updatedUser.subscription_purchase_date,
-          subscription_expiry_date: updatedUser.subscription_expiry_date,
-          subscription_tier: updatedUser.subscription_tier
-        });
-      } catch (error) {
-        logger.error('Ошибка создания платежа:', error);
-        return res.status(500).json({
-          success: false,
-          message: 'Ошибка при создании платежа'
-        });
-      }
+      return res.status(400).json({
+        success: false,
+        message: 'Покупка статуса доступна только за ChiCoins с внутреннего баланса'
+      });
     }
 
     // Проверяем наличие активного промокода с типом 'subscription_extend' для пользователя
