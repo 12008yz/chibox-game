@@ -59,8 +59,16 @@ async function getCaseStatus(req, res) {
       await user.save();
     }
 
-    const userSubscriptionTier = user.subscription_tier || 0;
-    const subscriptionDaysLeft = user.subscription_days_left || 0;
+    const expiryDate = user.subscription_expiry_date ? new Date(user.subscription_expiry_date) : null;
+    const hasActiveSubscription = Boolean(
+      user.subscription_tier &&
+      expiryDate &&
+      expiryDate > now
+    );
+    const userSubscriptionTier = hasActiveSubscription ? (user.subscription_tier || 0) : 0;
+    const subscriptionDaysLeft = hasActiveSubscription
+      ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
 
     let status = {
       canOpen: false,
@@ -96,8 +104,8 @@ async function getCaseStatus(req, res) {
         return res.json({ success: true, data: status });
       }
 
-      // Проверяем есть ли активная подписка (дни)
-      if (minSubscriptionTier > 0 && subscriptionDaysLeft <= 0) {
+      // Проверяем активность статуса по дате истечения, а не по кэшированным дням
+      if (minSubscriptionTier > 0 && !hasActiveSubscription) {
         status.reason = 'Статус истек';
         return res.json({ success: true, data: status });
       }
