@@ -5,22 +5,39 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const socketIO = require('socket.io');
+const jwt = require('jsonwebtoken');
+const db = require('../models');
+const authMiddleware = require('../middleware/auth');
 
-// Локальная среда: не ронять процесс при обрыве Redis (ECONNRESET → unhandledRejection)
-if (process.env.NODE_ENV !== 'production') {
-  process.on('unhandledRejection', (reason, promise) => {
-    const err = reason && (reason instanceof Error ? reason : new Error(String(reason)));
-    const code = err?.code;
-    const msg = err?.message || '';
-    const isRedisConnectionError = code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'ECONNREFUSED' ||
-      (typeof msg === 'string' && msg.includes('ECONNRESET'));
-    if (isRedisConnectionError) {
-      console.warn('Redis: необработанное отклонение (соединение), процесс не завершён:', msg);
-      return;
-    }
-    console.error('Unhandled Rejection:', reason);
-  });
+function isRedisConnectionError(errLike) {
+  const err = errLike && (errLike instanceof Error ? errLike : new Error(String(errLike)));
+  const code = err?.code;
+  const msg = err?.message || '';
+  return code === 'ECONNRESET' ||
+    code === 'ETIMEDOUT' ||
+    code === 'ECONNREFUSED' ||
+    code === 'ECONNABORTED' ||
+    (typeof msg === 'string' && (msg.includes('ECONNRESET') || msg.includes('ECONNABORTED')));
 }
+
+// Защита процесса: не падаем при сетевых обрывах Redis.
+process.on('unhandledRejection', (reason) => {
+  if (isRedisConnectionError(reason)) {
+    const msg = reason?.message || String(reason);
+    console.warn('Redis: unhandledRejection (соединение), процесс не завершён:', msg);
+    return;
+  }
+  console.error('Unhandled Rejection:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  if (isRedisConnectionError(error)) {
+    console.warn('Redis: uncaughtException (соединение), процесс не завершён:', error?.message || error);
+    return;
+  }
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
 
 function normalizePort(val) {
   const port = parseInt(val, 10);
@@ -54,11 +71,26 @@ async function start() {
   server.headersTimeout = 10000;
   console.log('🛡️  Защита от DDoS:', `макс. соединений ${MAX_CONNECTIONS}`);
 
+  const localSocketOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000'];
+  const productionSocketOrigins = ['https://chibox-game.ru', 'https://www.chibox-game.ru', 'https://api.chibox-game.ru', 'https://streamer.chibox-game.ru'];
+  const extraSocketOrigins = (process.env.SOCKET_CORS_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const allowedSocketOrigins = Array.from(new Set([
+    ...localSocketOrigins,
+    ...(process.env.NODE_ENV === 'production' ? productionSocketOrigins : []),
+    ...extraSocketOrigins
+  ]));
+
   const io = socketIO(server, {
     cors: {
-      origin: process.env.NODE_ENV === 'production'
-        ? ['https://chibox-game.ru', 'https://www.chibox-game.ru', 'https://api.chibox-game.ru', 'https://streamer.chibox-game.ru']
-        : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
+      origin: (origin, callback) => {
+        if (!origin || allowedSocketOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        return callback(new Error(`Socket CORS blocked origin: ${origin}`));
+      },
       methods: ['GET', 'POST'],
       credentials: true
     },
@@ -118,6 +150,10 @@ async function start() {
 
   const userSessions = new Map();
   const userConnections = new Map();
+  const socketAuth = new Map(); // socketId -> { userIdKey, token }
+  const ONLINE_BALANCE_TICK_MS = 1000;
+  const ONLINE_BALANCE_INCREMENT = 3;
+  let isBalanceTickRunning = false;
 
   const FAKE_ACTIVITY_ENABLED = process.env.FAKE_ACTIVITY_ENABLED === 'true' ||
     (process.env.NODE_ENV !== 'production' && process.env.FAKE_ACTIVITY_ENABLED !== 'false');
@@ -178,19 +214,103 @@ async function start() {
     }
   }
 
-  function getUserId(socket) {
+  async function awardOnlineUsersBalance() {
+    if (isBalanceTickRunning) return;
+    const revokedTokens = authMiddleware.revokedTokens;
+    const validUserKeys = new Set();
+
+    for (const [socketId, auth] of socketAuth.entries()) {
+      if (!auth?.userIdKey || !auth?.token) continue;
+      if (revokedTokens?.has(auth.token)) continue;
+      try {
+        jwt.verify(auth.token, process.env.JWT_SECRET);
+        validUserKeys.add(auth.userIdKey);
+      } catch {
+        // Токен просрочен/невалиден — больше не считаем этот сокет авторизованным
+        socketAuth.delete(socketId);
+      }
+    }
+
+    const onlineAuthUsers = Array.from(validUserKeys)
+      .map((key) => key.slice(5));
+
+    if (onlineAuthUsers.length === 0) return;
+
+    isBalanceTickRunning = true;
+    try {
+      await db.User.increment(
+        { balance: ONLINE_BALANCE_INCREMENT },
+        { where: { id: onlineAuthUsers } }
+      );
+
+      const users = await db.User.findAll({
+        where: { id: onlineAuthUsers },
+        attributes: ['id', 'balance'],
+        raw: true
+      });
+
+      users.forEach((user) => {
+        const userIdKey = `user_${user.id}`;
+        const sockets = userConnections.get(userIdKey);
+        if (!sockets || sockets.size === 0) return;
+
+        const nextBalance = Number(user.balance) || 0;
+        sockets.forEach((socketId) => {
+          const socket = io.sockets.sockets.get(socketId);
+          if (socket) {
+            socket.emit('balanceUpdate', {
+              balance: nextBalance,
+              delta: ONLINE_BALANCE_INCREMENT
+            });
+          }
+        });
+      });
+    } catch (error) {
+      console.error('Ошибка начисления онлайн-баланса:', error?.message || error);
+    } finally {
+      isBalanceTickRunning = false;
+    }
+  }
+
+  function getSocketAuth(socket) {
     const session = socket.request.session;
     if (session && session.user && session.user.id) {
-      return `user_${session.user.id}`;
+      return { userIdKey: `user_${session.user.id}`, token: null };
     }
+
+    // Основной путь авторизации: JWT в httpOnly cookie accessToken
+    const rawCookieHeader = socket.handshake?.headers?.cookie || '';
+    if (rawCookieHeader && process.env.JWT_SECRET) {
+      const cookieMap = rawCookieHeader.split(';').reduce((acc, part) => {
+        const [key, ...rest] = part.trim().split('=');
+        if (!key) return acc;
+        acc[key] = decodeURIComponent(rest.join('=') || '');
+        return acc;
+      }, {});
+
+      const accessToken = cookieMap.accessToken;
+      if (accessToken) {
+        try {
+          const decoded = jwt.verify(accessToken, process.env.JWT_SECRET);
+          if (decoded?.id) {
+            return { userIdKey: `user_${decoded.id}`, token: accessToken };
+          }
+        } catch {
+          // невалидный/просроченный токен — ниже будет guest fallback
+        }
+      }
+    }
+
     const ip = socket.handshake.address;
     const userAgent = socket.handshake.headers['user-agent'] || 'unknown';
     const fingerprint = require('crypto').createHash('md5').update(ip + userAgent).digest('hex');
-    return `guest_${fingerprint}`;
+    return { userIdKey: `guest_${fingerprint}`, token: null };
   }
 
   io.on('connection', (socket) => {
-    const userId = getUserId(socket);
+    const auth = getSocketAuth(socket);
+    const userId = auth.userIdKey;
+    socketAuth.set(socket.id, auth);
     let isNewUser = false;
     if (!userSessions.has(userId)) {
       userSessions.set(userId, {
@@ -215,6 +335,7 @@ async function start() {
     socket.emit('onlineUsersUpdate', { count: getDisplayOnlineCount() });
     broadcastOnlineUsers();
     socket.on('disconnect', (reason) => {
+      socketAuth.delete(socket.id);
       const connections = userConnections.get(userId);
       if (connections) {
         connections.delete(socket.id);
@@ -260,6 +381,10 @@ async function start() {
   setInterval(() => {
     broadcastOnlineUsers();
   }, ONLINE_BROADCAST_INTERVAL_MS);
+
+  setInterval(() => {
+    awardOnlineUsersBalance();
+  }, ONLINE_BALANCE_TICK_MS);
 
   server.on('error', (error) => {
     if (error.syscall !== 'listen') throw error;
