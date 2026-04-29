@@ -36,62 +36,68 @@ const failedLogin = new Map();
 
 async function login(req, res) {
   try {
-    const { email, password } = req.body;
-    debugLog('[LOGIN] Login request received for email:', email);
+    const { identifier, username, password } = req.body;
+    const rawLogin = typeof identifier === 'string' && identifier.trim()
+      ? identifier
+      : username;
+    debugLog('[LOGIN] Login request received for login:', rawLogin);
 
     // Валидация типов для защиты от Prototype Pollution
-    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
-      logger.warn('[LOGIN] Invalid email or password type');
-      return res.status(400).json({ message: 'Email и пароль обязательны и должны быть строками' });
+    if (!rawLogin || !password || typeof rawLogin !== 'string' || typeof password !== 'string') {
+      logger.warn('[LOGIN] Invalid login or password type');
+      return res.status(400).json({ message: 'Логин и пароль обязательны и должны быть строками' });
     }
 
-    // Дополнительная валидация email
-    if (email.length > 254 || password.length > 128) {
+    // Дополнительная валидация логина
+    if (rawLogin.length > 50 || password.length > 128) {
       return res.status(400).json({ message: 'Неверный формат данных' });
     }
 
-    const key = email.trim().toLowerCase();
+    const lookupKey = rawLogin.trim();
+    const failedLoginKey = `username:${lookupKey.toLowerCase()}`;
 
     // Если есть блокировка — замедление или блок
-    const userAttempts = failedLogin.get(key);
+    const userAttempts = failedLogin.get(failedLoginKey);
     if (userAttempts && userAttempts.blockUntil && Date.now() < userAttempts.blockUntil) {
       return res.status(429).json({ message: 'Попробуйте позже (блокировка из-за неудачных попыток)' });
     }
 
-    debugLog('[LOGIN] Looking up user in database:', key);
-    const user = await db.User.findOne({ where: { email: key } });
+    debugLog('[LOGIN] Looking up user in database:', { lookupKey });
+    const user = await db.User.findOne({
+      where: { username: lookupKey }
+    });
     if (!user) {
-      logger.warn('[LOGIN] User not found:', key);
-      const attempts = failedLogin.get(key) || { count: 0 };
+      logger.warn('[LOGIN] User not found for identifier:', lookupKey);
+      const attempts = failedLogin.get(failedLoginKey) || { count: 0 };
       attempts.count++;
       if (attempts.count >= 5) {
         attempts.blockUntil = Date.now() + 10 * 60 * 1000; // 10 минут блокировка
       }
-      failedLogin.set(key, attempts);
-      return res.status(401).json({ message: 'Неверный email или пароль.' });
+      failedLogin.set(failedLoginKey, attempts);
+      return res.status(401).json({ message: 'Неверный логин или пароль.' });
     }
 
     if (user.is_bot) {
-      logger.warn('[LOGIN] Attempt to login as bot account:', key);
+      logger.warn('[LOGIN] Attempt to login as bot account:', lookupKey);
       return res.status(403).json({ message: 'Вход с этого аккаунта недоступен.' });
     }
 
     debugLog('[LOGIN] User found, verifying password for user ID:', user.id);
     const passwordMatch = await argon2.verify(user.password, password);
     if (!passwordMatch) {
-      logger.warn('[LOGIN] Password mismatch for user:', key);
-      const attempts = failedLogin.get(key) || { count: 0 };
+      logger.warn('[LOGIN] Password mismatch for user:', lookupKey);
+      const attempts = failedLogin.get(failedLoginKey) || { count: 0 };
       attempts.count++;
       if (attempts.count >= 5) {
         attempts.blockUntil = Date.now() + 10 * 60 * 1000;
       }
-      failedLogin.set(key, attempts);
-      return res.status(401).json({ message: 'Неверный email или пароль.' });
+      failedLogin.set(failedLoginKey, attempts);
+      return res.status(401).json({ message: 'Неверный логин или пароль.' });
     }
 
     debugLog('[LOGIN] Password verified successfully for user:', user.id);
     // Очистка после удачного входа
-    failedLogin.delete(key);
+    failedLogin.delete(failedLoginKey);
 
     // Обновляем бонусы пользователя при логине
     try {
