@@ -54,16 +54,20 @@ async function exchangeItemForSubscription(req, res) {
     const currentTier = user.subscription_tier || 1; // По умолчанию тариф 1
 
     if (currentTier === 3) {
-      pricePerDay = 350; // 350 ChiCoins за день для тарифа "Статус++" (оптимизировано)
+      pricePerDay = 160; // 800 ChiCoins / 5 дней
+    } else if (currentTier === 2) {
+      pricePerDay = 100; // 500 ChiCoins / 5 дней
     } else {
-      pricePerDay = 200; // 200 ChiCoins за день для тарифов "Статус" и "Статус+" (оптимизировано)
+      pricePerDay = 60; // 300 ChiCoins / 5 дней
     }
 
     debugLog(`Using price per day: ${pricePerDay} ChiCoins for tier ${currentTier}`);
 
     // Вычисляем количество дней подписки с правильной логикой (оптимизировано)
-    // Для тарифа 3: 330-350 ChiCoins = 1 день, 680-700 ChiCoins = 2 дня и т.д.
-    // Для тарифов 1,2: 190-200 ChiCoins = 1 день, 390-400 ChiCoins = 2 дня и т.д.
+    // Расчет согласован с новыми тарифами:
+    // Статус (300/5): ~60 ChiCoins за день
+    // Статус+ (500/5): ~100 ChiCoins за день
+    // Статус++ (800/5): ~160 ChiCoins за день
     const subscriptionDays = Math.floor((itemPrice + pricePerDay * 0.067) / pricePerDay);
 
     debugLog(`Calculated subscription days: ${subscriptionDays} for item price ${itemPrice} (formula: floor((${itemPrice} + ${pricePerDay * 0.067}) / ${pricePerDay})) for tier ${currentTier}`);

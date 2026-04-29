@@ -1,9 +1,9 @@
 const winston = require('winston');
 
 const subscriptionTiers = {
-  1: { id: 1, days: 30, max_daily_cases: 1, bonus_percentage: 2.0, name: 'Статус', price: 599 },
-  2: { id: 2, days: 30, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус+', price: 899 },
-  3: { id: 3, days: 30, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус++', price: 1249 }
+  1: { id: 1, days: 5, max_daily_cases: 1, bonus_percentage: 2.0, name: 'Статус', price: 300 },
+  2: { id: 2, days: 5, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус+', price: 500 },
+  3: { id: 3, days: 5, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус++', price: 800 }
 };
 
 const logger = winston.createLogger({

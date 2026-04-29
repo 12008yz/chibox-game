@@ -266,12 +266,12 @@ class EconomyAnalyzer {
       changes: [
         {
           line: '10-12',
-          current: `1: { days: 30, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус', price: 1210 },
-  2: { days: 30, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус+', price: 2890 },
-  3: { days: 30, max_daily_cases: 1, bonus_percentage: 8.0, name: 'Статус++', price: 6819 }`,
-          recommended: `1: { days: 30, max_daily_cases: 1, bonus_percentage: 2.0, name: 'Статус', price: 1450 },
-  2: { days: 30, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус+', price: 3200 },
-  3: { days: 30, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус++', price: 6819 }`
+          current: `1: { days: 5, max_daily_cases: 1, bonus_percentage: 2.0, name: 'Статус', price: 300 },
+  2: { days: 5, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус+', price: 500 },
+  3: { days: 5, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус++', price: 800 }`,
+          recommended: `1: { days: 5, max_daily_cases: 1, bonus_percentage: 2.0, name: 'Статус', price: 300 },
+  2: { days: 5, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус+', price: 500 },
+  3: { days: 5, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус++', price: 800 }`
         }
       ]
     });

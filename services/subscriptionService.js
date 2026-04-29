@@ -70,9 +70,9 @@ function grantGameAttemptsForTier(user, tierId) {
 async function activateSubscription(userId, tierId, promoExtendDays = 0) {
   try {
     const subscriptionTiers = {
-      1: { days: 30, max_daily_cases: 1, bonus_percentage: 2.0, name: 'Статус', price: 599 },
-      2: { days: 30, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус+', price: 899 },
-      3: { days: 30, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус++', price: 1249 }
+      1: { days: 5, max_daily_cases: 1, bonus_percentage: 2.0, name: 'Статус', price: 300 },
+      2: { days: 5, max_daily_cases: 1, bonus_percentage: 3.0, name: 'Статус+', price: 500 },
+      3: { days: 5, max_daily_cases: 1, bonus_percentage: 5.0, name: 'Статус++', price: 800 }
     };
 
     const tier = subscriptionTiers[tierId];
