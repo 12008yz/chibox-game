@@ -98,19 +98,8 @@ async function getCaseStatus(req, res) {
 
     // Для бесплатных кейсов проверяем подписку и cooldown
     if (caseTemplate.type === 'daily') {
-      // Проверяем уровень подписки
-      if (userSubscriptionTier < minSubscriptionTier) {
-        status.reason = `Требуется статус уровня ${minSubscriptionTier} или выше`;
-        return res.json({ success: true, data: status });
-      }
-
-      // Проверяем активность статуса по дате истечения, а не по кэшированным дням
-      if (minSubscriptionTier > 0 && !hasActiveSubscription) {
-        status.reason = 'Статус истек';
-        return res.json({ success: true, data: status });
-      }
-
-      // Если у пользователя уже есть этот кейс в инвентаре — можно открыть из превью (как в инвентаре)
+      // Если у пользователя уже есть этот кейс в инвентаре — можно открыть из превью (как в инвентаре),
+      // даже если текущий уровень статуса уже ниже требуемого.
       const inventoryCase = await db.UserInventory.findOne({
         where: {
           user_id: userId,
@@ -121,6 +110,18 @@ async function getCaseStatus(req, res) {
       });
       if (inventoryCase) {
         status.canOpen = true;
+        return res.json({ success: true, data: status });
+      }
+
+      // Проверяем уровень подписки
+      if (userSubscriptionTier < minSubscriptionTier) {
+        status.reason = `Требуется статус уровня ${minSubscriptionTier} или выше`;
+        return res.json({ success: true, data: status });
+      }
+
+      // Проверяем активность статуса по дате истечения, а не по кэшированным дням
+      if (minSubscriptionTier > 0 && !hasActiveSubscription) {
+        status.reason = 'Статус истек';
         return res.json({ success: true, data: status });
       }
 
