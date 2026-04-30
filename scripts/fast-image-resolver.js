@@ -7,6 +7,23 @@ const path = require('path');
 const IMAGE_CACHE_FILE = path.join(__dirname, 'image-cache.json');
 let imageCache = {};
 
+function getCachedImage(key) {
+  if (!Object.prototype.hasOwnProperty.call(imageCache, key)) {
+    return null;
+  }
+  return imageCache[key] || null;
+}
+
+function setCachedImage(key, value) {
+  imageCache[key] = value;
+}
+
+function deleteCachedImage(key) {
+  if (Object.prototype.hasOwnProperty.call(imageCache, key)) {
+    delete imageCache[key];
+  }
+}
+
 // Загружаем кэш изображений
 function loadImageCache() {
   try {
@@ -38,55 +55,56 @@ const STEAM_CDN_BASES = [
 ];
 
 // Паттерны для генерации ID изображений
-const WEAPON_PATTERNS = {
-  'AK-47': 'ak47',
-  'M4A4': 'm4a4',
-  'M4A1-S': 'm4a1_silencer',
-  'AWP': 'awp',
-  'Desert Eagle': 'deagle',
-  'Glock-18': 'glock',
-  'USP-S': 'usp_silencer',
-  'P250': 'p250',
-  'Five-SeveN': 'fiveseven',
-  'Tec-9': 'tec9',
-  'CZ75-Auto': 'cz75a',
-  'Dual Berettas': 'elite',
-  'P2000': 'hkp2000',
-  'R8 Revolver': 'revolver',
-  'MP9': 'mp9',
-  'MAC-10': 'mac10',
-  'MP7': 'mp7',
-  'UMP-45': 'ump45',
-  'P90': 'p90',
-  'PP-Bizon': 'bizon',
-  'MP5-SD': 'mp5sd',
-  'Nova': 'nova',
-  'XM1014': 'xm1014',
-  'Sawed-Off': 'sawedoff',
-  'MAG-7': 'mag7',
-  'Negev': 'negev',
-  'M249': 'm249',
-  'FAMAS': 'famas',
-  'Galil AR': 'galilar',
-  'AUG': 'aug',
-  'SG 553': 'sg556',
-  'SCAR-20': 'scar20',
-  'G3SG1': 'g3sg1',
-  'SSG 08': 'ssg08'
-};
+const WEAPON_PATTERNS = new Map([
+  ['AK-47', 'ak47'],
+  ['M4A4', 'm4a4'],
+  ['M4A1-S', 'm4a1_silencer'],
+  ['AWP', 'awp'],
+  ['Desert Eagle', 'deagle'],
+  ['Glock-18', 'glock'],
+  ['USP-S', 'usp_silencer'],
+  ['P250', 'p250'],
+  ['Five-SeveN', 'fiveseven'],
+  ['Tec-9', 'tec9'],
+  ['CZ75-Auto', 'cz75a'],
+  ['Dual Berettas', 'elite'],
+  ['P2000', 'hkp2000'],
+  ['R8 Revolver', 'revolver'],
+  ['MP9', 'mp9'],
+  ['MAC-10', 'mac10'],
+  ['MP7', 'mp7'],
+  ['UMP-45', 'ump45'],
+  ['P90', 'p90'],
+  ['PP-Bizon', 'bizon'],
+  ['MP5-SD', 'mp5sd'],
+  ['Nova', 'nova'],
+  ['XM1014', 'xm1014'],
+  ['Sawed-Off', 'sawedoff'],
+  ['MAG-7', 'mag7'],
+  ['Negev', 'negev'],
+  ['M249', 'm249'],
+  ['FAMAS', 'famas'],
+  ['Galil AR', 'galilar'],
+  ['AUG', 'aug'],
+  ['SG 553', 'sg556'],
+  ['SCAR-20', 'scar20'],
+  ['G3SG1', 'g3sg1'],
+  ['SSG 08', 'ssg08']
+]);
 
 // Быстрое получение изображения предмета
 async function getItemImageFast(marketHashName, useCache = true) {
   try {
     // Проверяем кэш
-    if (useCache && imageCache[marketHashName]) {
-      const cachedUrl = imageCache[marketHashName];
-      if (await validateImageUrl(cachedUrl)) {
+    if (useCache) {
+      const cachedUrl = getCachedImage(marketHashName);
+      if (!cachedUrl) {
+        // continue without cache
+      } else if (await validateImageUrl(cachedUrl)) {
         console.log(`📋 Изображение из кэша: ${marketHashName}`);
         return cachedUrl;
       } else {
-        // Удаляем неработающую ссылку из кэша
-        delete imageCache[marketHashName];
+        deleteCachedImage(marketHashName);
       }
     }
 
@@ -95,7 +113,7 @@ async function getItemImageFast(marketHashName, useCache = true) {
     // Стратегия 1: Поиск через Steam Market API
     const marketImageUrl = await getImageFromMarketAPI(marketHashName);
     if (marketImageUrl) {
-      imageCache[marketHashName] = marketImageUrl;
+      setCachedImage(marketHashName, marketImageUrl);
       saveImageCache();
       return marketImageUrl;
     }
@@ -103,7 +121,7 @@ async function getItemImageFast(marketHashName, useCache = true) {
     // Стратегия 2: Генерация URL на основе паттернов
     const generatedImageUrl = generateImageUrl(marketHashName);
     if (generatedImageUrl && await validateImageUrl(generatedImageUrl)) {
-      imageCache[marketHashName] = generatedImageUrl;
+      setCachedImage(marketHashName, generatedImageUrl);
       saveImageCache();
       return generatedImageUrl;
     }
@@ -111,7 +129,7 @@ async function getItemImageFast(marketHashName, useCache = true) {
     // Стратегия 3: Поиск в Steam Inventory API
     const inventoryImageUrl = await getImageFromInventoryAPI(marketHashName);
     if (inventoryImageUrl) {
-      imageCache[marketHashName] = inventoryImageUrl;
+      setCachedImage(marketHashName, inventoryImageUrl);
       saveImageCache();
       return inventoryImageUrl;
     }
@@ -170,7 +188,7 @@ function generateImageUrl(marketHashName) {
     const skinName = skinNameWithExterior.replace(/\s*\([^)]*\)\s*$/, '').trim();
 
     // Получаем внутреннее имя оружия
-    const weaponKey = WEAPON_PATTERNS[weaponName];
+    const weaponKey = WEAPON_PATTERNS.get(weaponName);
     if (!weaponKey) return null;
 
     // Генерируем возможные ID для изображения
@@ -251,7 +269,7 @@ async function batchGetImages(marketHashNames, batchSize = 10) {
 
   loadImageCache();
 
-  const results = {};
+  const resultsMap = new Map();
 
   for (let i = 0; i < marketHashNames.length; i += batchSize) {
     const batch = marketHashNames.slice(i, i + batchSize);
@@ -267,7 +285,7 @@ async function batchGetImages(marketHashNames, batchSize = 10) {
     batchResults.forEach((result) => {
       if (result.status === 'fulfilled') {
         const { name, imageUrl } = result.value;
-        results[name] = imageUrl;
+        resultsMap.set(name, imageUrl);
       }
     });
 
@@ -279,7 +297,8 @@ async function batchGetImages(marketHashNames, batchSize = 10) {
 
   saveImageCache();
 
-  const successCount = Object.values(results).filter(url => url !== null).length;
+  const results = Object.fromEntries(resultsMap.entries());
+  const successCount = Array.from(resultsMap.values()).filter(url => url !== null).length;
   console.log(`✅ Получено изображений: ${successCount}/${marketHashNames.length}`);
 
   return results;

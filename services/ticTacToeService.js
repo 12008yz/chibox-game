@@ -18,6 +18,20 @@ class TicTacToeService {
     this.EMPTY = null;
   }
 
+  getCell(board, index) {
+    if (!Number.isInteger(index) || index < 0 || index >= board.length) {
+      return null;
+    }
+    return board[index];
+  }
+
+  setCell(board, index, value) {
+    if (!Number.isInteger(index) || index < 0 || index >= board.length) {
+      return;
+    }
+    board[index] = value;
+  }
+
   // Проверяем, есть ли победитель
   checkWinner(board) {
     const winPatterns = [
@@ -28,8 +42,11 @@ class TicTacToeService {
 
     for (const pattern of winPatterns) {
       const [a, b, c] = pattern;
-      if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-        return board[a];
+      const cellA = this.getCell(board, a);
+      const cellB = this.getCell(board, b);
+      const cellC = this.getCell(board, c);
+      if (cellA && cellA === cellB && cellA === cellC) {
+        return cellA;
       }
     }
 
@@ -65,7 +82,7 @@ class TicTacToeService {
 
       for (const move of this.getAvailableMoves(board)) {
         const newBoard = this.cloneBoard(board);
-        newBoard[move] = this.BOT;
+        this.setCell(newBoard, move, this.BOT);
 
         const eval_score = this.minimax(newBoard, depth + 1, false, alpha, beta);
         maxEval = Math.max(maxEval, eval_score);
@@ -80,7 +97,7 @@ class TicTacToeService {
 
       for (const move of this.getAvailableMoves(board)) {
         const newBoard = this.cloneBoard(board);
-        newBoard[move] = this.PLAYER;
+        this.setCell(newBoard, move, this.PLAYER);
 
         const eval_score = this.minimax(newBoard, depth + 1, true, alpha, beta);
         minEval = Math.min(minEval, eval_score);
@@ -111,7 +128,7 @@ class TicTacToeService {
 
     for (const move of availableMoves) {
       const newBoard = this.cloneBoard(board);
-      newBoard[move] = this.BOT;
+      this.setCell(newBoard, move, this.BOT);
 
       const moveValue = this.minimax(newBoard, 0, false);
 
@@ -130,7 +147,7 @@ class TicTacToeService {
 
     for (const move of availableMoves) {
       const newBoard = this.cloneBoard(board);
-      newBoard[move] = this.PLAYER;
+      this.setCell(newBoard, move, this.PLAYER);
 
       if (this.checkWinner(newBoard) === this.PLAYER) {
         return move;
@@ -146,7 +163,7 @@ class TicTacToeService {
 
     for (const move of availableMoves) {
       const newBoard = this.cloneBoard(board);
-      newBoard[move] = this.BOT;
+      this.setCell(newBoard, move, this.BOT);
 
       if (this.checkWinner(newBoard) === this.BOT) {
         return move;
@@ -207,7 +224,7 @@ class TicTacToeService {
 
     for (const move of availableMoves) {
       const newBoard = this.cloneBoard(board);
-      newBoard[move] = this.BOT;
+      this.setCell(newBoard, move, this.BOT);
 
       // Подсчитываем количество способов выиграть после этого хода
       let winningWays = 0;
@@ -215,7 +232,7 @@ class TicTacToeService {
 
       for (const nextMove of nextAvailableMoves) {
         const testBoard = this.cloneBoard(newBoard);
-        testBoard[nextMove] = this.BOT;
+        this.setCell(testBoard, nextMove, this.BOT);
         if (this.checkWinner(testBoard) === this.BOT) {
           winningWays++;
         }
@@ -236,7 +253,7 @@ class TicTacToeService {
 
     for (const move of availableMoves) {
       const newBoard = this.cloneBoard(board);
-      newBoard[move] = this.PLAYER;
+      this.setCell(newBoard, move, this.PLAYER);
 
       // Проверяем, создаст ли игрок форк
       let winningWays = 0;
@@ -244,7 +261,7 @@ class TicTacToeService {
 
       for (const nextMove of nextAvailableMoves) {
         const testBoard = this.cloneBoard(newBoard);
-        testBoard[nextMove] = this.PLAYER;
+        this.setCell(testBoard, nextMove, this.PLAYER);
         if (this.checkWinner(testBoard) === this.PLAYER) {
           winningWays++;
         }
@@ -266,13 +283,13 @@ class TicTacToeService {
 
     // Проверяем, занял ли игрок противоположные углы
     for (const [corner1, corner2] of oppositeCorners) {
-      if (board[corner1] === this.PLAYER && board[corner2] === this.PLAYER) {
+      if (this.getCell(board, corner1) === this.PLAYER && this.getCell(board, corner2) === this.PLAYER) {
         // Игрок занял противоположные углы! Это классическая тактика.
         // НИКОГДА не ставим в центр в этом случае - это проигрышный ход!
 
         // Блокируем на боковых сторонах (1, 3, 5, 7)
         const sides = [1, 3, 5, 7];
-        const availableSides = sides.filter(side => board[side] === null);
+        const availableSides = sides.filter(side => this.getCell(board, side) === null);
         if (availableSides.length > 0) {
           return availableSides[Math.floor(Math.random() * availableSides.length)];
         }
@@ -280,9 +297,9 @@ class TicTacToeService {
     }
 
     // Проверяем ситуацию: игрок занял один угол, мы заняли центр, он занимает противоположный
-    if (board[4] === this.BOT) { // Если мы уже в центре
+    if (this.getCell(board, 4) === this.BOT) { // Если мы уже в центре
       for (const [corner1, corner2] of oppositeCorners) {
-        if (board[corner1] === this.PLAYER && board[corner2] === null) {
+        if (this.getCell(board, corner1) === this.PLAYER && this.getCell(board, corner2) === null) {
           // Игрок в одном углу, противоположный свободен
           // Считаем сколько ходов сделано
           const moveCount = board.filter(cell => cell !== null).length;
@@ -290,7 +307,7 @@ class TicTacToeService {
           if (moveCount === 3) { // Второй ход игрока (наш первый ход был в центр)
             // Предотвращаем занятие противоположного угла, блокируя боковую сторону
             const blockingSides = this.getBlockingSidesForCorner(corner1);
-            const availableBlockingSides = blockingSides.filter(side => board[side] === null);
+            const availableBlockingSides = blockingSides.filter(side => this.getCell(board, side) === null);
             if (availableBlockingSides.length > 0) {
               return availableBlockingSides[0];
             }
@@ -300,17 +317,17 @@ class TicTacToeService {
     }
 
     // Особая защита: если игрок начал с угла и мы НЕ заняли центр
-    const playerCorners = corners.filter(corner => board[corner] === this.PLAYER);
-    if (playerCorners.length === 1 && board[4] === null) {
+    const playerCorners = corners.filter(corner => this.getCell(board, corner) === this.PLAYER);
+    if (playerCorners.length === 1 && this.getCell(board, 4) === null) {
       // Игрок занял 1 угол, центр свободен - ОБЯЗАТЕЛЬНО занимаем центр!
       return 4;
     }
 
     // Если игрок занял угол, а мы заняли не центр, блокируем диагональ
-    if (playerCorners.length === 1 && board[4] !== this.BOT) {
+    if (playerCorners.length === 1 && this.getCell(board, 4) !== this.BOT) {
       const playerCorner = playerCorners[0];
       const oppositeCorner = this.getOppositeCorner(playerCorner);
-      if (board[oppositeCorner] === null) {
+      if (this.getCell(board, oppositeCorner) === null) {
         // Блокируем противоположный угол
         return oppositeCorner;
       }
@@ -321,19 +338,24 @@ class TicTacToeService {
 
   // Получаем противоположный угол
   getOppositeCorner(corner) {
-    const opposites = { 0: 8, 2: 6, 6: 2, 8: 0 };
-    return opposites[corner];
+    switch (corner) {
+      case 0: return 8;
+      case 2: return 6;
+      case 6: return 2;
+      case 8: return 0;
+      default: return -1;
+    }
   }
 
   // Получаем блокирующие боковые стороны для данного угла
   getBlockingSidesForCorner(corner) {
-    const blockingSides = {
-      0: [1, 3],  // Для угла 0 блокируем стороны 1 и 3
-      2: [1, 5],  // Для угла 2 блокируем стороны 1 и 5
-      6: [3, 7],  // Для угла 6 блокируем стороны 3 и 7
-      8: [5, 7]   // Для угла 8 блокируем стороны 5 и 7
-    };
-    return blockingSides[corner] || [];
+    switch (corner) {
+      case 0: return [1, 3]; // Для угла 0 блокируем стороны 1 и 3
+      case 2: return [1, 5]; // Для угла 2 блокируем стороны 1 и 5
+      case 6: return [3, 7]; // Для угла 6 блокируем стороны 3 и 7
+      case 8: return [5, 7]; // Для угла 8 блокируем стороны 5 и 7
+      default: return [];
+    }
   }
 
   // Делаем менее оптимальный ход для создания шансов игроку
@@ -390,7 +412,7 @@ class TicTacToeService {
   }
 
   // Создаем новую игру
-  createNewGame(userGoesFirst = true) {
+  createNewGame() {
     const botGoesFirst = Math.random() < 0.5; // 50% шанс что бот ходит первым
 
     return {
@@ -412,7 +434,7 @@ class TicTacToeService {
       throw new Error('Сейчас не ваш ход');
     }
 
-    if (gameState.board[position] !== null) {
+    if (this.getCell(gameState.board, position) !== null) {
       throw new Error('Эта клетка уже занята');
     }
 
@@ -422,7 +444,7 @@ class TicTacToeService {
       board: [...gameState.board]
     };
 
-    newGameState.board[position] = this.PLAYER;
+    this.setCell(newGameState.board, position, this.PLAYER);
 
     // Проверяем победителя
     const winner = this.checkWinner(newGameState.board);
@@ -438,7 +460,7 @@ class TicTacToeService {
     // Делаем ход бота
     const botMove = this.makeBotMove(newGameState.board);
     if (botMove !== null) {
-      newGameState.board[botMove] = this.BOT;
+      this.setCell(newGameState.board, botMove, this.BOT);
 
       // Проверяем победителя после хода бота
       const botWinner = this.checkWinner(newGameState.board);
@@ -466,7 +488,7 @@ class TicTacToeService {
 
     const botMove = this.makeBotMove(newGameState.board);
     if (botMove !== null) {
-      newGameState.board[botMove] = this.BOT;
+      this.setCell(newGameState.board, botMove, this.BOT);
       newGameState.currentPlayer = 'player';
     }
 

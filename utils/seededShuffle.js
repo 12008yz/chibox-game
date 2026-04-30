@@ -38,10 +38,20 @@ function seededRandom(seed) {
    // Создаем seeded генератор случайных чисел
    const random = seededRandom(stringToSeed(seed));
  
+ const getAt = (arr, index) => (Number.isInteger(index) && index >= 0 && index < arr.length ? arr.at(index) : undefined);
+  const setAt = (arr, index, value) => {
+    if (Number.isInteger(index) && index >= 0 && index < arr.length) {
+      arr.splice(index, 1, value);
+    }
+  };
+
    // Fisher-Yates shuffle с seeded random
    for (let i = shuffled.length - 1; i > 0; i--) {
      const j = Math.floor(random() * (i + 1));
-     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    const valueAtI = getAt(shuffled, i);
+    const valueAtJ = getAt(shuffled, j);
+    setAt(shuffled, i, valueAtJ);
+    setAt(shuffled, j, valueAtI);
    }
  
    return shuffled;

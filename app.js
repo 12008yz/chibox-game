@@ -104,13 +104,8 @@ async function createApp() {
       },
     },
   }));
-  const shouldUseAppCompression =
-    process.env.NODE_ENV !== 'production' || process.env.ENABLE_APP_COMPRESSION === 'true';
-  if (shouldUseAppCompression) {
-    app.use(compression());
-  } else {
-    logger.info('HTTP compression в Express отключен (используется nginx gzip/brotli).');
-  }
+  // Включаем compression всегда: если upstream уже сжал ответ, повторного gzip не будет.
+  app.use(compression());
   app.use(corsMiddleware);
 
   const createRateLimit = (windowMs, max, message, useUserId = false, store = null) => rateLimit({
@@ -175,22 +170,19 @@ async function createApp() {
         res.header('Access-Control-Allow-Headers', 'Content-Type');
         res.header('Cross-Origin-Resource-Policy', 'cross-origin');
         
-        if (process.env.NODE_ENV !== 'production' && req.path.match(/\.(png|jpg|jpeg)$/i)) {
-          const fs = require('fs');
-          const webpPath = req.path.replace(/\.(png|jpg|jpeg)$/i, '.webp');
-          const fullWebpPath = path.join(dir, webpPath);
-          
-          if (fs.existsSync(fullWebpPath)) {
-            req.url = webpPath;
-          }
-        }
+        // Dev-only runtime fs lookup removed to avoid expensive sync I/O on request path.
+        // WebP assets are served directly when requested by the frontend.
         next();
       },
       express.static(dir, {
         maxAge: '180d',
+        immutable: true,
         setHeaders: (res, filePath) => {
           if (filePath.endsWith('.webp')) {
             res.setHeader('Content-Type', 'image/webp');
+          }
+          if (!filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'public, max-age=15552000, immutable');
           }
         }
       })

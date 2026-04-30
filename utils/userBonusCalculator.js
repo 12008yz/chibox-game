@@ -18,14 +18,16 @@ function calculateLevelBonus(level) {
  * @returns {number} Бонус в процентах
  */
 function calculateSubscriptionBonus(subscriptionTier) {
-    const subscriptionBonuses = {
-        0: 0,    // Нет подписки
-        1: 2.0,  // Статус: +2% (снижено с 3%)
-        2: 3.0,  // Статус+: +3% (снижено с 5%)
-        3: 5.0   // Статус++: +5% (снижено с 8%) + защита от дубликатов
-    };
-
-    return subscriptionBonuses[subscriptionTier] || 0;
+    switch (subscriptionTier) {
+        case 1:
+            return 2.0; // Статус: +2% (снижено с 3%)
+        case 2:
+            return 3.0; // Статус+: +3% (снижено с 5%)
+        case 3:
+            return 5.0; // Статус++: +5% (снижено с 8%) + защита от дубликатов
+        default:
+            return 0; // Нет подписки
+    }
 }
 
 /**

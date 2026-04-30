@@ -15,33 +15,62 @@ const steamPriceService = new SteamPriceService(process.env.STEAM_API_KEY);
 
 // Кэш для изображений и цен
 const CACHE_FILE = path.join(__dirname, 'import-cache.json');
-let cache = {};
+let cache = new Map();
+
+function getCacheEntry(cacheKey) {
+  if (!cache.has(cacheKey)) {
+    return null;
+  }
+  return cache.get(cacheKey) || null;
+}
+
+function ensureCacheEntry(cacheKey) {
+  if (!cache.has(cacheKey) || !cache.get(cacheKey)) {
+    cache.set(cacheKey, {});
+  }
+  return cache.get(cacheKey);
+}
+
+function getFallbackPriceByRarity(rarity) {
+  switch (rarity) {
+    case 'consumer': return 8;
+    case 'industrial': return 20;
+    case 'milspec': return 90;
+    case 'restricted': return 500;
+    case 'classified': return 1500;
+    case 'covert': return 10000;
+    case 'contraband': return 30000;
+    case 'exotic': return 100000;
+    default: return 8;
+  }
+}
 
 // Загружаем кэш при старте
 function loadCache() {
   try {
     if (fs.existsSync(CACHE_FILE)) {
-      cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
-      console.log(`📂 Загружен кэш с ${Object.keys(cache).length} записями`);
+      const parsedCache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+      cache = new Map(Object.entries(parsedCache || {}));
+      console.log(`📂 Загружен кэш с ${cache.size} записями`);
     }
   } catch (error) {
     console.warn('⚠️ Не удалось загрузить кэш:', error.message);
-    cache = {};
+    cache = new Map();
   }
 }
 
 // Сохраняем кэш
 function saveCache() {
   try {
-    fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2));
-    console.log(`💾 Кэш сохранен с ${Object.keys(cache).length} записями`);
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(Object.fromEntries(cache), null, 2));
+    console.log(`💾 Кэш сохранен с ${cache.size} записями`);
   } catch (error) {
     console.error('❌ Ошибка сохранения кэша:', error.message);
   }
 }
 
 // Последовательная обработка предметов с задержками для парсинга HTML
-async function processBatch(items, batchSize = 1) { // Делаем по 1 предмету для парсинга HTML
+async function processBatch(items) { // Делаем по 1 предмету для парсинга HTML
   const results = [];
 
   console.log(`🔄 Будем обрабатывать ${items.length} предметов последовательно с задержками`);
@@ -98,18 +127,19 @@ async function processItemOptimized(url, originalRarity, caseType) {
 
     // Проверяем кэш
     const cacheKey = marketHashName;
-    let priceData = cache[cacheKey]?.price;
-    let imageUrl = cache[cacheKey]?.image;
+    const cachedEntry = getCacheEntry(cacheKey);
+    let priceData = cachedEntry?.price;
+    let imageUrl = cachedEntry?.image;
 
     // Получаем цену (с кэшированием)
-    if (!priceData || isDataExpired(cache[cacheKey]?.priceTimestamp)) {
+    if (!priceData || isDataExpired(cachedEntry?.priceTimestamp)) {
       console.log(`💰 Получаем цену для: ${marketHashName}`);
       priceData = await steamPriceService.getItemPrice(marketHashName);
 
       // Кэшируем цену
-      if (!cache[cacheKey]) cache[cacheKey] = {};
-      cache[cacheKey].price = priceData;
-      cache[cacheKey].priceTimestamp = Date.now();
+      const entry = ensureCacheEntry(cacheKey);
+      entry.price = priceData;
+      entry.priceTimestamp = Date.now();
     } else {
       console.log(`📋 Цена из кэша: ${marketHashName}`);
     }
@@ -120,8 +150,8 @@ async function processItemOptimized(url, originalRarity, caseType) {
       imageUrl = await getItemImageOptimized(marketHashName, url);
 
       // Кэшируем изображение
-      if (!cache[cacheKey]) cache[cacheKey] = {};
-      cache[cacheKey].image = imageUrl;
+      const entry = ensureCacheEntry(cacheKey);
+      entry.image = imageUrl;
     } else {
       console.log(`📋 Изображение из кэша: ${marketHashName}`);
     }
@@ -133,7 +163,7 @@ async function processItemOptimized(url, originalRarity, caseType) {
       priceUsd = priceData.price_usd;
       actualRarity = priceData.category;
     } else {
-      priceRub = FALLBACK_PRICES[originalRarity] || 8;
+      priceRub = getFallbackPriceByRarity(originalRarity);
       priceUsd = Math.round((priceRub / 95) * 100) / 100;
       actualRarity = originalRarity;
     }
@@ -348,17 +378,6 @@ async function populateDatabaseOptimized(limitPerCategory = 100) {
 }
 
 // Константы и конфигурации
-const FALLBACK_PRICES = {
-  consumer: 8,
-  industrial: 20,
-  milspec: 90,
-  restricted: 500,
-  classified: 1500,
-  covert: 10000,
-  contraband: 30000,
-  exotic: 100000
-};
-
 // Предметы для разных типов кейсов
 const ITEMS_URLS = {
   free_daily: {

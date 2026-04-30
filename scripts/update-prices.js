@@ -155,37 +155,41 @@ async function recalculateCaseWeights() {
     });
 
     // Группируем по типу кейса и категории
-    const itemsByCase = {};
+    const itemsByCase = new Map();
     for (const item of items) {
       const caseType = item.origin.replace('_case', '');
-      if (!itemsByCase[caseType]) {
-        itemsByCase[caseType] = {};
+      if (!itemsByCase.has(caseType)) {
+        itemsByCase.set(caseType, new Map());
       }
-      if (!itemsByCase[caseType][item.rarity]) {
-        itemsByCase[caseType][item.rarity] = [];
+      const caseBucket = itemsByCase.get(caseType);
+      if (!caseBucket.has(item.rarity)) {
+        caseBucket.set(item.rarity, []);
       }
-      itemsByCase[caseType][item.rarity].push(item);
+      caseBucket.get(item.rarity).push(item);
     }
 
     // Базовые конфигурации кейсов
-    const caseConfigs = {
-      purchase: { price: 99, name: 'Покупной кейс' },
-      premium: { price: 499, name: 'Премиум кейс' }
-    };
+    const caseConfigs = [
+      ['purchase', { price: 99, name: 'Покупной кейс' }],
+      ['premium', { price: 499, name: 'Премиум кейс' }]
+    ];
 
     // Пересчитываем веса для платных кейсов
-    for (const [caseType, config] of Object.entries(caseConfigs)) {
-      if (itemsByCase[caseType]) {
+    for (const [caseType, config] of caseConfigs) {
+      if (itemsByCase.has(caseType)) {
         console.log(`🎯 Пересчитываем веса для: ${config.name}`);
 
         const optimization = profitabilityCalculator.calculateOptimalWeights(
-          itemsByCase[caseType],
+          Object.fromEntries(itemsByCase.get(caseType).entries()),
           config.price
         );
 
         if (optimization.isOptimal) {
           // Обновляем веса в базе данных
-          await updateWeightsInDatabase(itemsByCase[caseType], optimization.weights);
+          await updateWeightsInDatabase(
+            Object.fromEntries(itemsByCase.get(caseType).entries()),
+            optimization.weights
+          );
           console.log(`✅ Веса обновлены для ${config.name} (рентабельность: ${(optimization.profitMargin * 100).toFixed(1)}%)`);
         } else {
           console.log(`⚠️ Не удалось оптимизировать веса для ${config.name}`);
@@ -201,8 +205,9 @@ async function recalculateCaseWeights() {
  * Обновление весов в базе данных
  */
 async function updateWeightsInDatabase(itemsByCategory, weights) {
+  const weightMap = new Map(Object.entries(weights));
   for (const [category, items] of Object.entries(itemsByCategory)) {
-    const baseWeight = weights[category] || 1;
+    const baseWeight = weightMap.get(category) || 1;
 
     for (const item of items) {
       // Добавляем небольшую вариацию в веса (±5%)

@@ -1,6 +1,7 @@
 const { logger } = require('./logger');
 const { pickWeightedIndex, computeBonusAdjustedWeights } = require('../services/nativeDropEngine');
 const isDropDebugEnabled = process.env.DEBUG_DROP_CALCULATOR === 'true';
+const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
 
 function debugLog(...args) {
   if (isDropDebugEnabled) {
@@ -27,7 +28,7 @@ function pickItemByWeights(items, getWeight, caseType, debugPrefix) {
 
   let currentWeight = 0;
   for (let i = 0; i < items.length; i++) {
-    currentWeight += weights[i];
+    currentWeight += (weights[i] || 0);
     if (random <= currentWeight) {
       return items[i];
     }
@@ -903,8 +904,10 @@ function getWeightDistributionStats(items) {
     else if (price >= 500) category = 'frequent';
     else if (price >= 100) category = 'expensive'; // Дорогие предметы с бонусом
 
-    priceCategories[category].items.push(item);
-    priceCategories[category].totalWeight += weight;
+    if (hasOwn(priceCategories, category)) {
+      priceCategories[category].items.push(item);
+      priceCategories[category].totalWeight += weight;
+    }
   });
 
   return {

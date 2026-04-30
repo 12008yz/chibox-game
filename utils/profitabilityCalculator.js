@@ -1,5 +1,16 @@
 const { logger } = require('./logger');
 
+function getOwnValue(source, key, fallback = undefined) {
+  if (Object.prototype.hasOwnProperty.call(source, key)) {
+    return Reflect.get(source, key);
+  }
+  return fallback;
+}
+
+function setOwnValue(target, key, value) {
+  Reflect.set(target, key, value);
+}
+
 class ProfitabilityCalculator {
   constructor(targetProfitMargin = 0.225) {
     this.targetProfitMargin = targetProfitMargin; // 22.5% прибыль сайта
@@ -46,7 +57,7 @@ class ProfitabilityCalculator {
       const profit = data.price - monthlyCosts;
       const profitMargin = profit / data.price;
 
-      analysis[tier] = {
+      setOwnValue(analysis, tier, {
         monthlyPrice: data.price,
         monthlyCosts: monthlyCosts,
         dailyCaseCost: dailyCaseCost,
@@ -56,7 +67,7 @@ class ProfitabilityCalculator {
         profitMargin: profitMargin,
         isOptimal: profitMargin >= 0.20 && profitMargin <= 0.30,
         recommendation: this.getSubscriptionRecommendation(profitMargin, tier)
-      };
+      });
     }
 
     return analysis;
@@ -77,14 +88,14 @@ class ProfitabilityCalculator {
       const profit = data.price - data.expectedValue;
       const profitMargin = profit / data.price;
 
-      analysis[type] = {
+      setOwnValue(analysis, type, {
         price: data.price,
         expectedValue: data.expectedValue,
         profit: profit,
         profitMargin: profitMargin,
         isOptimal: profitMargin >= 0.20 && profitMargin <= 0.30,
         recommendation: this.getCaseRecommendation(profitMargin, type)
-      };
+      });
     }
 
     return analysis;
@@ -203,7 +214,7 @@ class ProfitabilityCalculator {
   /**
    * Оптимизация подписок
    */
-  getSubscriptionOptimizations(subscriptionAnalysis) {
+  getSubscriptionOptimizations() {
     return {
       prices: {
         tier1: {
@@ -233,7 +244,7 @@ class ProfitabilityCalculator {
   /**
    * Оптимизация кейсов
    */
-  getCaseOptimizations(caseAnalysis) {
+  getCaseOptimizations() {
     return {
       expectedValues: {
         standard: {
@@ -257,7 +268,7 @@ class ProfitabilityCalculator {
   /**
    * Оптимизация бесплатных активностей (ОБНОВЛЕНО)
    */
-  getFreeActivitiesOptimizations(freeAnalysis) {
+  getFreeActivitiesOptimizations() {
     return {
       roulette: {
         current: "1 день подписки раз в 12 часов (1.23% шанс)",
@@ -280,7 +291,7 @@ class ProfitabilityCalculator {
   /**
    * Оптимизация торговой системы (ОБНОВЛЕНО)
    */
-  getTradingOptimizations(tradingAnalysis) {
+  getTradingOptimizations() {
     return {
       sellRate: {
         current: 0.85,
@@ -387,9 +398,12 @@ class ProfitabilityCalculator {
 
   // Вспомогательные методы для оценки затрат (ОБНОВЛЕНО с актуальными данными)
   estimateDailyCaseCost(tier) {
-    // Обновленные оценки стоимости ежедневных кейсов после оптимизации дропов
-    const expectedValues = { tier1: 25, tier2: 45, tier3: 90 };
-    return expectedValues[tier] || 25;
+    switch (tier) {
+      case 'tier1': return 25;
+      case 'tier2': return 45;
+      case 'tier3': return 90;
+      default: return 25;
+    }
   }
 
   estimateBonusValue(bonusPercent) {
@@ -400,8 +414,10 @@ class ProfitabilityCalculator {
   estimateFreeActivitiesCost(tier) {
     // Обновлено согласно фактическому кулдауну рулетки (12 часов) и сниженным наградам
     const baseCost = 8; // Рулетка: ~1.23% шанс × 1 день × 60₽ ÷ 2 игры в день
-    const tierMultiplier = { tier1: 1, tier2: 1.2, tier3: 1.5 };
-    return baseCost * (tierMultiplier[tier] || 1);
+    let multiplier = 1;
+    if (tier === 'tier2') multiplier = 1.2;
+    if (tier === 'tier3') multiplier = 1.5;
+    return baseCost * multiplier;
   }
 
   estimateRouletteCost() {
@@ -419,14 +435,14 @@ class ProfitabilityCalculator {
     return 0.60 * 10; // 60% выигрышей × 10₽ средний выигрыш (снижено)
   }
 
-  getSubscriptionRecommendation(margin, tier) {
+  getSubscriptionRecommendation(margin) {
     if (margin < 0.15) return "КРИТИЧНО: Увеличить цену или снизить затраты";
     if (margin < 0.20) return "Увеличить цену на 10-15%";
     if (margin > 0.30) return "Можно снизить цену для конкурентоспособности";
     return "Оптимально";
   }
 
-  getCaseRecommendation(margin, type) {
+  getCaseRecommendation(margin) {
     if (margin < 0.20) return "Снизить ожидаемую стоимость содержимого";
     if (margin > 0.30) return "Можно улучшить содержимое";
     return "Оптимально";
@@ -491,7 +507,7 @@ class ProfitabilityCalculator {
 
     for (const [category, items] of Object.entries(itemsByCategory)) {
       if (items.length === 0) {
-        avgPrices[category] = 0;
+        setOwnValue(avgPrices, category, 0);
         continue;
       }
 
@@ -500,13 +516,14 @@ class ProfitabilityCalculator {
         .filter(price => price > 0);
 
       if (validPrices.length === 0) {
-        avgPrices[category] = this.getFallbackPrice(category);
+        setOwnValue(avgPrices, category, this.getFallbackPrice(category));
       } else {
         // Используем медианную цену для более точного расчета
-        avgPrices[category] = this.calculateMedian(validPrices);
+        setOwnValue(avgPrices, category, this.calculateMedian(validPrices));
       }
 
-      logger.info(`${category}: ${items.length} предметов, средняя цена ₽${avgPrices[category].toFixed(2)}`);
+      const categoryPrice = getOwnValue(avgPrices, category, 0);
+      logger.info(`${category}: ${items.length} предметов, средняя цена ₽${categoryPrice.toFixed(2)}`);
     }
 
     return avgPrices;
@@ -530,18 +547,17 @@ class ProfitabilityCalculator {
    * Получить fallback цену для категории
    */
   getFallbackPrice(category) {
-    const fallbackPrices = {
-      consumer: 8,
-      industrial: 20,
-      milspec: 90,
-      restricted: 500,
-      classified: 1500,
-      covert: 10000,
-      contraband: 30000,
-      exotic: 100000
-    };
-
-    return fallbackPrices[category] || 10;
+    switch (category) {
+      case 'consumer': return 8;
+      case 'industrial': return 20;
+      case 'milspec': return 90;
+      case 'restricted': return 500;
+      case 'classified': return 1500;
+      case 'covert': return 10000;
+      case 'contraband': return 30000;
+      case 'exotic': return 100000;
+      default: return 10;
+    }
   }
 
   /**
@@ -566,12 +582,13 @@ class ProfitabilityCalculator {
       const totalWeight = Object.values(weights).reduce((sum, w) => sum + w, 0);
 
       for (const [category, price] of Object.entries(avgPrices)) {
-        if (weights[category] && price > 0) {
-          const contribution = (weights[category] / totalWeight) * price;
+        const currentWeight = getOwnValue(weights, category, 0);
+        if (currentWeight && price > 0) {
+          const contribution = (currentWeight / totalWeight) * price;
           const adjustment = (error / currentEV) * contribution * learningRate;
 
           // Уменьшаем вес если EV слишком высокая, увеличиваем если низкая
-          weights[category] = Math.max(0.01, weights[category] - adjustment);
+          setOwnValue(weights, category, Math.max(0.01, currentWeight - adjustment));
         }
       }
 
@@ -590,7 +607,8 @@ class ProfitabilityCalculator {
     const normalized = {};
 
     for (const [category, weight] of Object.entries(weights)) {
-      normalized[category] = Math.round((weight / totalWeight * 1000) * 100) / 100;
+      const normalizedWeight = Math.round((weight / totalWeight * 1000) * 100) / 100;
+      setOwnValue(normalized, category, normalizedWeight);
     }
 
     return normalized;
@@ -605,7 +623,7 @@ class ProfitabilityCalculator {
 
     for (const [category, weight] of Object.entries(weights)) {
       const probability = weight / totalWeight;
-      const price = avgPrices[category] || 0;
+      const price = getOwnValue(avgPrices, category, 0);
       expectedValue += probability * price;
     }
 
@@ -681,7 +699,7 @@ class ProfitabilityCalculator {
 
     for (const [category, weight] of Object.entries(weights)) {
       const probability = weight / totalWeight;
-      const price = avgPrices[category] || 0;
+      const price = getOwnValue(avgPrices, category, 0);
       const contribution = probability * price;
 
       breakdown.push({
