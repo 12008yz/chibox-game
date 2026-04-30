@@ -210,6 +210,7 @@ function isValidSteamImageUrl(url) {
   const steamImageRegex = /^https?:\/\/(steamcommunity-a\.akamaihd\.net|steamcdn-a\.akamaihd\.net|steamuserimages-a\.akamaihd\.net|community\.akamai\.steamstatic\.com)/;
 
   // Проверяем расширение файла
+  // eslint-disable-next-line security/detect-unsafe-regex -- simple extension check for normalized Steam image URLs
   const validExtensions = /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i;
 
   return steamImageRegex.test(url) && validExtensions.test(url);

@@ -1,21 +1,13 @@
 require('dotenv').config();
 
-// Оставляем только полезные ошибки/предупреждения для диагностики.
-const NOOP = () => {};
-const winston = require('winston');
-const silentLogger = {
-  info: NOOP,
-  warn: console.warn.bind(console),
-  error: console.error.bind(console),
-  debug: NOOP,
-  log: NOOP,
-  child: () => silentLogger
-};
-winston.createLogger = () => silentLogger;
-console.log = NOOP;
-console.info = NOOP;
-// warn/error оставляем включенными
-console.debug = NOOP;
+// Временный режим подавления логов оставляем только по явному флагу,
+// чтобы не терять диагностику в production по умолчанию.
+if (process.env.SILENT_APP_LOGS === 'true') {
+  const NOOP = () => {};
+  console.log = NOOP;
+  console.info = NOOP;
+  console.debug = NOOP;
+}
 
 // В production обязательны секреты (без дефолтов)
 if (process.env.NODE_ENV === 'production') {

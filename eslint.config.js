@@ -15,7 +15,16 @@ module.exports = [
         module: 'readonly',
         require: 'readonly',
         exports: 'readonly',
-        global: 'readonly'
+        global: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        fetch: 'readonly',
+        document: 'readonly',
+        Event: 'readonly'
       }
     },
     plugins: {
@@ -34,6 +43,21 @@ module.exports = [
       'security/detect-non-literal-require': 'warn',
       'security/detect-possible-timing-attacks': 'warn',
       'security/detect-pseudoRandomBytes': 'error'
+    }
+  },
+  {
+    files: ['**/*.test.js', '**/__tests__/**/*.js'],
+    languageOptions: {
+      globals: {
+        jest: 'readonly',
+        describe: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly'
+      }
     }
   },
   {

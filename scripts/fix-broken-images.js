@@ -139,6 +139,7 @@ async function parseImageFromSteamPage(url) {
     if (!imageUrl) {
       const scriptContent = $('script').text();
       // Ищем изображения с длинными хешами (правильные)
+      // eslint-disable-next-line security/detect-unsafe-regex -- bounded extractor for Steam CDN URLs with long hash ids
       const longHashMatches = scriptContent.match(/https:\/\/community\.[^"']*steamstatic\.com\/economy\/image\/[A-Za-z0-9_-]{100,}(?:\/\d+fx\d+f)?/g);
       if (longHashMatches && longHashMatches.length > 0) {
         // Берем самый длинный хеш
