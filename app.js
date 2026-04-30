@@ -32,6 +32,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const { execSync } = require('child_process');
+const sharp = require('sharp');
 const corsMiddleware = require('./middleware/cors');
 const { logger } = require('./utils/logger');
 
@@ -193,6 +194,70 @@ async function createApp() {
   app.use('/images', serveStaticWithWebp(imagesPath));
 
   app.use('/Achievements', serveStaticWithWebp(path.join(__dirname, 'public/Achievements')));
+
+  // Оптимизированная отдача аватаров: размер + формат через query (?w=64&fmt=webp).
+  app.get('/public/avatars/:filename', async (req, res, next) => {
+    try {
+      const avatarsDir = path.join(__dirname, 'public', 'avatars');
+      const rawFilename = String(req.params.filename || '');
+      const safeFilename = path.basename(rawFilename);
+      if (!safeFilename || safeFilename !== rawFilename) {
+        return res.status(400).json({ success: false, message: 'Invalid avatar filename' });
+      }
+
+      const filePath = path.join(avatarsDir, safeFilename);
+      if (!filePath.startsWith(avatarsDir)) {
+        return res.status(400).json({ success: false, message: 'Invalid avatar path' });
+      }
+      try {
+        await require('fs').promises.access(filePath);
+      } catch {
+        return next();
+      }
+
+      const widthParam = Number.parseInt(String(req.query.w || ''), 10);
+      const width = Number.isFinite(widthParam) && widthParam >= 24 && widthParam <= 512 ? widthParam : null;
+      const fmt = String(req.query.fmt || '').toLowerCase();
+      const requestedFormat = fmt === 'avif' || fmt === 'webp' || fmt === 'jpeg' || fmt === 'jpg' || fmt === 'png'
+        ? fmt
+        : null;
+
+      if (!width && !requestedFormat) {
+        return next();
+      }
+
+      const targetFormat = requestedFormat === 'jpg' ? 'jpeg' : requestedFormat;
+      let transformer = sharp(filePath, { failOn: 'none' }).rotate();
+
+      if (width) {
+        transformer = transformer.resize(width, width, { fit: 'cover', position: 'center' });
+      }
+
+      if (targetFormat === 'avif') {
+        transformer = transformer.avif({ quality: 55, effort: 4 });
+        res.type('image/avif');
+      } else if (targetFormat === 'webp') {
+        transformer = transformer.webp({ quality: 72 });
+        res.type('image/webp');
+      } else if (targetFormat === 'jpeg') {
+        transformer = transformer.jpeg({ quality: 80, mozjpeg: true });
+        res.type('image/jpeg');
+      } else if (targetFormat === 'png') {
+        transformer = transformer.png({ compressionLevel: 9, palette: true });
+        res.type('image/png');
+      } else {
+        // Если задан только width — используем webp как лучший дефолт.
+        transformer = transformer.webp({ quality: 72 });
+        res.type('image/webp');
+      }
+
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Vary', 'Accept');
+      return transformer.toBuffer().then((buffer) => res.send(buffer)).catch(next);
+    } catch (error) {
+      return next(error);
+    }
+  });
 
   app.use('/public', serveStaticWithWebp(path.join(__dirname, 'public')));
 

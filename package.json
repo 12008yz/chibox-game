@@ -69,6 +69,7 @@
     "rate-limit-redis": "^4.3.1",
     "redis": "^5.1.1",
     "sequelize": "^6.37.7",
+    "sharp": "^0.34.5",
     "socket.io": "^4.8.1",
     "steam-community": "^0.2.2",
     "steam-totp": "^2.1.2",
