@@ -37,6 +37,7 @@ const {
   getCasePurchaseInfo,
   getCaseTemplateItems,
   getCaseStatus,
+  proxySteamImage,
 } = require('../controllers/user/userController');
 
 const { getSubscriptionTiers } = require('../controllers/user/getSubscriptionTiers');
@@ -120,6 +121,7 @@ router.post('/verify-email', verifyEmailValidation, verifyEmail); // Email verif
 router.post('/resend-verification-code', resendValidation, resendVerificationCode); // Resend verification code
 router.get('/users/:id', getPublicProfile); // +
 router.get('/live-drops', getLiveDrops); // + Публичное API для живого падения
+router.get('/steam/image-proxy', proxySteamImage); // Проксирование Steam image CDN для обхода клиентских cert-ошибок
 
 // Protected routes
 router.get('/profile', authMiddleware, getProfile);

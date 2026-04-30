@@ -30,6 +30,7 @@ const { getInventory } = require('./getInventory');
 const { buyCase, getCasePurchaseInfo } = require('./buyCase');
 const { getCaseTemplateItems } = require('./getCaseTemplateItems');
 const { getCaseStatus } = require('./getCaseStatus');
+const { proxySteamImage } = require('./proxySteamImage');
 
 module.exports = {
   registerValidation,
@@ -68,5 +69,6 @@ module.exports = {
   buyCase,
   getCasePurchaseInfo,
   getCaseTemplateItems,
-  getCaseStatus
+  getCaseStatus,
+  proxySteamImage
 };
