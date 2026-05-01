@@ -583,6 +583,16 @@ module.exports = (sequelize) => {
       foreignKey: 'referred_by_link_id',
       as: 'referredByLink'
     });
+
+    User.hasMany(models.UserStar, {
+      foreignKey: 'starred_user_id',
+      as: 'starsReceived'
+    });
+
+    User.hasMany(models.UserStar, {
+      foreignKey: 'stargazer_id',
+      as: 'starsGiven'
+    });
   };
 
   return User;

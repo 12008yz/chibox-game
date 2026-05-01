@@ -186,6 +186,8 @@ async function getProfile(req, res) {
     const avatarUrl = userJson.avatar_url ? baseUrl + userJson.avatar_url : null;
     const steamAvatarUrl = resolveAvatarUrl(userJson.steam_avatar_url);
 
+    const starsCount = await db.UserStar.count({ where: { starred_user_id: userId } });
+
     const userWithTotalValue = {
       ...userJson,
       avatar_url: avatarUrl,
@@ -193,7 +195,8 @@ async function getProfile(req, res) {
       steam_avatar: steamAvatarUrl,
       total_items_value: totalItemsValue,
       bestWeapon: bestWeapon,
-      bestItemValue: user.best_item_value || 0
+      bestItemValue: user.best_item_value || 0,
+      starsCount
     };
 
     return res.json({

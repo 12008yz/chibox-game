@@ -17,6 +17,7 @@ const { getStatistics, getGlobalStatistics } = require('./getStatistics');
 const { getLeaderboard } = require('./getLeaderboard');
 const { getNotifications, getUnreadCount, markAsRead, markAllAsRead, deleteNotification } = require('./getNotifications');
 const { getPublicProfile } = require('./getPublicProfile');
+const { starUser, unstarUser } = require('./userStar');
 const { buySubscription } = require('./buySubscription');
 const { getSubscription } = require('./getSubscription');
 const { getSubscriptionTiers } = require('./getSubscriptionTiers');
@@ -57,6 +58,8 @@ module.exports = {
   markAllAsRead,
   deleteNotification,
   getPublicProfile,
+  starUser,
+  unstarUser,
   buySubscription,
   getSubscription,
   exchangeItemForSubscription,

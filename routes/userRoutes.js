@@ -25,6 +25,8 @@ const {
   markAllAsRead,
   deleteNotification,
   getPublicProfile,
+  starUser,
+  unstarUser,
   buySubscription,
   getSubscription,
   exchangeItemForSubscription,
@@ -119,7 +121,9 @@ router.post('/register', registerValidation, register); // +
 router.post('/login', login); // +
 router.post('/verify-email', verifyEmailValidation, verifyEmail); // Email verification
 router.post('/resend-verification-code', resendValidation, resendVerificationCode); // Resend verification code
-router.get('/users/:id', getPublicProfile); // +
+router.get('/users/:id', optionalAuthMiddleware, getPublicProfile); // + опциональная сессия для viewerHasStarred
+router.put('/users/:id/star', authMiddleware, starUser);
+router.delete('/users/:id/star', authMiddleware, unstarUser);
 router.get('/live-drops', getLiveDrops); // + Публичное API для живого падения
 router.get('/steam/image-proxy', proxySteamImage); // Проксирование Steam image CDN для обхода клиентских cert-ошибок
 

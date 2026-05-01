@@ -54,6 +54,10 @@ const optionalAuthMiddleware = (req, res, next) => {
     console.log('Пользователь аутентифицирован через сессию:', req.user.id);
   }
 
+  if (!req.user) {
+    req.user = null;
+  }
+
   next();
 };
 

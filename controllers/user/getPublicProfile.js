@@ -33,6 +33,10 @@ async function getPublicProfile(req, res) {
       ]
     });
 
+    if (!user) {
+      return res.status(404).json({ message: 'Пользователь не найден' });
+    }
+
     // Получаем данные в зависимости от активного таба
     let inventory = [];
     let inventoryCount = 0;
@@ -162,10 +166,6 @@ async function getPublicProfile(req, res) {
         }
       ]
     });
-
-    if (!user) {
-      return res.status(404).json({ message: 'Пользователь не найден' });
-    }
 
     // Получаем достижения пользователя
     const userAchievements = await db.UserAchievement.findAll({
@@ -355,6 +355,16 @@ async function getPublicProfile(req, res) {
     const avatarUrl = user.avatar_url ? baseUrl + user.avatar_url : null;
     const steamAvatarUrl = resolveAvatarUrl(user.steam_avatar_url);
 
+    const starsCount = await db.UserStar.count({ where: { starred_user_id: id } });
+    let viewerHasStarred = false;
+    const viewerId = req.user && req.user.id != null ? String(req.user.id) : null;
+    if (viewerId && viewerId !== String(id)) {
+      viewerHasStarred = !!(await db.UserStar.findOne({
+        where: { starred_user_id: id, stargazer_id: viewerId },
+        attributes: ['id'],
+      }));
+    }
+
     return res.json({
       user: {
         id: user.id,
@@ -398,7 +408,9 @@ async function getPublicProfile(req, res) {
           category: ua.achievement.category,
           completion_date: ua.completion_date
         })),
-        dropBonuses: dropBonuses
+        dropBonuses: dropBonuses,
+        starsCount,
+        viewerHasStarred
       }
     });
   } catch (error) {
