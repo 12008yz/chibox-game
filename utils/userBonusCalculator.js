@@ -49,13 +49,16 @@ async function updateUserBonuses(userId) {
     const now = new Date();
     let subscriptionTier = user.subscription_tier || 0;
 
+    let subscriptionJustExpired = false;
     // Если подписка истекла, сбрасываем её
     if (user.subscription_expiry_date && user.subscription_expiry_date <= now && subscriptionTier > 0) {
+        subscriptionJustExpired = true;
         subscriptionTier = 0;
         user.subscription_tier = 0;
         user.subscription_days_left = 0;
         user.max_daily_cases = 0;
         user.cases_available = 0;
+        user.subscription_streak_start_date = null;
     }
 
     // Рассчитываем бонус от подписки
@@ -71,6 +74,15 @@ async function updateUserBonuses(userId) {
     user.total_drop_bonus_percentage = totalBonus;
 
     await user.save();
+
+    if (subscriptionJustExpired) {
+        try {
+            const { updateUserAchievementProgress } = require('../services/achievementService');
+            await updateUserAchievementProgress(userId, 'subscription_days', 0);
+        } catch (e) {
+            console.error('subscription_days achievement sync after expiry:', e);
+        }
+    }
 
     return {
         userId,
@@ -187,8 +199,16 @@ async function getUserBonusInfo(userId) {
                 subscription_bonus_percentage: 0,
                 subscription_days_left: 0,
                 max_daily_cases: 0,
-                cases_available: 0
+                cases_available: 0,
+                subscription_streak_start_date: null
             });
+
+            try {
+                const { updateUserAchievementProgress } = require('../services/achievementService');
+                await updateUserAchievementProgress(userId, 'subscription_days', 0);
+            } catch (e) {
+                console.error('subscription_days achievement sync (getUserBonusInfo):', e);
+            }
 
             // Пересчитываем total_drop_bonus_percentage
             const achievementsBonus = Math.min(user.achievements_bonus_percentage || 0, 17.0);

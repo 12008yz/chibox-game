@@ -93,6 +93,13 @@ async function addExperience(userId, amount, sourceType, sourceId = null, descri
           totalBonus: bonusInfo.totalBonus
         }
       });
+
+      try {
+        const { updateUserAchievementProgress } = require('./achievementService');
+        await updateUserAchievementProgress(userId, 'level_reached', newLevel);
+      } catch (achErr) {
+        console.error('Ошибка синхронизации достижений по уровню:', achErr);
+      }
     }
 
     return { isLevelUp, newLevel };
@@ -130,6 +137,14 @@ async function syncUserLevelFromTotalXp(userId, totalXp) {
     level,
     xp_to_next_level: xpToNext
   });
+
+  try {
+    const { updateUserAchievementProgress } = require('./achievementService');
+    await updateUserAchievementProgress(userId, 'level_reached', level);
+  } catch (achErr) {
+    console.error('Ошибка синхронизации достижений по уровню (syncUserLevelFromTotalXp):', achErr);
+  }
+
   return { level };
 }
 

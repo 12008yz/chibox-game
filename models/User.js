@@ -156,6 +156,11 @@ module.exports = (sequelize) => {
       defaultValue: 0,
       comment: "Число дней подписки, которые остались у пользователя"
     },
+    subscription_streak_start_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      comment: 'Первый календарный день (UTC) текущей непрерывной серии активного статуса (достижения по дням подписки)'
+    },
 
     // Ежедневные кейсы
     cases_available: {
@@ -403,11 +408,6 @@ module.exports = (sequelize) => {
       type: DataTypes.DATEONLY,
       allowNull: true,
       comment: "Последний календарный день, когда учтён визит для ежедневной серии"
-    },
-    subscription_days_left: {
-      type: DataTypes.INTEGER,
-      defaultValue: 0,
-      comment: "Прошедшее количество дней подписки"
     },
     registration_date: {
       type: DataTypes.DATE,

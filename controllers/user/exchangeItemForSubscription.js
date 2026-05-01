@@ -92,6 +92,8 @@ async function exchangeItemForSubscription(req, res) {
 
     // Получаем текущие дни подписки более точно
     const now = new Date();
+    const { snapshotSubscriptionPrior, normalizeSubscriptionStreakAfterChange } = require('../../utils/subscriptionStreak');
+    const priorSub = snapshotSubscriptionPrior(user);
 
     // Если нет текущей подписки, установить минимальный тариф (1)
     if (!user.subscription_tier || user.subscription_tier === 0) {
@@ -121,6 +123,8 @@ async function exchangeItemForSubscription(req, res) {
     user.subscription_expiry_date = newExpiryDate;
     user.subscription_days_left = newDaysLeft;
 
+    normalizeSubscriptionStreakAfterChange(user, now, priorSub);
+
     // Выдаём попытки игр по текущему тарифу (крестики-нолики, сейф, рулетка), чтобы после обмена на статус пользователь мог сразу играть
     const tierForAttempts = user.subscription_tier || 1;
     grantGameAttemptsForTier(user, tierForAttempts);
@@ -145,6 +149,7 @@ async function exchangeItemForSubscription(req, res) {
     try {
       const { updateUserAchievementProgress } = require('../../services/achievementService');
       await updateUserAchievementProgress(userId, 'exchange_item', 1);
+      await updateUserAchievementProgress(userId, 'subscription_days', 0);
     } catch (achievementError) {
       logger.error('Ошибка при обновлении достижений (не критично):', achievementError);
       // Продолжаем выполнение, так как основная операция уже завершена

@@ -434,6 +434,15 @@ const makeMove = async (req, res) => {
       attempts_left: hasActiveSubscription ? user.tictactoe_attempts_left : 0 // Обновляем на актуальное значение
     });
 
+    if (result !== 'ongoing') {
+      try {
+        const { updateUserAchievementProgress } = require('../../services/achievementService');
+        await updateUserAchievementProgress(userId, 'slot_plays', 1);
+      } catch (achErr) {
+        logger.error('Ошибка достижения slot_plays (TicTacToe):', achErr);
+      }
+    }
+
     let message = '';
     if (result === 'win') {
       message = rewardGiven ? 'Поздравляем! Вы выиграли и получили бонусный кейс!' : 'Вы выиграли, но приз можно получить только один раз в день.';

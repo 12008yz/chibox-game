@@ -154,6 +154,9 @@ async function applyPromo(req, res) {
           return res.status(400).json({ success: false, message: 'Некорректное значение дней для продления подписки' });
         }
 
+        const { snapshotSubscriptionPrior, normalizeSubscriptionStreakAfterChange } = require('../../utils/subscriptionStreak');
+        const priorSub = snapshotSubscriptionPrior(user);
+
         // Если не было подписки — включаем минимальный/заданный тариф
         if (!user.subscription_tier || user.subscription_tier === 0) {
           user.subscription_tier = promo.subscription_tier || 1;
@@ -165,8 +168,8 @@ async function applyPromo(req, res) {
         let baseExpiry = user.subscription_expiry_date ? new Date(user.subscription_expiry_date) : null;
 
         if (!baseExpiry || baseExpiry <= nowForSub) {
-          // Подписка неактивна или нет даты — считаем от текущего момента
           baseExpiry = new Date(nowForSub.getTime());
+          user.subscription_purchase_date = user.subscription_purchase_date || nowForSub;
         }
 
         const newExpiry = new Date(baseExpiry.getTime() + addedDays * MS_PER_DAY);
@@ -175,6 +178,8 @@ async function applyPromo(req, res) {
 
         user.subscription_expiry_date = newExpiry;
         user.subscription_days_left = newDaysLeft;
+
+        normalizeSubscriptionStreakAfterChange(user, nowForSub, priorSub);
 
         message = `Промокод применён! Подписка продлена на ${addedDays} дней`;
         break;
@@ -205,6 +210,15 @@ async function applyPromo(req, res) {
     await promo.increment('usage_count', { transaction });
 
     await transaction.commit();
+
+    if (promo.type === 'subscription_extend') {
+      try {
+        const { updateUserAchievementProgress } = require('../../services/achievementService');
+        await updateUserAchievementProgress(userId, 'subscription_days', 0);
+      } catch (e) {
+        logger.error('subscription_days achievement sync after promo:', e);
+      }
+    }
 
     debugLog(`Пользователь ${userId} применил промокод ${code}, тип: ${promo.type}, значение: ${value}`);
 

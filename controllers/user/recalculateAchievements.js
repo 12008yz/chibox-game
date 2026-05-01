@@ -86,6 +86,14 @@ async function recalculateUserAchievements(userId = null) {
           console.log(`  ✅ daily_streak: ${dailyStreak}`);
         }
 
+        // 6b. Дни подряд с активным статусом (Подписчик 30 / Постоянный клиент 45)
+        await updateUserAchievementProgress(user.id, 'subscription_days', 0);
+        console.log(`  ✅ subscription_days synced from streak`);
+
+        // 6c. Уровень (Элитный игрок 50, Элита элит 100) — прогресс из users.level
+        await updateUserAchievementProgress(user.id, 'level_reached', 0);
+        console.log(`  ✅ level_reached synced from user.level`);
+
         // 7. Обновляем все бонусы пользователя
         await updateUserBonuses(user.id);
         console.log(`  ✅ bonuses recalculated`);

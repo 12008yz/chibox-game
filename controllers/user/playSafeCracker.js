@@ -347,6 +347,9 @@ const playSafeCracker = async (req, res) => {
 
     } else if (prize.type === 'subscription' && prize.value > 0) {
       // Выигрыш подписки: продлеваем по дате истечения, как в остальном коде
+      const { snapshotSubscriptionPrior, normalizeSubscriptionStreakAfterChange } = require('../../utils/subscriptionStreak');
+      const priorSub = snapshotSubscriptionPrior(user);
+
       const addedDays = prize.value;
       const nowForSub = new Date();
       const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -354,6 +357,10 @@ const playSafeCracker = async (req, res) => {
       let baseExpiry = user.subscription_expiry_date ? new Date(user.subscription_expiry_date) : null;
       if (!baseExpiry || baseExpiry <= nowForSub) {
         baseExpiry = new Date(nowForSub.getTime());
+        user.subscription_purchase_date = user.subscription_purchase_date || nowForSub;
+      }
+      if (!user.subscription_tier || user.subscription_tier === 0) {
+        user.subscription_tier = 1;
       }
 
       const newExpiry = new Date(baseExpiry.getTime() + addedDays * MS_PER_DAY);
@@ -370,6 +377,8 @@ const playSafeCracker = async (req, res) => {
       user.subscription_expiry_date = newExpiry;
       user.subscription_days_left = newDaysLeft;
       user.has_won_safecracker = true;
+
+      normalizeSubscriptionStreakAfterChange(user, nowForSub, priorSub);
 
       message = `🎉 Поздравляем! ${matches} совпадения! Вы выиграли ${addedDays} ${addedDays === 1 ? 'день' : 'дней'} подписки! Следующие попытки будут доступны в 16:00 МСК.`;
 
@@ -401,6 +410,16 @@ const playSafeCracker = async (req, res) => {
     }
 
     await user.save();
+
+    try {
+      const { updateUserAchievementProgress } = require('../../services/achievementService');
+      await updateUserAchievementProgress(userId, 'slot_plays', 1);
+      if (prize.type === 'subscription' && prize.value > 0) {
+        await updateUserAchievementProgress(userId, 'subscription_days', 0);
+      }
+    } catch (achErr) {
+      logger.error('Ошибка достижения slot_plays (SafeCracker):', achErr);
+    }
 
     // Формируем ответ
     const response = {

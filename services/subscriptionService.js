@@ -2,6 +2,7 @@ const db = require('../models');
 const { giveDailyCaseToUser } = require('./caseService');
 const { updateUserAchievementProgress } = require('./achievementService');
 const { updateSubscriptionBonus } = require('../utils/userBonusCalculator');
+const { snapshotSubscriptionPrior, normalizeSubscriptionStreakAfterChange } = require('../utils/subscriptionStreak');
 const winston = require('winston');
 
 const logger = winston.createLogger({
@@ -88,6 +89,7 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
     }
 
     const now = new Date();
+    const prior = snapshotSubscriptionPrior(user);
     const totalDays = tier.days + promoExtendDays;
     if (user.subscription_tier && user.subscription_expiry_date && user.subscription_expiry_date > now && user.subscription_tier === tierId) {
       user.subscription_expiry_date = new Date(Math.max(now, user.subscription_expiry_date));
@@ -104,6 +106,8 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
     // Выдаём попытки игр по тарифу (крестики-нолики, сейф, рулетка)
     grantGameAttemptsForTier(user, tierId);
 
+    normalizeSubscriptionStreakAfterChange(user, now, prior);
+
     await user.save();
 
     // Обновляем бонус от подписки и пересчитываем общий бонус
@@ -115,8 +119,7 @@ async function activateSubscription(userId, tierId, promoExtendDays = 0) {
     user.subscription_days_left = msLeft > 0 ? Math.ceil(msLeft / 86400000) : 0;
     await user.save();
 
-    // Update achievement progress for subscription days
-    await updateUserAchievementProgress(userId, 'subscription_days', 1);
+    await updateUserAchievementProgress(userId, 'subscription_days', 0);
 
     // Update achievement progress for subscription purchased
     await updateUserAchievementProgress(userId, 'subscription_purchased', 1);

@@ -171,15 +171,23 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
       // Для общей стоимости перерассчитываем всю стоимость инвентаря
       newProgress = await calculateTotalInventoryValue(userId);
     } else if (requirementType === 'subscription_days') {
-      // Для дней подписки накапливаем общее количество дней
-      newProgress = userAchievement.current_progress + progressToAdd;
+      const { computeSubscriptionStreakDays } = require('../utils/subscriptionStreak');
+      const userRow = await db.User.findByPk(userId, {
+        attributes: [
+          'subscription_tier',
+          'subscription_expiry_date',
+          'subscription_streak_start_date',
+          'subscription_purchase_date'
+        ]
+      });
+      newProgress = userRow ? computeSubscriptionStreakDays(userRow) : 0;
     } else if (requirementType === 'daily_streak') {
       // Для ежедневного стрика берем текущее значение стрика (не накапливаем)
       newProgress = Math.max(userAchievement.current_progress, progressToAdd);
     } else if (requirementType === 'level_reached') {
       // Для уровня берем текущий уровень пользователя (не накапливаем)
       const user = await db.User.findByPk(userId, { attributes: ['level'] });
-      newProgress = user ? user.level : 0;
+      newProgress = user ? Math.floor(parseFloat(user.level) || 0) : 0;
     } else if (requirementType === 'case_opening_streak' || requirementType === 'epic_streak') {
       // Для серий берем максимальное значение (не накапливаем)
       newProgress = Math.max(userAchievement.current_progress, progressToAdd);

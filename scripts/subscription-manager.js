@@ -141,7 +141,8 @@ async function decreaseSubscriptionDays() {
             max_daily_cases: 0,
             cases_available: 0,
             subscription_expiry_date: null,
-            subscription_purchase_date: null
+            subscription_purchase_date: null,
+            subscription_streak_start_date: null
           });
 
           // ✅ ВАЖНО: Пересчитываем total_drop_bonus_percentage после сброса подписки
@@ -151,6 +152,13 @@ async function decreaseSubscriptionDays() {
             logger.info(`Пересчитаны бонусы для пользователя ${user.id} после истечения подписки`);
           } catch (bonusError) {
             logger.error(`Ошибка пересчета бонусов для пользователя ${user.id}:`, bonusError);
+          }
+
+          try {
+            const { updateUserAchievementProgress } = require('../services/achievementService');
+            await updateUserAchievementProgress(user.id, 'subscription_days', 0);
+          } catch (achErr) {
+            logger.error(`Ошибка сброса достижения subscription_days для ${user.id}:`, achErr);
           }
 
           // Уведомление об истечении

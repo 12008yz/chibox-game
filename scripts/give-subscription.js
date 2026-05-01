@@ -1,6 +1,8 @@
 const db = require('../models');
 const redis = require('redis');
 const { updateUserBonuses } = require('../utils/userBonusCalculator');
+const { snapshotSubscriptionPrior, normalizeSubscriptionStreakAfterChange } = require('../utils/subscriptionStreak');
+const { updateUserAchievementProgress } = require('../services/achievementService');
 
 /**
  * Скрипт для выдачи подписки и/или пополнения баланса пользователю
@@ -92,27 +94,36 @@ async function giveSubscription(userIdentifier, tier, days, balanceAmount = null
     console.log(`📊 Текущая подписка: Tier ${user.subscription_tier}, осталось ${user.subscription_days_left || 0} дней`);
     console.log(`💰 Текущий баланс: ${parseFloat(user.balance || 0).toFixed(2)}₽`);
 
-    // Вычисляем новую дату истечения
+    // Вычисляем новую дату истечения (как в activateSubscription: продление без сброса purchase_date)
     const now = new Date();
+    const prior = snapshotSubscriptionPrior(user);
     let expiryDate;
 
     if (user.subscription_expiry_date && new Date(user.subscription_expiry_date) > now) {
-      // Если подписка еще активна, добавляем дни к текущей дате истечения
       expiryDate = new Date(user.subscription_expiry_date);
       expiryDate.setDate(expiryDate.getDate() + parseInt(days));
     } else {
-      // Если подписки нет или она истекла, создаем новую
       expiryDate = new Date();
       expiryDate.setDate(expiryDate.getDate() + parseInt(days));
     }
 
-    // Подготавливаем данные для обновления
     const updateData = {
       subscription_tier: parseInt(tier),
-      subscription_purchase_date: now,
       subscription_expiry_date: expiryDate,
       subscription_days_left: Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24))
     };
+
+    if (!prior.expiry || new Date(prior.expiry) <= now) {
+      updateData.subscription_purchase_date = now;
+    }
+
+    user.subscription_tier = updateData.subscription_tier;
+    user.subscription_expiry_date = updateData.subscription_expiry_date;
+    user.subscription_days_left = updateData.subscription_days_left;
+    if (updateData.subscription_purchase_date) {
+      user.subscription_purchase_date = updateData.subscription_purchase_date;
+    }
+    normalizeSubscriptionStreakAfterChange(user, now, prior);
 
     // Если указана сумма пополнения баланса, добавляем её
     if (balanceAmount !== null && parseFloat(balanceAmount) > 0) {
@@ -126,8 +137,16 @@ async function giveSubscription(userIdentifier, tier, days, balanceAmount = null
       console.log(`   Станет: ${updateData.balance.toFixed(2)}₽`);
     }
 
-    // Обновляем данные пользователя
-    await user.update(updateData);
+    await user.update({
+      ...updateData,
+      subscription_streak_start_date: user.subscription_streak_start_date
+    });
+
+    try {
+      await updateUserAchievementProgress(user.id, 'subscription_days', 0);
+    } catch (e) {
+      console.warn('⚠️  subscription_days achievement:', e.message);
+    }
 
     // Пересчитываем все бонусы пользователя (уровень, подписка, достижения)
     console.log('\n🔄 Пересчёт бонусов...');
