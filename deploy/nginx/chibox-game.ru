@@ -46,7 +46,8 @@ server {
     gzip_proxied any;
     # Рядом с .js/.css лежат .gz от vite-plugin-compression — отдаём готовый файл (быстрее и стабильнее для Lighthouse)
     gzip_static on;
-    gzip_types text/html text/plain text/css text/javascript application/javascript application/x-javascript application/json text/xml application/xml application/xml+rss image/svg+xml font/woff2;
+    # text/html сжимается по умолчанию; не добавлять в gzip_types — иначе duplicate MIME type
+    gzip_types text/plain text/css text/javascript application/javascript application/x-javascript application/json text/xml application/xml application/xml+rss image/svg+xml font/woff2;
 
     # Кэш на диске для статики (много мелких чтений из dist)
     open_file_cache max=10000 inactive=30s;
@@ -176,7 +177,7 @@ server {
     gzip_min_length 256;
     gzip_proxied any;
     gzip_static on;
-    gzip_types text/html text/plain text/css text/javascript application/javascript application/x-javascript application/json text/xml application/xml application/xml+rss image/svg+xml font/woff2;
+    gzip_types text/plain text/css text/javascript application/javascript application/x-javascript application/json text/xml application/xml application/xml+rss image/svg+xml font/woff2;
 
     open_file_cache max=10000 inactive=30s;
     open_file_cache_valid 45s;
