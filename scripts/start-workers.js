@@ -1,6 +1,6 @@
 const { queues, logger, cleanStalledJobs } = require('../services/queueService');
 const { updateUserAchievementProgress } = require('../services/achievementService');
-const { xpService } = require('../services/xpService');
+const { addExperience } = require('../services/xpService');
 const processSteamWithdrawals = require('./send-steam-withdrawals');
 const ENABLE_STEAM_WITHDRAWALS_WORKER = process.env.ENABLE_STEAM_WITHDRAWALS_WORKER === 'true';
 
@@ -38,10 +38,10 @@ queues.achievements.process('add-experience', async (job) => {
   try {
     logger.info(`Начисление XP пользователю ${userId}: ${amount} за "${reason}"`);
 
-    if (xpService && typeof xpService.addExperience === 'function') {
-      await xpService.addExperience(userId, amount, reason);
+    if (addExperience && typeof addExperience === 'function') {
+      await addExperience(userId, amount, 'case_opening', null, reason || '');
     } else {
-      logger.warn('xpService не найден или метод addExperience отсутствует');
+      logger.warn('addExperience не найден');
     }
 
     return { success: true, message: 'XP начислен' };

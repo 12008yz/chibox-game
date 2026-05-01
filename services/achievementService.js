@@ -163,6 +163,10 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
     if (requirementType === 'best_item_value') {
       // Для лучшего предмета перерассчитываем актуальную стоимость из инвентаря
       newProgress = await calculateBestItemValue(userId);
+    } else if (requirementType === 'cases_opened') {
+      // Всегда берём факт из профиля (и +1 после открытия, и пересчёт не ломают счётчик)
+      const userRow = await db.User.findByPk(userId, { attributes: ['total_cases_opened'] });
+      newProgress = userRow ? Math.floor(parseFloat(userRow.total_cases_opened) || 0) : userAchievement.current_progress;
     } else if (requirementType === 'total_items_value') {
       // Для общей стоимости перерассчитываем всю стоимость инвентаря
       newProgress = await calculateTotalInventoryValue(userId);
