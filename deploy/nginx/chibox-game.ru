@@ -4,8 +4,8 @@
 # Деплой: скопировать в sites-available и включить symlink в sites-enabled, затем:
 #   sudo nginx -t && sudo systemctl reload nginx
 #
-# Сертификат: на сервере в nginx указан live/chibox-game.ru-0001 (рядом есть и
-# chibox-game.ru — смотрите ls /etc/letsencrypt/live/).
+# Сертификат: путь должен совпадать с `sudo ls /etc/letsencrypt/live/` на сервере
+# (здесь: chibox-game.ru; на другом хосте имя каталога может отличаться).
 #
 # Отличия от «голого» прод-файла: map/upstream, /socket.io/, X-Forwarded-Host,
 # regex для рефералок на streamer в одинарных кавычках (конец строки, не символ $).
@@ -30,8 +30,8 @@ server {
     listen [::]:443 ssl http2;
     server_name chibox-game.ru www.chibox-game.ru;
 
-    ssl_certificate     /etc/letsencrypt/live/chibox-game.ru-0001/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/chibox-game.ru-0001/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/chibox-game.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/chibox-game.ru/privkey.pem;
 
     access_log /var/log/nginx/chibox-access.log;
     error_log  /var/log/nginx/chibox-error.log;
@@ -163,8 +163,8 @@ server {
     listen [::]:443 ssl http2;
     server_name streamer.chibox-game.ru;
 
-    ssl_certificate     /etc/letsencrypt/live/chibox-game.ru-0001/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/chibox-game.ru-0001/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/chibox-game.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/chibox-game.ru/privkey.pem;
 
     access_log /var/log/nginx/chibox-access.log;
     error_log  /var/log/nginx/chibox-error.log;
