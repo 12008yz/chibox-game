@@ -593,6 +593,11 @@ module.exports = (sequelize) => {
       foreignKey: 'stargazer_id',
       as: 'starsGiven'
     });
+
+    User.hasMany(models.GlobalChatMessage, {
+      foreignKey: 'user_id',
+      as: 'globalChatMessages'
+    });
   };
 
   return User;

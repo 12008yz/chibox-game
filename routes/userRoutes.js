@@ -65,6 +65,7 @@ const getAvatars = require('../controllers/user/getAvatars');
 const updateAvatar = require('../controllers/user/updateAvatar');
 const authMiddleware = require('../middleware/auth');
 const optionalAuthMiddleware = require('../middleware/optionalAuth');
+const { getGlobalChatHistory } = require('../controllers/chat/getGlobalChatHistory');
 const { requireEmailVerification } = require('../middleware/emailVerification');
 const rateLimit = require('express-rate-limit');
 
@@ -124,6 +125,7 @@ router.post('/resend-verification-code', resendValidation, resendVerificationCod
 router.get('/users/:id', optionalAuthMiddleware, getPublicProfile); // + опциональная сессия для viewerHasStarred
 router.put('/users/:id/star', authMiddleware, starUser);
 router.delete('/users/:id/star', authMiddleware, unstarUser);
+router.get('/chat/global', getGlobalChatHistory); // Общий чат: история сообщений
 router.get('/live-drops', getLiveDrops); // + Публичное API для живого падения
 router.get('/steam/image-proxy', proxySteamImage); // Проксирование Steam image CDN для обхода клиентских cert-ошибок
 
