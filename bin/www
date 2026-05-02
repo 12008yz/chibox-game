@@ -12,6 +12,12 @@ const {
   isGlobalChatShadowBlocked,
   buildShadowGlobalChatPayload,
 } = require('../services/globalChatShadowModeration');
+const {
+  isGlobalChatPromoEnabled,
+  shouldRunGlobalChatPromoTimer,
+  getGlobalChatPromoIntervalMs,
+  buildGlobalChatPromoPayload,
+} = require('../services/globalChatPromo');
 
 function isRedisConnectionError(errLike) {
   const err = errLike && (errLike instanceof Error ? errLike : new Error(String(errLike)));
@@ -502,6 +508,20 @@ async function start() {
   setInterval(() => {
     awardOnlineUsersBalance();
   }, ONLINE_BALANCE_TICK_MS);
+
+  function broadcastGlobalChatPromo() {
+    try {
+      io.emit('globalChatMessage', buildGlobalChatPromoPayload());
+    } catch (e) {
+      console.error('globalChatPromo:', e?.message || e);
+    }
+  }
+
+  if (isGlobalChatPromoEnabled() && shouldRunGlobalChatPromoTimer()) {
+    const promoMs = getGlobalChatPromoIntervalMs();
+    setInterval(broadcastGlobalChatPromo, promoMs);
+    console.log(`Общий чат: реклама соцсетей каждые ${Math.round(promoMs / 60000)} мин.`);
+  }
 
   server.on('error', (error) => {
     if (error.syscall !== 'listen') throw error;

@@ -1,7 +1,7 @@
 const db = require('../../models');
 
 const MAX_LIMIT = 100;
-const DEFAULT_LIMIT = 80;
+const DEFAULT_LIMIT = 20;
 
 /**
  * История общего чата (публично, для подгрузки при открытии страницы).
