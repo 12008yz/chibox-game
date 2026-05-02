@@ -20,6 +20,7 @@ const {
 } = require('../services/globalChatPromo');
 const { globalChatContainsProhibitedLink } = require('../services/globalChatUrlGuard');
 const { globalChatContainsSpamInvite } = require('../services/globalChatSpamInvite');
+const { getEffectiveSubscriptionTierForChat } = require('../utils/chatSubscriptionTierDisplay');
 
 function isRedisConnectionError(errLike) {
   const err = errLike && (errLike instanceof Error ? errLike : new Error(String(errLike)));
@@ -433,7 +434,15 @@ async function start() {
         }
 
         const author = await db.User.findByPk(userId, {
-          attributes: ['id', 'username', 'level', 'avatar_url', 'steam_avatar_url'],
+          attributes: [
+            'id',
+            'username',
+            'level',
+            'subscription_tier',
+            'subscription_expiry_date',
+            'avatar_url',
+            'steam_avatar_url',
+          ],
         });
         if (!author) {
           socket.emit('globalChatError', { message: 'Пользователь не найден' });
@@ -460,6 +469,7 @@ async function start() {
           userId: String(author.id),
           username: author.username,
           level: author.level ?? 1,
+          subscription_tier: getEffectiveSubscriptionTierForChat(author),
           avatar_url: author.avatar_url ?? null,
           steam_avatar_url: author.steam_avatar_url ?? null,
           body: text,

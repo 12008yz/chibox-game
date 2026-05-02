@@ -1,6 +1,7 @@
 'use strict';
 
 const { randomUUID } = require('crypto');
+const { getEffectiveSubscriptionTierForChat } = require('../utils/chatSubscriptionTierDisplay');
 
 /**
  * «Теневая» модерация общего чата: текст проверяется до записи в БД.
@@ -139,6 +140,7 @@ function buildShadowGlobalChatPayload(author, text) {
     userId: uid,
     username: author?.username || '—',
     level: author?.level ?? 1,
+    subscription_tier: getEffectiveSubscriptionTierForChat(author),
     avatar_url: author?.avatar_url ?? null,
     steam_avatar_url: author?.steam_avatar_url ?? null,
     body: text,

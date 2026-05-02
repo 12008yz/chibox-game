@@ -1,4 +1,5 @@
 const db = require('../../models');
+const { getEffectiveSubscriptionTierForChat } = require('../../utils/chatSubscriptionTierDisplay');
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 20;
@@ -19,7 +20,15 @@ async function getGlobalChatHistory(req, res) {
         {
           model: db.User,
           as: 'author',
-          attributes: ['id', 'username', 'level', 'avatar_url', 'steam_avatar_url'],
+          attributes: [
+            'id',
+            'username',
+            'level',
+            'subscription_tier',
+            'subscription_expiry_date',
+            'avatar_url',
+            'steam_avatar_url',
+          ],
           required: true,
         },
       ],
@@ -33,6 +42,7 @@ async function getGlobalChatHistory(req, res) {
       userId: String(row.user_id),
       username: row.author?.username || '—',
       level: row.author?.level ?? 1,
+      subscription_tier: getEffectiveSubscriptionTierForChat(row.author),
       avatar_url: row.author?.avatar_url ?? null,
       steam_avatar_url: row.author?.steam_avatar_url ?? null,
       body: row.body,
