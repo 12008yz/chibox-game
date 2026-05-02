@@ -18,6 +18,8 @@ const {
   getGlobalChatPromoIntervalMs,
   buildGlobalChatPromoPayload,
 } = require('../services/globalChatPromo');
+const { globalChatContainsProhibitedLink } = require('../services/globalChatUrlGuard');
+const { globalChatContainsSpamInvite } = require('../services/globalChatSpamInvite');
 
 function isRedisConnectionError(errLike) {
   const err = errLike && (errLike instanceof Error ? errLike : new Error(String(errLike)));
@@ -398,6 +400,17 @@ async function start() {
         const text = sanitizeGlobalChatBody(payload?.text ?? payload?.message ?? '');
         if (!text.length) {
           socket.emit('globalChatError', { message: 'Пустое сообщение' });
+          return;
+        }
+        if (globalChatContainsProhibitedLink(text)) {
+          socket.emit('globalChatError', { message: 'В общем чате нельзя отправлять ссылки' });
+          return;
+        }
+        if (globalChatContainsSpamInvite(text)) {
+          socket.emit('globalChatError', {
+            message:
+              'Такие фразы (приглашения, заработок, «заходи в тг» и т.п.) в чате запрещены.',
+          });
           return;
         }
 

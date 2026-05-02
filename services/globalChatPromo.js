@@ -26,21 +26,34 @@ function getGlobalChatPromoIntervalMs() {
   return DEFAULT_INTERVAL_MS;
 }
 
-function getGlobalChatPromoBody() {
-  const custom = (process.env.GLOBAL_CHAT_PROMO_MESSAGE || '').trim();
-  if (custom.length) return custom.slice(0, 500);
-  return 'Подписывайтесь на ChiBox: Telegram https://t.me/chibox_official · ВКонтакте https://vk.com/chibox_game — новости, акции и розыгрыши!';
-}
-
 function buildGlobalChatPromoPayload() {
+  const custom = (process.env.GLOBAL_CHAT_PROMO_MESSAGE || '').trim();
+  if (custom.length) {
+    return {
+      id: `promo-${randomUUID()}`,
+      userId: PROMO_USER_ID,
+      username: 'ChiBox',
+      level: 0,
+      body: custom.slice(0, 500),
+      createdAt: new Date().toISOString(),
+      kind: 'promo',
+    };
+  }
   return {
     id: `promo-${randomUUID()}`,
     userId: PROMO_USER_ID,
     username: 'ChiBox',
     level: 0,
-    body: getGlobalChatPromoBody(),
+    body: '',
     createdAt: new Date().toISOString(),
     kind: 'promo',
+    promo: {
+      variant: 'chibox_social',
+      links: [
+        { url: 'https://t.me/chibox_official', accent: 'telegram' },
+        { url: 'https://vk.com/chibox_game', accent: 'vk' },
+      ],
+    },
   };
 }
 
