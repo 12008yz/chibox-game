@@ -420,7 +420,7 @@ async function start() {
         }
 
         const author = await db.User.findByPk(userId, {
-          attributes: ['id', 'username', 'level'],
+          attributes: ['id', 'username', 'level', 'avatar_url', 'steam_avatar_url'],
         });
         if (!author) {
           socket.emit('globalChatError', { message: 'Пользователь не найден' });
@@ -443,10 +443,12 @@ async function start() {
         });
 
         const out = {
-          id: msg.id,
-          userId: author.id,
+          id: String(msg.id),
+          userId: String(author.id),
           username: author.username,
           level: author.level ?? 1,
+          avatar_url: author.avatar_url ?? null,
+          steam_avatar_url: author.steam_avatar_url ?? null,
           body: text,
           createdAt: msg.createdAt.toISOString(),
         };

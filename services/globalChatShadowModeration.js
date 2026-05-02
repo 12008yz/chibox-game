@@ -139,6 +139,8 @@ function buildShadowGlobalChatPayload(author, text) {
     userId: uid,
     username: author?.username || '—',
     level: author?.level ?? 1,
+    avatar_url: author?.avatar_url ?? null,
+    steam_avatar_url: author?.steam_avatar_url ?? null,
     body: text,
     createdAt: new Date().toISOString(),
   };

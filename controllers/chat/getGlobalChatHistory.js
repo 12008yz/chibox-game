@@ -19,7 +19,7 @@ async function getGlobalChatHistory(req, res) {
         {
           model: db.User,
           as: 'author',
-          attributes: ['id', 'username', 'level'],
+          attributes: ['id', 'username', 'level', 'avatar_url', 'steam_avatar_url'],
           required: true,
         },
       ],
@@ -29,10 +29,12 @@ async function getGlobalChatHistory(req, res) {
 
     const chronological = rows.reverse();
     const messages = chronological.map((row) => ({
-      id: row.id,
-      userId: row.user_id,
+      id: String(row.id),
+      userId: String(row.user_id),
       username: row.author?.username || '—',
       level: row.author?.level ?? 1,
+      avatar_url: row.author?.avatar_url ?? null,
+      steam_avatar_url: row.author?.steam_avatar_url ?? null,
       body: row.body,
       createdAt: row.createdAt ? row.createdAt.toISOString() : new Date().toISOString(),
     }));
