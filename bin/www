@@ -8,6 +8,10 @@ const socketIO = require('socket.io');
 const jwt = require('jsonwebtoken');
 const db = require('../models');
 const authMiddleware = require('../middleware/auth');
+const {
+  isGlobalChatShadowBlocked,
+  buildShadowGlobalChatPayload,
+} = require('../services/globalChatShadowModeration');
 
 function isRedisConnectionError(errLike) {
   const err = errLike && (errLike instanceof Error ? errLike : new Error(String(errLike)));
@@ -153,8 +157,32 @@ async function start() {
   const socketAuth = new Map(); // socketId -> { userIdKey, token }
   /** Анти-спам общего чата: user UUID -> timestamp последнего сообщения */
   const globalChatLastSent = new Map();
+  /** Бан общего чата после нарушения модерации: user UUID -> timestamp окончания (ms). Только в памяти процесса — при нескольких воркерах без общего стора бан не шарится между инстансами. */
+  const globalChatBanUntil = new Map();
   const GLOBAL_CHAT_MAX_LEN = 500;
   const GLOBAL_CHAT_MIN_INTERVAL_MS = 2000;
+  const GLOBAL_CHAT_BAN_MS = 10 * 60 * 1000;
+
+  function globalChatBanRemainingMs(userId) {
+    const now = Date.now();
+    const until = globalChatBanUntil.get(userId);
+    if (until == null || until <= now) {
+      if (until != null) globalChatBanUntil.delete(userId);
+      return 0;
+    }
+    return until - now;
+  }
+
+  /** Timestamp окончания бана (ms) или null */
+  function getGlobalChatBanUntilMs(userId) {
+    const now = Date.now();
+    const until = globalChatBanUntil.get(userId);
+    if (until == null || until <= now) {
+      if (until != null) globalChatBanUntil.delete(userId);
+      return null;
+    }
+    return until;
+  }
 
   function sanitizeGlobalChatBody(raw) {
     if (typeof raw !== 'string') return '';
@@ -343,6 +371,13 @@ async function start() {
     }
     socket.emit('hello', { message: 'Привет через WebSocket!' });
     socket.emit('onlineUsersUpdate', { count: getDisplayOnlineCount() });
+    if (userId.startsWith('user_')) {
+      const chatUserId = userId.slice(5);
+      const bannedUntil = getGlobalChatBanUntilMs(chatUserId);
+      if (bannedUntil) {
+        socket.emit('globalChatBan', { bannedUntil });
+      }
+    }
     broadcastOnlineUsers();
 
     socket.on('globalChatSend', async (payload) => {
@@ -357,6 +392,17 @@ async function start() {
         const text = sanitizeGlobalChatBody(payload?.text ?? payload?.message ?? '');
         if (!text.length) {
           socket.emit('globalChatError', { message: 'Пустое сообщение' });
+          return;
+        }
+
+        const banLeft = globalChatBanRemainingMs(userId);
+        if (banLeft > 0) {
+          const mins = Math.max(1, Math.ceil(banLeft / 60000));
+          const bannedUntil = Date.now() + banLeft;
+          socket.emit('globalChatError', {
+            message: `Общий чат временно недоступен (~${mins} мин.) — нарушение правил сообщений.`,
+            bannedUntil,
+          });
           return;
         }
 
@@ -375,12 +421,20 @@ async function start() {
           return;
         }
 
+        globalChatLastSent.set(userId, now);
+
+        if (isGlobalChatShadowBlocked(text)) {
+          const bannedUntil = now + GLOBAL_CHAT_BAN_MS;
+          globalChatBanUntil.set(userId, bannedUntil);
+          socket.emit('globalChatBan', { bannedUntil });
+          socket.emit('globalChatMessage', buildShadowGlobalChatPayload(author, text));
+          return;
+        }
+
         const msg = await db.GlobalChatMessage.create({
           user_id: userId,
           body: text,
         });
-
-        globalChatLastSent.set(userId, now);
 
         const out = {
           id: msg.id,
