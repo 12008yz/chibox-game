@@ -1,6 +1,7 @@
 const db = require('../../models');
 const { logger } = require('../../middleware/logger');
 const cache = require('../../middleware/cache');
+const { isUserBanned } = require('../../utils/userBan');
 const { updateUserBonuses } = require('../../utils/userBonusCalculator');
 const { updateStreakByVisit } = require('../../services/streakService');
 const isProfileDebugEnabled = process.env.DEBUG_PROFILE === 'true';
@@ -26,6 +27,21 @@ async function getProfile(req, res) {
   try {
     const userId = req.user.id;
 
+    const banRow = await db.User.findByPk(userId, {
+      attributes: ['id', 'is_banned', 'ban_expires', 'ban_reason'],
+    });
+    if (!banRow) {
+      return res.status(404).json({ message: 'Пользователь не найден' });
+    }
+    if (isUserBanned(banRow)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Аккаунт заблокирован.',
+        code: 'BANNED',
+        reason: banRow.ban_reason || null,
+      });
+    }
+
     // Получаем ВСЕ предметы пользователя (включая проданные, обмененные и т.д.) для вычисления общей стоимости
     const allUserItems = await db.UserInventory.findAll({
       where: { user_id: userId },
@@ -41,6 +57,7 @@ async function getProfile(req, res) {
     const user = await db.User.findByPk(userId, {
       attributes: [
         'id', 'email', 'username', 'createdAt', 'updatedAt', 'role', 'is_email_verified',
+        'is_active', 'is_banned', 'ban_reason', 'ban_expires',
         'level', 'xp', 'xp_to_next_level', 'level_bonus_percentage', 'total_xp_earned',
         'subscription_tier', 'subscription_purchase_date', 'subscription_expiry_date', 'subscription_days_left',
         'cases_available', 'cases_opened_today', 'total_cases_opened', 'next_case_available_time', 'max_daily_cases',

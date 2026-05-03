@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const db = require('../../models');
 const { logger } = require('../../middleware/logger');
 const { revokedTokens } = require('../../middleware/auth');
+const { isUserBanned } = require('../../utils/userBan');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
@@ -72,6 +73,15 @@ async function refreshToken(req, res) {
       return res.status(401).json({
         success: false,
         message: 'Пользователь не найден'
+      });
+    }
+
+    if (isUserBanned(user)) {
+      logger.warn('[REFRESH] Banned user refresh attempt:', decoded.id);
+      return res.status(403).json({
+        success: false,
+        message: 'Аккаунт заблокирован.',
+        code: 'BANNED',
       });
     }
 

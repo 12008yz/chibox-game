@@ -6,6 +6,7 @@ const { createSteamLoginNotification } = require('../utils/notificationHelper');
 const { addExperience } = require('../services/xpService');
 const { updateUserBonuses } = require('../utils/userBonusCalculator');
 const { bindReferrer } = require('../services/referralService');
+const { isUserBanned } = require('../utils/userBan');
 
 // Настройки Steam OAuth
 const STEAM_API_KEY = process.env.STEAM_API_KEY;
@@ -99,6 +100,9 @@ if (STEAM_API_KEY) {
       if (user) {
         if (user.is_bot) {
           return done(null, false, { message: 'Вход с этого аккаунта недоступен.' });
+        }
+        if (isUserBanned(user)) {
+          return done(null, false, { message: 'Аккаунт заблокирован.' });
         }
         // Пользователь существует, обновляем его данные
         const steamAvatarUrl = profile._json?.avatarfull || profile._json?.avatarmedium || profile._json?.avatar;

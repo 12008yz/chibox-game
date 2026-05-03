@@ -331,12 +331,14 @@ async function createApp() {
   const authRoutes = require('./routes/authRoutes');
   const referralRoutes = require('./routes/referralRoutes');
   const streamerRoutes = require('./routes/streamerRoutes');
+  const adminRoutes = require('./routes/adminRoutes');
   const { requestLogger, logLoginAttempt, logPayment } = require('./utils/logger');
 
   app.use(requestLogger);
   app.use(logLoginAttempt);
   app.use(logPayment);
 
+  app.use('/api/v1/admin', adminRoutes);
   app.use('/api/v1', userRoutes);
   app.use('/api/payments', paymentRoutes);
   app.use('/api/payment', paymentRoutes);

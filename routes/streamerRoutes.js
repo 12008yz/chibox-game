@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../models');
 const auth = require('../middleware/auth');
+const banGuard = require('../middleware/banGuard');
 const requireStreamer = require('../middleware/requireStreamer');
 const { Op } = require('sequelize');
 const crypto = require('crypto');
@@ -14,6 +15,7 @@ const STREAMER_BASE_URL = process.env.STREAMER_BASE_URL || `https://${STREAMER_S
  * Все маршруты: сначала авторизация, затем проверка что пользователь — стример.
  */
 router.use(auth);
+router.use(banGuard);
 router.use(requireStreamer);
 
 /**

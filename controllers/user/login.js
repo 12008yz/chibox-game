@@ -82,6 +82,16 @@ async function login(req, res) {
       return res.status(403).json({ message: 'Вход с этого аккаунта недоступен.' });
     }
 
+    const { isUserBanned } = require('../../utils/userBan');
+    if (isUserBanned(user)) {
+      logger.warn('[LOGIN] Banned user attempt:', lookupKey);
+      return res.status(403).json({
+        message: 'Аккаунт заблокирован.',
+        code: 'BANNED',
+        reason: user.ban_reason || null,
+      });
+    }
+
     debugLog('[LOGIN] User found, verifying password for user ID:', user.id);
     const passwordMatch = await argon2.verify(user.password, password);
     if (!passwordMatch) {

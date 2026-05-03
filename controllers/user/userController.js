@@ -26,7 +26,6 @@ const { getBonusStatus } = require('./getBonusStatus');
 const { resetBonusCooldown } = require('./resetBonusCooldown');
 const { getCasesAvailable } = require('./getCasesAvailable');
 const { getAchievementsProgress } = require('./getAchievementsProgress');
-const { adminUpdateUser } = require('./adminUpdateUser');
 const { getInventory } = require('./getInventory');
 const { buyCase, getCasePurchaseInfo } = require('./buyCase');
 const { getCaseTemplateItems } = require('./getCaseTemplateItems');
@@ -67,7 +66,6 @@ module.exports = {
   resetBonusCooldown,
   getCasesAvailable,
   getAchievementsProgress,
-  adminUpdateUser,
   getInventory,
   buyCase,
   getCasePurchaseInfo,

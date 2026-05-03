@@ -34,7 +34,6 @@ const {
   resetBonusCooldown,
   getCasesAvailable,
   getAchievementsProgress,
-  adminUpdateUser,
   buyCase,
   getCasePurchaseInfo,
   getCaseTemplateItems,
@@ -64,6 +63,7 @@ const getCurrency = require('../controllers/user/getCurrency');
 const getAvatars = require('../controllers/user/getAvatars');
 const updateAvatar = require('../controllers/user/updateAvatar');
 const authMiddleware = require('../middleware/auth');
+const banGuard = require('../middleware/banGuard');
 const optionalAuthMiddleware = require('../middleware/optionalAuth');
 const { getGlobalChatHistory } = require('../controllers/chat/getGlobalChatHistory');
 const { requireEmailVerification } = require('../middleware/emailVerification');
@@ -114,31 +114,28 @@ router.post('/test-post', (req, res) => {
   });
 });
 
-router.put('/admin/users/:id', authMiddleware, adminUpdateUser);
-
-
 // Public routes
 router.post('/register', registerValidation, register); // +
 router.post('/login', login); // +
 router.post('/verify-email', verifyEmailValidation, verifyEmail); // Email verification
 router.post('/resend-verification-code', resendValidation, resendVerificationCode); // Resend verification code
 router.get('/users/:id', optionalAuthMiddleware, getPublicProfile); // + опциональная сессия для viewerHasStarred
-router.put('/users/:id/star', authMiddleware, starUser);
-router.delete('/users/:id/star', authMiddleware, unstarUser);
+router.put('/users/:id/star', authMiddleware, banGuard, starUser);
+router.delete('/users/:id/star', authMiddleware, banGuard, unstarUser);
 router.get('/chat/global', getGlobalChatHistory); // Общий чат: история сообщений
 router.get('/live-drops', getLiveDrops); // + Публичное API для живого падения
 router.get('/steam/image-proxy', proxySteamImage); // Проксирование Steam image CDN для обхода клиентских cert-ошибок
 
 // Protected routes
 router.get('/profile', authMiddleware, getProfile);
-router.put('/profile', authMiddleware, updateProfile); //+
+router.put('/profile', authMiddleware, banGuard, updateProfile); //+
 
 // Avatar routes
 router.get('/avatars', getAvatars); // Получение списка доступных аватаров
-router.put('/avatar', authMiddleware, updateAvatar); // Обновление аватара пользователя
+router.put('/avatar', authMiddleware, banGuard, updateAvatar); // Обновление аватара пользователя
 
 // Avatar upload with error handling - DISABLED (only Steam avatars allowed)
-// router.post('/profile/avatar', authMiddleware, (req, res, next) => {
+// router.post('/profile/avatar', authMiddleware, banGuard, (req, res, next) => {
 //   console.log('🔍 Avatar upload route hit');
 //   console.log('Content-Type:', req.get('content-type'));
 //   uploadMiddleware(req, res, (err) => {
@@ -153,84 +150,84 @@ router.put('/avatar', authMiddleware, updateAvatar); // Обновление а�
 //   });
 // }, uploadAvatar);
 
-// router.delete('/profile/avatar', authMiddleware, deleteAvatar); // Delete avatar
+// router.delete('/profile/avatar', authMiddleware, banGuard, deleteAvatar); // Delete avatar
 router.post('/logout', authMiddleware, logout); //+
 
-router.get('/inventory', authMiddleware, getInventory); //+
+router.get('/inventory', authMiddleware, banGuard, getInventory); //+
 // ИСПРАВЛЕНИЕ: добавлен rate limiter по user_id (60 запросов в минуту на пользователя)
-router.post('/open-case', authMiddleware, createUserRateLimit(60 * 1000, 60, 'Слишком быстро открываете кейсы'), openCase); //+
-router.post('/sell-item', authMiddleware, sellItem);
-router.post('/withdraw-item', authMiddleware, /* requireEmailVerification, */ withdrawItem);
-router.get('/withdraw-item/:withdrawalId', authMiddleware, getWithdrawalStatus);
-router.post('/withdraw-item/:withdrawalId/cancel', authMiddleware, cancelWithdrawal);
-router.post('/withdraw-item/:withdrawalId/resolve-no-stock', authMiddleware, resolveWithdrawalNoStock);
-router.post('/withdrawals/check-status', authMiddleware, checkWithdrawalStatuses);
+router.post('/open-case', authMiddleware, banGuard, createUserRateLimit(60 * 1000, 60, 'Слишком быстро открываете кейсы'), openCase); //+
+router.post('/sell-item', authMiddleware, banGuard, sellItem);
+router.post('/withdraw-item', authMiddleware, banGuard, /* requireEmailVerification, */ withdrawItem);
+router.get('/withdraw-item/:withdrawalId', authMiddleware, banGuard, getWithdrawalStatus);
+router.post('/withdraw-item/:withdrawalId/cancel', authMiddleware, banGuard, cancelWithdrawal);
+router.post('/withdraw-item/:withdrawalId/resolve-no-stock', authMiddleware, banGuard, resolveWithdrawalNoStock);
+router.post('/withdrawals/check-status', authMiddleware, banGuard, checkWithdrawalStatuses);
 router.get('/cases', getCases); // Доступно всем для просмотра кейсов
-router.get('/balance', authMiddleware, getBalance); //+
-router.post('/balance/top-up', authMiddleware, topUpBalance); //+
-router.get('/balance/payment-history', authMiddleware, getPaymentHistory); // История пополнений и покупок статусов
+router.get('/balance', authMiddleware, banGuard, getBalance); //+
+router.post('/balance/top-up', authMiddleware, banGuard, topUpBalance); //+
+router.get('/balance/payment-history', authMiddleware, banGuard, getPaymentHistory); // История пополнений и покупок статусов
 router.get('/currency', getCurrency); // Получить информацию о валютах и курсах
-router.post('/promo', authMiddleware, applyPromo);
-router.get('/transactions', authMiddleware, getTransactions);
+router.post('/promo', authMiddleware, banGuard, applyPromo);
+router.get('/transactions', authMiddleware, banGuard, getTransactions);
 
-router.get('/achievements', authMiddleware, getAchievements); //+
-router.get('/missions', authMiddleware, getMissions);
-router.get('/statistics', authMiddleware, getStatistics); //+
+router.get('/achievements', authMiddleware, banGuard, getAchievements); //+
+router.get('/missions', authMiddleware, banGuard, getMissions);
+router.get('/statistics', authMiddleware, banGuard, getStatistics); //+
 router.get('/statistics/global', getGlobalStatistics); // Глобальная статистика сайта (без авторизации)
-router.get('/bonus-info', authMiddleware, getUserBonusInfoController); // Получить информацию о бонусах
+router.get('/bonus-info', authMiddleware, banGuard, getUserBonusInfoController); // Получить информацию о бонусах
 router.get('/leaderboard', getLeaderboard); // Публичный маршрут — лидерборд доступен без авторизации
-router.get('/notifications', authMiddleware, getNotifications); //+
-router.get('/notifications/unread-count', authMiddleware, getUnreadCount); //+
-router.put('/notifications/:notificationId/read', authMiddleware, markAsRead); //+
-router.put('/notifications/mark-all-read', authMiddleware, markAllAsRead); //+
-router.delete('/notifications/:notificationId', authMiddleware, deleteNotification); //+
+router.get('/notifications', authMiddleware, banGuard, getNotifications); //+
+router.get('/notifications/unread-count', authMiddleware, banGuard, getUnreadCount); //+
+router.put('/notifications/:notificationId/read', authMiddleware, banGuard, markAsRead); //+
+router.put('/notifications/mark-all-read', authMiddleware, banGuard, markAllAsRead); //+
+router.delete('/notifications/:notificationId', authMiddleware, banGuard, deleteNotification); //+
 
 // New routes from userController.js
-router.post('/subscription/buy', authMiddleware, buySubscription); //+
-router.get('/subscription', authMiddleware, getSubscription); //+
+router.post('/subscription/buy', authMiddleware, banGuard, buySubscription); //+
+router.get('/subscription', authMiddleware, banGuard, getSubscription); //+
 router.get('/subscription/tiers', getSubscriptionTiers); // Public route for subscription tiers
-router.post('/items/exchange-for-subscription', authMiddleware, exchangeItemForSubscription); //+
-router.post('/games/play-safe-cracker', authMiddleware, playSafeCracker); // Игра Safe Cracker
-router.get('/games/safe-cracker-status', authMiddleware, getSafeCrackerStatus); // Статус игры Safe Cracker
-router.get('/bonus/status', authMiddleware, getBonusStatus); //+
-router.post('/bonus/reset-cooldown', authMiddleware, resetBonusCooldown); //+ Сброс кулдауна бонуса
+router.post('/items/exchange-for-subscription', authMiddleware, banGuard, exchangeItemForSubscription); //+
+router.post('/games/play-safe-cracker', authMiddleware, banGuard, playSafeCracker); // Игра Safe Cracker
+router.get('/games/safe-cracker-status', authMiddleware, banGuard, getSafeCrackerStatus); // Статус игры Safe Cracker
+router.get('/bonus/status', authMiddleware, banGuard, getBonusStatus); //+
+router.post('/bonus/reset-cooldown', authMiddleware, banGuard, resetBonusCooldown); //+ Сброс кулдауна бонуса
 router.get('/cases/available', getCasesAvailable); // Доступно всем для просмотра доступных кейсов
 router.get('/case-templates/:caseTemplateId/items', optionalAuthMiddleware, getCaseTemplateItems); // Получение предметов кейс-темплейта с опциональной аутентификацией
 router.get('/case-templates/:caseTemplateId/status', optionalAuthMiddleware, getCaseStatus); // Просмотр без логина (демо/каталог) + полный статус для авторизованных
-router.get('/free-case/status', authMiddleware, getFreeCaseStatus); // Получение статуса бесплатного кейса для новых пользователей
-router.get('/achievements/progress', authMiddleware, getAchievementsProgress); //+
+router.get('/free-case/status', authMiddleware, banGuard, getFreeCaseStatus); // Получение статуса бесплатного кейса для новых пользователей
+router.get('/achievements/progress', authMiddleware, banGuard, getAchievementsProgress); //+
 
 // Case purchase routes
 // ИСПРАВЛЕНИЕ: добавлен rate limiter по user_id (15 запросов в минуту на пользователя)
-router.post('/cases/buy', authMiddleware, createUserRateLimit(60 * 1000, 15, 'Слишком много покупок'), buyCase); //+
-router.get('/cases/purchase-info', authMiddleware, getCasePurchaseInfo); //+
+router.post('/cases/buy', authMiddleware, banGuard, createUserRateLimit(60 * 1000, 15, 'Слишком много покупок'), buyCase); //+
+router.get('/cases/purchase-info', authMiddleware, banGuard, getCasePurchaseInfo); //+
 
 // Steam bot routes
-router.post('/steambot/login', authMiddleware, loginBot); //+
-router.post('/steambot/send-trade', authMiddleware, sendTrade);
-router.get('/steambot/inventory', authMiddleware, getSteamInventory); //+
+router.post('/steambot/login', authMiddleware, banGuard, loginBot); //+
+router.post('/steambot/send-trade', authMiddleware, banGuard, sendTrade);
+router.get('/steambot/inventory', authMiddleware, banGuard, getSteamInventory); //+
 
 // Steam Trade URL routes
-router.post('/steam/fetch-trade-url', authMiddleware, fetchSteamTradeUrl); // Автоматическое получение Trade URL
-router.get('/steam/trade-url-status', authMiddleware, getTradeUrlStatus); // Проверка статуса Trade URL
+router.post('/steam/fetch-trade-url', authMiddleware, banGuard, fetchSteamTradeUrl); // Автоматическое получение Trade URL
+router.get('/steam/trade-url-status', authMiddleware, banGuard, getTradeUrlStatus); // Проверка статуса Trade URL
 
 // Subscription daily cases routes
-router.post('/subscription/claim-case', authMiddleware, claimSubscriptionCase); // Получение ежедневных кейсов подписки
-router.get('/subscription/case-status', authMiddleware, getSubscriptionCaseStatus); // Статус доступности кейсов подписки
+router.post('/subscription/claim-case', authMiddleware, banGuard, claimSubscriptionCase); // Получение ежедневных кейсов подписки
+router.get('/subscription/case-status', authMiddleware, banGuard, getSubscriptionCaseStatus); // Статус доступности кейсов подписки
 
 // Tic-Tac-Toe game routes
-router.post('/tic-tac-toe/new-game', authMiddleware, createTicTacToeGame); // Создание новой игры крестики-нолики
-router.get('/tic-tac-toe/current-game', authMiddleware, getCurrentTicTacToeGame); // Получение текущей игры
-router.post('/tic-tac-toe/move', authMiddleware, makeTicTacToeMove); // Совершение хода
+router.post('/tic-tac-toe/new-game', authMiddleware, banGuard, createTicTacToeGame); // Создание новой игры крестики-нолики
+router.get('/tic-tac-toe/current-game', authMiddleware, banGuard, getCurrentTicTacToeGame); // Получение текущей игры
+router.post('/tic-tac-toe/move', authMiddleware, banGuard, makeTicTacToeMove); // Совершение хода
 
 // Upgrade routes
-router.get('/upgrade/items', authMiddleware, getUpgradeableItems); // Получение предметов для апгрейда
-router.get('/upgrade/options/:itemIds', authMiddleware, (req, res) => {
-  // Преобразуем параметры из URL path в query string для совместимости с существующим контроллером
-  req.query.itemIds = req.params.itemIds;
+router.get('/upgrade/items', authMiddleware, banGuard, getUpgradeableItems); // Получение предметов для апгрейда
+router.get('/upgrade/options/:itemIds', authMiddleware, banGuard, (req, res) => {
+  // Параметр в URL исторически называется itemIds; контроллер ожидает inventoryIds (ID строк инвентаря).
+  req.query.inventoryIds = req.params.itemIds;
   getUpgradeOptions(req, res);
 }); // Получение вариантов апгрейда (с параметрами в URL) - ДОЛЖЕН БЫТЬ ПЕРВЫМ
-router.get('/upgrade/options', authMiddleware, getUpgradeOptions); // Получение вариантов апгрейда (с query параметрами)
-router.post('/upgrade/perform', authMiddleware, performUpgrade); // Выполнение апгрейда
+router.get('/upgrade/options', authMiddleware, banGuard, getUpgradeOptions); // Получение вариантов апгрейда (с query параметрами)
+router.post('/upgrade/perform', authMiddleware, banGuard, performUpgrade); // Выполнение апгрейда
 
 module.exports = router;

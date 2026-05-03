@@ -5,6 +5,7 @@
   "scripts": {
     "migrate": "sequelize-cli db:migrate",
     "start": "node ./bin/www",
+    "grant-admin": "node ./scripts/grant-admin-role.js",
     "workers": "node ./scripts/start-workers.js",
     "dev": "concurrently \"npm start\" \"npm run workers\"",
     "queue:stats": "node -e \"require('./services/queueService').getQueueStats().then(console.log)\"",
