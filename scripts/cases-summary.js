@@ -16,7 +16,7 @@ const ALL_CASES = [
   { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', name: 'Платиновый кейс', type: 'premium', price: 250 },
   { id: 'cccccccc-cccc-cccc-cccc-cccccccccccc', name: 'Алмазный кейс', type: 'premium', price: 601 },
   { id: 'dddddddd-dddd-dddd-dddd-dddddddddddd', name: 'Легендарный кейс', type: 'premium', price: 998 },
-  { id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', name: 'Мистический кейс', type: 'premium', price: 2499 },
+  { id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', name: 'Ледяной кейс', type: 'premium', price: 2499 },
   { id: 'ffffffff-ffff-ffff-ffff-ffffffffffff', name: 'Эпический кейс', type: 'premium', price: 5000 },
   { id: '10101010-1010-1010-1010-101010101010', name: 'Мифический кейс', type: 'premium', price: 10000 },
 ];
