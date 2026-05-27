@@ -9,6 +9,7 @@
 require('dotenv').config();
 const db = require('../models');
 const { getBots } = require('../services/fakeActivityService');
+const { updateUserBonuses } = require('../utils/userBonusCalculator');
 
 const XP_PER_CASE = 10;
 
@@ -50,6 +51,7 @@ async function main() {
       level,
       xp_to_next_level: xpToNext
     });
+    await updateUserBonuses(user.id);
     console.log(`  ${user.username}: открытий ${user.total_cases_opened} → уровень ${level}, XP ${totalXp}`);
   }
   console.log('Готово.');

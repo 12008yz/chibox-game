@@ -103,7 +103,7 @@ async function getSubscription(req, res) {
         subscription_expiry_date: expiry, // Добавляем для совместимости
         days_left: daysLeft,
         subscription_days_left: daysLeft, // Добавляем для совместимости
-        bonus_percentage: tier ? tier.bonus_percentage : 8.0,
+        bonus_percentage: tier ? tier.bonus_percentage : 0,
         max_daily_cases: tier ? tier.max_daily_cases : 1
       }
     });

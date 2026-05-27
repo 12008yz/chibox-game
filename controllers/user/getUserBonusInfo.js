@@ -1,4 +1,9 @@
-const { getUserBonusInfo } = require('../../utils/userBonusCalculator');
+const {
+    getUserBonusInfo,
+    ACHIEVEMENTS_DROP_BONUS_CAP,
+    TOTAL_DROP_BONUS_CAP,
+    PAID_CASE_DROP_BONUS_CAP
+} = require('../../utils/userBonusCalculator');
 const { logger } = require('../../utils/logger');
 const isUserBonusDebugEnabled = process.env.DEBUG_USER_BONUSES === 'true';
 
@@ -22,10 +27,11 @@ async function getUserBonusInfoController(req, res) {
         const response = {
             ...bonusInfo,
             explanation: {
-                achievements: 'Бонус получен за выполнение достижений (максимум +25%)',
-                level: `Бонус от уровня: +0.02% за каждый уровень (максимум +2%)`,
-                subscription: 'Бонус зависит от уровня подписки: Статус (+2%), Статус+ (+3%), Статус++ (+5% + защита от дубликатов)',
-                total: 'Общий бонус влияет на шанс получения дорогих предметов при открытии кейсов (максимум +30%)'
+                achievements: `Бонус за достижения (максимум +${ACHIEVEMENTS_DROP_BONUS_CAP}%)`,
+                level: 'Бонус от уровня: +0.02% за каждый уровень (максимум +2%)',
+                subscription: 'Бонус подписки: Статус (+2%), Статус+ (+3%), Статус++ (+5%). Не действует на купленные кейсы',
+                total: `Суммарный бонус для подписочных и бесплатных кейсов (максимум +${TOTAL_DROP_BONUS_CAP}%)`,
+                paid_cases: `Для купленных кейсов: только достижения + уровень (максимум +${PAID_CASE_DROP_BONUS_CAP}%)`
             },
             nextLevelBonus: bonusInfo.level < 100 ?
                 (((bonusInfo.level + 1) * 0.02).toFixed(2)) :

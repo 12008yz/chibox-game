@@ -1,5 +1,9 @@
 const db = require('../models');
 
+const PAID_CASE_DROP_BONUS_CAP = 12.0;
+const ACHIEVEMENTS_DROP_BONUS_CAP = 17.0;
+const TOTAL_DROP_BONUS_CAP = 25.0;
+
 /**
  * Рассчитывает бонус от уровня пользователя
  * @param {number} level - Уровень пользователя
@@ -26,6 +30,33 @@ function calculateSubscriptionBonus(subscriptionTier) {
     };
 
     return subscriptionBonuses[subscriptionTier] || 0;
+}
+
+/**
+ * Бонус к весам дропа для конкретного открытия (согласован с openCase).
+ * @param {Object} user
+ * @param {{ isPaid?: boolean }} options
+ * @returns {number} процент (0–12 для платных, 0–25 для остальных)
+ */
+function resolveUserDropBonus(user, { isPaid = false } = {}) {
+    if (!user) return 0;
+    if (isPaid) {
+        const paidBonus =
+            (user.achievements_bonus_percentage || 0) + (user.level_bonus_percentage || 0);
+        return Math.min(paidBonus, PAID_CASE_DROP_BONUS_CAP);
+    }
+    return Math.min(user.total_drop_bonus_percentage || 0, TOTAL_DROP_BONUS_CAP);
+}
+
+/**
+ * Платное ли открытие (покупной кейс — без бонуса подписки).
+ */
+function isPaidCaseOpening({ source, caseTemplate, isPaidFlag } = {}) {
+    if (typeof isPaidFlag === 'boolean') return isPaidFlag;
+    if (source === 'purchase') return true;
+    if (source === 'subscription' || source === 'daily') return false;
+    const price = parseFloat(caseTemplate?.price);
+    return Number.isFinite(price) && price > 0;
 }
 
 /**
@@ -62,10 +93,10 @@ async function updateUserBonuses(userId) {
 
     // Бонус от достижений уже должен быть установлен в achievementService
     // Ограничиваем максимальный бонус от достижений до 17%
-    const achievementsBonus = Math.min(user.achievements_bonus_percentage || 0, 17.0);
+    const achievementsBonus = Math.min(user.achievements_bonus_percentage || 0, ACHIEVEMENTS_DROP_BONUS_CAP);
 
     // Рассчитываем общий бонус (максимум 25%)
-    const totalBonus = Math.min(achievementsBonus + levelBonus + subscriptionBonus, 25.0);
+    const totalBonus = Math.min(achievementsBonus + levelBonus + subscriptionBonus, TOTAL_DROP_BONUS_CAP);
     user.total_drop_bonus_percentage = totalBonus;
 
     await user.save();
@@ -100,10 +131,10 @@ async function updateLevelBonus(userId, newLevel) {
     user.level_bonus_percentage = newLevelBonus;
 
     // Пересчитываем общий бонус с ограничениями
-    const achievementsBonus = Math.min(user.achievements_bonus_percentage || 0, 17.0);
+    const achievementsBonus = Math.min(user.achievements_bonus_percentage || 0, ACHIEVEMENTS_DROP_BONUS_CAP);
     user.total_drop_bonus_percentage = Math.min(
         achievementsBonus + newLevelBonus + (user.subscription_bonus_percentage || 0),
-        25.0
+        TOTAL_DROP_BONUS_CAP
     );
 
     await user.save();
@@ -138,10 +169,10 @@ async function updateSubscriptionBonus(userId, subscriptionTier) {
     user.subscription_bonus_percentage = newSubscriptionBonus;
 
     // Пересчитываем общий бонус с ограничениями
-    const achievementsBonus = Math.min(user.achievements_bonus_percentage || 0, 17.0);
+    const achievementsBonus = Math.min(user.achievements_bonus_percentage || 0, ACHIEVEMENTS_DROP_BONUS_CAP);
     user.total_drop_bonus_percentage = Math.min(
         achievementsBonus + (user.level_bonus_percentage || 0) + newSubscriptionBonus,
-        25.0
+        TOTAL_DROP_BONUS_CAP
     );
 
     await user.save();
@@ -189,11 +220,11 @@ async function getUserBonusInfo(userId) {
             });
 
             // Пересчитываем total_drop_bonus_percentage
-            const achievementsBonus = Math.min(user.achievements_bonus_percentage || 0, 17.0);
+            const achievementsBonus = Math.min(user.achievements_bonus_percentage || 0, ACHIEVEMENTS_DROP_BONUS_CAP);
             const levelBonus = user.level_bonus_percentage || 0;
             user.total_drop_bonus_percentage = Math.min(
                 achievementsBonus + levelBonus,
-                25.0
+                TOTAL_DROP_BONUS_CAP
             );
             await user.save();
             // Перезагружаем объект user после обновления
@@ -222,8 +253,13 @@ async function getUserBonusInfo(userId) {
 }
 
 module.exports = {
+    PAID_CASE_DROP_BONUS_CAP,
+    ACHIEVEMENTS_DROP_BONUS_CAP,
+    TOTAL_DROP_BONUS_CAP,
     calculateLevelBonus,
     calculateSubscriptionBonus,
+    resolveUserDropBonus,
+    isPaidCaseOpening,
     updateUserBonuses,
     updateLevelBonus,
     updateSubscriptionBonus,

@@ -1,7 +1,11 @@
 const db = require('../models');
 const { Op } = require('sequelize');
 const { addExperience } = require('./xpService');
-const { updateUserBonuses } = require('../utils/userBonusCalculator');
+const {
+  updateUserBonuses,
+  ACHIEVEMENTS_DROP_BONUS_CAP,
+  TOTAL_DROP_BONUS_CAP
+} = require('../utils/userBonusCalculator');
 
 async function sendAchievementNotification(userId, achievement) {
   // Здесь можно реализовать отправку уведомления пользователю
@@ -203,16 +207,18 @@ async function updateUserAchievementProgress(userId, requirementType, progressTo
         const user = await db.User.findByPk(userId);
         const currentAchievementsBonus = user.achievements_bonus_percentage || 0;
         // Максимальный бонус от достижений: 17%
-        const newAchievementsBonus = Math.min(currentAchievementsBonus + achievement.bonus_percentage, 17.0);
+        const newAchievementsBonus = Math.min(
+          currentAchievementsBonus + achievement.bonus_percentage,
+          ACHIEVEMENTS_DROP_BONUS_CAP
+        );
 
         user.achievements_bonus_percentage = newAchievementsBonus;
 
-        // Пересчитываем общий бонус с ограничением 25%
         user.total_drop_bonus_percentage = Math.min(
           newAchievementsBonus +
           (user.level_bonus_percentage || 0) +
           (user.subscription_bonus_percentage || 0),
-          25.0
+          TOTAL_DROP_BONUS_CAP
         );
 
         await user.save();

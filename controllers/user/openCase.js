@@ -5,7 +5,7 @@ const { addJob } = require('../../services/queueService');
 const { calculateModifiedDropWeights, selectItemWithModifiedWeights, selectItemWithModifiedWeightsAndDuplicateProtection, selectItemWithFullDuplicateProtection, selectItemWithCorrectWeights, determineCaseType } = require('../../utils/dropWeightCalculator');
 const { broadcastDrop } = require('../../services/liveDropService');
 const { FREE_CASE_TEMPLATE_ID, checkFreeCaseAvailability, updateFreeCaseCounters } = require('../../utils/freeCaseHelper');
-const { updateUserBonuses } = require('../../utils/userBonusCalculator');
+const { updateUserBonuses, resolveUserDropBonus, isPaidCaseOpening } = require('../../utils/userBonusCalculator');
 const shouldRunInlineCasePostProcessing = process.env.CASE_OPEN_INLINE_POST_PROCESSING === 'true';
 const isCaseDebugEnabled = process.env.DEBUG_CASE_OPEN === 'true';
 
@@ -365,19 +365,8 @@ async function openCase(req, res) {
       return res.status(404).json({ success: false, message: 'В кейсе нет предметов' });
     }
 
-    // Применяем модифицированные веса с учетом бонусов пользователя
-    // Для покупных кейсов (is_paid = true) исключаем бонус от подписки
-    let userDropBonus = 0;
     const userSubscriptionTier = user.subscription_tier || 0;
-
-    if (userCase.is_paid) {
-      // Покупной кейс: только достижения + уровень (без подписки)
-      userDropBonus = (user.achievements_bonus_percentage || 0) + (user.level_bonus_percentage || 0);
-      userDropBonus = Math.min(userDropBonus, 12.0); // Общий лимит
-    } else {
-      // Подписочный кейс: все бонусы
-      userDropBonus = user.total_drop_bonus_percentage || 0;
-    }
+    const userDropBonus = resolveUserDropBonus(user, { isPaid: userCase.is_paid });
 
     let selectedItem = null;
 
@@ -877,17 +866,16 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       return res.status(404).json({ success: false, message: 'В кейсе нет предметов' });
     }
 
-    // Вычисляем бонусы пользователя
-    let userDropBonus = 0;
     const userSubscriptionTier = user.subscription_tier || 0;
-
-    // Для кейсов из инвентаря применяем все бонусы
-    userDropBonus = user.total_drop_bonus_percentage || 0;
+    const isPaid = isPaidCaseOpening({
+      source: inventoryCase.source,
+      caseTemplate: inventoryCase.case_template
+    });
+    const userDropBonus = resolveUserDropBonus(user, { isPaid });
 
     let selectedItem = null;
 
-    debugLog(`Открытие кейса из инвентаря. Предметов в кейсе: ${items.length}, userDropBonus: ${userDropBonus}%, userSubscriptionTier: ${userSubscriptionTier}`);
-    debugLog(`Бонусы пользователя для инвентарного кейса: итого=${user.total_drop_bonus_percentage || 0}%`);
+    debugLog(`Открытие кейса из инвентаря. Предметов: ${items.length}, isPaid=${isPaid}, userDropBonus=${userDropBonus}%, tier=${userSubscriptionTier}`);
 
     // Ограничиваем стоимость предметов для "Бонусного кейса" до 50 ChiCoins согласно анализу экономики
     let filteredItems = items;
@@ -923,8 +911,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
 
       debugLog(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс)`);
 
-      // Определяем тип кейса для правильного расчета весов
-      const caseType = determineCaseType(inventoryCase.case_template, false);
+      const caseType = determineCaseType(inventoryCase.case_template, isPaid);
       debugLog(`Тип инвентарного кейса определен как: ${caseType}`);
 
       if (userDropBonus > 0) {
@@ -1008,8 +995,8 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
         result_item_id: selectedItem.id,
         subscription_tier: userSubscriptionTier,
         drop_bonus_applied: userDropBonus,
-        is_paid: true,
-        source: 'purchase',
+        is_paid: isPaid,
+        source: inventoryCase.source || (isPaid ? 'purchase' : 'daily'),
         received_date: inventoryCase.acquisition_date
       }, { transaction: t });
 
@@ -1126,7 +1113,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
 
       // Обновляем next_case_available_time для бесплатных кейсов из инвентаря
       // Если кейс был получен через подписку или автовыдачу (не покупной)
-      if (inventoryCase.source === 'subscription' || inventoryCase.source === 'daily' || !newCase.is_paid) {
+      if (inventoryCase.source === 'subscription' || inventoryCase.source === 'daily' || !isPaid) {
         const { getNextDailyCaseTime } = require('../../utils/cronHelper');
         const newNextCaseTime = getNextDailyCaseTime();
         user.next_case_available_time = newNextCaseTime;

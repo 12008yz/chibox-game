@@ -1,6 +1,7 @@
 const { CaseTemplate, Item, User, CaseItemDrop } = require('../../models');
 const { logger } = require('../../utils/logger');
 const { calculateModifiedDropWeights, calculateCorrectWeightByPrice, determineCaseType } = require('../../utils/dropWeightCalculator');
+const { resolveUserDropBonus, isPaidCaseOpening } = require('../../utils/userBonusCalculator');
 const { seededShuffle } = require('../../utils/seededShuffle');
 const isCaseTemplateItemsDebugEnabled = process.env.DEBUG_CASE_TEMPLATE_ITEMS === 'true';
 
@@ -44,7 +45,7 @@ const getCaseTemplateItems = async (req, res) => {
           'in_stock'
         ]
       }],
-      attributes: ['id', 'name', 'description', 'type', 'is_active']
+      attributes: ['id', 'name', 'description', 'type', 'is_active', 'price']
     });
 
     if (!caseTemplate) {
@@ -64,9 +65,9 @@ const getCaseTemplateItems = async (req, res) => {
     let itemsWithChances = caseTemplate.items || [];
     let userBonusInfo = null;
 
-    // Определяем тип кейса для правильного расчета весов
-    const caseType = determineCaseType(caseTemplate, false); // false потому что это не платный кейс (открытие через инвентарь)
-    debugLog(`[getCaseTemplateItems] Тип кейса ${caseTemplateId} определен как: ${caseType}`);
+    const isPaid = isPaidCaseOpening({ caseTemplate });
+    const caseType = determineCaseType(caseTemplate, isPaid);
+    debugLog(`[getCaseTemplateItems] Кейс ${caseTemplateId}: type=${caseType}, isPaid=${isPaid}`);
 
     // Если пользователь аутентифицирован, рассчитываем модифицированные шансы
     if (req.user && req.user.id) {
@@ -109,11 +110,12 @@ const getCaseTemplateItems = async (req, res) => {
           debugLog(`Пользователь ${user.id} уже получал из кейса ${caseTemplateId}: ${droppedItemIds.length} предметов`);
         }
 
-        if (user && user.total_drop_bonus_percentage > 0) {
-          debugLog(`Расчет модифицированных шансов для пользователя ${user.id}, бонус: ${user.total_drop_bonus_percentage}%, тип кейса: ${caseType}`);
+        const userDropBonus = user ? resolveUserDropBonus(user, { isPaid }) : 0;
 
-          // Рассчитываем модифицированные веса с учетом типа кейса
-          const modifiedItems = calculateModifiedDropWeights(itemsWithChances, user.total_drop_bonus_percentage, caseType);
+        if (user && userDropBonus > 0) {
+          debugLog(`Модифицированные шансы: user=${user.id}, appliedBonus=${userDropBonus}%, isPaid=${isPaid}`);
+
+          const modifiedItems = calculateModifiedDropWeights(itemsWithChances, userDropBonus, caseType);
 
           // Для пользователей Статус++ исключаем дубликаты ТОЛЬКО для ежедневного кейса Статус++
           const filteredItems = (user.subscription_tier >= 3 && caseTemplateId === '44444444-4444-4444-4444-444444444444')
@@ -154,10 +156,12 @@ const getCaseTemplateItems = async (req, res) => {
           });
 
           userBonusInfo = {
+            applied_bonus: userDropBonus,
             total_bonus: user.total_drop_bonus_percentage,
             achievements_bonus: user.achievements_bonus_percentage || 0,
             level_bonus: user.level_bonus_percentage || 0,
-            subscription_bonus: user.subscription_bonus_percentage || 0
+            subscription_bonus: user.subscription_bonus_percentage || 0,
+            is_paid_case: isPaid
           };
         }
       } catch (error) {

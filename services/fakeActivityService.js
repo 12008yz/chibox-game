@@ -3,7 +3,13 @@
 const db = require('../models');
 const { Op } = require('sequelize');
 const { logger } = require('../utils/logger');
-const { selectItemWithCorrectWeights, determineCaseType } = require('../utils/dropWeightCalculator');
+const {
+  calculateModifiedDropWeights,
+  selectItemWithCorrectWeights,
+  selectItemWithModifiedWeights,
+  determineCaseType
+} = require('../utils/dropWeightCalculator');
+const { resolveUserDropBonus } = require('../utils/userBonusCalculator');
 const { broadcastDrop } = require('./liveDropService');
 const { addExperience } = require('./xpService');
 
@@ -103,12 +109,25 @@ async function runFakeCaseOpen(botId = null) {
     }
 
     const caseType = determineCaseType(template, true);
-    const selectedItem = selectItemWithCorrectWeights(
-      itemsPlain,
-      user.subscription_tier || 0,
-      [],
-      caseType
-    );
+    const userDropBonus = resolveUserDropBonus(user, { isPaid: true });
+    let selectedItem = null;
+
+    if (userDropBonus > 0) {
+      const modifiedItems = calculateModifiedDropWeights(itemsPlain, userDropBonus, caseType);
+      selectedItem = selectItemWithModifiedWeights(
+        modifiedItems,
+        user.subscription_tier || 0,
+        [],
+        caseType
+      );
+    } else {
+      selectedItem = selectItemWithCorrectWeights(
+        itemsPlain,
+        user.subscription_tier || 0,
+        [],
+        caseType
+      );
+    }
     if (!selectedItem) {
       await t.rollback();
       return;
@@ -127,7 +146,7 @@ async function runFakeCaseOpen(botId = null) {
       opened_date: now,
       result_item_id: selectedItem.id,
       subscription_tier: user.subscription_tier || 0,
-      drop_bonus_applied: user.total_drop_bonus_percentage || 0,
+      drop_bonus_applied: userDropBonus,
       is_paid: true
     }, { transaction: t });
 

@@ -130,6 +130,10 @@ async function syncUserLevelFromTotalXp(userId, totalXp) {
     level,
     xp_to_next_level: xpToNext
   });
+
+  const { updateUserBonuses } = require('../utils/userBonusCalculator');
+  await updateUserBonuses(userId);
+
   return { level };
 }
 
