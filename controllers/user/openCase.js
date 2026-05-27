@@ -6,7 +6,22 @@ const { calculateModifiedDropWeights, selectItemWithModifiedWeights, selectItemW
 const { broadcastDrop } = require('../../services/liveDropService');
 const { FREE_CASE_TEMPLATE_ID, checkFreeCaseAvailability, updateFreeCaseCounters } = require('../../utils/freeCaseHelper');
 const { updateUserBonuses, resolveUserDropBonus, isPaidCaseOpening } = require('../../utils/userBonusCalculator');
+const softPityService = require('../../services/softPityService');
 const shouldRunInlineCasePostProcessing = process.env.CASE_OPEN_INLINE_POST_PROCESSING === 'true';
+
+async function resolveOpenDropBonus(userId, userDropBonus, isPaid, casePrice) {
+  const pityPrep = await softPityService.prepareForOpen(userId, { isPaid, casePrice });
+  const effectiveDropBonus = softPityService.capEffectiveBonus(
+    userDropBonus,
+    pityPrep.pityBonusPercent,
+    isPaid
+  );
+  return {
+    effectiveDropBonus,
+    pityBonusPercent: pityPrep.pityBonusPercent,
+    pityMeta: pityPrep.meta
+  };
+}
 const isCaseDebugEnabled = process.env.DEBUG_CASE_OPEN === 'true';
 
 function debugLog(...args) {
@@ -367,22 +382,30 @@ async function openCase(req, res) {
 
     const userSubscriptionTier = user.subscription_tier || 0;
     const userDropBonus = resolveUserDropBonus(user, { isPaid: userCase.is_paid });
+    const casePrice = parseFloat(userCase.template?.price) || 0;
+    const dropBonusCtx = await resolveOpenDropBonus(userId, userDropBonus, userCase.is_paid, casePrice);
+    const effectiveDropBonus = dropBonusCtx.effectiveDropBonus;
 
     let selectedItem = null;
 
     // Определяем тип кейса для правильного расчета весов
     const caseType = determineCaseType(userCase.template, userCase.is_paid);
     debugLog(`Тип кейса определен как: ${caseType}`);
+    if (dropBonusCtx.pityBonusPercent > 0) {
+      debugLog(
+        `Soft-pity активен: +${dropBonusCtx.pityBonusPercent}% (итого ${effectiveDropBonus.toFixed(2)}% к весам)`
+      );
+    }
 
     // Транзакция только для критических операций изменения данных
     const { sequelize } = require('../../models');
     const t = await sequelize.transaction();
 
     try {
-      if (userDropBonus > 0) {
+      if (effectiveDropBonus > 0) {
         // Используем модифицированную систему весов с учетом типа кейса
         // Передаем процент как число (например, 15.5 для 15.5%)
-        const modifiedItems = calculateModifiedDropWeights(items, userDropBonus, caseType);
+        const modifiedItems = calculateModifiedDropWeights(items, effectiveDropBonus, caseType);
 
         debugLog(`Модифицированных предметов: ${modifiedItems.length}`);
 
@@ -481,6 +504,7 @@ async function openCase(req, res) {
     if (!selectedItem) {
       // Специальная обработка для пользователей Статус++, которые получили все предметы из ежедневного кейса Статус++
       if (userSubscriptionTier >= 3 && userCase.template_id === '44444444-4444-4444-4444-444444444444') {
+        await t.rollback();
         debugLog(`Пользователь Статус++ ${userId} получил все возможные предметы из ежедневного кейса Статус++ ${userCase.template_id}`);
         return res.status(400).json({
           success: false,
@@ -489,6 +513,7 @@ async function openCase(req, res) {
         });
       }
 
+      await t.rollback();
       logger.error(`Не удалось выбрать предмет из кейса ${caseId}. Предметы в кейсе:`, items.map(item => ({ id: item.id, name: item.name, drop_weight: item.drop_weight, price: item.price })));
       return res.status(500).json({ message: 'Ошибка выбора предмета из кейса' });
     }
@@ -514,6 +539,7 @@ async function openCase(req, res) {
         logger.error(`Выбранный предмет: ${JSON.stringify({ id: selectedItem.id, name: selectedItem.name, price: selectedItem.price })}`);
         logger.error(`Функция выбора вернула исключенный предмет - это критический баг!`);
 
+        await t.rollback();
         return res.status(500).json({
           success: false,
           message: 'Критическая ошибка: выбран уже полученный предмет. Обратитесь в поддержку.',
@@ -538,6 +564,7 @@ async function openCase(req, res) {
       userCase.is_opened = true;
       userCase.opened_date = new Date();
       userCase.result_item_id = selectedItem.id;
+      userCase.drop_bonus_applied = effectiveDropBonus;
       await userCase.save({ transaction: t });
 
       await userCase.reload({ transaction: t });
@@ -660,6 +687,15 @@ async function openCase(req, res) {
       await user.save({ transaction: t });
 
       await t.commit();
+
+      softPityService
+        .completeOpen(userId, {
+          isPaid: userCase.is_paid,
+          casePrice,
+          itemPrice: parseFloat(selectedItem.price) || 0,
+          pityWasActive: dropBonusCtx.pityBonusPercent > 0
+        })
+        .catch((err) => logger.warn('[softPity] completeOpen failed', { userId, message: err.message }));
 
     // Тяжелая пост-обработка достижений/XP может заметно замедлять hot-path открытия кейса.
     // По умолчанию в проде не блокируем ответ, оставляем обработку очередями ниже.
@@ -784,7 +820,12 @@ async function openCase(req, res) {
 
       return res.json({
         success: true,
-        data: { item: selectedItem },
+        data: {
+          item: selectedItem,
+          ...(dropBonusCtx.pityBonusPercent > 0 && {
+            soft_pity_boost_percent: dropBonusCtx.pityBonusPercent
+          })
+        },
         message: 'Кейс успешно открыт'
       });
     } catch (transactionError) {
@@ -872,10 +913,20 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       caseTemplate: inventoryCase.case_template
     });
     const userDropBonus = resolveUserDropBonus(user, { isPaid });
+    const casePrice = parseFloat(inventoryCase.case_template?.price) || 0;
+    const dropBonusCtx = await resolveOpenDropBonus(userId, userDropBonus, isPaid, casePrice);
+    const effectiveDropBonus = dropBonusCtx.effectiveDropBonus;
 
     let selectedItem = null;
 
-    debugLog(`Открытие кейса из инвентаря. Предметов: ${items.length}, isPaid=${isPaid}, userDropBonus=${userDropBonus}%, tier=${userSubscriptionTier}`);
+    debugLog(
+      `Открытие кейса из инвентаря. Предметов: ${items.length}, isPaid=${isPaid}, userDropBonus=${userDropBonus}%, effective=${effectiveDropBonus}%, tier=${userSubscriptionTier}`
+    );
+    if (dropBonusCtx.pityBonusPercent > 0) {
+      debugLog(
+        `Soft-pity (инвентарь): +${dropBonusCtx.pityBonusPercent}% (итого ${effectiveDropBonus.toFixed(2)}% к весам)`
+      );
+    }
 
     // Ограничиваем стоимость предметов для "Бонусного кейса" до 50 ChiCoins согласно анализу экономики
     let filteredItems = items;
@@ -914,9 +965,9 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       const caseType = determineCaseType(inventoryCase.case_template, isPaid);
       debugLog(`Тип инвентарного кейса определен как: ${caseType}`);
 
-      if (userDropBonus > 0) {
+      if (effectiveDropBonus > 0) {
         // Используем модифицированную систему весов
-        const modifiedItems = calculateModifiedDropWeights(filteredItems, userDropBonus, caseType);
+        const modifiedItems = calculateModifiedDropWeights(filteredItems, effectiveDropBonus, caseType);
 
         // Для пользователей Статус++ используем полную защиту от дубликатов ТОЛЬКО для ежедневного кейса Статус++
         if (userSubscriptionTier >= 3 && inventoryCase.case_template_id === '44444444-4444-4444-4444-444444444444') {
@@ -970,6 +1021,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
     if (!selectedItem) {
       // Специальная обработка для пользователей Статус++, которые получили все предметы из ежедневного кейса Статус++
       if (userSubscriptionTier >= 3 && inventoryCase.case_template_id === '44444444-4444-4444-4444-444444444444') {
+        await t.rollback();
         debugLog(`Пользователь Статус++ ${userId} получил все возможные предметы из ежедневного кейса Статус++ ${inventoryCase.case_template_id} (инвентарный)`);
         return res.status(400).json({
           success: false,
@@ -978,6 +1030,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
         });
       }
 
+      await t.rollback();
       logger.error(`Не удалось выбрать предмет из кейса ${inventoryItemId}`);
       return res.status(500).json({ message: 'Ошибка выбора предмета из кейса' });
     }
@@ -994,7 +1047,7 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
         opened_date: new Date(),
         result_item_id: selectedItem.id,
         subscription_tier: userSubscriptionTier,
-        drop_bonus_applied: userDropBonus,
+        drop_bonus_applied: effectiveDropBonus,
         is_paid: isPaid,
         source: inventoryCase.source || (isPaid ? 'purchase' : 'daily'),
         received_date: inventoryCase.acquisition_date
@@ -1124,6 +1177,15 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
 
       await t.commit();
 
+      softPityService
+        .completeOpen(userId, {
+          isPaid,
+          casePrice,
+          itemPrice: parseFloat(selectedItem.price) || 0,
+          pityWasActive: dropBonusCtx.pityBonusPercent > 0
+        })
+        .catch((err) => logger.warn('[softPity] completeOpen failed', { userId, message: err.message }));
+
       if (shouldRunInlineCasePostProcessing) {
         try {
           const { updateUserAchievementProgress, updateInventoryRelatedAchievements } = require('../../services/achievementService');
@@ -1198,7 +1260,10 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
         success: true,
         data: {
           item: selectedItem,
-          caseId: newCase.id
+          caseId: newCase.id,
+          ...(dropBonusCtx.pityBonusPercent > 0 && {
+            soft_pity_boost_percent: dropBonusCtx.pityBonusPercent
+          })
         },
         message: 'Кейс успешно открыт из инвентаря'
       });

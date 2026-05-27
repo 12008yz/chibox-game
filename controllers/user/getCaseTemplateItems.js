@@ -65,7 +65,8 @@ const getCaseTemplateItems = async (req, res) => {
     let itemsWithChances = caseTemplate.items || [];
     let userBonusInfo = null;
 
-    const isPaid = isPaidCaseOpening({ caseTemplate });
+    const previewSource = typeof req.query.source === 'string' ? req.query.source : undefined;
+    const isPaid = isPaidCaseOpening({ caseTemplate, source: previewSource });
     const caseType = determineCaseType(caseTemplate, isPaid);
     debugLog(`[getCaseTemplateItems] Кейс ${caseTemplateId}: type=${caseType}, isPaid=${isPaid}`);
 
