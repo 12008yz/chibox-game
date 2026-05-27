@@ -3,12 +3,8 @@
 const db = require('../models');
 const { Op } = require('sequelize');
 const { logger } = require('../utils/logger');
-const {
-  calculateModifiedDropWeights,
-  selectItemWithCorrectWeights,
-  selectItemWithModifiedWeights,
-  determineCaseType
-} = require('../utils/dropWeightCalculator');
+const { determineCaseType } = require('../utils/dropWeightCalculator');
+const { selectItemForCaseOpen } = require('../utils/caseOpenItemSelection');
 const { resolveUserDropBonus } = require('../utils/userBonusCalculator');
 const { broadcastDrop } = require('./liveDropService');
 const { computeLiveDropFlags } = require('../utils/liveDropFlags');
@@ -113,22 +109,17 @@ async function runFakeCaseOpen(botId = null) {
     const userDropBonus = resolveUserDropBonus(user, { isPaid: true });
     let selectedItem = null;
 
-    if (userDropBonus > 0) {
-      const modifiedItems = calculateModifiedDropWeights(itemsPlain, userDropBonus, caseType);
-      selectedItem = selectItemWithModifiedWeights(
-        modifiedItems,
-        user.subscription_tier || 0,
-        [],
-        caseType
-      );
-    } else {
-      selectedItem = selectItemWithCorrectWeights(
-        itemsPlain,
-        user.subscription_tier || 0,
-        [],
-        caseType
-      );
-    }
+    selectedItem = selectItemForCaseOpen({
+      items: itemsPlain,
+      templateName: template.name,
+      templateId: template.id,
+      isPaid: true,
+      effectiveDropBonus: userDropBonus,
+      userSubscriptionTier: user.subscription_tier || 0,
+      droppedItemIds: [],
+      caseType,
+      rollUnit: null
+    });
     if (!selectedItem) {
       await t.rollback();
       return;

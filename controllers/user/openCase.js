@@ -2,7 +2,11 @@ const db = require('../../models');
 const { Op } = require('sequelize');
 const { logger } = require('../../utils/logger');
 const { addJob } = require('../../services/queueService');
-const { calculateModifiedDropWeights, selectItemWithModifiedWeights, selectItemWithModifiedWeightsAndDuplicateProtection, selectItemWithFullDuplicateProtection, selectItemWithCorrectWeights, determineCaseType } = require('../../utils/dropWeightCalculator');
+const { determineCaseType } = require('../../utils/dropWeightCalculator');
+const {
+  STATUS_PLUS_DAILY_TEMPLATE_ID,
+  selectItemForCaseOpen
+} = require('../../utils/caseOpenItemSelection');
 const { broadcastDrop } = require('../../services/liveDropService');
 const { FREE_CASE_TEMPLATE_ID, checkFreeCaseAvailability, updateFreeCaseCounters } = require('../../utils/freeCaseHelper');
 const { updateUserBonuses, resolveUserDropBonus, isPaidCaseOpening } = require('../../utils/userBonusCalculator');
@@ -410,117 +414,40 @@ async function openCase(req, res) {
       pfRoll = await provablyFairService.peekRollForOpen(userId, t);
       rollUnit = pfRoll?.rollUnit ?? null;
 
+      const droppedItems = await db.CaseItemDrop.findAll({
+        where: {
+          user_id: userId,
+          case_template_id: userCase.template_id
+        },
+        attributes: ['item_id'],
+        transaction: t
+      });
+      const droppedItemIds = droppedItems.map((drop) => drop.item_id);
+      debugLog(
+        `Выбор предмета (прямое открытие): template=${userCase.template_id}, dropped=${droppedItemIds.length}, bonus=${effectiveDropBonus}%`
+      );
+
+      selectedItem = selectItemForCaseOpen({
+        items,
+        templateName: userCase.template?.name,
+        templateId: userCase.template_id,
+        isPaid: userCase.is_paid,
+        effectiveDropBonus,
+        userSubscriptionTier,
+        droppedItemIds,
+        caseType,
+        rollUnit
+      });
+
       if (effectiveDropBonus > 0) {
-        // Используем модифицированную систему весов с учетом типа кейса
-        // Передаем процент как число (например, 15.5 для 15.5%)
-        const modifiedItems = calculateModifiedDropWeights(items, effectiveDropBonus, caseType);
-
-        debugLog(`Модифицированных предметов: ${modifiedItems.length}`);
-
-        // Получаем уже выпавшие предметы из этого кейса для данного пользователя (для всех типов кейсов)
-        // ВАЖНО: получаем в рамках транзакции для избежания race condition
-        const droppedItems = await db.CaseItemDrop.findAll({
-          where: {
-            user_id: userId,
-            case_template_id: userCase.template_id
-          },
-          attributes: ['item_id'],
-          transaction: t
-        });
-        const droppedItemIds = droppedItems.map(drop => drop.item_id);
-
-        debugLog(`DEBUG: Проверяем дубликаты для кейса ${userCase.template_id} (имя: ${userCase.template?.name})`);
-        debugLog(`Пользователь ${userId} уже получал из кейса ${userCase.template_id}: ${droppedItemIds.length} предметов`);
-
-        // Для пользователей Статус++ используем полную защиту от дубликатов ТОЛЬКО для ежедневного кейса Статус++
-        if (userSubscriptionTier >= 3 && userCase.template_id === '44444444-4444-4444-4444-444444444444') {
-          debugLog('Используем ПОЛНУЮ защиту от дубликатов для пользователя Статус++ в ежедневном кейсе Статус++');
-          selectedItem = selectItemWithFullDuplicateProtection(
-            modifiedItems,
-            droppedItemIds,
-            userSubscriptionTier,
-            caseType,
-            rollUnit
-          );
-        } else if (userSubscriptionTier >= 3) {
-          debugLog('Используем стандартный выбор с модифицированными весами для пользователя Статус++ (другой кейс)');
-          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, [], caseType, rollUnit);
-        } else if (!userCase.is_paid) {
-          // Применяем обычную защиту от дубликатов только для подписочных кейсов обычных пользователей
-          debugLog('Используем обычную защиту от дубликатов для подписочного кейса');
-          selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
-            modifiedItems,
-            droppedItemIds,
-            5, // duplicateProtectionCount
-            userSubscriptionTier,
-            caseType,
-            rollUnit
-          );
-        } else {
-          debugLog('Используем стандартный выбор с модифицированными весами (покупной кейс)');
-          selectedItem = selectItemWithModifiedWeights(
-            modifiedItems,
-            userSubscriptionTier,
-            droppedItemIds,
-            caseType,
-            rollUnit
-          );
-        }
-
-        // Логируем использование бонуса для статистики
-        const caseType = userCase.is_paid ? 'покупной' : 'подписочный';
-        const duplicateProtection = (userSubscriptionTier >= 3 && userCase.template_id === '44444444-4444-4444-4444-444444444444') ?
-                                     ' и ПОЛНОЙ защитой от дубликатов' :
-                                     !userCase.is_paid ? ' и обычной защитой от дубликатов' : '';
-        debugLog(`Пользователь ${userId} открывает ${caseType} кейс с бонусом ${userDropBonus.toFixed(2)}%${duplicateProtection}`);
-      } else {
-        // Стандартная система без бонусов
-        // Для пользователей Статус++ применяем полную защиту от дубликатов ТОЛЬКО для ежедневного кейса Статус++
-        if (userSubscriptionTier >= 3 && userCase.template_id === '44444444-4444-4444-4444-444444444444') {
-          // Получаем уже выпавшие предметы из этого кейса для данного пользователя
-          const droppedItems = await db.CaseItemDrop.findAll({
-            where: {
-              user_id: userId,
-              case_template_id: userCase.template_id
-            },
-            attributes: ['item_id'],
-            transaction: t
-          });
-          const droppedItemIds = droppedItems.map(drop => drop.item_id);
-
-          debugLog(`Пользователь Статус++ ${userId} уже получал из ежедневного кейса Статус++ ${userCase.template_id}: ${droppedItemIds.length} предметов (без бонусов)`);
-
-          selectedItem = selectItemWithFullDuplicateProtection(
-            items,
-            droppedItemIds,
-            userSubscriptionTier,
-            caseType,
-            rollUnit
-          );
-        } else if (userSubscriptionTier >= 3) {
-          debugLog(`Пользователь Статус++ ${userId} открывает другой кейс ${userCase.template_id} (без защиты от дубликатов)`);
-          selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, [], caseType, rollUnit);
-        } else {
-          // Используем систему весов без бонусов, но с правильными весами на основе цены
-          // Для обычных пользователей получаем исключенные предметы тоже (но не применяем фильтрацию)
-          const droppedItems = await db.CaseItemDrop.findAll({
-            where: {
-              user_id: userId,
-              case_template_id: userCase.template_id
-            },
-            attributes: ['item_id'],
-            transaction: t
-          });
-          const droppedItemIds = droppedItems.map(drop => drop.item_id);
-
-          selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, droppedItemIds, caseType, rollUnit);
-        }
+        const paidLabel = userCase.is_paid ? 'покупной' : 'подписочный';
+        debugLog(`Пользователь ${userId} открывает ${paidLabel} кейс с бонусом ${userDropBonus.toFixed(2)}%`);
       }
 
     // Проверяем, что предмет был выбран
     if (!selectedItem) {
       // Специальная обработка для пользователей Статус++, которые получили все предметы из ежедневного кейса Статус++
-      if (userSubscriptionTier >= 3 && userCase.template_id === '44444444-4444-4444-4444-444444444444') {
+      if (userSubscriptionTier >= 3 && userCase.template_id === STATUS_PLUS_DAILY_TEMPLATE_ID) {
         await t.rollback();
         debugLog(`Пользователь Статус++ ${userId} получил все возможные предметы из ежедневного кейса Статус++ ${userCase.template_id}`);
         return res.status(400).json({
@@ -538,7 +465,7 @@ async function openCase(req, res) {
     // КРИТИЧЕСКИ ВАЖНАЯ ПРОВЕРКА: убеждаемся, что выбранный предмет НЕ в списке исключенных
     // Получаем АКТУАЛЬНЫЕ данные об исключенных предметах прямо перед проверкой
     // ТОЛЬКО для ежедневного кейса Статус++
-    if (userSubscriptionTier >= 3 && userCase.template_id === '44444444-4444-4444-4444-444444444444') {
+    if (userSubscriptionTier >= 3 && userCase.template_id === STATUS_PLUS_DAILY_TEMPLATE_ID) {
       const actualDroppedItems = await db.CaseItemDrop.findAll({
         where: {
           user_id: userId,
@@ -575,7 +502,7 @@ async function openCase(req, res) {
       debugLog(`✅ Выбран предмет: ${selectedItem.id} (${selectedItem.name || 'N/A'}) для пользователя ${userId}`);
 
       // Дополнительная проверка для Статус++ в ежедневном кейсе Статус++
-      if (userSubscriptionTier >= 3 && userCase.template_id === '44444444-4444-4444-4444-444444444444') {
+      if (userSubscriptionTier >= 3 && userCase.template_id === STATUS_PLUS_DAILY_TEMPLATE_ID) {
         debugLog('Статус++ (ежедневный кейс Статус++): выбранный предмет НЕ в списке исключенных');
       }
       userCase.is_opened = true;
@@ -955,21 +882,6 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       );
     }
 
-    // Ограничиваем стоимость предметов для "Бонусного кейса" до 50 ChiCoins согласно анализу экономики
-    let filteredItems = items;
-    if (inventoryCase.case_template.name === 'Бонусный кейс') {
-      filteredItems = items.filter(item => {
-        const price = parseFloat(item.price) || 0;
-        return price <= 50;
-      });
-      debugLog(`Бонусный кейс: отфильтровано предметов по цене ≤50 ChiCoins: ${items.length} -> ${filteredItems.length}`);
-
-      if (filteredItems.length === 0) {
-        logger.warn('Бонусный кейс: нет предметов стоимостью ≤50 ChiCoins, используем все предметы');
-        filteredItems = items;
-      }
-    }
-
     // Транзакция для изменения данных
     const { sequelize } = require('../../models');
     const t = await sequelize.transaction();
@@ -997,74 +909,26 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       pfRoll = await provablyFairService.peekRollForOpen(userId, t);
       rollUnit = pfRoll?.rollUnit ?? null;
 
-      if (effectiveDropBonus > 0) {
-        // Используем модифицированную систему весов
-        const modifiedItems = calculateModifiedDropWeights(filteredItems, effectiveDropBonus, caseType);
+      debugLog(
+        `Выбор предмета (инвентарь): template=${inventoryCase.case_template_id}, dropped=${droppedItemIds.length}, bonus=${effectiveDropBonus}%`
+      );
 
-        // Для пользователей Статус++ используем полную защиту от дубликатов ТОЛЬКО для ежедневного кейса Статус++
-        if (userSubscriptionTier >= 3 && inventoryCase.case_template_id === '44444444-4444-4444-4444-444444444444') {
-          debugLog('Используем ПОЛНУЮ защиту от дубликатов для пользователя Статус++ в ежедневном кейсе Статус++ (инвентарный кейс)');
-          selectedItem = selectItemWithFullDuplicateProtection(
-            modifiedItems,
-            droppedItemIds,
-            userSubscriptionTier,
-            caseType,
-            rollUnit
-          );
-        } else if (userSubscriptionTier >= 3) {
-          debugLog('Используем стандартный выбор с модифицированными весами для пользователя Статус++ (другой инвентарный кейс)');
-          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, [], caseType, rollUnit);
-        } else if (!isPaid) {
-          debugLog('Используем обычную защиту от дубликатов для подписочного кейса из инвентаря');
-          selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
-            modifiedItems,
-            droppedItemIds,
-            5,
-            userSubscriptionTier,
-            caseType,
-            rollUnit
-          );
-        } else {
-          debugLog('Используем стандартный выбор с модифицированными весами (покупной кейс из инвентаря)');
-          selectedItem = selectItemWithModifiedWeights(
-            modifiedItems,
-            userSubscriptionTier,
-            droppedItemIds,
-            caseType,
-            rollUnit
-          );
-        }
-      } else {
-        // Стандартная система без бонусов
-        // Для пользователей Статус++ применяем полную защиту от дубликатов ТОЛЬКО для ежедневного кейса Статус++
-        if (userSubscriptionTier >= 3 && inventoryCase.case_template_id === '44444444-4444-4444-4444-444444444444') {
-          debugLog(`Пользователь Статус++ ${userId} уже получал из ежедневного кейса Статус++ ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
-          selectedItem = selectItemWithFullDuplicateProtection(
-            filteredItems,
-            droppedItemIds,
-            userSubscriptionTier,
-            caseType,
-            rollUnit
-          );
-        } else if (userSubscriptionTier >= 3) {
-          debugLog(`Пользователь Статус++ ${userId} открывает другой инвентарный кейс ${inventoryCase.case_template_id} (без защиты от дубликатов)`);
-          selectedItem = selectItemWithCorrectWeights(filteredItems, userSubscriptionTier, [], caseType, rollUnit);
-        } else {
-          debugLog(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
-          selectedItem = selectItemWithCorrectWeights(
-            filteredItems,
-            userSubscriptionTier,
-            droppedItemIds,
-            caseType,
-            rollUnit
-          );
-        }
-      }
+      selectedItem = selectItemForCaseOpen({
+        items,
+        templateName: inventoryCase.case_template.name,
+        templateId: inventoryCase.case_template_id,
+        isPaid,
+        effectiveDropBonus,
+        userSubscriptionTier,
+        droppedItemIds,
+        caseType,
+        rollUnit
+      });
 
     // Проверяем, что предмет был выбран
     if (!selectedItem) {
       // Специальная обработка для пользователей Статус++, которые получили все предметы из ежедневного кейса Статус++
-      if (userSubscriptionTier >= 3 && inventoryCase.case_template_id === '44444444-4444-4444-4444-444444444444') {
+      if (userSubscriptionTier >= 3 && inventoryCase.case_template_id === STATUS_PLUS_DAILY_TEMPLATE_ID) {
         await t.rollback();
         debugLog(`Пользователь Статус++ ${userId} получил все возможные предметы из ежедневного кейса Статус++ ${inventoryCase.case_template_id} (инвентарный)`);
         return res.status(400).json({

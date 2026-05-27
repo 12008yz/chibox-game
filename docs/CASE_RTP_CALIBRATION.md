@@ -43,8 +43,11 @@ npm run case:rtp-report:json
 
 ## Модули
 
+- `utils/caseOpenItemSelection.js` — **единая** ветвление выбора предмета (`selectItemForCaseOpen`)  
+- `utils/dropWeightCalculator.js` — веса, `calculateWeightForPaidCase`, `pickItemByWeights`  
 - `utils/caseEconomyAnalyzer.js`  
-- `utils/dropWeightCalculator.js` — `calculateWeightForPaidCase`  
+- `controllers/user/openCase.js` — оплата, pity, PF, запись в БД (не дублирует веса)  
+- `controllers/user/getCaseTemplateItems.js` — только **превью** шансов, на дроп не влияет  
 - `scripts/case-rtp-report.js`, `scripts/case-rtp-report-prod.js`
 
 ---
@@ -97,9 +100,9 @@ DROP_SOFT_PITY_ENABLED=true
 node scripts/test-soft-pity.js
 ```
 
-### Верификация и два пути открытия
+### Верификация
 
-Проверка пересчитывает предмет по **прямому** открытию (`Cases`) и по **инвентарному** (`openCaseFromInventory`) — результат засчитывается, если совпадает хотя бы один путь (у них разная защита от дубликатов без бонуса).
+Пересчёт дропа — через `utils/caseOpenItemSelection.js` (`selectItemForCaseOpen`), та же функция, что при прямом открытии и из инвентаря.
 
 ### Ограничения
 
@@ -146,7 +149,7 @@ PROVABLY_FAIR_ENABLED=true
 
 Пока server seed не раскрыт (`POST /rotate`), полная проверка недоступна — только commitment по hash.
 
-Верификация учитывает фильтр предметов **«Бонусный кейс»** (≤50 ChiCoins) и оба пути открытия (см. выше).
+Верификация учитывает фильтр предметов **«Бонусный кейс»** (≤50 ChiCoins) через `filterItemsForBonusCase`.
 
 ### Миграция
 

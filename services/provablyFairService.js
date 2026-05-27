@@ -2,7 +2,6 @@ const db = require('../models');
 const { Op } = require('sequelize');
 const { logger } = require('../utils/logger');
 
-const STATUS_PLUS_DAILY_TEMPLATE_ID = '44444444-4444-4444-4444-444444444444';
 const {
   generateServerSeed,
   generateClientSeed,
@@ -11,14 +10,8 @@ const {
   verifyServerSeedHash,
   sanitizeClientSeed
 } = require('../utils/provablyFair');
-const {
-  calculateModifiedDropWeights,
-  selectItemWithCorrectWeights,
-  selectItemWithModifiedWeights,
-  selectItemWithModifiedWeightsAndDuplicateProtection,
-  selectItemWithFullDuplicateProtection,
-  determineCaseType
-} = require('../utils/dropWeightCalculator');
+const { determineCaseType } = require('../utils/dropWeightCalculator');
+const { selectItemForCaseOpen } = require('../utils/caseOpenItemSelection');
 function isEnabled() {
   return process.env.PROVABLY_FAIR_ENABLED === 'true' || process.env.PROVABLY_FAIR_ENABLED === '1';
 }
@@ -207,18 +200,8 @@ async function findRevealedServerSeed(userId, nonce, serverSeedHash) {
   return null;
 }
 
-function filterBonusCaseItems(items, templateName) {
-  if (templateName !== 'Бонусный кейс' || !items?.length) {
-    return items || [];
-  }
-  const filtered = items.filter((item) => (parseFloat(item.price) || 0) <= 50);
-  return filtered.length > 0 ? filtered : items;
-}
-
-/**
- * Replay логики открытия из таблицы Cases (прямое открытие).
- */
-function replayDirectOpen({
+/** Replay выбора предмета — та же функция, что при реальном openCase. */
+function replayItemSelection({
   items,
   template,
   isPaid,
@@ -229,135 +212,17 @@ function replayDirectOpen({
   rollUnit
 }) {
   const caseType = determineCaseType(template, isPaid);
-  let selectedItem = null;
-
-  if (effectiveDropBonus > 0) {
-    const modifiedItems = calculateModifiedDropWeights(items, effectiveDropBonus, caseType);
-    if (userSubscriptionTier >= 3 && templateId === STATUS_PLUS_DAILY_TEMPLATE_ID) {
-      selectedItem = selectItemWithFullDuplicateProtection(
-        modifiedItems,
-        droppedItemIds,
-        userSubscriptionTier,
-        caseType,
-        rollUnit
-      );
-    } else if (userSubscriptionTier >= 3) {
-      selectedItem = selectItemWithModifiedWeights(
-        modifiedItems,
-        userSubscriptionTier,
-        [],
-        caseType,
-        rollUnit
-      );
-    } else if (!isPaid) {
-      selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
-        modifiedItems,
-        droppedItemIds,
-        5,
-        userSubscriptionTier,
-        caseType,
-        rollUnit
-      );
-    } else {
-      selectedItem = selectItemWithModifiedWeights(
-        modifiedItems,
-        userSubscriptionTier,
-        droppedItemIds,
-        caseType,
-        rollUnit
-      );
-    }
-  } else if (userSubscriptionTier >= 3 && templateId === STATUS_PLUS_DAILY_TEMPLATE_ID) {
-    selectedItem = selectItemWithFullDuplicateProtection(
-      items,
-      droppedItemIds,
-      userSubscriptionTier,
-      caseType,
-      rollUnit
-    );
-  } else if (userSubscriptionTier >= 3) {
-    selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, [], caseType, rollUnit);
-  } else {
-    selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, droppedItemIds, caseType, rollUnit);
-  }
-
-  return selectedItem;
-}
-
-/**
- * Replay логики openCaseFromInventory (может отличаться от прямого открытия).
- */
-function replayInventoryOpen({
-  items,
-  template,
-  isPaid,
-  effectiveDropBonus,
-  userSubscriptionTier,
-  droppedItemIds,
-  templateId,
-  rollUnit
-}) {
-  const caseType = determineCaseType(template, isPaid);
-
-  if (effectiveDropBonus > 0) {
-    const modifiedItems = calculateModifiedDropWeights(items, effectiveDropBonus, caseType);
-    if (userSubscriptionTier >= 3 && templateId === STATUS_PLUS_DAILY_TEMPLATE_ID) {
-      return selectItemWithFullDuplicateProtection(
-        modifiedItems,
-        droppedItemIds,
-        userSubscriptionTier,
-        caseType,
-        rollUnit
-      );
-    }
-    if (userSubscriptionTier >= 3) {
-      return selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, [], caseType, rollUnit);
-    }
-    if (!isPaid) {
-      return selectItemWithModifiedWeightsAndDuplicateProtection(
-        modifiedItems,
-        droppedItemIds,
-        5,
-        userSubscriptionTier,
-        caseType,
-        rollUnit
-      );
-    }
-    return selectItemWithModifiedWeights(
-      modifiedItems,
-      userSubscriptionTier,
-      droppedItemIds,
-      caseType,
-      rollUnit
-    );
-  }
-
-  if (userSubscriptionTier >= 3 && templateId === STATUS_PLUS_DAILY_TEMPLATE_ID) {
-    return selectItemWithFullDuplicateProtection(
-      items,
-      droppedItemIds,
-      userSubscriptionTier,
-      caseType,
-      rollUnit
-    );
-  }
-  if (userSubscriptionTier >= 3) {
-    return selectItemWithCorrectWeights(items, userSubscriptionTier, [], caseType, rollUnit);
-  }
-  return selectItemWithCorrectWeights(items, userSubscriptionTier, droppedItemIds, caseType, rollUnit);
-}
-
-function replayItemSelection(params) {
-  return replayDirectOpen(params);
-}
-
-function resolveExpectedItemForVerify(params) {
-  const direct = replayDirectOpen(params);
-  const inventory = replayInventoryOpen(params);
-  if (direct?.id === inventory?.id) {
-    return { item: direct, ambiguous: false };
-  }
-  return { item: direct, alternate: inventory, ambiguous: true };
+  return selectItemForCaseOpen({
+    items,
+    templateName: template?.name,
+    templateId,
+    isPaid,
+    effectiveDropBonus,
+    userSubscriptionTier,
+    droppedItemIds,
+    caseType,
+    rollUnit
+  });
 }
 
 async function verifyCaseOpen(caseId, userId) {
@@ -417,7 +282,7 @@ async function verifyCaseOpen(caseId, userId) {
   }
 
   const template = caseRow.template;
-  const items = filterBonusCaseItems(template?.items || [], template?.name);
+  const items = template?.items || [];
   const isPaid = caseRow.is_paid;
   const effectiveDropBonus = parseFloat(caseRow.drop_bonus_applied) || 0;
 
@@ -442,12 +307,9 @@ async function verifyCaseOpen(caseId, userId) {
     rollUnit
   };
 
-  const { item: expectedDirect, alternate: expectedInventory, ambiguous } =
-    resolveExpectedItemForVerify(replayParams);
+  const expectedItem = replayItemSelection(replayParams);
 
-  const itemMatches =
-    (expectedDirect && caseRow.result_item_id === expectedDirect.id) ||
-    (expectedInventory && caseRow.result_item_id === expectedInventory.id);
+  const itemMatches = expectedItem && caseRow.result_item_id === expectedItem.id;
 
   return {
     verified: itemMatches,
@@ -458,8 +320,7 @@ async function verifyCaseOpen(caseId, userId) {
     server_seed: serverSeed,
     server_seed_hash: caseRow.pf_server_seed_hash,
     client_seed: caseRow.pf_client_seed,
-    expected_item_id: expectedDirect?.id || null,
-    expected_item_id_inventory: ambiguous ? expectedInventory?.id || null : undefined,
+    expected_item_id: expectedItem?.id || null,
     actual_item_id: caseRow.result_item_id
   };
 }
