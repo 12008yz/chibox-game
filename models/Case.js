@@ -102,6 +102,24 @@ module.exports = (sequelize) => {
       type: DataTypes.DATE,
       allowNull: true,
       comment: "Срок действия кейса (null - бессрочно)"
+    },
+    pf_nonce: {
+      type: DataTypes.BIGINT,
+      allowNull: true,
+      comment: 'Provably fair: nonce открытия'
+    },
+    pf_roll_hex: {
+      type: DataTypes.STRING(16),
+      allowNull: true,
+      comment: 'Provably fair: roll (первые 13 hex HMAC)'
+    },
+    pf_client_seed: {
+      type: DataTypes.STRING(64),
+      allowNull: true
+    },
+    pf_server_seed_hash: {
+      type: DataTypes.STRING(64),
+      allowNull: true
     }
   }, {
     timestamps: true,

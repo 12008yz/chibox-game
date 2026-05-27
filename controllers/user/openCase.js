@@ -7,6 +7,8 @@ const { broadcastDrop } = require('../../services/liveDropService');
 const { FREE_CASE_TEMPLATE_ID, checkFreeCaseAvailability, updateFreeCaseCounters } = require('../../utils/freeCaseHelper');
 const { updateUserBonuses, resolveUserDropBonus, isPaidCaseOpening } = require('../../utils/userBonusCalculator');
 const softPityService = require('../../services/softPityService');
+const provablyFairService = require('../../services/provablyFairService');
+const { computeLiveDropFlags } = require('../../utils/liveDropFlags');
 const shouldRunInlineCasePostProcessing = process.env.CASE_OPEN_INLINE_POST_PROCESSING === 'true';
 
 async function resolveOpenDropBonus(userId, userDropBonus, isPaid, casePrice) {
@@ -401,7 +403,13 @@ async function openCase(req, res) {
     const { sequelize } = require('../../models');
     const t = await sequelize.transaction();
 
+    let pfRoll = null;
+    let rollUnit = null;
+
     try {
+      pfRoll = await provablyFairService.peekRollForOpen(userId, t);
+      rollUnit = pfRoll?.rollUnit ?? null;
+
       if (effectiveDropBonus > 0) {
         // Используем модифицированную систему весов с учетом типа кейса
         // Передаем процент как число (например, 15.5 для 15.5%)
@@ -431,11 +439,12 @@ async function openCase(req, res) {
             modifiedItems,
             droppedItemIds,
             userSubscriptionTier,
-            caseType
+            caseType,
+            rollUnit
           );
         } else if (userSubscriptionTier >= 3) {
           debugLog('Используем стандартный выбор с модифицированными весами для пользователя Статус++ (другой кейс)');
-          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, [], caseType);
+          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, [], caseType, rollUnit);
         } else if (!userCase.is_paid) {
           // Применяем обычную защиту от дубликатов только для подписочных кейсов обычных пользователей
           debugLog('Используем обычную защиту от дубликатов для подписочного кейса');
@@ -444,11 +453,18 @@ async function openCase(req, res) {
             droppedItemIds,
             5, // duplicateProtectionCount
             userSubscriptionTier,
-            caseType
+            caseType,
+            rollUnit
           );
         } else {
           debugLog('Используем стандартный выбор с модифицированными весами (покупной кейс)');
-          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, droppedItemIds, caseType);
+          selectedItem = selectItemWithModifiedWeights(
+            modifiedItems,
+            userSubscriptionTier,
+            droppedItemIds,
+            caseType,
+            rollUnit
+          );
         }
 
         // Логируем использование бонуса для статистики
@@ -478,11 +494,12 @@ async function openCase(req, res) {
             items,
             droppedItemIds,
             userSubscriptionTier,
-            caseType
+            caseType,
+            rollUnit
           );
         } else if (userSubscriptionTier >= 3) {
           debugLog(`Пользователь Статус++ ${userId} открывает другой кейс ${userCase.template_id} (без защиты от дубликатов)`);
-          selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, [], caseType);
+          selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, [], caseType, rollUnit);
         } else {
           // Используем систему весов без бонусов, но с правильными весами на основе цены
           // Для обычных пользователей получаем исключенные предметы тоже (но не применяем фильтрацию)
@@ -496,7 +513,7 @@ async function openCase(req, res) {
           });
           const droppedItemIds = droppedItems.map(drop => drop.item_id);
 
-          selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, droppedItemIds, caseType);
+          selectedItem = selectItemWithCorrectWeights(items, userSubscriptionTier, droppedItemIds, caseType, rollUnit);
         }
       }
 
@@ -565,6 +582,7 @@ async function openCase(req, res) {
       userCase.opened_date = new Date();
       userCase.result_item_id = selectedItem.id;
       userCase.drop_bonus_applied = effectiveDropBonus;
+      provablyFairService.attachPfFieldsToCaseRecord(userCase, pfRoll);
       await userCase.save({ transaction: t });
 
       await userCase.reload({ transaction: t });
@@ -613,17 +631,18 @@ async function openCase(req, res) {
 
       let liveDropRecord;
       if (!existingDrop) {
+        const liveFlags = computeLiveDropFlags(selectedItem, userCase.template);
         liveDropRecord = await db.LiveDrop.create({
           user_id: userId,
           item_id: selectedItem.id,
           case_id: userCase.id,
           drop_time: new Date(),
-          is_rare_item: selectedItem.rarity === 'rare' || selectedItem.rarity === 'legendary',
+          is_rare_item: liveFlags.is_rare_item,
           item_price: selectedItem.price || null,
           item_rarity: selectedItem.rarity || null,
           user_level: user.level || null,
           user_subscription_tier: user.subscription_tier || null,
-          is_highlighted: selectedItem.price && selectedItem.price > 1000,
+          is_highlighted: liveFlags.is_highlighted,
           is_hidden: false
         }, { transaction: t });
 
@@ -685,6 +704,10 @@ async function openCase(req, res) {
       }
 
       await user.save({ transaction: t });
+
+      if (pfRoll) {
+        await provablyFairService.commitRollForOpen(userId, t);
+      }
 
       await t.commit();
 
@@ -822,8 +845,12 @@ async function openCase(req, res) {
         success: true,
         data: {
           item: selectedItem,
+          case_id: userCase.id,
           ...(dropBonusCtx.pityBonusPercent > 0 && {
             soft_pity_boost_percent: dropBonusCtx.pityBonusPercent
+          }),
+          ...(provablyFairService.buildOpenPfPayload(pfRoll) && {
+            provably_fair: provablyFairService.buildOpenPfPayload(pfRoll)
           })
         },
         message: 'Кейс успешно открыт'
@@ -965,6 +992,11 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       const caseType = determineCaseType(inventoryCase.case_template, isPaid);
       debugLog(`Тип инвентарного кейса определен как: ${caseType}`);
 
+      let pfRoll = null;
+      let rollUnit = null;
+      pfRoll = await provablyFairService.peekRollForOpen(userId, t);
+      rollUnit = pfRoll?.rollUnit ?? null;
+
       if (effectiveDropBonus > 0) {
         // Используем модифицированную систему весов
         const modifiedItems = calculateModifiedDropWeights(filteredItems, effectiveDropBonus, caseType);
@@ -976,19 +1008,30 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
             modifiedItems,
             droppedItemIds,
             userSubscriptionTier,
-            caseType
+            caseType,
+            rollUnit
           );
         } else if (userSubscriptionTier >= 3) {
           debugLog('Используем стандартный выбор с модифицированными весами для пользователя Статус++ (другой инвентарный кейс)');
-          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, [], caseType);
-        } else {
-          debugLog('Используем обычную защиту от дубликатов для кейса из инвентаря');
+          selectedItem = selectItemWithModifiedWeights(modifiedItems, userSubscriptionTier, [], caseType, rollUnit);
+        } else if (!isPaid) {
+          debugLog('Используем обычную защиту от дубликатов для подписочного кейса из инвентаря');
           selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
             modifiedItems,
             droppedItemIds,
-            5, // duplicateProtectionCount
+            5,
             userSubscriptionTier,
-            caseType
+            caseType,
+            rollUnit
+          );
+        } else {
+          debugLog('Используем стандартный выбор с модифицированными весами (покупной кейс из инвентаря)');
+          selectedItem = selectItemWithModifiedWeights(
+            modifiedItems,
+            userSubscriptionTier,
+            droppedItemIds,
+            caseType,
+            rollUnit
           );
         }
       } else {
@@ -1000,19 +1043,20 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
             filteredItems,
             droppedItemIds,
             userSubscriptionTier,
-            caseType
+            caseType,
+            rollUnit
           );
         } else if (userSubscriptionTier >= 3) {
           debugLog(`Пользователь Статус++ ${userId} открывает другой инвентарный кейс ${inventoryCase.case_template_id} (без защиты от дубликатов)`);
-          selectedItem = selectItemWithCorrectWeights(filteredItems, userSubscriptionTier, [], caseType);
+          selectedItem = selectItemWithCorrectWeights(filteredItems, userSubscriptionTier, [], caseType, rollUnit);
         } else {
           debugLog(`Пользователь ${userId} уже получал из кейса ${inventoryCase.case_template_id}: ${droppedItemIds.length} предметов (инвентарный кейс, без бонусов)`);
-          selectedItem = selectItemWithModifiedWeightsAndDuplicateProtection(
+          selectedItem = selectItemWithCorrectWeights(
             filteredItems,
+            userSubscriptionTier,
             droppedItemIds,
-            droppedItemIds.length,
-            0,
-            caseType
+            caseType,
+            rollUnit
           );
         }
       }
@@ -1037,21 +1081,28 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
 
       debugLog(`Выбран предмет: ${selectedItem.id} (${selectedItem.name || 'N/A'}) из кейса в инвентаре для пользователя ${userId}`);
       // Создаем случайный Case для совместимости с существующей системой
-      const newCase = await db.Case.create({
-        name: inventoryCase.case_template.name,
-        description: inventoryCase.case_template.description,
-        image_url: inventoryCase.case_template.image_url,
-        template_id: inventoryCase.case_template_id,
-        user_id: userId,
-        is_opened: true,
-        opened_date: new Date(),
-        result_item_id: selectedItem.id,
-        subscription_tier: userSubscriptionTier,
-        drop_bonus_applied: effectiveDropBonus,
-        is_paid: isPaid,
-        source: inventoryCase.source || (isPaid ? 'purchase' : 'daily'),
-        received_date: inventoryCase.acquisition_date
-      }, { transaction: t });
+      const newCase = await db.Case.create(
+        {
+          name: inventoryCase.case_template.name,
+          description: inventoryCase.case_template.description,
+          image_url: inventoryCase.case_template.image_url,
+          template_id: inventoryCase.case_template_id,
+          user_id: userId,
+          is_opened: true,
+          opened_date: new Date(),
+          result_item_id: selectedItem.id,
+          subscription_tier: userSubscriptionTier,
+          drop_bonus_applied: effectiveDropBonus,
+          is_paid: isPaid,
+          source: inventoryCase.source || (isPaid ? 'purchase' : 'daily'),
+          received_date: inventoryCase.acquisition_date,
+          pf_nonce: pfRoll?.nonce ?? null,
+          pf_roll_hex: pfRoll?.rollHex ?? null,
+          pf_client_seed: pfRoll?.clientSeed ?? null,
+          pf_server_seed_hash: pfRoll?.serverSeedHash ?? null
+        },
+        { transaction: t }
+      );
 
       // Добавляем предмет в инвентарь
       // Примечание: case_template_id должен быть null для item_type='item' согласно валидации модели
@@ -1100,17 +1151,18 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
 
       let liveDropRecord;
       if (!existingDrop) {
+        const liveFlags = computeLiveDropFlags(selectedItem, inventoryCase.case_template);
         liveDropRecord = await db.LiveDrop.create({
           user_id: userId,
           item_id: selectedItem.id,
           case_id: newCase.id,
           drop_time: new Date(),
-          is_rare_item: selectedItem.rarity === 'rare' || selectedItem.rarity === 'legendary',
+          is_rare_item: liveFlags.is_rare_item,
           item_price: selectedItem.price || null,
           item_rarity: selectedItem.rarity || null,
           user_level: user.level || null,
           user_subscription_tier: user.subscription_tier || null,
-          is_highlighted: selectedItem.price && selectedItem.price > 1000,
+          is_highlighted: liveFlags.is_highlighted,
           is_hidden: false
         }, { transaction: t });
 
@@ -1174,6 +1226,10 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
       }
 
       await user.save({ transaction: t });
+
+      if (pfRoll) {
+        await provablyFairService.commitRollForOpen(userId, t);
+      }
 
       await t.commit();
 
@@ -1263,6 +1319,9 @@ async function openCaseFromInventory(req, res, passedInventoryItemId = null) {
           caseId: newCase.id,
           ...(dropBonusCtx.pityBonusPercent > 0 && {
             soft_pity_boost_percent: dropBonusCtx.pityBonusPercent
+          }),
+          ...(provablyFairService.buildOpenPfPayload(pfRoll) && {
+            provably_fair: provablyFairService.buildOpenPfPayload(pfRoll)
           })
         },
         message: 'Кейс успешно открыт из инвентаря'

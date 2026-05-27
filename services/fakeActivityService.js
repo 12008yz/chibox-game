@@ -11,6 +11,7 @@ const {
 } = require('../utils/dropWeightCalculator');
 const { resolveUserDropBonus } = require('../utils/userBonusCalculator');
 const { broadcastDrop } = require('./liveDropService');
+const { computeLiveDropFlags } = require('../utils/liveDropFlags');
 const { addExperience } = require('./xpService');
 
 // В development по умолчанию включено, если не задано FAKE_ACTIVITY_ENABLED=false
@@ -159,17 +160,18 @@ async function runFakeCaseOpen(botId = null) {
       item_type: 'item'
     }, { transaction: t });
 
+    const liveFlags = computeLiveDropFlags(selectedItem, template);
     const liveDropRecord = await db.LiveDrop.create({
       user_id: user.id,
       item_id: selectedItem.id,
       case_id: newCase.id,
       drop_time: now,
-      is_rare_item: ['rare', 'legendary', 'covert', 'contraband'].includes((selectedItem.rarity || '').toLowerCase()),
+      is_rare_item: liveFlags.is_rare_item,
       item_price: selectedItem.price,
       item_rarity: selectedItem.rarity,
       user_level: user.level,
       user_subscription_tier: user.subscription_tier,
-      is_highlighted: itemPrice > 1000,
+      is_highlighted: liveFlags.is_highlighted,
       is_hidden: false
     }, { transaction: t });
 

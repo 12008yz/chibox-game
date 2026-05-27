@@ -48,6 +48,12 @@ const { verifyEmailValidation, verifyEmail } = require('../controllers/user/veri
 const { resendValidation, resendVerificationCode } = require('../controllers/user/resendVerificationCode');
 const { getWithdrawalStatus, cancelWithdrawal, checkWithdrawalStatuses, resolveWithdrawalNoStock } = require('../controllers/user/withdrawItem');
 const playSafeCracker = require('../controllers/user/playSafeCracker');
+const {
+  getProvablyFairStatus,
+  setProvablyFairClientSeed,
+  rotateProvablyFairSeed,
+  verifyProvablyFairCase
+} = require('../controllers/user/provablyFair');
 const getSafeCrackerStatus = require('../controllers/user/getSafeCrackerStatus');
 const { getLiveDrops } = require('../controllers/user/getLiveDrops');
 const { fetchSteamTradeUrl, getTradeUrlStatus } = require('../controllers/user/fetchSteamTradeUrl');
@@ -151,6 +157,10 @@ router.post('/logout', authMiddleware, logout); //+
 router.get('/inventory', authMiddleware, getInventory); //+
 // ИСПРАВЛЕНИЕ: добавлен rate limiter по user_id (60 запросов в минуту на пользователя)
 router.post('/open-case', authMiddleware, createUserRateLimit(60 * 1000, 60, 'Слишком быстро открываете кейсы'), openCase); //+
+router.get('/provably-fair', authMiddleware, getProvablyFairStatus);
+router.put('/provably-fair/client-seed', authMiddleware, setProvablyFairClientSeed);
+router.post('/provably-fair/rotate', authMiddleware, rotateProvablyFairSeed);
+router.get('/provably-fair/verify/:caseId', authMiddleware, verifyProvablyFairCase);
 router.post('/sell-item', authMiddleware, sellItem);
 router.post('/withdraw-item', authMiddleware, /* requireEmailVerification, */ withdrawItem);
 router.get('/withdraw-item/:withdrawalId', authMiddleware, getWithdrawalStatus);

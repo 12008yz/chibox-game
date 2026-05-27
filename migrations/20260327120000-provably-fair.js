@@ -1,0 +1,114 @@
+'use strict';
+
+/** @type {import('sequelize-cli').Migration} */
+module.exports = {
+  async up(queryInterface, Sequelize) {
+    await queryInterface.createTable('user_fair_seeds', {
+      user_id: {
+        type: Sequelize.UUID,
+        primaryKey: true,
+        references: { model: 'users', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'CASCADE'
+      },
+      server_seed: {
+        type: Sequelize.STRING(128),
+        allowNull: false
+      },
+      server_seed_hash: {
+        type: Sequelize.STRING(64),
+        allowNull: false
+      },
+      client_seed: {
+        type: Sequelize.STRING(64),
+        allowNull: false
+      },
+      next_nonce: {
+        type: Sequelize.BIGINT,
+        allowNull: false,
+        defaultValue: 0
+      },
+      created_at: {
+        type: Sequelize.DATE,
+        allowNull: false
+      },
+      updated_at: {
+        type: Sequelize.DATE,
+        allowNull: false
+      }
+    });
+
+    await queryInterface.createTable('user_fair_seed_reveals', {
+      id: {
+        type: Sequelize.UUID,
+        defaultValue: Sequelize.UUIDV4,
+        primaryKey: true
+      },
+      user_id: {
+        type: Sequelize.UUID,
+        allowNull: false,
+        references: { model: 'users', key: 'id' },
+        onUpdate: 'CASCADE',
+        onDelete: 'CASCADE'
+      },
+      server_seed: {
+        type: Sequelize.STRING(128),
+        allowNull: false
+      },
+      server_seed_hash: {
+        type: Sequelize.STRING(64),
+        allowNull: false
+      },
+      nonce_from: {
+        type: Sequelize.BIGINT,
+        allowNull: false
+      },
+      nonce_to: {
+        type: Sequelize.BIGINT,
+        allowNull: false,
+        comment: 'Exclusive upper bound'
+      },
+      revealed_at: {
+        type: Sequelize.DATE,
+        allowNull: false
+      },
+      created_at: {
+        type: Sequelize.DATE,
+        allowNull: false
+      },
+      updated_at: {
+        type: Sequelize.DATE,
+        allowNull: false
+      }
+    });
+
+    await queryInterface.addIndex('user_fair_seed_reveals', ['user_id']);
+    await queryInterface.addIndex('user_fair_seed_reveals', ['user_id', 'nonce_from', 'nonce_to']);
+
+    await queryInterface.addColumn('cases', 'pf_nonce', {
+      type: Sequelize.BIGINT,
+      allowNull: true
+    });
+    await queryInterface.addColumn('cases', 'pf_roll_hex', {
+      type: Sequelize.STRING(16),
+      allowNull: true
+    });
+    await queryInterface.addColumn('cases', 'pf_client_seed', {
+      type: Sequelize.STRING(64),
+      allowNull: true
+    });
+    await queryInterface.addColumn('cases', 'pf_server_seed_hash', {
+      type: Sequelize.STRING(64),
+      allowNull: true
+    });
+  },
+
+  async down(queryInterface) {
+    await queryInterface.removeColumn('cases', 'pf_server_seed_hash');
+    await queryInterface.removeColumn('cases', 'pf_client_seed');
+    await queryInterface.removeColumn('cases', 'pf_roll_hex');
+    await queryInterface.removeColumn('cases', 'pf_nonce');
+    await queryInterface.dropTable('user_fair_seed_reveals');
+    await queryInterface.dropTable('user_fair_seeds');
+  }
+};
